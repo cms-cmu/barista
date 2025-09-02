@@ -1,7 +1,0 @@
-check-configs:
-  stage: classifier
-  extends:
-    - .base_classifier
-  allow_failure: true
-  script:
-    - source python/scripts/check-configs.sh

@@ -1,6 +1,0 @@
-runner:
-  schema: PFNanoAODSchema
-  data_tier: nanoAOD
-
-config:
-

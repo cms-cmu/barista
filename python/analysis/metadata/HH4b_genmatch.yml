@@ -1,9 +1,0 @@
-runner:
-  workers: 4
-  condor_memory: 8GB
-  data_tier: nanoAOD
-#  allowlist_sites:
-#    - T2_US_Nebraska
-#    - T2_US_Purdue
-#    - T2_CH_CSCS
-

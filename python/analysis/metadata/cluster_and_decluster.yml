@@ -1,8 +1,0 @@
-runner:
-  workers: 4
-  condor_memory: 8GB
-
-config:
-  threeTag: false
-  do_declustering: True
-  clustering_pdfs_file: "jet_clustering/jet-splitting-PDFs-00-07-02/clustering_pdfs_vs_pT.yml"

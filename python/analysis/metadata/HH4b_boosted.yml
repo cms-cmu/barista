@@ -1,7 +1,0 @@
-runner:
-  workers: 4
-  condor_memory: 8GB
-  # data_tier: nanoAOD
-
-config:
-

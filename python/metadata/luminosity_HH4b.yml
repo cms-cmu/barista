@@ -1,8 +1,0 @@
-luminosities:
-  '2016': 36.3e3
-  UL17: &lumi_2017 41.5e3
-  '2017': *lumi_2017
-  UL18: &lumi_2018 59.8e3
-  '2018': *lumi_2018
-  UL16_postVFP: 16.5e3
-  UL16_preVFP: 19.5e3

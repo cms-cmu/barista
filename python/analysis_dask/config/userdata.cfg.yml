@@ -1,8 +1,0 @@
-# this is a template for common userdata, don't commit this file
-
-<discard><comment=userdata variables>:
-  lpc_username <var>: # optional, username on LPC
-  lxplus_username <var>: # optional, username on LXPLUS
-
-  scratch_dir <var>: # a temp directory accessible by all worker nodes, e.g. root://cmseos.fnal.gov//store/user/path/to/workdir
-  output_dir <var>: # optional, a directory to store final output files
