@@ -30,7 +30,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-  COFFEA4BESS_BRANCH: "new_master"
+  COFFEA4BEES_BRANCH: "new_master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
   DATASET: python/metadata/datasets_HH4b_v1p1.yml
@@ -42,7 +42,7 @@ include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - project: 'cms-cmu/coffea4bees'
-    ref: $COFFEA4BESS_BRANCH
+    ref: 'new_master'
     file: 'workflows/gitlab-CI/stages_code.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
