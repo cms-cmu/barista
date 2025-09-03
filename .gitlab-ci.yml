@@ -68,7 +68,7 @@ setup_repositories:
   image: alpine/git:latest
   script:
     - echo "Cloning coffea4bees"
-    - git clone --depth=1 --branch $COFFEA4BESS_BRANCH https://${DEPLOY_TOKEN_USERNAME}:${DEPLOY_TOKEN_PASSWORD}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees
+    - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME}:${DEPLOY_TOKEN_PASSWORD}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees
     - ls coffea4bees/
   artifacts:
     paths:
