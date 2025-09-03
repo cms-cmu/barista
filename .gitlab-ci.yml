@@ -43,7 +43,7 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - project: 'cms-cmu/coffea4bees'
     ref: 'new_master'
-    file: 'workflows/gitlab-CI/stages_code.yml'
+    file: 'workflows/gitlab-CI/stages*.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
@@ -68,7 +68,7 @@ setup_repositories:
   image: alpine/git:latest
   script:
     - echo "Cloning coffea4bees"
-    - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME}:${DEPLOY_TOKEN_PASSWORD}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees
+    - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME}:${DEPLOY_TOKEN_PASSWORD}@gitlab.cern.ch/cms-cmu/coffea4bees.git python/
     - ls coffea4bees/
   artifacts:
     paths:
