@@ -26,11 +26,11 @@ def init_arg_parser():
                         help='Folder for output folder. Default: plots/')
 
     parser.add_argument('-m', '--metadata', dest="metadata",
-                        default="python/plots/metadata/plotsAll.yml",
+                        default="coffea4bees/plots/metadata/plotsAll.yml",
                         help='Metadata file.')
 
     parser.add_argument('--modifiers', dest="modifiers",
-                        default="python/plots/metadata/plotModifiers.yml",
+                        default="coffea4bees/plots/metadata/plotModifiers.yml",
                         help='Metadata file.')
 
     parser.add_argument('--only', dest="list_of_hists",

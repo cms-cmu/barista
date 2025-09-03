@@ -280,7 +280,7 @@ if __name__ == "__main__":
         from lpcjobqueue import LPCCondorCluster
 
         cluster = LPCCondorCluster(
-            transfer_input_files=["python/analysis/"],
+            transfer_input_files=["coffea4bees/analysis/"],
             shared_temp_directory="/tmp",
             cores=1,
             memory="2GB",

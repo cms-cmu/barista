@@ -21,9 +21,9 @@ Each folder contains:
  - tests: python scripts for testing the code.
  - hists (optional): if you run the `runner.py` without a name of the output folder, this folder will be created to store the pickle files.
 
-Then, the run-all script is called `runner.py` and it is one directory below (in [python/](../../python/)). This script will run local or condor depending on the flag used. To learn all the options of the script, just run:
+Then, the run-all script is called `runner.py` and it is one directory below (in [coffea4bees/](../../coffea4bees/)). This script will run local or condor depending on the flag used. To learn all the options of the script, just run:
 ```
-# (inside //python/)
+# (inside //coffea4bees/)
 python runner.py --help
 ```
 
@@ -33,7 +33,7 @@ python runner.py --help
 
 For example, to run a processor you can do:
 ```
-#  (inside //python/)
+#  (inside //coffea4bees/)
 python runner.py -t -o test.coffea -d data TTToHadronic TTToSemiLeptonic TTTo2L2Nu  HH4b  -p analysis/processors/processor_example.py -y UL18  -op output/ -c analysis/metadata/example.yml
 ```
 

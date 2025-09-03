@@ -116,18 +116,18 @@ src/scripts/memory/memory_test.py \
 ### 🚀 **Testing Container Workflows**
 ```bash
 src/scripts/memory/memory_limited_run.sh --max-memory 6000 -- \
-  ./run_container source python/scripts/memory_test.sh
+  ./run_container source coffea4bees/scripts/memory_test.sh
 ```
 
 ### 🐍 **Testing Snakemake Workflows**
 ```bash
 # Test full workflow
 src/scripts/memory/memory_limited_run.sh --max-memory 8000 -- \
-  snakemake -s python/workflows/Snakefile_mixdata_closure
+  snakemake -s coffea4bees/workflows/Snakefile_mixdata_closure
 
 # Test specific rule
 src/scripts/memory/memory_limited_run.sh --max-memory 4000 -- \
-  snakemake -s python/workflows/Snakefile_mixdata_closure mixed_bkg_tt
+  snakemake -s coffea4bees/workflows/Snakefile_mixdata_closure mixed_bkg_tt
 ```
 
 ### 🔬 **Debugging Memory Issues**
@@ -150,7 +150,7 @@ src/scripts/memory/memory_test.py \
   --threshold 4000 \
   --tolerance 10 \
   --output analysis_test \
-  --script python/analysis/processors/processor_HH4b.py your_input.root
+  --script coffea4bees/analysis/processors/processor_HH4b.py your_input.root
 
 # Check if test passed (exit code 0 = success, 1 = failure)
 echo "Test result: $?"
@@ -202,7 +202,7 @@ grep "Memory usage:" memory_monitor.log | tail -20
 Update your analysis configs to use fewer workers:
 
 ```yaml
-# python/analysis/metadata/your_config.yml
+# coffea4bees/analysis/metadata/your_config.yml
 runner:
   workers: 1              # Start with 1 for debugging
   condor_memory: 8GB      # Allow more memory per worker

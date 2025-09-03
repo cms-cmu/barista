@@ -451,7 +451,7 @@ def setup_config_defaults(config_runner, args):
         'class_name': 'analysis',
         'condor_cores': 2,
         'condor_memory': '4GB',
-        'condor_transfer_input_files': ['python/', 'src/'],
+        'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
         'max_workers': 100,
         'workers': 2,
@@ -659,31 +659,31 @@ if __name__ == '__main__':
     io_group.add_argument(
         '-p', '--processor',
         dest="processor",
-        default="python/analysis/processors/processor_HH4b.py",
+        default="coffea4bees/analysis/processors/processor_HH4b.py",
         help='Path to the processor Python file'
     )
     io_group.add_argument(
         '-c', '--configs',
         dest="configs",
-        default="python/analysis/metadata/HH4b.yml",
+        default="coffea4bees/analysis/metadata/HH4b.yml",
         help='Path to the main configuration YAML file'
     )
     io_group.add_argument(
         '-m', '--metadata',
         dest="metadata",
-        default="python/metadata/datasets_HH4b.yml",
+        default="coffea4bees/metadata/datasets_HH4b.yml",
         help='Path to the datasets metadata YAML file'
     )
     io_group.add_argument(
         '--triggers',
         dest="triggers",
-        default="python/metadata/triggers_HH4b.yml",
+        default="coffea4bees/metadata/triggers_HH4b.yml",
         help='Path to the triggers metadata YAML file'
     )
     io_group.add_argument(
         '-l', '--luminosities',
         dest="luminosities",
-        default="python/metadata/luminosities_HH4b.yml",
+        default="coffea4bees/metadata/luminosities_HH4b.yml",
         help='Path to the luminosities metadata YAML file'
     )
     io_group.add_argument(

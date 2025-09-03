@@ -9,7 +9,7 @@ To install the necessary dependencies, run:
 
 ```bash
 git clone ssh://git@gitlab.cern.ch:7999/cms-cmu/.git
-cd /python/
+cd /coffea4bees/
 git clone ssh://git@gitlab.cern.ch:7999/cms-cmu/bbWW.git
 ```
 

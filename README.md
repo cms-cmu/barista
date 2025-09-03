@@ -137,7 +137,7 @@ Examples:
   # Open an interactive shell in the combine container
   ./run_container combine combine -M AsymptoticLimits
   # Run snakemake with the specified Snakefile
-  ./run_container snakemake --snakefile python/workflows/Snakefile --cores 4
+  ./run_container snakemake --snakefile coffea4bees/workflows/Snakefile --cores 4
 ```
 
 
@@ -153,9 +153,9 @@ The main entry point for analysis and skimming is `runner.py`, which should be r
 
 ### Main options
 
-- `-p, --processor`: Path to the processor Python file (default: `python/analysis/processors/processor_HH4b.py`)
-- `-c, --configs`: Path to the main configuration YAML file (default: `python/analysis/metadata/HH4b.yml`)
-- `-m, --metadata`: Path to the datasets metadata YAML file (default: `python/metadata/datasets_HH4b.yml`)
+- `-p, --processor`: Path to the processor Python file (default: `coffea4bees/analysis/processors/processor_HH4b.py`)
+- `-c, --configs`: Path to the main configuration YAML file (default: `coffea4bees/analysis/metadata/HH4b.yml`)
+- `-m, --metadata`: Path to the datasets metadata YAML file (default: `coffea4bees/metadata/datasets_HH4b.yml`)
 - `-o, --output`: Name of the output file (default: `hists.coffea`)
 - `-op, --output-path`: Directory path for output files (default: `hists/`)
 - `-y, --years`: Year(s) of data to process (e.g., `--years UL17 UL18`)
@@ -190,7 +190,7 @@ If you have forked the repository (NOT recommended), the GitLab CI pipeline requ
 
 ### To run the CI workflow locally
 
-Within the [python/scripts/](python/scripts/) directory, there is a script named `run_local_ci.sh` that facilitates running a Snakemake workflow ([`Snakefile_testCI`](python/workflows/Snakefile_testCI)) locally, emulating the GitLab CI process. This script provides a convenient way to execute the CI workflow locally. To run it, navigate to the `python/` directory and execute:
+Within the [coffea4bees/scripts/](coffea4bees/scripts/) directory, there is a script named `run_local_ci.sh` that facilitates running a Snakemake workflow ([`Snakefile_testCI`](coffea4bees/workflows/Snakefile_testCI)) locally, emulating the GitLab CI process. This script provides a convenient way to execute the CI workflow locally. To run it, navigate to the `coffea4bees/` directory and execute:
 
 ```bash
 source scripts/run_local_ci.sh NAME_OF_CI_JOB

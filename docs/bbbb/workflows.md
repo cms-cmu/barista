@@ -12,7 +12,7 @@ This is a list of the workflows using Snakemake that we are using:
 Snakemake workflows can be launch using the [run_snakemake](../run_snakemake) script, which internally using a snakemake container, then you can use it as:
 
 ```
-cd python/
+cd coffea4bees/
 ./run_snakemake --snakefile workflows/Snakefile_binoptimization 
 ```
 

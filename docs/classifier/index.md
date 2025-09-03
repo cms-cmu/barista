@@ -28,7 +28,7 @@
 
 !!! note
 
-    You are assumed to be in the `/python/` directory to run the following commands.
+    You are assumed to be in the `/coffea4bees/` directory to run the following commands.
 
 #### Use Container (Recommended)
 

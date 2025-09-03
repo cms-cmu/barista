@@ -8,7 +8,7 @@ This directory contains the automated documentation generation system for the  p
 - `serve.sh` - Script to serve the documentation locally using Docker
 - `mkdocs.yml` - MkDocs configuration file
 - Various documentation categories:
-  - `bbbb/` - HH4b Analysis documentation (generated from `python/` directory)
+  - `bbbb/` - HH4b Analysis documentation (generated from `coffea4bees/` directory)
   - `bbWW/` - bbWW Analysis documentation (generated from `bbww/` directory)
   - `software/` - Software documentation (generated from `software/` directory)
   - `src/` - Source Code documentation (generated from `src/` directory)
@@ -26,7 +26,7 @@ cd docs/
 ```
 
 This script will:
-1. Find all README.md files in the specified directories (`python/`, `bbww/`, `software/`, `src/`)
+1. Find all README.md files in the specified directories (`coffea4bees/`, `bbww/`, `software/`, `src/`)
 2. Copy them to the appropriate documentation directories with proper naming
 3. Skip empty README.md files
 4. Update the `mkdocs.yml` navigation structure automatically
@@ -38,7 +38,7 @@ The script maps source directories to documentation categories as follows:
 
 | Source Directory | Documentation Category | Display Name |
 |------------------|----------------------|---------------|
-| `python/` | `bbbb/` | HH4b Analysis |
+| `coffea4bees/` | `bbbb/` | HH4b Analysis |
 | `bbww/` | `bbWW/` | bbWW Analysis |
 | `software/` | `software/` | Software |
 | `src/` | `src/` | Source Code |
@@ -46,9 +46,9 @@ The script maps source directories to documentation categories as follows:
 ### File Naming Convention
 
 README.md files are renamed according to their directory structure:
-- `python/README.md` → `bbbb/index.md` (Overview)
-- `python/plots/README.md` → `bbbb/plots.md` (Plots)
-- `python/analysis/tools/README.md` → `bbbb/analysis-tools.md` (Analysis Tools)
+- `coffea4bees/README.md` → `bbbb/index.md` (Overview)
+- `coffea4bees/plots/README.md` → `bbbb/plots.md` (Plots)
+- `coffea4bees/analysis/tools/README.md` → `bbbb/analysis-tools.md` (Analysis Tools)
 
 ### Serving Documentation Locally
 

@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     outputFile = open(f'{args.outputFile}', 'w')
 
-    metadata = "python/plots/metadata/plotsAll.yml"
+    metadata = "coffea4bees/plots/metadata/plotsAll.yml"
     cfg.plotConfig = load_config(metadata)
     cfg.hists = load_hists([args.inputFile])
     cfg.axisLabels, cfg.cutList = read_axes_and_cuts(cfg.hists, cfg.plotConfig)
