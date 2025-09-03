@@ -1,8 +1,8 @@
-# Coffea4bees statistical analysis
+#  statistical analysis
 
 This part of the analysis uses [coffea](https://coffeateam.github.io/coffea/), [ROOT](https://root.cern/) and the cms package [combine](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/). Therefore we need different environments to run the different steps.
 
-We need two sets of environemnts. One with `coffea` to take the outputs of analysis and convert them into a json format and another with `root` and `combine`. For the first one, you can use the `coffea4bees` container. For the second follow the next instructions.
+We need two sets of environemnts. One with `coffea` to take the outputs of analysis and convert them into a json format and another with `root` and `combine`. For the first one, you can use the `` container. For the second follow the next instructions.
 
 ## Install Combine and CombineHarvester
 
@@ -10,7 +10,7 @@ We need two sets of environemnts. One with `coffea` to take the outputs of analy
 
 We can use the combine/combineHarvester container. For that you can run:
 ```
-cd coffea4bees/python/  ### if you are not there
+cd /coffea4bees/  ### if you are not there
 ./../shell_combine combine --help
 ```
 
@@ -18,9 +18,9 @@ The script `./shell_combine` runs your command inside a container, for simplicit
 
 ## Convert hist to json
 
-Using the coffea4bees container:
+Using the  container:
 ```
-cd python/stats_analysis/
+cd coffea4bees/stats_analysis/
 python convert_hist_to_json.py -o histos/histAll.json -i ../analysis/hists/histAll.coffea
 ```
 
@@ -28,7 +28,7 @@ python convert_hist_to_json.py -o histos/histAll.json -i ../analysis/hists/histA
 
 With the combine container:
 ```
-cd python/
+cd coffea4bees/
 ../shell_combine python3 stats_analysis/convert_json_to_root.py --classifier SvB_MA SvB -f histos/histAll.json --merge2016 --output_dir stats_analysis/datacards/ --plot
 ```
 
@@ -36,8 +36,8 @@ cd python/
 
 Using the combine container:
 ```
-cd python/
-../shell_combine python3 stats_analysis/make_variable_binning.py -i hists/test_coffea4bees/histAll.json -t 10 -o stats_analysis/tmp/histAll_rebinned.root
+cd coffea4bees/
+../shell_combine python3 stats_analysis/make_variable_binning.py -i hists/test_/histAll.json -t 10 -o stats_analysis/tmp/histAll_rebinned.root
 ```
 `-i` can take json or root files. The output is a root file.
 

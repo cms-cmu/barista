@@ -1,12 +1,11 @@
 voms_proxy:
-  stage: proxy
+  stage: setup
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest
   tags:
     - k8s-cvmfs
   artifacts:
     paths:
       - proxy
-      - python/proxy
   script:
     - mkdir -p ${HOME}/.globus
     - printf "${GRID_USERCERT}" | base64 -d > ${HOME}/.globus/usercert.pem
@@ -15,8 +14,6 @@ voms_proxy:
     - printf "${GRID_PASSWORD}" | base64 -d | voms-proxy-init --voms cms --pwstdin
     - voms-proxy-info --all
     - export VOMSPROXY=$(voms-proxy-info -path)
-    - mkdir -p python/proxy
-    - cp ${VOMSPROXY} python/proxy/x509_proxy
     - mkdir proxy
     - cp ${VOMSPROXY} proxy/x509_proxy
 

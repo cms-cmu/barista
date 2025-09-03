@@ -3,9 +3,5 @@ FROM docker.io/coffeateam/coffea-base-almalinux8:0.7.30-py3.10
 RUN dnf install -y poppler-utils && \
     dnf clean all && rm -rf /var/cache/dnf && \
     mamba install -y conda-forge::nodejs && \
-    pip install --upgrade pip && \
+    # pip install --upgrade pip && \
     pip install pycodestyle memory-profiler fsspec-xrootd omegaconf dbs3-client 
-    # htcondor==24.0.7 
-
-# RUN mkdir -p /home/user/coffea4bees/python/
-# COPY python/ /home/user/coffea4bees/python/

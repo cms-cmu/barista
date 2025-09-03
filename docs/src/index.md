@@ -195,7 +195,7 @@ def compute_histogram(data):
 ```
 
 ## Physics Corrections & Analysis Data (`data/`)
-Stores physics corrections, calibration files, and other analysis resources (previously in `python/data/`, now in `python/base_class/data/`).
+Stores physics corrections, calibration files, and other analysis resources (previously in `coffea4bees/data/`, now in `coffea4bees/base_class/data/`).
 
 - **`Btag/`** - b-tagging scale factors and calibration files
 - **`JEC/`** - jet energy corrections and related resources

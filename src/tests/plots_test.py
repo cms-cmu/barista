@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 import matplotlib.pyplot as plt
 
 #
-# python3 python/plots/tests/plot_test.py   --inputFile python/analysis/hists/test.coffea --knownCounts src/tests/plotCounts.yml
+# python3 coffea4bees/plots/tests/plot_test.py   --inputFile coffea4bees/analysis/hists/test.coffea --knownCounts src/tests/plotCounts.yml
 #
 
 class PlotTestCase(unittest.TestCase):
@@ -24,7 +24,7 @@ class PlotTestCase(unittest.TestCase):
     def setUpClass(self):
 
         #self.plotsAllDict = yaml.safe_load(open(, 'r'))
-        metadata = "python/plots/metadata/plotsAll.yml"
+        metadata = "coffea4bees/plots/metadata/plotsAll.yml"
         #inputFile = "analysis/hists/test.coffea"
         inputFile = wrapper.args["inputFile"]
 
@@ -34,7 +34,7 @@ class PlotTestCase(unittest.TestCase):
 
         #  Make these numbers with:
         #  >  python     src/tests/dumpPlotCounts.py --input [inputFileName] -o [outputFielName]
-        #       (python src/tests/dumpPlotCounts.py --input python/analysis/hists/test.coffea --output src/tests/testPlotCounts.yml)
+        #       (python src/tests/dumpPlotCounts.py --input coffea4bees/analysis/hists/test.coffea --output src/tests/testPlotCounts.yml)
         #
         knownCountFile = wrapper.args["knownCounts"]
         self.knownCounts = yaml.safe_load(open(knownCountFile, 'r'))

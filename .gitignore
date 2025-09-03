@@ -1,5 +1,5 @@
 # local configs
-/python/analysis_dask/config/**/*.local.cfg.yml
+/coffea4bees/analysis_dask/config/**/*.local.cfg.yml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -80,7 +80,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-python/notebooks/
+coffea4bees/notebooks/
 
 # IPython
 profile_default/
@@ -171,11 +171,11 @@ cython_debug/
 #.idea/
 
 
-python/testJCM_*
+coffea4bees/testJCM_*
 setupROOT.sh
 shell
 runCITests.shbootstrap.sh
-python/local_test.py
+coffea4bees/local_test.py
 #*
 */#*
 */*/#*
@@ -183,146 +183,146 @@ python/local_test.py
 */*/*/*/#*
 bootstrap.sh
 proxy/
-python/analysis/hists/
+coffea4bees/analysis/hists/
 runCITests.sh
 .bashrc
-python/*output*/
+coffea4bees/*output*/
 *output*
 gitdiff.txt
 
 .local/
 set_ROOT.sh
-python/stats_analysis/files/closure*/
-python/stats_analysis/closureFits/
-python/stats_analysis/testsCI/
-python/stats_analysis/testsFull/
-python/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/*pdf
-python/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/*C
-python/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/0*yml
-python/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/1*yml
-python/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_hh_rebin20.pkl
-python/stats_analysis/tests/test_dump_twoStageClosureInputsCounts.yml
-python/skimmer/*root
+coffea4bees/stats_analysis/files/closure*/
+coffea4bees/stats_analysis/closureFits/
+coffea4bees/stats_analysis/testsCI/
+coffea4bees/stats_analysis/testsFull/
+coffea4bees/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/*pdf
+coffea4bees/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/*C
+coffea4bees/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/0*yml
+coffea4bees/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/1*yml
+coffea4bees/stats_analysis/tests/3bDvTMix4bDvT/SvB_MA/*/*/*/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_hh_rebin20.pkl
+coffea4bees/stats_analysis/tests/test_dump_twoStageClosureInputsCounts.yml
+coffea4bees/skimmer/*root
 
-python/analysis/tests/test_dump*.yml
-python/stats_analysis/closureFitsNew/
-python/.sites_map.json
-python/workflows/gitlab-CI/debug-mixed-data.sh
+coffea4bees/analysis/tests/test_dump*.yml
+coffea4bees/stats_analysis/closureFitsNew/
+coffea4bees/.sites_map.json
+coffea4bees/workflows/gitlab-CI/debug-mixed-data.sh
 
-python/workflows/gitlab-CI/debug-signal.sh
+coffea4bees/workflows/gitlab-CI/debug-signal.sh
 .snakemake/
 .condor_config
-python/analysis/debugMixedData.py
-python/analysis/debugSkimming.py
-python/analysis/helpers/selection_basic_4b_debug.py
+coffea4bees/analysis/debugMixedData.py
+coffea4bees/analysis/debugSkimming.py
+coffea4bees/analysis/helpers/selection_basic_4b_debug.py
 
-python/analysis/metadata/tmp.yml
-python/analysis/testCoffeaPlots/
-python/analysis/testMixedPlots/
-python/analysis/tests/local_test.py
-python/base_class/tests/test_dumpPlotCounts.yml
-python/classifier/data/models/ZZ4b_Run2_HHUL/
-python/histos/
-python/metadata/datasets_ci.yml
-python/metadata/dump_meta_data_mixed.py
-python/renameBranches.py
-python/stats_analysis/hists_closure_*.root
-python/stats_analysis/tests/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_hh_rebin20.pkl
-python/stats_analysis/testsLocal/
-python/stats_analysis/testsLocal_kfold/
-python/stats_analysis/fitBiasData/
-python/analysis/plots_synthetic_datasets/
-python/jet_clustering/*/*pdf
+coffea4bees/analysis/metadata/tmp.yml
+coffea4bees/analysis/testCoffeaPlots/
+coffea4bees/analysis/testMixedPlots/
+coffea4bees/analysis/tests/local_test.py
+coffea4bees/base_class/tests/test_dumpPlotCounts.yml
+coffea4bees/classifier/data/models/ZZ4b_Run2_HHUL/
+coffea4bees/histos/
+coffea4bees/metadata/datasets_ci.yml
+coffea4bees/metadata/dump_meta_data_mixed.py
+coffea4bees/renameBranches.py
+coffea4bees/stats_analysis/hists_closure_*.root
+coffea4bees/stats_analysis/tests/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_hh_rebin20.pkl
+coffea4bees/stats_analysis/testsLocal/
+coffea4bees/stats_analysis/testsLocal_kfold/
+coffea4bees/stats_analysis/fitBiasData/
+coffea4bees/analysis/plots_synthetic_datasets/
+coffea4bees/jet_clustering/*/*pdf
 *png 
 *pdf 
-python/stats_analysis/coffea4bees*
-python/stats_analysis/archive/
-python/stats_analysis/tmp*
-python/hists/
+coffea4bees/stats_analysis/*
+coffea4bees/stats_analysis/archive/
+coffea4bees/stats_analysis/tmp*
+coffea4bees/hists/
 
-python/analysis/testJCM_Coffea/
-python/analysis/testJCM_ROOT/
+coffea4bees/analysis/testJCM_Coffea/
+coffea4bees/analysis/testJCM_ROOT/
 
-python/skimmer/metadata/picoaod_datasets*
-python/skimmer/metadata/picoaod_datasets_TTToHadronic_pseudodata_UL18.yml
-python/skimmer/metadata/picoaod_datasets_TTToHadronic_pseudodata_test_UL18.yml
-python/skimmer/metadata/picoaod_datasets_declustered_GluGluToHHTo4B_cHHH1_Run2_seed17.yml
-python/skimmer/metadata/picoaod_datasets_declustered_GluGluToHHTo4B_cHHH1_test_UL18.yml
-python/skimmer/metadata/picoaod_datasets_declustered_btest_UL18_CI.yml
-python/skimmer/metadata/picoaod_datasets_declustered_data_Run2.yml
-python/skimmer/metadata/picoaod_datasets_declustered_data_Run2_seed17.yml
-python/skimmer/metadata/picoaod_datasets_declustered_data_UL18.yml
-python/skimmer/metadata/picoaod_datasets_declustered_test_UL18.yml
-python/skimmer/metadata/picoaod_datasets_declustered_test_UL18_CI.yml
-python/skimmer/metadata/tmp.yml
-python/skimmer/metadata/das_summary_*.json
+coffea4bees/skimmer/metadata/picoaod_datasets*
+coffea4bees/skimmer/metadata/picoaod_datasets_TTToHadronic_pseudodata_UL18.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_TTToHadronic_pseudodata_test_UL18.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_GluGluToHHTo4B_cHHH1_Run2_seed17.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_GluGluToHHTo4B_cHHH1_test_UL18.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_btest_UL18_CI.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_data_Run2.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_data_Run2_seed17.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_data_UL18.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_test_UL18.yml
+coffea4bees/skimmer/metadata/picoaod_datasets_declustered_test_UL18_CI.yml
+coffea4bees/skimmer/metadata/tmp.yml
+coffea4bees/skimmer/metadata/das_summary_*.json
 
 */*/.DS_Store
-python/myPyPlotEnv/
-python/*tex
-python/Makefile
+coffea4bees/myPyPlotEnv/
+coffea4bees/*tex
+coffea4bees/Makefile
 
-python/analysis/debugMakeSyntheticEvents.py
-python/analysis/debugSyntheticEvents.py
-python/analysis/metadata/HH4b_systematics_ci.yml
+coffea4bees/analysis/debugMakeSyntheticEvents.py
+coffea4bees/analysis/debugSyntheticEvents.py
+coffea4bees/analysis/metadata/HH4b_systematics_ci.yml
 
-python/skimmer/metadata/declustering_seed_*.yml
+coffea4bees/skimmer/metadata/declustering_seed_*.yml
 
-python/jet_clustering/jet-splitting-PDFs-*/*txt
-python/jet_clustering/jet-splitting-PDFs-00-02-00/
-python/jet_clustering/jet-splitting-PDFs-00-03-00/
-python/jet_clustering/jet-splitting-PDFs-00-04-00/
-python/jet_clustering/jet-splitting-PDFs-00-05-01/
-python/jet_clustering/jet-splitting-PDFs-00-06-00/
-python/jet_clustering/jet-splitting-PDFs-00-06-01/
-python/jet_clustering/jet-splitting-PDFs-00-06-02/
-python/jet_clustering/jet-splitting-PDFs-00-06-03/
-python/jet_clustering/jet-splitting-PDFs-*/*pdf
-python/jet_clustering/jet-splitting-PDFs-*/all_splittings*yml
-python/jet_clustering/jet-splitting-PDFs-*/all_splittings*yaml
+coffea4bees/jet_clustering/jet-splitting-PDFs-*/*txt
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-02-00/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-03-00/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-04-00/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-05-01/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-00/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-01/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-02/
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-03/
+coffea4bees/jet_clustering/jet-splitting-PDFs-*/*pdf
+coffea4bees/jet_clustering/jet-splitting-PDFs-*/all_splittings*yml
+coffea4bees/jet_clustering/jet-splitting-PDFs-*/all_splittings*yaml
 
-python/makeslides.awk
-python/makeslides_reclustering.awk
-python/nominal_2022_EE_fromMake.config
-python/nominal_2022_preEE_fromMake.config
-python/nominal_2023_BPix_fromMake.config
-python/nominal_2023_preBPix_fromMake.config
-python/nominal_Run3_fromMake.config
-python/nominal_RunII.config
-python/nominal_RunII_fromMake.config
-python/nominal_RunII_test.config
-python/nominal_UL16_postVFP.config
-python/nominal_UL16_postVFP_fromMake.config
-python/nominal_UL16_preVFP.config
-python/nominal_UL16_preVFP_fromMake.config
-python/nominal_UL17.config
-python/nominal_UL17_fromMake.config
-python/nominal_UL18.config
-python/nominal_UL18_fromMake.config
-python/nominal_check_reclustered_splittings.config
-python/plots_check_reclustered_splittings.config
-python/jet_clustering/testTexSlides.tex
+coffea4bees/makeslides.awk
+coffea4bees/makeslides_reclustering.awk
+coffea4bees/nominal_2022_EE_fromMake.config
+coffea4bees/nominal_2022_preEE_fromMake.config
+coffea4bees/nominal_2023_BPix_fromMake.config
+coffea4bees/nominal_2023_preBPix_fromMake.config
+coffea4bees/nominal_Run3_fromMake.config
+coffea4bees/nominal_RunII.config
+coffea4bees/nominal_RunII_fromMake.config
+coffea4bees/nominal_RunII_test.config
+coffea4bees/nominal_UL16_postVFP.config
+coffea4bees/nominal_UL16_postVFP_fromMake.config
+coffea4bees/nominal_UL16_preVFP.config
+coffea4bees/nominal_UL16_preVFP_fromMake.config
+coffea4bees/nominal_UL17.config
+coffea4bees/nominal_UL17_fromMake.config
+coffea4bees/nominal_UL18.config
+coffea4bees/nominal_UL18_fromMake.config
+coffea4bees/nominal_check_reclustered_splittings.config
+coffea4bees/plots_check_reclustered_splittings.config
+coffea4bees/jet_clustering/testTexSlides.tex
 
 
-python/workflows/gitlab-CI/test-signal.sh
+coffea4bees/workflows/gitlab-CI/test-signal.sh
 
-coffea4bees-dask-report-*.html
-python/analysis/debugMixedDataCutFlow.py
-python/analysis/debugRun3CutFlow.py
-python/debug_HHRun3.py
+-dask-report-*.html
+coffea4bees/analysis/debugMixedDataCutFlow.py
+coffea4bees/analysis/debugRun3CutFlow.py
+coffea4bees/debug_HHRun3.py
 
-python/skim2022_EE.sh
-python/skim2022_preEE.sh
-python/skim2023_BPix.sh
-python/skim2023_preBPix.sh
-python/skimmer/metadata/tmp_fourTag.yml
-python/splitting_data_bb.pkl
+coffea4bees/skim2022_EE.sh
+coffea4bees/skim2022_preEE.sh
+coffea4bees/skim2023_BPix.sh
+coffea4bees/skim2023_preBPix.sh
+coffea4bees/skimmer/metadata/tmp_fourTag.yml
+coffea4bees/splitting_data_bb.pkl
 
-python/selected_events.pkl
+coffea4bees/selected_events.pkl
 .fontconfig/
 .cmslpc-local-conf
-python/analysis/copy_from_PSC.py
-python/plots/ANv*/
-python/StatToy
-python/jet_clustering/jet-splitting-PDFs-00-07-02/reclustering
-python/analysis/plots_synthetic_*
+coffea4bees/analysis/copy_from_PSC.py
+coffea4bees/plots/ANv*/
+coffea4bees/StatToy
+coffea4bees/jet_clustering/jet-splitting-PDFs-00-07-02/reclustering
+coffea4bees/analysis/plots_synthetic_*
