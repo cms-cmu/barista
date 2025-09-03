@@ -40,7 +40,9 @@ variables:
 include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
-  - local: 'python/workflows/gitlab-CI/stages_*.yml'
+  - project: 'cms-cmu/coffea4bees'
+    ref: new_master
+    file: 'workflows/gitlab-CI/stages_code.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
@@ -54,7 +56,7 @@ stages:
   - fits
   - plot
   - cutflow
-  - classifier  ### needs to be fixed
+  - classifier
   - reana
   - deploy
   - validation
