@@ -1,4 +1,4 @@
-# Coffea4bees Plots
+#  Plots
 
 ## To produce some plots
 

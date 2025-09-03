@@ -1,6 +1,6 @@
 # Documentation Generation
 
-This directory contains the automated documentation generation system for the Coffea4bees project.
+This directory contains the automated documentation generation system for the  project.
 
 ## Files
 

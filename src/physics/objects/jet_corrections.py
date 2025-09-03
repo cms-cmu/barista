@@ -21,7 +21,7 @@ def extract_jetmet_tar_files(tar_file_name: str=None,
     """
 
     extracted_files = []
-    extract_path = f"/tmp/{os.getenv('USER') or os.getenv('LOGNAME') or os.getenv('USERNAME') or os.getuid()}/coffea4bees/"
+    extract_path = f"/tmp/{os.getenv('USER') or os.getenv('LOGNAME') or os.getenv('USERNAME') or os.getuid()}//"
 
     # Ensure the extraction path exists
     try:

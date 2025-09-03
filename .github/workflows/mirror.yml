@@ -9,12 +9,12 @@ jobs:
     steps:
       - name: Checkout repository
         run: |
-          git clone --mirror https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.cern.ch/cms-cmu/coffea4bees.git
+          git clone --mirror https://oauth2:${{ secrets.GITLAB_TOKEN }}@gitlab.cern.ch/cms-cmu/.git
 
       - name: Push to GitHub
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd coffea4bees.git
-          git remote add github https://alefisico:${{ secrets.GITHUB_TOKEN }}@github.com/alefisico/coffea4bees.git
+          cd .git
+          git remote add github https://alefisico:${{ secrets.GITHUB_TOKEN }}@github.com/alefisico/.git
           git push --mirror github

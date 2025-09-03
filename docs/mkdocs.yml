@@ -1,10 +1,10 @@
-site_name: Coffea4bees Documentation
-site_description: CMU - coffea4bees Documentation
+site_name:  Documentation
+site_description: CMU -  Documentation
 site_author: CMU  Group
-site_url: https://coffea4bees.docs.cern.ch/
+site_url: https://.docs.cern.ch/
 
 repo_name: GitLab
-repo_url: https://gitlab.cern.ch/cms-cmu/coffea4bees
+repo_url: https://gitlab.cern.ch/cms-cmu/
 edit_uri: 'blob/master/docs'
 
 theme:

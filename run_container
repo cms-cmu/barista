@@ -36,7 +36,7 @@ show_help() {
 }
 
 # Define default paths
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/coffea4bees:latest"
+COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
@@ -106,16 +106,16 @@ run_combine() {
     export APPTAINER_TMPDIR="/tmp/.apptainer/"
     export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
 
-    COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/coffea4bees/"
+    COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr//"
 
     if [ -z "$*" ]; then
         info "No further arguments, just open the container..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/coffea4bees --pwd /home/cmsusr/coffea4bees/ \
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/ --pwd /home/cmsusr// \
         ${COMBINE_IMAGE} \
         /bin/bash -i -c "$COMBINE_SETUP && bash"
     else
         info "Arguments provided, run them inside the container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/coffea4bees --pwd /home/cmsusr/coffea4bees/ \
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/ --pwd /home/cmsusr// \
         ${COMBINE_IMAGE} \
         /bin/bash -c "$COMBINE_SETUP && $*"
     fi

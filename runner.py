@@ -969,7 +969,7 @@ if __name__ == '__main__':
     # Run dask performance only in dask jobs
     #
     if args.run_dask:
-        dask_report_file = f'/tmp/coffea4bees-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
+        dask_report_file = f'/tmp/-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
         with performance_report(filename=dask_report_file):
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)

@@ -7,5 +7,5 @@ RUN dnf install -y poppler-utils && \
     pip install pycodestyle memory-profiler fsspec-xrootd omegaconf dbs3-client 
     # htcondor==24.0.7 
 
-# RUN mkdir -p /home/user/coffea4bees/python/
-# COPY python/ /home/user/coffea4bees/python/
+# RUN mkdir -p /home/user//python/
+# COPY python/ /home/user//python/

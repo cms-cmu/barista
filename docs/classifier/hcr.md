@@ -5,7 +5,7 @@ This tutorial will work through a complete example of training baseline FvT and 
 ## Setup environment
 
 - (optional) setup apptaine cache and temp directory
-- start a container and enter `coffea4bees/python/` directory
+- start a container and enter `/python/` directory
 - (optional) setup the base path for workflow files
 
 ```bash

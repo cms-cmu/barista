@@ -1,10 +1,10 @@
-# Coffea4bees
+# 
 
-[![pipeline status](https://gitlab.cern.ch/cms-cmu/coffea4bees/badges/master/pipeline.svg)](https://gitlab.cern.ch/cms-cmu/coffea4bees/-/commits/master)
+[![pipeline status](https://gitlab.cern.ch/cms-cmu//badges/master/pipeline.svg)](https://gitlab.cern.ch/cms-cmu//-/commits/master)
 
 This is the repository for the 4b analyses at CMU based in coffea.
 
-There is a website dopcumenting what this package does on this link [https://coffea4bees.docs.cern.ch/](https://coffea4bees.docs.cern.ch/).
+There is a website dopcumenting what this package does on this link [https://.docs.cern.ch/](https://.docs.cern.ch/).
 
 Information about the analysis steps can be found in the [README](python/analysis/README.md) of the analysis folder.
 
@@ -15,7 +15,7 @@ Information about the analysis steps can be found in the [README](python/analysi
 This repository assumes that you are running in a machine that has access to [cvmfs](https://cernvm.cern.ch/fs/). Then you can clone this repository as:
 
 ```bash
-git clone ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git --recursive
+git clone ssh://git@gitlab.cern.ch:7999/cms-cmu/.git --recursive
 ```
 
 The software required to run this package is encapsulated within a container. A script located in the `python/` folder simplifies the process of running the container seamlessly. For more details, refer to the [python/README.md](python/README.md). Additional information about the container can be found in the [Dockerfile](Dockerfile).
@@ -45,7 +45,7 @@ The `master` branch is protected, ensuring that users cannot accidentally modify
 
 ## REANA
 
-[![Launch with Snakemake on REANA](https://www.reana.io/static/img/badges/launch-on-reana.svg)]($https://reana.cern.ch/launch?name=Coffea4bees&specification=reana.yml&url=https%3A%2F%2Fgitlab.cern.ch%2Fcms-cmu%2Fcoffea4bees)
+[![Launch with Snakemake on REANA](https://www.reana.io/static/img/badges/launch-on-reana.svg)]($https://reana.cern.ch/launch?name=&specification=reana.yml&url=https%3A%2F%2Fgitlab.cern.ch%2Fcms-cmu%2F)
 
 This package supports running workflows on [REANA](https://reana.cern.ch/). The REANA workflow is triggered manually via the GitLab CI pipeline or automatically every Saturday.
 

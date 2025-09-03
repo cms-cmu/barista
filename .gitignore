@@ -235,7 +235,7 @@ python/analysis/plots_synthetic_datasets/
 python/jet_clustering/*/*pdf
 *png 
 *pdf 
-python/stats_analysis/coffea4bees*
+python/stats_analysis/*
 python/stats_analysis/archive/
 python/stats_analysis/tmp*
 python/hists/
@@ -306,7 +306,7 @@ python/jet_clustering/testTexSlides.tex
 
 python/workflows/gitlab-CI/test-signal.sh
 
-coffea4bees-dask-report-*.html
+-dask-report-*.html
 python/analysis/debugMixedDataCutFlow.py
 python/analysis/debugRun3CutFlow.py
 python/debug_HHRun3.py

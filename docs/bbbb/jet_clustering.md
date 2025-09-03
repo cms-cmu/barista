@@ -17,7 +17,7 @@ To run one test:
 Needed to make the pdf templates
 
 Check the commands in 
-`coffea4bees/python/scripts//synthetic-dataset-cluster.sh`
+`/python/scripts//synthetic-dataset-cluster.sh`
 
 
 # To make clustering PDFs
@@ -32,7 +32,7 @@ python  jet_clustering/make_jet_splitting_PDFs.py analysis/hists/synthetic_datas
 This takes the clustered PDFs as inputs
 
 Check the commands in 
-`coffea4bees/python/scripts//synthetic-dataset-decluster.sh`
+`/python/scripts//synthetic-dataset-decluster.sh`
 
 
 
