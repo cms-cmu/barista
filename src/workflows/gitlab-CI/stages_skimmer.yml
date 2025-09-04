@@ -3,4 +3,4 @@ skimmer_basic_test:
   extends:
     - .base_analysis
   script:
-    - source src/scripts/skimmer_basic_test.sh --base-output /builds/$CI_PROJECT_PATH/output
+    - source src/scripts/skimmer_basic_test.sh --output-base /builds/$CI_PROJECT_PATH/output
