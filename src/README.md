@@ -90,8 +90,6 @@ Event selection and filtering pipeline.
 ### 🛠️ Scripts (`scripts/`)
 Command-line utilities and automation tools.
 
-- **`merge_yaml_datasets.py`** - Utility to merge multiple YAML dataset files
-- **`fix_eos.py`** - Utility to repair corrupted EOS files
 - **`common.sh`** - Common shell utilities
 - **`memory/`** - Memory testing and monitoring tools for preventing system hangs
   - `memory_limited_run.sh` - Universal memory guard for any command
@@ -110,6 +108,9 @@ Generic, reusable utilities that don't fit into specific domains.
 - String manipulation
 - Retry mechanisms
 - Generic wrapper functions
+- **`merge_yaml_datasets.py`** - Utility to merge multiple YAML dataset files
+- **`fix_eos.py`** - Utility to repair corrupted EOS files
+
 
 **Use when:** You need generic helper functions, argument parsing, or common utility operations.
 
