@@ -2,10 +2,10 @@ code_hist_collection:
   stage: code
   image: gitlab-registry.cern.ch/cms-cmu/barista:latest
   script:
-    - source src/scripts/code_hist_collection.sh
+    - source src/scripts/code-hist-collection.sh
 
 code_kappa_framework:
   stage: code
   image: gitlab-registry.cern.ch/cms-cmu/barista:latest
   script:
-    - source src/scripts/code_kappa_framework.sh
+    - source src/scripts/code-kappa-framework.sh
