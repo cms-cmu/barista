@@ -23,7 +23,8 @@ rule code_kappa_framework:
     log: f"{output_dir}/code_kappa_framework.log"
     shell: "source src/scripts/code_kappa_framework.sh 2>&1 | tee -a {log}"
 
-rule skimmer_basic_test_job:
+rule skimmer_basic_test:
     container: analysis_container
-    log: f"{output_dir}/skimmer_basic_test_job.log"
-    shell: "source src/scripts/skimmer-basic-test-job.sh {output_dir}/ 2>&1 | tee -a {log}"  
+    log: f"{output_dir}/skimmer_basic_test.log"
+    output: f"{output_dir}/"
+    shell: "source src/scripts/skimmer_basic_test.sh --output-base {output_dir}/ 2>&1 | tee -a {log}"

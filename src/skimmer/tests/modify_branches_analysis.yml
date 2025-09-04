@@ -1,0 +1,10 @@
+runner:
+  maxchunks: 1
+  test_files: 1
+  chunksize: 100000
+  class_name: TestAnalysis
+  allowlist_sites:
+    - T3_CH_PSI
+    - T3_US_FNALLPC
+
+config: {}
