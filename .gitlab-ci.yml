@@ -42,6 +42,7 @@ variables:
 include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
+  - local: 'src/workflows/gitlab-CI/stages_code.yml'
   - project: 'cms-cmu/bbreww'
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'

@@ -1,0 +1,11 @@
+code_hist_collection:
+  stage: code
+  # needs:
+  #   - setup_workspace
+  script:
+    - source src/scripts/code_hist_collection.sh
+
+code_kappa_framework:
+  stage: code
+  script:
+    - source src/scripts/code_kappa_framework.sh
