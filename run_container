@@ -36,7 +36,7 @@ show_help() {
 }
 
 # Define default paths
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/:latest"
+COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
