@@ -30,19 +30,20 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-  COFFEA4BEES_BRANCH: "new_master"
+  BBREWW_BRANCH: "master"
+  # COFFEA4BEES_BRANCH: "new_master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
-  DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
-  DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
-  # DATASET: metadata/datasets_HH4b_cernbox.yml
-  # DATASET_RUN3: metadata/datasets_HH4b_Run3_cernbox.yml
+  # DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
+  # DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
+  # # DATASET: metadata/datasets_HH4b_cernbox.yml
+  # # DATASET_RUN3: metadata/datasets_HH4b_Run3_cernbox.yml
 
 include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
-  - project: 'cms-cmu/coffea4bees'
-    ref: 'new_master'
+  - project: 'cms-cmu/bbreww'
+    ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
@@ -51,9 +52,9 @@ stages:
   - build
   - setup
   - code 
-  - skimmer-test
-  - friendtree-test
-  - analysis-test
+  - skimmer
+  - friendtree
+  - analysis
   - fits
   - plot
   - cutflow
@@ -63,17 +64,48 @@ stages:
   - validation
   - pages
 
-setup_repositories:
+setup_workspace:
   stage: setup
   image: alpine/git:latest
   script:
-    - echo "Cloning coffea4bees"
-    - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME}:${DEPLOY_TOKEN_PASSWORD}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees/
-    - ls coffea4bees/
+    - echo "Cloning bbreww"
+    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
+    - ls bbreww/
   artifacts:
     paths:
-      - coffea4bees/
+      - bbreww/
     expire_in: 4 hours
+
+.base_analysis:
+  needs:
+    - voms_proxy
+    - setup_workspace
+  image: ${CI_REGISTRY_IMAGE}:test
+  tags:
+    - k8s-cvmfs
+  retry: 2
+
+.base_combine:
+  image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
+  before_script:
+    - source /cvmfs/cms.cern.ch/cmsset_default.sh
+    - cd /home/cmsusr/CMSSW_11_3_4/
+    - cmsenv || true
+    - cd -
+  tags:
+    - k8s-cvmfs
+
+.base_classifier:
+  needs:
+    - voms_proxy
+    - setup_workspace
+  image: registry.hub.docker.com/chuyuanliu/heptools:ml-cpu # TODO change to central repo
+  before_script:
+    - source /entrypoint.sh
+  tags:
+    - k8s-cvmfs
+  artifacts:
+    expire_in: 1 day
 
 validation:
   before_script:
@@ -96,41 +128,4 @@ pages:
     - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master")'
       when: always
     - when: never
-
-.base_analysis:
-  needs:
-    - voms_proxy
-    - setup_repositories
-  image: ${CI_REGISTRY_IMAGE}:test
-  tags:
-    - k8s-cvmfs
-  artifacts: 
-    expire_in: 1 day
-    paths:
-      - 'template'
-  retry: 2
-
-.base_combine:
-  image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
-  before_script:
-    - source /cvmfs/cms.cern.ch/cmsset_default.sh
-    - cd /home/cmsusr/CMSSW_11_3_4/
-    - cmsenv || true
-    - cd -
-  tags:
-    - k8s-cvmfs
-
-.base_classifier:
-  needs:
-    - voms_proxy
-    - setup_repositories
-  image: registry.hub.docker.com/chuyuanliu/heptools:ml-cpu # TODO change to central repo
-  before_script:
-    - source /entrypoint.sh
-  tags:
-    - k8s-cvmfs
-  artifacts:
-    expire_in: 1 day
-
-
 
