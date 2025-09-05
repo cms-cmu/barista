@@ -61,7 +61,7 @@ stages:
   - skimmer
   - friendtree
   - analysis
-  - fits
+  - tools
   - plot
   - cutflow
   - classifier

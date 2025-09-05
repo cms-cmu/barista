@@ -9,6 +9,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Setup proxy if needed
+setup_proxy 
+
 # Create output directory
 JOB="classifier_friendtree"
 OUTPUT_DIR=$OUTPUT_BASE_DIR/$JOB
