@@ -493,8 +493,8 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
         hep.cms.label("Internal", data=True,
                       year=year_str, loc=0, ax=main_ax)
 
-        if kwargs.get("do_title", True):
-            main_ax.set_title(f"{plot_helpers.get_region_str(plot_data['region'])}")
+        if kwargs.get("do_title", True) and 'region' in plot_data["axis_opts"] :
+            main_ax.set_title(f"{plot_helpers.get_region_str(plot_data['axis_opts']['region'])}")
 
         _draw_plot_from_dict(plot_data, **kwargs)
 
@@ -679,14 +679,21 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
 
                 # Construct output path
                 try:
+
+                    #tagName,
+
                     output_path = [
                         kwargs.get("outputFolder"),
                         kwargs.get("year", "RunII"),
                         plot_data["cut"],
-                        tagName,
-                        plot_data["region"],
                         plot_data.get("process", "")
                     ]
+
+                    for k, v in plot_data["axis_opts"].items():
+                        output_path.append(f"{k}_{plot_helpers.get_axis_str(v)}")
+
+                    output_path.append(plot_data.get("process", ""))
+
                 except NameError:
                     output_path = [kwargs.get("outputFolder")]
 
@@ -890,7 +897,12 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
 
         hep.cms.label("Internal", data=True,
                       year=kwargs.get('year', "RunII").replace("UL", "20"), loc=0, ax=ax)
-        ax.set_title(f"{plot_data['region']}  ({plot_data['cut']})", fontsize=16)
+
+        if 'region' in plot_data["axis_opts"]:
+            ax.set_title(f"{plot_data['region']}  ({plot_data['cut']})", fontsize=16)
+        else:
+            ax.set_title(f"                       ({plot_data['cut']})", fontsize=16)
+
 
         return fig, ax
 
