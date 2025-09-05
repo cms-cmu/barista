@@ -5,7 +5,7 @@ source "src/scripts/common.sh"
 # Parse output base argument
 OUTPUT_BASE_DIR=$(parse_output_base_arg "output" "$@")
 if [ $? -ne 0 ]; then
-    echo "Error parsing output base argument. Use --output-base DIR to specify the output directory."
+    echo "Error parsing output base argument. Use --output-base DIR to specify the output directory. Default DIR=output/"
     exit 1
 fi
 
@@ -52,12 +52,27 @@ datasets:
 """ > ${OUTPUT_DIR}/datasets_HH4b.yml
 cat ${OUTPUT_DIR}/datasets_HH4b.yml; echo
 
+echo """
+luminosities:
+  UL18: 59.8e3
+""" > ${OUTPUT_DIR}/luminosities_HH4b.yml
+cat ${OUTPUT_DIR}/luminosities_HH4b.yml; echo
+
+echo """
+triggers:
+  UL18: 
+    - PFHT330PT30_QuadPFJet_75_60_45_40_TriplePFBTagDeepCSV_4p5
+""" > ${OUTPUT_DIR}/triggers_HH4b.yml
+cat ${OUTPUT_DIR}/triggers_HH4b.yml; echo
+
 display_section_header "Skimming"
 cmd=(python runner.py -s \
     -p src/skimmer/tests/modify_branches.py \
     -c ${OUTPUT_DIR}/modify_branches_skimmer.yml \
     -y UL18 -d GluGluToHHTo4B_cHHH1 \
     -op ${OUTPUT_DIR} \
+    --luminosities ${OUTPUT_DIR}/luminosities_HH4b.yml \
+    --triggers ${OUTPUT_DIR}/triggers_HH4b.yml \
     -o picoAOD_modify_branches.yml \
     -m ${OUTPUT_DIR}/datasets_HH4b.yml \
     -t --debug)
@@ -77,6 +92,8 @@ cmd=(python runner.py \
     -c src/skimmer/tests/modify_branches_analysis.yml \
     -y UL18 -d GluGluToHHTo4B_cHHH1 \
     -op ${OUTPUT_DIR} \
+    --luminosities ${OUTPUT_DIR}/luminosities_HH4b.yml \
+    --triggers ${OUTPUT_DIR}/triggers_HH4b.yml \
     -o modify_branches.coffea \
     -m ${OUTPUT_DIR}/picoAOD_modify_branches.yml \
     -t --debug)

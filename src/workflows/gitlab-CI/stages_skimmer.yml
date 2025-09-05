@@ -1,4 +1,4 @@
-skimmer_basic_test:
+skimmer_basic_test_barista:
   stage: skimmer   
   extends:
     - .base_analysis

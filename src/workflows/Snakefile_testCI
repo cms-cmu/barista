@@ -28,3 +28,9 @@ rule skimmer_basic_test:
     log: f"{output_dir}/skimmer_basic_test.log"
     output: f"{output_dir}/"
     shell: "source src/scripts/skimmer-basic-test.sh --output-base {output_dir}/ 2>&1 | tee -a {log}"
+
+rule classifier_friendtree:
+    container: analysis_container
+    log: f"{output_dir}/classifier_friendtree.log"
+    output: f"{output_dir}/classifier_friendtree/classifier_friendtree.yml"
+    shell: "source src/scripts/classifier-friendtree.sh --output-base {output_dir} 2>&1 | tee -a {log}"

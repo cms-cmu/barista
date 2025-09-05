@@ -44,6 +44,7 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
+  - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
   - project: 'cms-cmu/bbreww'
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
