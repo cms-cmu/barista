@@ -298,7 +298,7 @@ def _handle_axis_opts_list(*, plot_data: Dict, process_config: Dict, cfg: Any, v
                            cut: str, axis_list_name: str, axis_list_values: List[str],
                            axis_opts: Dict, rebin: int, year: str, do2d: bool,
                            label_override: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple regions."""
+    """Handle plotting multiple axis opts."""
     for ia, _axis_val in enumerate(axis_list_values):
         _axis_opts = copy.deepcopy(axis_opts)
         _axis_opts[axis_list_name] = _axis_val
