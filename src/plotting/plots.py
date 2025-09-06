@@ -59,7 +59,7 @@ def parse_args():
     return args
 
 
-def load_config(metadata):
+def load_config_4b(metadata):
     """  Load meta data
     """
     plotConfig = yaml.safe_load(open(metadata, 'r'))
@@ -111,8 +111,17 @@ def load_config(metadata):
     return plotConfig
 
 
+def load_config_bbWW(metadata):
+    """  Load meta data
+    """
+    plotConfig = yaml.safe_load(open(metadata, 'r'))
+
+    return plotConfig
+
+
+
 def init_config(args):
-    cfg.plotConfig = load_config(args.metadata)
+    cfg.plotConfig = load_config_bbWW(args.metadata)
     cfg.outputFolder = args.outputFolder
     cfg.combine_input_files = args.combine_input_files
     cfg.plotModifiers = yaml.safe_load(open(args.modifiers, 'r'))
@@ -129,14 +138,14 @@ def init_config(args):
 
 
 def makePlot(cfg, var='selJets.pt',
-             cut="passPreSel", region="SR", **kwargs):
+             cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
        debug    : False,
        var      : 'selJets.pt',
        cut      : "passPreSel",
-       region   : "SR",
+       axis_opts : dict ({"region":"SR"})
 
        plotting opts
         'doRatio'  : bool (False)
@@ -148,24 +157,30 @@ def makePlot(cfg, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In makePlot kwargs={kwargs}")
 
-    if (type(cut) is list) or (type(region) is list) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+    axis_opts_list = False
+    for _, v in axis_opts.items():
+        if type(v) is list:
+            axis_opts_list = True
+            break
+
+    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
         try:
-            plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, region=region, **kwargs)
+            plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, **kwargs)
             return plot_helpers_make_plot.make_plot_from_dict(plot_data)
         except ValueError as e:
             raise ValueError(e)
 
     elif not cut:
-        plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=None, region=None, **kwargs)
+        plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=None, axis_opts=axis_opts, **kwargs)
         return plot_helpers_make_plot.make_plot_from_dict(plot_data)
 
-    plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=cut, region=region, **kwargs)
+    plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts,  **kwargs)
     return plot_helpers_make_plot.make_plot_from_dict(plot_data)
 
 
 
 def make2DPlot(cfg, process, var='selJets.pt',
-               cut="passPreSel", region="SR", **kwargs):
+               cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
@@ -174,7 +189,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
        var      : 'selJets.pt',
        year     : "2017",
        cut      : "passPreSel",
-       region   : "SR",
+       axis_opts : dict ({"region":"SR"})
 
        plotting opts
         'rebin'    : int (1),
@@ -184,15 +199,21 @@ def make2DPlot(cfg, process, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
 
+    axis_opts_list = False
+    for _, v in axis_opts.items():
+        if type(v) is list:
+            axis_opts_list = True
+            break
 
-    if (type(cut) is list) or (type(region) is list) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+
+    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
         try:
-            plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, region=region, process=process, do2d=True, **kwargs)
+            plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
             return plot_helpers_make_plot.make_plot_from_dict(plot_data, do2d=True)
         except ValueError as e:
             raise ValueError(e)
 
-    plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=cut, region=region, process=process, do2d=True, **kwargs)
+    plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
 
     #
     # Make the plot
@@ -219,6 +240,7 @@ def read_axes_and_cuts(hists, plotConfig):
 
     for a in hists[0]['hists'][var1].axes:
         axisName = a.name
+
         if axisName == var1:
             continue
 
@@ -241,14 +263,18 @@ def read_axes_and_cuts(hists, plotConfig):
 
 
 def print_cfg(cfg):
-    print("Regions...")
-    for reg in cfg.plotConfig["codes"]["region"].keys():
-        if type(reg) is str:
-            print(f"\t{reg}")
 
     print("Cuts...")
     for c in cfg.cutList:
         print(f"\t{c}")
+
+
+    for axis, values in cfg.axisLabels.items():
+        if axis in ["var","process"]:
+            continue
+        print(f"{axis}:")
+        for v in values:
+            print(f"\t{v}")
 
     print("Processes...")
     for key, values in cfg.plotConfig.items():

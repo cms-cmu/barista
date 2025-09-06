@@ -222,8 +222,18 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
     file_name = f"{output_path}/{var_str.replace('.', '_').replace('/', '_')}.yaml"
     print(f"wrote yaml: {file_name}")
 
+    def clean_for_yaml(obj):
+        """Recursively clean object for safe YAML serialization."""
+        if obj == sum:  # Functions, classes, etc.
+            return "sum"  # Convert to string representation
+        elif isinstance(obj, dict):
+            return {k: clean_for_yaml(v) for k, v in obj.items()}
+        else:
+            return obj
+
+    cleaned_data = clean_for_yaml(plot_data)
     with open(file_name, "w") as yfile:
-        yaml.dump(plot_data, yfile, default_flow_style=False, sort_keys=False)
+        yaml.safe_dump(cleaned_data, yfile, default_flow_style=False, sort_keys=False)
 
 # Utility Functions
 def get_cut_dict(cut: str, cut_list: List[str]) -> Dict[str, Any]:
@@ -305,8 +315,8 @@ def get_year_str(year: Union[str, List[str]]) -> str:
         return "_vs_".join(year)
     return year.replace("UL", "20")
 
-def get_region_str(region: Union[str, List[str]]) -> str:
-    """Convert region format to string.
+def get_axis_str(axis: Union[str, List[str]]) -> str:
+    """Convert axis format to string.
 
     Args:
         region: Region or list of regions to convert
@@ -314,6 +324,8 @@ def get_region_str(region: Union[str, List[str]]) -> str:
     Returns:
         Formatted region string
     """
-    if isinstance(region, list):
-        return " vs ".join(region)
-    return region
+    if isinstance(axis, list):
+        return " vs ".join(axis)
+    if axis == sum:
+        return "sum"
+    return axis
