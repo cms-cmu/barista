@@ -180,7 +180,7 @@ def makePlot(cfg, var='selJets.pt',
 
 
 def make2DPlot(cfg, process, var='selJets.pt',
-               cut="passPreSel", region="SR", **kwargs):
+               cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
@@ -189,7 +189,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
        var      : 'selJets.pt',
        year     : "2017",
        cut      : "passPreSel",
-       region   : "SR",
+       axis_opts : dict ({"region":"SR"})
 
        plotting opts
         'rebin'    : int (1),

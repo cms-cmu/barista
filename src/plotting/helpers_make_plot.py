@@ -686,7 +686,6 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                         kwargs.get("outputFolder"),
                         kwargs.get("year", "RunII"),
                         plot_data["cut"],
-                        plot_data.get("process", "")
                     ]
 
                     for k, v in plot_data["axis_opts"].items():
@@ -695,6 +694,7 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                     output_path.append(plot_data.get("process", ""))
 
                 except NameError:
+                    print("Setting output path to outputFolder only")
                     output_path = [kwargs.get("outputFolder")]
 
                 # Determine file name
