@@ -188,6 +188,16 @@ The CI workflow is defined in the [gitlab-ci.yml](.gitlab-ci.yml) file. When you
 
 If you have forked the repository (NOT recommended), the GitLab CI pipeline requires your grid certificate to function. To run the GitLab CI workflow in your private fork, you must first configure specific variables to set up your voms-proxy. Follow [these instructions](https://awesome-workshop.github.io/gitlab-cms/03-vomsproxy/index.html) (excluding the final section, "Using the grid proxy") to complete the setup.
 
+### CI/CD for Multi-Repository Development
+
+Our analysis framework is distributed across multiple Git repositories to maintain a clear separation of concerns. The **`barista`** repository contains the core physics analysis framework, while repositories like **`bbreww`** and **`coffea4bees`** contain specific analysis code and configurations that depend on `barista`. To ensure that changes across these repositories are tested together correctly, we employ a dynamic CI/CD workflow within GitLab. This system is designed to solve the common "chicken-and-egg" problem where a feature in one repository depends on an unmerged feature in another.
+
+### Dynamic Branch Synchronization
+
+The core of our CI/CD strategy is **dynamic branch synchronization**. The pipeline is intelligently configured to use the branch name of the commit that triggered the process (e.g., `feature/new-analysis`) as the target branch for its dependencies. When a pipeline runs in the `bbreww` repository, it will first attempt to find and use a branch with the exact same name in the central `barista` repository. This allows developers to work on features across the entire software stack simultaneously, confident that the CI will integrate and test the corresponding feature branches together.
+
+To make this process robust, a crucial **fallback mechanism** is in place. If the pipeline is triggered on a branch in `bbreww` that does not exist in `barista`, it will automatically default to using `barista`'s stable `master` branch. This ensures that changes isolated to a single repository are always tested against the latest stable version of the core framework. The `setup_workspace` job in the pipeline handles this logic by first checking for the feature branch's existence before cloning the `barista` code and then assembling a complete workspace for subsequent testing and validation stages. This automated, flexible approach enables a streamlined development workflow while maintaining the integrity of our protected branches.
+
 ### To run the CI workflow locally
 
 Within the [coffea4bees/scripts/](coffea4bees/scripts/) directory, there is a script named `run_local_ci.sh` that facilitates running a Snakemake workflow ([`Snakefile_testCI`](coffea4bees/workflows/Snakefile_testCI)) locally, emulating the GitLab CI process. This script provides a convenient way to execute the CI workflow locally. To run it, navigate to the `coffea4bees/` directory and execute:

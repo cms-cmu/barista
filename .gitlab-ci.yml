@@ -30,7 +30,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-  BBREWW_BRANCH: "master"
+  BBREWW_BRANCH: "$CI_COMMIT_BRANCH"
   COFFEA4BEES_BRANCH: "new_master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
@@ -46,7 +46,7 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
   - project: 'cms-cmu/bbreww'
-    ref: 'master'
+    ref: "$CI_COMMIT_BRANCH"
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'cms-cmu/coffea4bees'
     ref: 'new_master'
@@ -74,10 +74,20 @@ setup_workspace:
   stage: setup
   image: alpine/git:latest
   script:
-    - echo "Cloning bbreww"
+    # --- bbreww ---
+    - BBREWW_DEFAULT_BRANCH="master"
+    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
+    # Check if the feature branch exists. If not, use the default branch.
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
+    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
     - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
     - ls bbreww/
-    - echo "Cloning coffea4bees"
+
+    # --- coffea4bees ---
+    - COFFEA4BEES_DEFAULT_BRANCH="new_master" 
+    - echo "Checking for branch '$COFFEA4BEES_BRANCH' in coffea4bees..."
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/coffea4bees.git "$COFFEA4BEES_BRANCH" || COFFEA4BEES_BRANCH="$COFFEA4BEES_DEFAULT_BRANCH"
+    - echo "Cloning coffea4bees from branch '$COFFEA4BEES_BRANCH'"
     - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME_COFFEA4BEES}:${DEPLOY_TOKEN_PASSWORD_COFFEA4BEES}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees/
     - ls coffea4bees/
   artifacts:
