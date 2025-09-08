@@ -30,7 +30,7 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-  BBREWW_BRANCH: "$CI_COMMIT_BRANCH"
+  BBREWW_BRANCH: "$CI_COMMIT_REF_NAME"
   COFFEA4BEES_BRANCH: "new_master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
@@ -46,7 +46,7 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
   - project: 'cms-cmu/bbreww'
-    ref: "$CI_COMMIT_BRANCH"
+    ref: '$CI_COMMIT_REF_NAME'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'cms-cmu/coffea4bees'
     ref: 'new_master'
