@@ -1,0 +1,6 @@
+skimmer_basic_test_barista:
+  stage: skimmer   
+  extends:
+    - .base_analysis
+  script:
+    - source src/scripts/skimmer-basic-test.sh --output-base /builds/$CI_PROJECT_PATH/output

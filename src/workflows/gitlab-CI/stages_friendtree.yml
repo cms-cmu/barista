@@ -1,0 +1,17 @@
+classifier_friendtree_barista:   
+  stage: friendtree   
+  extends:
+    - .base_analysis
+  needs: 
+    - voms_proxy
+    - setup_workspace
+  script:
+    - source src/scripts/classifier-friendtree.sh
+  artifacts: 
+    paths:
+      - output/classifier_friendtree/classifier_friendtree.yml
+      - output/classifier_friendtree/GluGluToHHTo4B_cHHH1_UL18/
+      - output/classifier_friendtree/data2018A/
+      - output/classifier_friendtree/data2018B/
+      - output/classifier_friendtree/data2018C/
+      - output/classifier_friendtree/data2018D/
