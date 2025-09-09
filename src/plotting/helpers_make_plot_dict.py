@@ -417,6 +417,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
         if debug: print(f"cut is a list {cut}")
         opts_dict.pop("cut")
         _handle_cut_list(**opts_dict, cut_list=cut, var_to_plot=var_to_plot)
+        opts_dict["cut"] = cut
 
     elif len(cfg.hists) > 1 and not cfg.combine_input_files:
         if debug: print(f"hist is a list {process}")
@@ -439,6 +440,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
         if debug: print(f"One of the axis_opts is a list: {axis_list_name} {axis_opts[axis_list_name]}")
         axis_list_values = opts_dict["axis_opts"].pop(axis_list_name)
         _handle_axis_opts_list(**opts_dict, axis_list_name=axis_list_name, axis_list_values=axis_list_values, var_to_plot=var_to_plot)
+        opts_dict["axis_opts"][axis_list_name] = axis_list_values
     else:
         raise ValueError("Error: At least one parameter must be a list!")
 

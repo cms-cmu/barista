@@ -688,8 +688,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                         plot_data["cut"],
                     ]
 
+                    print(plot_data["axis_opts"])
                     for k, v in plot_data["axis_opts"].items():
-                        output_path.append(f"{k}_{plot_helpers.get_axis_str(v)}")
+                        output_path.append(f"{k}_{plot_helpers.get_axis_str(v).replace(' ','_')}")
 
                     output_path.append(plot_data.get("process", ""))
 
