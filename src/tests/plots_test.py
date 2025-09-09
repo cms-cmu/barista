@@ -4,7 +4,7 @@ import yaml
 import sys
 import os
 sys.path.insert(0, os.getcwd())
-from src.plotting.plots import makePlot, load_config, load_hists, read_axes_and_cuts
+from src.plotting.plots import makePlot, load_config_4b, load_hists, read_axes_and_cuts
 from src.plotting.helpers_make_plot_dict import get_values_variances_centers_from_dict
 import src.plotting.helpers as plot_helpers
 import sys
@@ -28,7 +28,7 @@ class PlotTestCase(unittest.TestCase):
         #inputFile = "analysis/hists/test.coffea"
         inputFile = wrapper.args["inputFile"]
 
-        cfg.plotConfig = load_config(metadata)
+        cfg.plotConfig = load_config_4b(metadata)
         cfg.hists = load_hists([inputFile])
         cfg.axisLabels, cfg.cutList = read_axes_and_cuts(cfg.hists, cfg.plotConfig)
 
