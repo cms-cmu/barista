@@ -1,0 +1,36 @@
+analysis_container = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
+output_dir = "CI_output"
+
+## since we are not going to run the entire workflow, we only need some outputs
+outputs = [ 
+    f"{output_dir}/code_hist_collection.log",
+    f"{output_dir}/code_kappa_framework.log",
+]
+
+rule all:
+    input: outputs
+
+
+###### THIS IS WHERE THE RULES START ######
+
+rule code_hist_collection:
+    container: analysis_container
+    log: f"{output_dir}/code_hist_collection.log"
+    shell: "source src/scripts/code-hist-collection.sh 2>&1 | tee -a {log}"
+
+rule code_kappa_framework:
+    container: analysis_container
+    log: f"{output_dir}/code_kappa_framework.log"
+    shell: "source src/scripts/code-kappa-framework.sh 2>&1 | tee -a {log}"
+
+rule skimmer_basic_test:
+    container: analysis_container
+    log: f"{output_dir}/skimmer_basic_test.log"
+    output: f"{output_dir}/"
+    shell: "source src/scripts/skimmer-basic-test.sh --output-base {output_dir}/ 2>&1 | tee -a {log}"
+
+rule classifier_friendtree:
+    container: analysis_container
+    log: f"{output_dir}/classifier_friendtree.log"
+    output: f"{output_dir}/classifier_friendtree/classifier_friendtree.yml"
+    shell: "source src/scripts/classifier-friendtree.sh --output-base {output_dir} 2>&1 | tee -a {log}"

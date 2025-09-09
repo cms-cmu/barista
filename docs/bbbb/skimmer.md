@@ -53,5 +53,5 @@ python skimmer/metadata/check_lumi_sections.py -j base_class/data/goldenJSON/Cer
 Add output of skims to input data sets
 
 ```
-python src/scripts/merge_yaml_datasets.py -m metadata/datasets_HH4b_Run3.yml -o metadata/datasets_HH4b_Run3_merged.yml -f metadata/archive/skims_Run3_2024_v2/picoaod_datasets_data_202*
+python src/utils/merge_yaml_datasets.py -m metadata/datasets_HH4b_Run3.yml -o metadata/datasets_HH4b_Run3_merged.yml -f metadata/archive/skims_Run3_2024_v2/picoaod_datasets_data_202*
 ```

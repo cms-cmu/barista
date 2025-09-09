@@ -30,7 +30,7 @@ create_output_directory() {
 # Function to display a standard section header
 display_section_header() {
     local section_name="$1"
-    echo "############### $section_name"
+    echo -e "############### $section_name"
 }
 
 # Function to check if a file exists and is readable
