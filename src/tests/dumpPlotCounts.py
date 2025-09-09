@@ -4,7 +4,7 @@ import sys
 import os
 import numpy as np
 sys.path.insert(0, os.getcwd())
-from src.plotting.plots import makePlot, load_config, load_hists, read_axes_and_cuts
+from src.plotting.plots import makePlot, load_config_4b, load_hists, read_axes_and_cuts
 import src.plotting.helpers as plot_helpers
 import src.plotting.iPlot_config as cfg
 import matplotlib.pyplot as plt
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     outputFile = open(f'{args.outputFile}', 'w')
 
     metadata = "coffea4bees/plots/metadata/plotsAll.yml"
-    cfg.plotConfig = load_config(metadata)
+    cfg.plotConfig = load_config_4b(metadata)
     cfg.hists = load_hists([args.inputFile])
     cfg.axisLabels, cfg.cutList = read_axes_and_cuts(cfg.hists, cfg.plotConfig)
 
