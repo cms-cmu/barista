@@ -494,7 +494,7 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
                       year=year_str, loc=0, ax=main_ax)
 
         if kwargs.get("do_title", True) and 'region' in plot_data["axis_opts"] :
-            main_ax.set_title(f"{plot_helpers.get_region_str(plot_data['axis_opts']['region'])}")
+            main_ax.set_title(f"{plot_helpers.get_axis_str(plot_data['axis_opts']['region'])}")
 
         _draw_plot_from_dict(plot_data, **kwargs)
 
@@ -746,9 +746,12 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
     """
     try:
         if kwargs.get("debug", False):
-            logger.info(f'\t in plot ... kwargs = {kwargs}')
+            logger.info(f'\t in _plot2d_from_dict ... kwargs = {kwargs}')
 
         if len(plot_data.get("ratio", {})):
+            if kwargs.get("debug", False):
+                logger.info(f'\t doing ratio')
+
             # Plot ratios
             key_iter = iter(plot_data["hists"])
             num_key = next(key_iter)
@@ -895,11 +898,12 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
 
         ax = fig.gca()
 
+
         hep.cms.label("Internal", data=True,
                       year=kwargs.get('year', "RunII").replace("UL", "20"), loc=0, ax=ax)
 
         if 'region' in plot_data["axis_opts"]:
-            ax.set_title(f"{plot_data['region']}  ({plot_data['cut']})", fontsize=16)
+            ax.set_title(f"{plot_data['axis_opts']['region']}  ({plot_data['cut']})", fontsize=16)
         else:
             ax.set_title(f"                       ({plot_data['cut']})", fontsize=16)
 

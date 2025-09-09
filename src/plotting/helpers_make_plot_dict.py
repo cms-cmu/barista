@@ -15,9 +15,9 @@ import hist
 import numpy as np
 
 
-def print_list_debug_info(process, tag, cut, axis_opts):
+def print_list_debug_info(process, cut, axis_opts):
     print(f" hist process={process}, "
-          f"tag={tag}, cut={cut}, "
+          f"cut={cut}, "
           f"axis_opts={axis_opts}")
 
 
@@ -66,17 +66,19 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
 
     if debug:
         print(f" in get_hist_data: hist process={process}, "
-              f"tag={config.get('tag', None)}, year={year}, var={var}")
+              f"axis_opts={axis_opts}, year={year}, var={var}")
 
     hist_opts = {
         "process": process,
         "year": year,
     }
 
-    #axis_opts = {"channel": "e_region",
-    #             "tag": config.get("tag", None),
-    #             "region": region
-    #             }
+    for c_key, c_val in config.items():
+        if c_key in ["process", "scalefactor", "label", "fillcolor", "edgecolor", "histtype", "alpha", "linewidth", "linestyle", "zorder"]:
+            continue
+        if debug: print(f"Adding to hist_opts: {c_key} = {c_val}")
+        hist_opts[c_key] = c_val
+
     hist_opts = hist_opts | axis_opts
 
 
@@ -133,11 +135,11 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         for axis in hist_obj.axes:
             if (axis.name == "tag") and isinstance(axis, hist.axis.IntCategory):
                 hist_opts['tag'] = hist.loc(cfg.plotConfig["codes"]["tag"][config["tag"]])
-            # if (axis.name == "region") and isinstance(axis, hist.axis.IntCategory):
-            #     if isinstance(hist_opts['region'], list):
-            #         hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
-            #     elif region != "sum":
-            #         hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region])
+            if (axis.name == "region") and isinstance(axis, hist.axis.IntCategory):
+                 if isinstance(axis_opts.get('region',None), list):
+                     hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
+                 elif axis_opts.get('region',None) and  axis_opts.get('region',None) not in ["sum", sum]:
+                     hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region])
     except (KeyError, AttributeError) as e:
         raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
 
@@ -280,7 +282,7 @@ def _handle_cut_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_
 
     for ic, _cut in enumerate(cut_list):
         if debug:
-            print_list_debug_info(process_config["process"], process_config.get("tag"), _cut, axis_opts)
+            print_list_debug_info(process_config["process"], _cut, axis_opts)
 
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[ic]
@@ -304,7 +306,7 @@ def _handle_axis_opts_list(*, plot_data: Dict, process_config: Dict, cfg: Any, v
         _axis_opts[axis_list_name] = _axis_val
 
         if debug:
-            print_list_debug_info(process_config["process"], process_config.get("tag"), cut, _axis_opts)
+            print_list_debug_info(process_config["process"], cut, _axis_opts)
 
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[ia]
@@ -676,7 +678,7 @@ def _handle_input_files(plot_data: Dict, process_config: Dict, cfg: Any, var_to_
                         file_labels: Optional[List[str]] = None) -> None:
     """Handle plotting from multiple input files."""
     if debug:
-        print_list_debug_info(process_config["process"], process_config.get("tag"), cut, axis_opts)
+        print_list_debug_info(process_config["process"], cut, axis_opts)
 
     file_labels = file_labels or []
     proc_id = process_config["label"] if isinstance(process_config["process"], list) else process_config["process"]
@@ -706,7 +708,7 @@ def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: An
     """Handle plotting multiple processes."""
     for iP, _proc_conf in enumerate(process_config):
         if debug:
-            print_list_debug_info(_proc_conf["process"], _proc_conf.get("tag"), cut, axis_opts)
+            print_list_debug_info(_proc_conf["process"],  cut, axis_opts)
 
         _process_config = copy.deepcopy(_proc_conf)
         _process_config["fillcolor"] = _proc_conf.get("fillcolor", None)
@@ -729,7 +731,7 @@ def _handle_var_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_lis
 
     for iv, _var in enumerate(var_list):
         if debug:
-            print_list_debug_info(process_config["process"], process_config.get("tag"), cut, axis_opts)
+            print_list_debug_info(process_config["process"],  cut, axis_opts)
 
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iv]
@@ -750,7 +752,7 @@ def _handle_year_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var: s
 
     for iy, _year in enumerate(year_list):
         if debug:
-            print_list_debug_info(process_config["process"], process_config.get("tag"), cut, axis_opts)
+            print_list_debug_info(process_config["process"],  cut, axis_opts)
 
         _process_config = copy.copy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iy]
