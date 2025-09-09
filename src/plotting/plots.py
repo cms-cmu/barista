@@ -59,32 +59,21 @@ def parse_args():
     return args
 
 
-
-
-def load_config_bbWW(metadata):
-    """  Load meta data
-    """
-    plotConfig = yaml.safe_load(open(metadata, 'r'))
-
-    return plotConfig
-
-
-
-def init_config(args):
-    cfg.plotConfig = load_config_bbWW(args.metadata)
-    cfg.outputFolder = args.outputFolder
-    cfg.combine_input_files = args.combine_input_files
-    cfg.plotModifiers = yaml.safe_load(open(args.modifiers, 'r'))
-
-    if cfg.outputFolder:
-        if not os.path.exists(cfg.outputFolder):
-            os.makedirs(cfg.outputFolder)
-
-    cfg.hists = load_hists(args.inputFile)
-    cfg.fileLabels = args.fileLabels
-    cfg.axisLabels, cfg.cutList = read_axes_and_cuts(cfg.hists, cfg.plotConfig)
-
-    return cfg
+#def init_config(args):
+#    cfg.plotConfig = load_config_bbWW(args.metadata)
+#    cfg.outputFolder = args.outputFolder
+#    cfg.combine_input_files = args.combine_input_files
+#    cfg.plotModifiers = yaml.safe_load(open(args.modifiers, 'r'))
+#
+#    if cfg.outputFolder:
+#        if not os.path.exists(cfg.outputFolder):
+#            os.makedirs(cfg.outputFolder)
+#
+#    cfg.hists = load_hists(args.inputFile)
+#    cfg.fileLabels = args.fileLabels
+#    cfg.axisLabels, cfg.cutList = read_axes_and_cuts(cfg.hists, cfg.plotConfig)
+#
+#    return cfg
 
 
 def makePlot(cfg, var='selJets.pt',
