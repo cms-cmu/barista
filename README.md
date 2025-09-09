@@ -200,10 +200,10 @@ To make this process robust, a crucial **fallback mechanism** is in place. If th
 
 ### To run the CI workflow locally
 
-Within the [coffea4bees/scripts/](coffea4bees/scripts/) directory, there is a script named `run_local_ci.sh` that facilitates running a Snakemake workflow ([`Snakefile_testCI`](coffea4bees/workflows/Snakefile_testCI)) locally, emulating the GitLab CI process. This script provides a convenient way to execute the CI workflow locally. To run it, navigate to the `coffea4bees/` directory and execute:
+Within the [coffea4bees/scripts/](coffea4bees/scripts/) directory, there is a script named `run-local-ci.sh` that facilitates running a Snakemake workflow ([`Snakefile_testCI`](coffea4bees/workflows/Snakefile_testCI)) locally, emulating the GitLab CI process. This script provides a convenient way to execute the CI workflow locally. To run it, navigate to the `coffea4bees/` directory and execute:
 
 ```bash
-source scripts/run_local_ci.sh NAME_OF_CI_JOB
+source scripts/run-local-ci.sh NAME_OF_CI_JOB
 ```
 
 For those interested in Snakemake, the `Snakefile_testCI` defines "rules" (jobs) similar to those in the GitLab CI workflow. The inclusion of rules in the workflow depends on the inputs specified in `rule all`. Rules can be defined anywhere after `rule all`, but they will only execute if their output files are listed in `rule all`, or if you call directly the name of the rule.
