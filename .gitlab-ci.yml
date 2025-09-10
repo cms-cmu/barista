@@ -34,8 +34,8 @@ variables:
   COFFEA4BEES_BRANCH: "new_master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
-  # DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
-  # DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
+  DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
+  DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
   # # DATASET: metadata/datasets_HH4b_cernbox.yml
   # # DATASET_RUN3: metadata/datasets_HH4b_Run3_cernbox.yml
 
@@ -73,6 +73,8 @@ stages:
 setup_workspace:
   stage: setup
   image: alpine/git:latest
+  needs:
+    - voms_proxy
   script:
     # --- bbreww ---
     - BBREWW_DEFAULT_BRANCH="master"
@@ -94,11 +96,11 @@ setup_workspace:
     paths:
       - bbreww/
       - coffea4bees/
+      - proxy/
     expire_in: 4 hours
 
 .base_analysis:
   needs:
-    - voms_proxy
     - setup_workspace
   image: ${CI_REGISTRY_IMAGE}:test
   tags:
@@ -107,13 +109,19 @@ setup_workspace:
 
 .base_combine:
   image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
+  needs:
+    - setup_workspace
   before_script:
     - source /cvmfs/cms.cern.ch/cmsset_default.sh
     - cd /home/cmsusr/CMSSW_11_3_4/
     - cmsenv || true
     - cd -
+    - cd barista_framework/
+    - pwd && ls -la
+    - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
+  retry: 2
 
 .base_classifier:
   needs:

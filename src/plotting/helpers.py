@@ -226,12 +226,15 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         """Recursively clean object for safe YAML serialization."""
         if obj == sum:  # Functions, classes, etc.
             return "sum"  # Convert to string representation
+        elif isinstance(obj, list):
+            return [clean_for_yaml(item) for item in obj]
         elif isinstance(obj, dict):
             return {k: clean_for_yaml(v) for k, v in obj.items()}
         else:
             return obj
 
     cleaned_data = clean_for_yaml(plot_data)
+
     with open(file_name, "w") as yfile:
         yaml.safe_dump(cleaned_data, yfile, default_flow_style=False, sort_keys=False)
 
@@ -311,6 +314,8 @@ def get_year_str(year: Union[str, List[str]]) -> str:
     Returns:
         Formatted year string
     """
+    if year == sum:
+        return "sum"
     if isinstance(year, list):
         return "_vs_".join(year)
     return year.replace("UL", "20")
@@ -325,7 +330,8 @@ def get_axis_str(axis: Union[str, List[str]]) -> str:
         Formatted region string
     """
     if isinstance(axis, list):
-        return " vs ".join(axis)
+        str_axis = ["sum" if i == sum else i for i in axis]
+        return " vs ".join(str_axis)
     if axis == sum:
         return "sum"
     return axis
