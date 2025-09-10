@@ -74,7 +74,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     }
 
     for c_key, c_val in config.items():
-        if c_key in ["process", "scalefactor", "label", "fillcolor", "edgecolor", "histtype", "alpha", "linewidth", "linestyle", "zorder"]:
+        if c_key in ["process", "scalefactor", "label", "fillcolor", "edgecolor", "histtype", "alpha", "linewidth", "linestyle", "zorder", "year"]:
             continue
         if debug: print(f"Adding to hist_opts: {c_key} = {c_val}")
         hist_opts[c_key] = c_val
@@ -148,6 +148,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     if not do2d:
         var_dict = {varName: hist.rebin(rebin)}
         hist_opts = hist_opts | var_dict
+
 
     # Do the hist selection/binning
     try:
@@ -486,7 +487,7 @@ def load_stack_config(*, cfg: Any, stack_config: Dict, var: str, cut: str, axis_
                          axis_opts=axis_opts, do2d=do2d, debug=debug)
             stack_dict[_proc_name] = proc_config
         elif proc_config.get("sum", None):
-            _handle_stack_sum(proc_config, cfg, var_to_plot, cut, rebin, year, axis_opts, do2d, debug, var_over_ride)
+            _handle_stack_sum(proc_config=proc_config, cfg=cfg, var_to_plot=var_to_plot, cut=cut, rebin=rebin, year=year, axis_opts=axis_opts, do2d=do2d, debug=debug, var_over_ride=var_over_ride)
             stack_dict[_proc_name] = proc_config
         else:
             raise ValueError("Error: Stack component must have either 'process' or 'sum' configuration")
