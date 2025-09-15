@@ -138,8 +138,6 @@ setup_workspace:
     - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
-    - cd barista_framework/
-    - pwd && ls -la
     - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
