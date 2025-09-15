@@ -58,14 +58,13 @@ stages:
   - build
   - setup
   - code 
+  - classifier
   - skimmer
   - friendtree
   - analysis
   - tools
   - plot
   - cutflow
-  - classifier
-  - reana
   - deploy
   - validation
   - pages
@@ -103,6 +102,11 @@ setup_workspace:
   needs:
     - setup_workspace
   image: ${CI_REGISTRY_IMAGE}:test
+  before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
   tags:
     - k8s-cvmfs
   retry: 2
@@ -112,11 +116,13 @@ setup_workspace:
   needs:
     - setup_workspace
   before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_DIR/output/ || true
+    - echo "Setting combine framework"
     - source /cvmfs/cms.cern.ch/cmsset_default.sh
     - cd /home/cmsusr/CMSSW_11_3_4/
     - cmsenv || true
-    - cd -
-    - cd barista_framework/
+    - cd $CI_PROJECT_DIR/
     - pwd && ls -la
     - ls -la coffea4bees/
   tags:
@@ -130,6 +136,11 @@ setup_workspace:
   image: registry.hub.docker.com/chuyuanliu/heptools:ml-cpu # TODO change to central repo
   before_script:
     - source /entrypoint.sh
+    - cd $CI_PROJECT_DIR/
+    - pwd && ls -la
+    - cd barista_framework/
+    - pwd && ls -la
+    - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
   artifacts:
