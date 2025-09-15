@@ -116,7 +116,7 @@ src/scripts/memory/memory_test.py \
 ### 🚀 **Testing Container Workflows**
 ```bash
 src/scripts/memory/memory_limited_run.sh --max-memory 6000 -- \
-  ./run_container source coffea4bees/scripts/memory_test.sh
+  ./run_container source coffea4bees/scripts/tools-memory-test.sh
 ```
 
 ### 🐍 **Testing Snakemake Workflows**
