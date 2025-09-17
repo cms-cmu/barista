@@ -187,5 +187,4 @@ set_ROOT.sh
 .snakemake/
 .condor_config
 
-
 */*/.DS_Store
