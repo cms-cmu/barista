@@ -34,6 +34,7 @@ variables:
   COFFEA4BEES_BRANCH: "master"
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
+  RUN_PAGES: "false"  # Control whether to run the pages job
   DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
   DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
   # # DATASET: metadata/datasets_HH4b_cernbox.yml
@@ -163,6 +164,8 @@ pages:
     - cp docs/requirements.txt .
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master")'
+      when: always
+    - if: '$RUN_PAGES == "true"'
       when: always
     - when: never
 
