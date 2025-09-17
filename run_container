@@ -38,10 +38,12 @@ show_help() {
 # Define default paths
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
+SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
 
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
+    SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
 fi
 
 # --- Host-specific Configuration ---
@@ -121,8 +123,32 @@ run_combine() {
     fi
 }
 
-# Function to run snakemake
+# Function to run snakemake in container
 run_snakemake() {
+
+    info "Running Snakemake container..."
+    if [ -z "$1" ]; then
+        error "No arguments supplied for snakemake."
+        show_help
+        exit 1
+    fi
+
+    if [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]]; then
+        error "The --snakefile (-s) argument is required to run snakemake."
+        show_help
+        exit 1
+    fi
+
+    info "Executing Snakemake command inside the container..."
+    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
+    "$SNAKEMAKE_IMAGE" \
+    /bin/bash -c "snakemake $*"
+
+    info "Workflow execution finished successfully!. Try to run snakemake_dev for better dependency management."
+}
+
+# Function to run snakemake
+run_snakemake_dev() {
 
     info "Running Snakemake..."
     # Exit immediately if a command or pipeline fails.
@@ -240,6 +266,9 @@ else
         ;;
         "snakemake")
         run_snakemake "${@:2}" # Run snakemake, passing along any remaining arguments
+        ;;
+        "snakemake_dev")
+        run_snakemake_dev "${@:2}" # Run snakemake, passing along any remaining arguments
         ;;
         *)
         # If not combine or snakemake, assume the arguments are commands for coffea
