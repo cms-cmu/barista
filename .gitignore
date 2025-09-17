@@ -1,6 +1,3 @@
-# local configs
-/coffea4bees/analysis_dask/config/**/*.local.cfg.yml
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -80,7 +77,6 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-coffea4bees/notebooks/
 
 # IPython
 profile_default/
@@ -192,7 +188,3 @@ set_ROOT.sh
 .condor_config
 
 */*/.DS_Store
-
--dask-report-*.html
-.fontconfig/
-.cmslpc-local-conf
