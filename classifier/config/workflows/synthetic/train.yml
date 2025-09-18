@@ -1,0 +1,50 @@
+# template:
+# - user: lpc username
+# - synthetic: seed of synthetic dataset
+
+main:
+  module: train
+  option:
+    - --max-loaders 2
+    - --max-trainers 3
+
+model:
+  - module: HCR.FvT.baseline.Train
+    option:
+      - --kfolds 3
+      - --training FixedStep
+      - epoch: 20
+        bs_init: 1024
+      - --finetuning FixedStep
+      - epoch: 1
+        bs_init: 16384
+
+dataset:
+  - module: HCR.FvT.TrainBaseline # load 3b data and 3b/4b ttbar
+    option:
+      - --metadata datasets_HH4b
+      - --max-workers 20
+      - --data-source detector # only load detector data
+      - --no-detector-4b # remove 4b data
+      - --JCM-weight "" analysis/weights/JCM/AN_24_089_v3/jetCombinatoricModel_SB_6771c35.yml@@JCM_weights # TODO need to replace the nominal JCM with the one for synthetic dataset
+      - --friends "" root://cmseos.fnal.gov//store/user/chuyuanl/HH4b/friend/AN_v3/FvT/friend.json@@HCR_input
+  - module: HCR.FvT.TrainBaseline # load 4b synthetic data
+    option:
+      - --metadata datasets_HH4b
+      - --max-workers 20
+      - --data-source synthetic # only load synthetic data
+      - --data-synthetic-samples {synthetic} # set synthetic data seed
+      - --mc-processes # set mc-processes to empty (to remove ttbar)
+      - --friends "" root://cmseos.fnal.gov//store/user/jda102/XX4b/2024_v1/classifier_synthetic_data.json@@HCR_input
+
+
+setting:
+  - module: ml.Training
+    option:
+      - disable_benchmark: true # disable all benchmark steps
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true # use the new dataloader
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/XX4b/FvT/seed-{synthetic}/model/ # TODO may need to change

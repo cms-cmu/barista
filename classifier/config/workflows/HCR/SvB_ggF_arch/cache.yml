@@ -1,0 +1,32 @@
+main:
+  module: cache
+  option:
+    - --max-loaders 2
+    - --nchunks 10
+    - --max-writers 5
+    - --states label.MultiClass.labels label.MultiClass.trainable_labels
+
+dataset:
+  - module: HCR.SvB.Background
+    option:
+      - --metadata datasets_HH4b
+      - --norm 6
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+      - --friends
+      - label:data
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@JCM_weight
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@FvT_weight
+
+  - module: HCR.SvB.Signal
+    option:
+      - --metadata datasets_HH4b
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+
+setting:
+  - module: IO
+    option:
+      - output: /srv/HH4b/classifier/cache/SvB_ggF_arch/

@@ -1,0 +1,47 @@
+# template:
+# - user: lpc username
+# - model: name of the model
+# - norm: normalization
+
+main:
+  module: train
+  option:
+    - --max-loaders 2
+    - --max-trainers 3
+
+model:
+  - module: HCR.SvB.ggF.{model}.Train
+    option:
+      - --roc-signal-by-category
+      - --training FixedStep
+      - epoch: 20
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+
+dataset:
+  - module: HCR.SvB.Background
+    option:
+      - --metadata datasets_HH4b
+      - --norm {norm}
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+      - --friends
+      - label:data
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@JCM_weight
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@FvT_weight
+
+  - module: HCR.SvB.Signal
+    option:
+      - --metadata datasets_HH4b
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/SvB/ggF/{model}/
+
