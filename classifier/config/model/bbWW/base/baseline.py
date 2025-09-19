@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from classifier.config.setting.bbWWHCR import Input, Output
 from classifier.config.state.label import MultiClass
 from classifier.task import ArgParser
-from classifier.config.model.HCR._HCR import ROC_BIN, HCREval, HCRTrain
+from classifier.config.model.bbWW.base._HCR import ROC_BIN, HCREval, HCRTrain
 
 if TYPE_CHECKING:
     from classifier.ml import BatchType
