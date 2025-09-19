@@ -11,11 +11,8 @@ class InputBranch(GlobalSetting):
     feature_leadingLep: list[str] = ["pt", "eta", "phi", "mass", "isE", "isM"]
     # MET features
     feature_MET: list[str] = ["pt", "phi"]
-    
-    n_bJetCand: int = 2
-    n_nonbJetCand: int = 2
-    n_leadingLep: int = 1
-    n_MET: int = 1
+    nbJetCand: int = 2
+    nnonbJetCand: int = 2
 
     @classmethod
     def get__feature_bJetCand(cls, var: list[str]):
@@ -32,6 +29,11 @@ class InputBranch(GlobalSetting):
     @classmethod
     def get__feature_MET(cls, var: list[str]):
         return [f"MET_{f}" for f in var]
+    
+    @classmethod
+    def get__feature_ancillary(cls, var: list[str]):
+        return var.copy()
+
 
 class Input(GlobalSetting):
     "Name of the keys in the input batch."
@@ -41,8 +43,6 @@ class Input(GlobalSetting):
     nonbJetCand: str = "nonbJetCand" 
     leadingLep: str = "leadingLep"
     MET: str = "MET"
-    SR: str = "SR"
-    CR: str = "CR"
 
 class Output(GlobalSetting):
     "Name of the keys in the output batch."
