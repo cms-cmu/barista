@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from coffea4bees.classifier.algorithm.statistics.variance import TensorVariance
+from classifier.algorithm.statistics.variance import TensorVariance
 from rich import box as BoxStyle
 from rich.table import Table
 
@@ -938,6 +938,7 @@ class MinimalAttention(
         self.h = heads
         self.dh = self.d // self.h
         self.do_qv = do_qv
+        self.inputLayers = inputLayers
         # self.iter = iterations
 
         self.q_GBN = GhostBatchNorm1d(self.d, name="attention q GBN")
@@ -1138,8 +1139,12 @@ class InputEmbed(nn.Module):
             conv=True,
             name="jet embedder",
         )  # phi is relative to dijet
+
         self.bJetConv = GhostBatchNorm1d(
-            self.dD, phase_symmetric=phase_symmetric, conv=True, name="jet convolution"
+            self.dD, 
+            phase_symmetric=phase_symmetric, 
+            conv=True, 
+            name="jet convolution"
         )
         self.nonbJetEmbed = GhostBatchNorm1d(
             4,
@@ -1242,7 +1247,7 @@ class InputEmbed(nn.Module):
             phase_symmetric=phase_symmetric,
             conv=True,
             name="dijet embedder",
-        )  # phi is relative to quadjet
+        )  # phi is relative do dijet
         self.nonbDiJetEmbed = GhostBatchNorm1d(
             3,
             features_out=self.dQ,
@@ -1263,19 +1268,28 @@ class InputEmbed(nn.Module):
             name="quadjet convolution",
         )
 
+        self.layers.addLayer(self.ancillaryEmbed)
         self.layers.addLayer(self.bJetEmbed)
+        self.layers.addLayer(self.bbDiJetEmbed)
         self.layers.addLayer(self.ancillaryEmbed)
         self.layers.addLayer(self.nonbJetEmbed)
         self.layers.addLayer(self.nonbDiJetEmbed)
         self.layers.addLayer(self.MdREmbed)
-        # self.layers.addLayer(self. diMdPhi_embed)
-        # self.layers.addLayer(self.triMdPhi_embed)
+        self.layers.addLayer(self.lepEmbed)
+        self.layers.addLayer(self.nuEmbed)
+        self.layers.addLayer(self.lnuEmbed)
+        self.layers.addLayer(self.WWEmbed)
+
         self.layers.addLayer(self.bJetConv, [self.bJetEmbed])
         self.layers.addLayer(self.bbDiJetConv, [self.bbDiJetEmbed])
         # self.layers.addLayer(self.ancillaryConv, [self.ancillaryEmbed])
         self.layers.addLayer(self.nonbDiJetConv, [self.nonbDiJetEmbed])
         self.layers.addLayer(self.MdRConv, [self.MdREmbed])
-        ### to do section
+        self.layers.addLayer(self.nonbJetConv, [self.nonbJetEmbed])
+        self.layers.addLayer(self.lepConv, [self.lepEmbed])
+        self.layers.addLayer(self.nuConv, [self.nuEmbed])
+        self.layers.addLayer(self.lnuConv, [self.lnuEmbed])
+        self.layers.addLayer(self.WWConv, [self.WWEmbed])
 
     def dataPrep(self, b, nb, l, nu, a):  # , device='cuda'):
         device = b.get_device() if b.get_device() >= 0 else "cpu"
@@ -1397,8 +1411,7 @@ class InputEmbed(nn.Module):
         b, bb, qq, a, nb , l, nu, lnu_mT,lepQQdR, bbMdR, qqMdR, bbnMdR, mask, mask_bb, mask_qq, mask_bbn = self.dataPrep(
             b, nb, l, nu, a)
           # , device='cpu')
-        self.ancillaryEmbed.updateMeanStd(a)
-        self.nonbJetEmbed.updateMeanStd(qq, mask)
+
 
         n, self.bsl, self.wsl = bb.shape[0], bb.shape[2], nb.shape[2]
 
@@ -1418,14 +1431,16 @@ class InputEmbed(nn.Module):
             ),
             dim=1,
         )
-        self.MdREmbed.updateMeanStd(MdR, mask_MdR)
+        
         # self. diMdPhi_embed.setMeanStd(ooMdPhi.view(n, 2, self.bsl*self.bsl), mask_oo.view(n, self.bsl*self.bsl))
         # self.triMdPhi_embed.setMeanStd(doMdPhi.view(n, 2, self.wsl*self.bsl), mask_do.view(n, self.wsl*self.bsl))
-
+        
+        self.ancillaryEmbed.updateMeanStd(a)
         self.bJetEmbed.updateMeanStd(b)
         self.bbDiJetEmbed.updateMeanStd(bb)
         self.nonbJetEmbed.updateMeanStd(nb)
         self.nonbDiJetEmbed.updateMeanStd(qq)
+        self.MdREmbed.updateMeanStd(MdR, mask_MdR)
         self.lepEmbed.updateMeanStd(l)
         self.nuEmbed.updateMeanStd(nu)
         self.lnuEmbed.updateMeanStd(lnu_mT)
@@ -1437,6 +1452,7 @@ class InputEmbed(nn.Module):
         self.bbDiJetEmbed.initMeanStd()
         self.nonbJetEmbed.initMeanStd()
         self.nonbDiJetEmbed.initMeanStd()
+        self.MdREmbed.initMeanStd()
         self.lepEmbed.initMeanStd()
         self.nuEmbed.initMeanStd()
         self.lnuEmbed.initMeanStd()
@@ -1448,18 +1464,20 @@ class InputEmbed(nn.Module):
         self.bbDiJetEmbed.setGhostBatches(nGhostBatches)
         self.nonbJetEmbed.setGhostBatches(nGhostBatches)
         self.nonbDiJetEmbed.setGhostBatches(nGhostBatches)
-
+        self.MdREmbed.setGhostBatches(nGhostBatches)
         self.lepEmbed.setGhostBatches(nGhostBatches)
         self.nuEmbed.setGhostBatches(nGhostBatches)
         self.lnuEmbed.setGhostBatches(nGhostBatches)
         self.WWEmbed.setGhostBatches(nGhostBatches)
+
         if subset:
             return
-        self.MdRConv.setGhostBatches(nGhostBatches)
+
         self.bJetConv.setGhostBatches(nGhostBatches)
         self.bbDiJetConv.setGhostBatches(nGhostBatches)
         self.nonbJetConv.setGhostBatches(nGhostBatches)
         self.nonbDiJetConv.setGhostBatches(nGhostBatches)
+        self.MdRConv.setGhostBatches(nGhostBatches)
         self.lepConv.setGhostBatches(nGhostBatches)
         self.nuConv.setGhostBatches(nGhostBatches)
         self.lnuConv.setGhostBatches(nGhostBatches)
@@ -1538,7 +1556,6 @@ class HCR(nn.Module):
         dijetFeatures,
         quadjetFeatures,
         ancillaryFeatures,
-        useOthJets="",
         device="cuda",
         nClasses=1,
         architecture="HCR",
@@ -1552,7 +1569,6 @@ class HCR(nn.Module):
         dijetBottleneck = None
         self.name = (
             architecture
-            + ("+" + useOthJets if useOthJets else "")
             + "_%d" % (dijetFeatures)
         )
         self.nC = nClasses
@@ -1569,7 +1585,6 @@ class HCR(nn.Module):
             self.dD,
             self.dQ,
             ancillaryFeatures,
-            useOthJets=self.useOthJets,
             layers=self.layers,
             device=self.device,
             phase_symmetric=self.phase_symmetric,
@@ -1614,6 +1629,7 @@ class HCR(nn.Module):
             inputLayers=[self.lepWResNetBlock.conv[-1], self.nonbDiJetResNetBlock.reinforce[-1]],
             device=self.device,
         )
+        self.layers.addLayer(self.attention_WW, self.attention_WW.inputLayers)
 
         self.attention_hh = MinimalAttention(
             self.dD,
@@ -1623,10 +1639,7 @@ class HCR(nn.Module):
             inputLayers=[self.inputEmbed.bJetConv, self.attention_WW],
             device=self.device,
         )
-        previousLayer = self.attention_hh.conv
-
-        # # embed inputs to quadjetResNetBlock in target feature space
-        # self.dijetEmbedInQuadjetSpace = GhostBatchNorm1d(self.dQ, phase_symmetric=self.phase_symmetric, conv=True, name='dijet embed in quadjet space')
+        self.layers.addLayer(self.attention_hh, self.attention_hh.inputLayers)
 
         # Embed enhanced WW representation
         self.WW_final_embed = GhostBatchNorm1d(
@@ -1670,14 +1683,14 @@ class HCR(nn.Module):
         self.inputEmbed.initMeanStd()
 
     def setGhostBatches(self, nGhostBatches, subset=False):
-        self.inputEmbed.setGhostBatches(nGhostBatches, subset)
-        self.dijetResNetBlock.setGhostBatches(nGhostBatches, subset)
-        if self.useOthJets:
-            self.attention_oo.setGhostBatches(nGhostBatches, subset)
-            self.attention_do.setGhostBatches(nGhostBatches, subset)
-        self.quadjetResNetBlock.setGhostBatches(nGhostBatches, subset)
-        # self.combine_q.setGhostBatches(nGhostBatches)
-        self.select_q.setGhostBatches(nGhostBatches)
+        self.inputEmbed.setGhostBatches(nGhostBatches)
+        self.bJetEmbed.setGhostBatches(nGhostBatches)
+        self.bbDiJetEmbed.setGhostBatches(nGhostBatches)
+        self.nonbJetEmbed.setGhostBatches(nGhostBatches)
+        self.nonbDiJetEmbed.setGhostBatches(nGhostBatches)
+        self.WW_final_embed.setGhostBatches(nGhostBatches)
+        self.HH_final_embed.setGhostBatches(nGhostBatches)
+        self.final_combine.setGhostBatches(nGhostBatches)
         self.out.setGhostBatches(nGhostBatches)
         self.nGhostBatches = nGhostBatches
 
