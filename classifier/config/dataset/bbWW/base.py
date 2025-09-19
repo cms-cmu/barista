@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 def _common_selection(df: pd.DataFrame):
     """Common selection for both signal and control regions"""
-    return (df["CR"] | df["SR"])
+
+    return df["CR"] | df["SR"]
 
 def _data_selection(df: pd.DataFrame):
     """Data selection excluding signal region events"""
@@ -33,6 +34,11 @@ def _remove_sr(df: pd.DataFrame):
     return df[~df["SR"]]
 
 
+def _remove_sr(df: pd.DataFrame):
+    """Remove signal region events"""
+    return df
+
+
 class Train(CommonTrain):
     """Training dataset configuration for HH→bbWW classifier"""
     
@@ -42,40 +48,22 @@ class Train(CommonTrain):
         action="store_true",
         help="remove SR events from training",
     )
-    argparser.add_argument(
-        "--min-btags",
-        type=int,
-        default=2,
-        help="minimum number of b-tagged jets",
-    )
-    argparser.add_argument(
-        "--met-cut",
-        type=float,
-        default=50.0,
-        help="minimum MET requirement (GeV)",
-    )
-    argparser.add_argument(
-        "--lepton-pt-cut",
-        type=float,
-        default=20.0,
-        help="minimum leading lepton pT (GeV)",
-    )
 
     def preprocess_by_group(self):
         from classifier.df.tools import add_label_index_from_column, prescale
 
-        ps = [
+        ps = []
+        ps.append(
             _group.fullmatch(
                 ("label:signal",),
                 processors=[
                     lambda: _signal_selection,
-                    lambda: add_label_index_from_column(CR="CR", SR="SR"),
+                    lambda: add_label_index_from_column(CR="control", SR="signal"),
                 ],
                 name="HH signal selection",
             ),
-
-            _group.add_year(),
-        ]
+        )
+        _group.add_year(),
 
         # Optional SR removal
         if self.opts.no_SR:

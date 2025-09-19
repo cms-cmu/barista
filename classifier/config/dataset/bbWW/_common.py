@@ -11,11 +11,11 @@ from classifier.task import ArgParser, parse
 from classifier.typetools import enum_dict
 
 from ...setting.df import Columns
-from ...setting.bbWWHCR import Input, InputBranch, MassRegion
 from ...setting.ml import KFold
 from ...state import Flags
 from ...state.label import MultiClass
 from .._root import LoadGroupedRoot
+from ...setting.bbWWHCR import Input, InputBranch, MassRegion
 from classifier.config.dataset.HCR import _group
 
 if TYPE_CHECKING:
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 class _Derived:
     region_index: str = "region_index"
-    # Removed ntag_index since you're not using tag-based classification
 
 
 def _sort_map(obj: dict[frozenset[str]]):
@@ -112,17 +111,12 @@ class Common(LoadGroupedRoot):
             InputBranch.feature_bJetCand,      
             InputBranch.feature_nonbJetCand,   
             InputBranch.feature_leadingLep,   
-            InputBranch.feature_MET,       
+            InputBranch.feature_MET,   
             self.opts.branch,
         )
 
-    def other_branches(self) -> set[str]:
-        return {
-            'CR',
-            'SR',
-            Columns.event,
-            Columns.weight,
-        }
+    @abstractmethod
+    def other_branches(self) -> set[str]: ...
 
 
 class CommonTrain(Common):
@@ -148,21 +142,30 @@ class CommonTrain(Common):
             .add(KFold.offset, KFold.offset_dtype).columns(Columns.event)
             .add(Input.label, Columns.index_dtype).columns(Columns.label_index)
             .add(Input.weight, "float32").columns(Columns.weight)
-            .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.n_bJetCand)
-            .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.n_nonbJetCand, pad_value=-1)
-            .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep, target=InputBranch.n_leadingLep)
-            .add(Input.MET, "float32").columns(*InputBranch.feature_MET, target=InputBranch.n_MET)
+            .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.nbJetCand)
+            .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.nnonbJetCand, pad_value=-1)
+            .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep)
+            .add(Input.MET, "float32").columns(*InputBranch.feature_MET)
+
         )
         self.preprocessors.extend(
             [
                 map_selection_to_flag(
                     **enum_dict(MassRegion)
-                ).set(name=_Derived.region_index),
+                ).set(name=_Derived.region_index)
             ]
         )
         if Flags.debug:
             self.postprocessors.append(_debug_print_weight)
         # fmt: on
+
+    def other_branches(self):
+        return {
+            "SR",
+            "CR",
+            Columns.event,
+            Columns.weight,
+        }
 
     def preprocess_by_group(self):
         ps = []
@@ -220,12 +223,18 @@ class CommonEval(Common):
         (
             self.to_tensor
             .add(KFold.offset, KFold.offset_dtype).columns(Columns.event)
-            .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.n_bJetCand)
-            .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.n_nonbJetCand, pad_value=-1)
-            .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep, target=InputBranch.n_leadingLep)
-            .add(Input.MET, "float32").columns(*InputBranch.feature_MET, target=InputBranch.n_MET)
+            .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.nbJetCand)
+            .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.nnonbJetCand, pad_value=-1)
+            .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep)
+            .add(Input.MET, "float32").columns(*InputBranch.feature_MET)
+
         )
         # fmt: on
+
+    def other_branches(self):
+        return {
+            Columns.event,
+        }
 
     def preprocess_by_group(self):
         return [
