@@ -188,3 +188,5 @@ set_ROOT.sh
 .condor_config
 
 */*/.DS_Store
+
+tmp/
