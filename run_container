@@ -39,7 +39,8 @@ show_help() {
     echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
-    echo "  $0 snakemake --reinstall --snakefile Snakefile  Clean and reinstall environment, then run snakemake."
+    echo "  $0 snakemake --reinstall Snakefile  Clean and reinstall environment, then run snakemake."
+    echo "  $0 snakemake_container --snakefile Snakefile  Run snakemake with the specified Snakefile inside a container (backup option)."
     echo "  $0 classifier          Open an interactive shell in the classifier container."
     echo "  $0 classifier python --version  Run 'python --version' in the classifier container."
 }
