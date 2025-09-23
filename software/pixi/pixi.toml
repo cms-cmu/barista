@@ -1,0 +1,43 @@
+[project]
+name = "snakemake-analysis"
+version = "0.1.0"
+description = "Snakemake environment for HH4b analysis"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+# Python and core tools
+python = ">=3.11"
+pip = "*"
+
+# Snakemake and workflow tools
+snakemake = "==8.27.1"
+
+# System tools
+# Commenting out since they're typically available on target systems
+git = "*"
+graphviz = "*"
+
+# Additional analysis dependencies (add as needed)
+# numpy = "*"
+
+[pypi-dependencies]
+# Pip-only packages from Dockerfile
+panoptes-ui = "*"
+
+[tasks]
+# Define common tasks
+snakemake = "snakemake"
+install = "pixi install"
+shell = "bash"
+
+[feature.dev.dependencies]
+# Development-only dependencies
+# jupyter = "*"
+# ipython = "*"
+
+[environments]
+# Default environment includes all base dependencies
+default = {features = [], solve-group = "default"}
+# Development environment includes dev dependencies
+dev = {features = ["dev"], solve-group = "default"}

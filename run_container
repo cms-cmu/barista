@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Script to run either a coffea, combine, or snakemake container
+# Script to run either a coffea, combine, snakemake, or classifier container
 # --- Helper for colored output ---
 info() {
     echo -e "\033[1;34m[INFO]\033[0m $1"
@@ -15,36 +15,50 @@ warning() {
 
 # Function to display help message
 show_help() {
-  echo "Usage: $0 [command] [options]"
-  echo ""
-  echo "Commands:"
-  echo "  [command...]          Run commands inside the coffea container."
-  echo "                        Opens an interactive shell if no commands are given."
-  echo "                        (Interactive shell is the only option to run on LPC HTCondor)."
-  echo "  combine [command...]  Run commands inside the combine container."
-  echo "                        Opens an interactive shell if no commands are given."
-  echo "  snakemake [options]   Run snakemake with the specified options."
-  echo "                        Requires --snakefile argument."
-  echo "  --help                Show this help message."
-  echo ""
-  echo "Examples:"
-  echo "  $0                     Open an interactive shell in the analysis container. (This is the only option to run on LPC HTCondor)."
-  echo "  $0 python --version    Run 'python --version' in the analysis container."
-  echo "  $0 combine             Open an interactive shell in the combine container."
-  echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
-  echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
+    echo "Usage: $0 [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  [command...]          Run commands inside the coffea container."
+    echo "                        Opens an interactive shell if no commands are given."
+    echo "                        (Interactive shell is the only option to run on LPC HTCondor)."
+    echo "  combine [command...]  Run commands inside the combine container."
+    echo "                        Opens an interactive shell if no commands are given."
+    echo "  snakemake [options]   Run snakemake with the specified options."
+    echo "                        Requires --snakefile argument."
+    echo "  classifier [command...] Run commands inside the classifier container."
+    echo "                        Opens an interactive shell if no commands are given."
+    echo "  snakemake_dev [options] Run snakemake using the local Pixi environment for better dependency management."
+    echo "                        Requires --snakefile argument. Automatically installs Pixi if needed."
+    echo "  --help                Show this help message."
+    echo ""
+    echo "Examples:"
+    echo "  $0                     Open an interactive shell in the analysis container. (This is the only option to run on LPC HTCondor)."
+    echo "  $0 python --version    Run 'python --version' in the analysis container."
+    echo "  $0 combine             Open an interactive shell in the combine container."
+    echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
+    echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
+    echo "  $0 snakemake_dev --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
+    echo "  $0 classifier          Open an interactive shell in the classifier container."
+    echo "  $0 classifier python --version  Run 'python --version' in the classifier container."
 }
+
 
 # Define default paths
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
+CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
 
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
+    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/${CLASSIFIER_IMAGE#docker://}"
 fi
+
+export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
+export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
+export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
 
 # --- Host-specific Configuration ---
 info "Determining configuration for hostname: $(hostname)"
@@ -104,9 +118,6 @@ run_coffea() {
 run_combine() {
 
     info "Running Combine container..."
-    export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-    export APPTAINER_TMPDIR="/tmp/.apptainer/"
-    export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
 
     COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr//"
 
@@ -149,9 +160,7 @@ run_snakemake() {
 
 # Function to run snakemake
 run_snakemake_dev() {
-
-    info "Running Snakemake..."
-    # Exit immediately if a command or pipeline fails.
+    info "Running Snakemake with Pixi environment..."
     set -eo pipefail
 
     if [ -z "$1" ]; then
@@ -160,95 +169,82 @@ run_snakemake_dev() {
         exit 1
     fi
 
-    local REQUIREMENTS_FILE="software/pixi/requirements.txt"
+    local PIXI_CONFIG="software/pixi/pixi.toml"
 
     # 1. Check for and Install Pixi
     if ! command -v pixi &> /dev/null; then
-        info "Pixi not found. Installing now to ${PIXI_DIR}..."
-        # The installer respects the PIXI_HOME environment variable for the installation path.
+        info "Pixi not found. Installing to ${PIXI_DIR}..."
         export PIXI_HOME="${PIXI_DIR}"
-        # Create the target directory if it doesn't exist to prevent installer errors.
         mkdir -p "${PIXI_DIR}"
-        curl -fsSL https://pixi.sh/install.sh | bash
-
-        # Manually update PATH for the current script session.
-        export PATH="${PIXI_DIR}/bin:$PATH"
         
-        # Verification step to ensure the environment is ready
-        if ! command -v pixi &> /dev/null; then
-            echo -e "\033[1;31m[ERROR]\033[0m Pixi installation failed or PATH was not updated correctly."
-            echo "Please open a new terminal and run this script again."
+        if ! curl -fsSL https://pixi.sh/install.sh | bash; then
+            error "Failed to install Pixi. Check network connection and permissions."
             exit 1
         fi
-        info "Pixi installed and added to PATH for this session."
-    else
-        info "Pixi is already installed. Location: $(command -v pixi)"
-    fi
 
-    # 2. Initialize Pixi Project (if needed)
-    if [ ! -f "pixi.toml" ]; then
-        info "No 'pixi.toml' found. Creating a new Pixi project configuration..."
-        # Create a pixi.toml file with the correct channels and project structure.
-        # This avoids using the `pixi channel` subcommand, which is deprecated.
-        # Channel priority is determined by their order in the list.
-        cat > pixi.toml << EOF
-[project]
-name = "analysis-environment"
-version = "0.1.0"
-channels = ["conda-forge", "bioconda"]
-platforms = ["linux-64"]
-
-[dependencies]
-EOF
-        info "Created 'pixi.toml' with conda-forge and bioconda channels."
-    fi
-
-    # 3. Synchronize Dependencies from requirements file
-    if [ -f "${REQUIREMENTS_FILE}" ]; then
-        info "Checking dependencies from '${REQUIREMENTS_FILE}'..."
-        local packages_to_add=()
-        while IFS= read -r package || [[ -n "$package" ]]; do
-            if [[ -z "$package" ]] || [[ "$package" == \#* ]]; then
-                continue
-            fi
-            local clean_package
-            clean_package=$(echo "${package}" | sed 's/.*:://' | sed -E 's/[<>=!].*//')
-            if ! grep -q -E "^\s*${clean_package}\s*=" pixi.toml; then
-                packages_to_add+=("${package}")
-            fi
-        done < "${REQUIREMENTS_FILE}"
-
-        if [ ${#packages_to_add[@]} -gt 0 ]; then
-            info "New dependencies found in '${REQUIREMENTS_FILE}'. Synchronizing environment..."
-            info "Packages to add: ${packages_to_add[*]}"
-            rm -f pixi.lock
-            pixi add "${packages_to_add[@]}"
-            info "Installing environment after adding packages..."
-            pixi install
-            info "Environment synchronization complete."
-        else
-            info "Dependencies are already up-to-date."
+        export PATH="${PIXI_DIR}/bin:$PATH"
+        
+        if ! command -v pixi &> /dev/null; then
+            error "Pixi installation failed or PATH not updated correctly."
+            echo "Please restart your shell and try again."
+            exit 1
         fi
+        info "Pixi installed successfully."
     else
-        if ! sed -n '/\[dependencies\]/,/\[.*\]/p' pixi.toml | grep -q -E '^\s*\w+\s*='; then
-            warning "No '${REQUIREMENTS_FILE}' found and 'pixi.toml' has no dependencies."
-            warning "Please create '${REQUIREMENTS_FILE}' or add dependencies to 'pixi.toml' manually."
-            warning "Proceeding, but the following command may fail."
-        fi
+        info "Pixi found at: $(command -v pixi)"
     fi
 
-    # 4. Run the Snakemake Workflow with all user-provided arguments
-    # Check if snakemake is available in the environment
-    if ! pixi run which snakemake &> /dev/null; then
-        error "Snakemake executable not found in Pixi environment. Check your requirements and environment build."
+    # 2. Sync pixi.toml from template (always use latest from software/pixi/)
+    if [ -f "${PIXI_CONFIG}" ]; then
+        info "Syncing pixi.toml from ${PIXI_CONFIG}..."
+        cp "${PIXI_CONFIG}" pixi.toml
+    else
+        error "No pixi configuration template found at ${PIXI_CONFIG}"
+        error "Please create ${PIXI_CONFIG} first."
         exit 1
     fi
 
-    info "Executing Snakemake command via 'pixi run'..."
-    pixi run snakemake "$@"
+    # 3. Install environment
+    info "Installing Pixi environment..."
+    if ! pixi install; then
+        error "Failed to install Pixi environment. Check pixi.toml for issues."
+        exit 1
+    fi
 
+    # 4. Verify Snakemake is available
+    if ! pixi run python -c "import snakemake" 2>/dev/null; then
+        error "Snakemake not available in environment. Check dependencies in pixi.toml."
+        exit 1
+    fi
+
+    # 5. Run Snakemake
+    info "Executing: pixi run snakemake $*"
+    pixi run snakemake "$@"
+    
     info "Workflow execution finished successfully!"
 }
+
+
+# Function to run the classifier container
+run_classifier() {
+    info "Running Classifier container..."
+    INIT_FILE="/entrypoint.sh"
+    if [ -z "$*" ]; then
+        info "No arguments provided, opening interactive shell in classifier container..."
+        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --nv --pwd /srv \
+        "$CLASSIFIER_IMAGE" \
+        bash --init-file "$INIT_FILE"
+    else
+        info "Arguments provided, running them inside the classifier container ..."
+        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --nv --pwd /srv \
+        "$CLASSIFIER_IMAGE" \
+        bash --init-file "$INIT_FILE" -c "$*"
+
+        info "Workflow execution finished successfully!"
+
+    fi
+}
+
 
 # Main logic: check arguments and run the appropriate container
 if [ "$1" == "--help" ]; then
@@ -269,6 +265,9 @@ else
         ;;
         "snakemake_dev")
         run_snakemake_dev "${@:2}" # Run snakemake, passing along any remaining arguments
+        ;;
+        "classifier")
+        run_classifier "${@:2}" # Run classifier, passing along any remaining arguments
         ;;
         *)
         # If not combine or snakemake, assume the arguments are commands for coffea
