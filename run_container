@@ -28,6 +28,7 @@ show_help() {
     echo "  snakemake [options]   Run snakemake using the local Pixi environment for better dependency management."
     echo "                        Requires --snakefile argument. Automatically installs Pixi if needed."
     echo "                        Use --reinstall or --fresh to clean and reinstall the environment."
+    echo "                        Use 'source script.sh' to run bash scripts in the Pixi environment."
     echo "  snakemake_container [options]   Run snakemake inside a container with the specified options."
     echo "                        Requires --snakefile argument."
     echo "  --help                Show this help message."
@@ -39,7 +40,8 @@ show_help() {
     echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
-    echo "  $0 snakemake --reinstall Snakefile  Clean and reinstall environment, then run snakemake."
+    echo "  $0 snakemake --reinstall --snakefile Snakefile  Clean and reinstall environment, then run snakemake."
+    echo "  $0 snakemake source script.sh       Run a bash script in the Pixi environment."
     echo "  $0 snakemake_container --snakefile Snakefile  Run snakemake with the specified Snakefile inside a container (backup option)."
     echo "  $0 classifier          Open an interactive shell in the classifier container."
     echo "  $0 classifier python --version  Run 'python --version' in the classifier container."
@@ -170,7 +172,7 @@ run_snakemake() {
     local REINSTALL=false
     local ARGS=()
     
-    # Parse arguments to check for --reinstall flag
+    # Parse arguments to check for --reinstall flag and source command
     while [[ $# -gt 0 ]]; do
         case $1 in
             --reinstall|--fresh)
@@ -181,6 +183,11 @@ run_snakemake() {
                 # Show snakemake help
                 ARGS+=("--help")
                 shift
+                ;;
+            source)
+                # Special handling for bash scripts
+                ARGS+=("$@")  # Add all remaining arguments
+                break
                 ;;
             *)
                 ARGS+=("$1")
@@ -251,12 +258,16 @@ run_snakemake() {
     fi
 
     # 5. Install reana-client pre-release (after main environment)
-    info "Installing reana-client==0.95.0a2..."
-    if pixi run install-reana; then
-        info "Successfully installed reana-client==0.95.0a2"
+    if pixi run python -c "import reana_client" 2>/dev/null; then
+        info "reana-client is already installed and available."
     else
-        warning "Failed to install reana-client==0.95.0a2. REANA workflows may not work."
-        warning "You can try installing it manually with: pixi run install-reana"
+        info "Installing reana-client==0.95.0a2..."
+        if pixi run install-reana; then
+            info "Successfully installed reana-client==0.95.0a2"
+        else
+            warning "Failed to install reana-client==0.95.0a2. REANA workflows may not work."
+            warning "You can try installing it manually with: pixi run install-reana"
+        fi
     fi
 
     # 6. Verify Snakemake is available
@@ -265,9 +276,17 @@ run_snakemake() {
         exit 1
     fi
 
-    # 7. Run Snakemake
-    info "Executing: pixi run snakemake ${ARGS[*]}"
-    pixi run snakemake "${ARGS[@]}"
+    # 7. Run Snakemake or bash script
+    if [ "${ARGS[0]}" = "source" ]; then
+        # Handle bash script execution
+        local script_command="${ARGS[*]}"
+        info "Executing: pixi run bash -c \"${script_command}\""
+        pixi run bash -c "${script_command}"
+    else
+        # Handle normal snakemake execution
+        info "Executing: pixi run snakemake ${ARGS[*]}"
+        pixi run snakemake "${ARGS[@]}"
+    fi
     
     info "Workflow execution finished successfully!"
 }
