@@ -30,6 +30,8 @@ panoptes-ui = "*"
 snakemake = "snakemake"
 install = "pixi install"
 shell = "bash"
+# Install reana-client pre-release (avoids Pixi dependency conflicts)
+install-reana = "pip install --pre reana-client==0.95.0a2"
 
 [feature.dev.dependencies]
 # Development-only dependencies

@@ -23,12 +23,13 @@ show_help() {
     echo "                        (Interactive shell is the only option to run on LPC HTCondor)."
     echo "  combine [command...]  Run commands inside the combine container."
     echo "                        Opens an interactive shell if no commands are given."
-    echo "  snakemake [options]   Run snakemake with the specified options."
-    echo "                        Requires --snakefile argument."
     echo "  classifier [command...] Run commands inside the classifier container."
     echo "                        Opens an interactive shell if no commands are given."
-    echo "  snakemake_dev [options] Run snakemake using the local Pixi environment for better dependency management."
+    echo "  snakemake [options]   Run snakemake using the local Pixi environment for better dependency management."
     echo "                        Requires --snakefile argument. Automatically installs Pixi if needed."
+    echo "                        Use --reinstall or --fresh to clean and reinstall the environment."
+    echo "  snakemake_container [options]   Run snakemake inside a container with the specified options."
+    echo "                        Requires --snakefile argument."
     echo "  --help                Show this help message."
     echo ""
     echo "Examples:"
@@ -37,7 +38,8 @@ show_help() {
     echo "  $0 combine             Open an interactive shell in the combine container."
     echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
-    echo "  $0 snakemake_dev --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
+    echo "  $0 snakemake --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
+    echo "  $0 snakemake --reinstall --snakefile Snakefile  Clean and reinstall environment, then run snakemake."
     echo "  $0 classifier          Open an interactive shell in the classifier container."
     echo "  $0 classifier python --version  Run 'python --version' in the classifier container."
 }
@@ -135,7 +137,7 @@ run_combine() {
 }
 
 # Function to run snakemake in container
-run_snakemake() {
+run_snakemake_container() {
 
     info "Running Snakemake container..."
     if [ -z "$1" ]; then
@@ -155,18 +157,47 @@ run_snakemake() {
     "$SNAKEMAKE_IMAGE" \
     /bin/bash -c "snakemake $*"
 
-    info "Workflow execution finished successfully!. Try to run snakemake_dev for better dependency management."
+    info "Workflow execution finished successfully!. Try to run snakemake for better dependency management."
 }
 
 # Function to run snakemake
-run_snakemake_dev() {
+run_snakemake() {
     info "Running Snakemake with Pixi environment..."
     set -eo pipefail
 
-    if [ -z "$1" ]; then
-        error "No arguments supplied for snakemake."
-        show_help
-        exit 1
+    # Check for reinstall flag
+    local REINSTALL=false
+    local ARGS=()
+    
+    # Parse arguments to check for --reinstall flag
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --reinstall|--fresh)
+                REINSTALL=true
+                shift
+                ;;
+            --help|-h)
+                # Show snakemake help
+                ARGS+=("--help")
+                shift
+                ;;
+            *)
+                ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Check if we have remaining arguments after removing --reinstall
+    if [ ${#ARGS[@]} -eq 0 ]; then
+        if [ "$REINSTALL" = true ]; then
+            # Add --help to show snakemake help after reinstall
+            ARGS+=("--help")
+        else
+            error "No arguments supplied for snakemake."
+            show_help
+            exit 1
+        fi
     fi
 
     local PIXI_CONFIG="software/pixi/pixi.toml"
@@ -194,7 +225,14 @@ run_snakemake_dev() {
         info "Pixi found at: $(command -v pixi)"
     fi
 
-    # 2. Sync pixi.toml from template (always use latest from software/pixi/)
+    # 2. Handle reinstall option
+    if [ "$REINSTALL" = true ]; then
+        info "Reinstall requested. Cleaning up existing environment..."
+        rm -f pixi.toml pixi.lock
+        info "Environment cleanup complete. Proceeding with fresh installation..."
+    fi
+
+    # 3. Sync pixi.toml from template (always use latest from software/pixi/)
     if [ -f "${PIXI_CONFIG}" ]; then
         info "Syncing pixi.toml from ${PIXI_CONFIG}..."
         cp "${PIXI_CONFIG}" pixi.toml
@@ -204,22 +242,31 @@ run_snakemake_dev() {
         exit 1
     fi
 
-    # 3. Install environment
+    # 4. Install environment
     info "Installing Pixi environment..."
     if ! pixi install; then
         error "Failed to install Pixi environment. Check pixi.toml for issues."
         exit 1
     fi
 
-    # 4. Verify Snakemake is available
+    # 5. Install reana-client pre-release (after main environment)
+    info "Installing reana-client==0.95.0a2..."
+    if pixi run install-reana; then
+        info "Successfully installed reana-client==0.95.0a2"
+    else
+        warning "Failed to install reana-client==0.95.0a2. REANA workflows may not work."
+        warning "You can try installing it manually with: pixi run install-reana"
+    fi
+
+    # 6. Verify Snakemake is available
     if ! pixi run python -c "import snakemake" 2>/dev/null; then
         error "Snakemake not available in environment. Check dependencies in pixi.toml."
         exit 1
     fi
 
-    # 5. Run Snakemake
-    info "Executing: pixi run snakemake $*"
-    pixi run snakemake "$@"
+    # 7. Run Snakemake
+    info "Executing: pixi run snakemake ${ARGS[*]}"
+    pixi run snakemake "${ARGS[@]}"
     
     info "Workflow execution finished successfully!"
 }
@@ -260,11 +307,11 @@ else
         "combine")
         run_combine "${@:2}" # Run combine, passing along any remaining arguments
         ;;
+        "snakemake_container")
+        run_snakemake_container "${@:2}" # Run snakemake, passing along any remaining arguments
+        ;;
         "snakemake")
         run_snakemake "${@:2}" # Run snakemake, passing along any remaining arguments
-        ;;
-        "snakemake_dev")
-        run_snakemake_dev "${@:2}" # Run snakemake, passing along any remaining arguments
         ;;
         "classifier")
         run_classifier "${@:2}" # Run classifier, passing along any remaining arguments
