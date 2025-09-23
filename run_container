@@ -78,18 +78,18 @@ elif [[ $(hostname) == *"lxplus"* ]]; then
     export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
 elif [[ $(hostname) == *"rogue"* ]]; then
     export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
-elif [[ $(hostname) == *"lxplus"* ]]; then
-    export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
 else
    warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
 fi
 
-# Check if apptainer is installed
-command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed.  Aborting."; exit 1; }
+# Function to check if apptainer is installed (only needed for container functions)
+check_apptainer() {
+    command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed.  Aborting."; exit 1; }
+}
 
 # Function to run the coffea container
 run_coffea() {
-
+    check_apptainer
     info "Running Coffea container..."
     if [ -z "$*" ]; then
         if [[ $(hostname) == *"cmslpc"* ]]; then
@@ -119,7 +119,7 @@ run_coffea() {
 
 # Function to run the combine container
 run_combine() {
-
+    check_apptainer
     info "Running Combine container..."
 
     COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr//"
@@ -139,7 +139,7 @@ run_combine() {
 
 # Function to run snakemake in container
 run_snakemake_container() {
-
+    check_apptainer
     info "Running Snakemake container..."
     if [ -z "$1" ]; then
         error "No arguments supplied for snakemake."
@@ -275,6 +275,7 @@ run_snakemake() {
 
 # Function to run the classifier container
 run_classifier() {
+    check_apptainer
     info "Running Classifier container..."
     INIT_FILE="/entrypoint.sh"
     if [ -z "$*" ]; then
