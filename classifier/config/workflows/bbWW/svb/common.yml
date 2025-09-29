@@ -1,0 +1,19 @@
+setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true # use a custom dataloader to speed up batch generation
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  ## remove the whole block below if you want to use all years ##
+  #- module: cms.CollisionData
+  #  option:
+  #    #- eras:
+  #        #2022_preEE: [C, D]
+  #        # only use 2022_preEE data for test
+  - module: bbWWHCR.InputBranch
+    option:
+      - feature_ancillary: ["HT", "njets", "nsoftjets"]
+      # remove the "year" from the input when the dataset only contains one year
+      # otherwise the variance will be infinite and the output will be NaN
+  ##########################################################

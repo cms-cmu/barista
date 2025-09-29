@@ -8,15 +8,15 @@ main:
     - --max-evaluators 3 # use 3 workers to evaluate
 
 dataset:
-  - module: bbWW.base.Eval
+  - module: bbWW.svb.Eval
     option:
-      - --metadata bbreww/metadata/datasets
+      - --metadata bbreww/metadata/classifier/datasets_v4
       - --max-workers 8 # use 8 workers to fetch metadatas for ROOT files
-      - --mc-processes GluGluToHHTo2B2VLNu2J
-      - --friends "" bbreww/metadata/classifier/test_inputs.json@@classifier_input
+      - --mc-processes GluGluToHHTo2B2VLNu2J ttbar
+      - --friends "" bbreww/metadata/classifier/output_friend.json@@classifier_input
 
 model:
-  - module: bbWW.base.baseline.Eval
+  - module: bbWW.base.baseline_svb.Eval
     option:
       - --models
       - Final # choose name of the model to evaluate, for now only Final is available
@@ -25,7 +25,7 @@ model:
 analysis:
   - module: kfold.Merge # merge different k-folds
     option:
-      - --name FvT # set the name of friend tree
+      - --name svb # set the name of friend tree
       - --step 100000 # set the step to read ROOT files
       - --workers 5
       - --clean # remove the original files
@@ -33,7 +33,7 @@ analysis:
 setting:
   - module: IO
     option:
-      - output: "{FvT}"
+      - output: "{SvB}"
   - module: ml.DataLoader
     option:
       - num_workers: 8

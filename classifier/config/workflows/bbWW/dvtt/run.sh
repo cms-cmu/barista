@@ -7,7 +7,7 @@ export FvT="${BASE}/friend/FvT/"
 export PLOT="root://eosuser.cern.ch//eos/user/${CERNUSER}/HHbbWW_classifier_v1/"
 #####################
 
-export WFS="classifier/config/workflows/bbWW/HCR"
+export WFS="classifier/config/workflows/bbWW/dvtt"
 
 # the first argument can be a port
 if [ -z "$1" ]; then

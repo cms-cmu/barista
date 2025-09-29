@@ -1,0 +1,40 @@
+# template:
+# - model: path to model
+
+# when run with
+#   template/-template "model: path/to/model" path/to/this/file.yml
+# the {model} will be replaced by path/to/model
+
+main:
+  module: train # run training task
+  option:
+    - --max-loaders 2 # use 2 workers to load dataset
+    - --max-trainers 3 # use 3 workers to train
+
+dataset:
+  - module: bbWW.dvtt.TrainBaseline # use the baseline dataset for FvT training
+    option:
+      - --metadata bbreww/metadata/classifier/datasets_v4 # choose dataset
+      - --max-workers 20 # use 20 workers to load ROOT files
+      - --mc-processes GluGluToHHTo2B2VLNu2J ttbar
+      - --friends "" bbreww/metadata/classifier/output_friend.json@@classifier_input # set input friend tree
+
+model:
+  - module: bbWW.base.baseline_dvtt.Train # use the baseline bbWW HCR model
+    option:
+      - --kfolds 3 # use 3-fold
+      - --kfold-seed FvT random # setup base seed to be ("FvT", "random")
+      - --kfold-seed-offsets 0 # use seed ("FvT", "random", 0)
+      # --kfold-seed-offsets 0-14 will use seed ("FvT", "random", 0), ... ("FvT", "random", 14) to train 15 models
+      - --training FixedStep # setup training schedule
+      # FixedStep is defined in config/scheduler
+      - epoch: 20 # setup kwargs for FixedStep
+        bs_init: 1024 # equivalent to use FixedStep(epoch=20, bs_init=1024)
+      - --finetuning FixedStep # setup finetuning schedule
+      - epoch: 1
+        bs_init: 16384
+
+setting:
+  - module: IO # setup output directory
+    option:
+      - output: "{model}" # will be replaced by the template
