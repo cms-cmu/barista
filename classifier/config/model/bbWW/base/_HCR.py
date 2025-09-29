@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Iterable
 
-from classifier.config.setting.HCR import Input, Output
+from classifier.config.setting.bbWWHCR import Input, Output
 from classifier.task import ArgParser, parse
 
 from classifier.config.model._kfold import KFoldEval, KFoldTrain
@@ -20,8 +20,9 @@ ROC_BIN = (1000, 0, 1)
 
 
 def roc_nominal_selection(batch: BatchType):
+    import logging
     return {
-        "y_pred": batch[Output.class_prob],
+        "y_pred": batch[Output.hh_prob],
         "y_true": batch[Input.label],
         "weight": batch[Input.weight],
     }

@@ -8,19 +8,28 @@ from classifier.config.model.bbWW.base._HCR import ROC_BIN, HCREval, HCRTrain
 if TYPE_CHECKING:
     from classifier.ml import BatchType
 
-def _roc_signal_selection(batch: BatchType):
-    import torch
-    signal = batch[Input.label].new(MultiClass.indices("signal"))
-    signal = torch.isin(batch[Input.label], signal)
-    return {
-        "y_pred": batch[Output.class_prob][signal],  # Signal probability
-        "y_true": batch[Input.label][signal],              # 0 or 1 labels
-        "weight": batch[Input.weight][signal],
-    }
+_BKG = ("ttbar",)
+
+class _roc_signal_selection:
+    def __init__(self, sig: str):
+        self.sig = sig
+
+        selected = self._select(batch)
+        return {
+            "y_pred": batch[Output.hh_prob][selected],  # Signal probability
+            "y_true": batch[Input.label][selected],
+            "weight": batch[Input.weight][selected],
+        }
+
+    def _select(self, batch: BatchType):
+        import torch
+
+        label = batch[Input.label]
+        return torch.isin(label, label.new_tensor(MultiClass.indices(*_BKG, self.sig)))
 
 class Train(HCRTrain):
     argparser = ArgParser(description="Train bbWW Model")
-    model = "bbWW"
+    model = "svb"
 
     @staticmethod
     def loss(batch: BatchType):
@@ -28,7 +37,7 @@ class Train(HCRTrain):
         import torch.nn.functional as F
         
         # Simple binary classification
-        logits = batch[Output.class_raw]
+        logits = batch[Output.hh_raw]
         labels = batch[Input.label]  # 0 for background files, 1 for signal files
         weight = batch[Input.weight]
         weight[weight < 0] = 0
@@ -44,19 +53,18 @@ class Train(HCRTrain):
         return [
             ROC(
                 name="Signal vs Background",
-                selection=_roc_signal_selection,
+                selection=_roc_signal_selection("signal"),
                 bins=ROC_BIN,
-                pos=(1,),  # Signal class
+                pos=("signal",),  # Signal class
             ),
         ]
 
 class Eval(HCREval):
-    model = "bbWW"
+    model = "svb"
 
     @staticmethod
     def output_definition(batch: BatchType):
         return {
-            "signal_prob": batch[Output.class_prob][:, 1],
-            "background_prob": batch[Output.class_prob][:, 0],
-            "HH_score": batch[Output.class_prob][:, 1],
+            "signal_prob": batch["p_signal"], 
+            "background_prob": batch["p_ttbar"], 
         }
