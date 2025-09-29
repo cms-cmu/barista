@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from classifier.task import ArgParser
 from classifier.config.dataset.HCR import _group
 from classifier.config.dataset.bbWW._common import CommonEval, CommonTrain
-from . import _picoAOD
+from classifier.config.dataset.bbWW import _picoAOD
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -82,6 +82,6 @@ class Train(CommonTrain):
 class TrainBaseline(_picoAOD.Signal, Train): 
     """Baseline training with background processes"""
     ...
-class Eval(_picoAOD.Signal, CommonEval): 
+class Eval(_picoAOD.Signal, _picoAOD.Background, CommonEval): 
     """Evaluation dataset for HH→bbWW classifier"""
     ...

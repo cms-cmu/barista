@@ -80,6 +80,7 @@ class _ttbar(_MCDataset):
 
 
 
+
 class _signal(_MCDataset):
     processes = ("GluGluToHHTo2B2VLNu2J",)
 
@@ -173,7 +174,7 @@ class MC(_PicoAOD):
         return processes
 
 
-class Background(Data, MC):
+class Background(MC):
     pico_filelists = (_ttbar,)
 
 

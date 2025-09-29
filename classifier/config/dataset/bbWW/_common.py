@@ -108,6 +108,7 @@ class Common(LoadGroupedRoot):
     @cached_property
     def _branches(self):
         return self.other_branches().union(
+            InputBranch.feature_ancillary,
             InputBranch.feature_bJetCand,      
             InputBranch.feature_nonbJetCand,   
             InputBranch.feature_leadingLep,   
@@ -142,6 +143,7 @@ class CommonTrain(Common):
             .add(KFold.offset, KFold.offset_dtype).columns(Columns.event)
             .add(Input.label, Columns.index_dtype).columns(Columns.label_index)
             .add(Input.weight, "float32").columns(Columns.weight)
+            .add(Input.ancillary, "float32").columns(*InputBranch.feature_ancillary)
             .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.nbJetCand)
             .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.nnonbJetCand, pad_value=-1)
             .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep)
@@ -223,6 +225,7 @@ class CommonEval(Common):
         (
             self.to_tensor
             .add(KFold.offset, KFold.offset_dtype).columns(Columns.event)
+            .add(Input.ancillary, "float32").columns(*InputBranch.feature_ancillary)
             .add(Input.bJetCand, "float32").columns(*InputBranch.feature_bJetCand, target=InputBranch.nbJetCand)
             .add(Input.nonbJetCand, "float32").columns(*InputBranch.feature_nonbJetCand, target=InputBranch.nnonbJetCand, pad_value=-1)
             .add(Input.leadingLep, "float32").columns(*InputBranch.feature_leadingLep)
