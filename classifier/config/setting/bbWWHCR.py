@@ -3,14 +3,11 @@ from classifier.task import GlobalSetting
 
 class InputBranch(GlobalSetting):
     "Name of branches in the input root file"
-    # B-jet features (2 b-jets)
-    feature_bJetCand: list[str] = ["pt", "eta", "phi", "mass"]
-    # Non-b jet features (2 non-b jets)  
+    feature_bJetCand: list[str] = ["pt", "eta", "phi", "mass"]  
     feature_nonbJetCand: list[str] = ["pt", "eta", "phi", "mass"]
-    # Leading lepton features
     feature_leadingLep: list[str] = ["pt", "eta", "phi", "mass", "isE", "isM"]
-    # MET features
     feature_MET: list[str] = ["pt", "phi"]
+    feature_ancillary: list[str] = ["HT", "njets", "nsoftjets"]
     nbJetCand: int = 2
     nnonbJetCand: int = 2
 
@@ -43,11 +40,13 @@ class Input(GlobalSetting):
     nonbJetCand: str = "nonbJetCand" 
     leadingLep: str = "leadingLep"
     MET: str = "MET"
+    ancillary: str = "ancillary"
 
 class Output(GlobalSetting):
     "Name of the keys in the output batch."
-    class_raw: str = "class_raw"
-    class_prob: str = "class_prob"
+    hh_raw: str = "hh_raw"
+    tt_raw: str = "tt_raw"
+    hh_prob: str = "hh_prob"
 
 # Keep only the regions you're using
 class MassRegion(IntEnum):

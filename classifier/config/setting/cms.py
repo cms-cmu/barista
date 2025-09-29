@@ -6,9 +6,9 @@ class CollisionData(GlobalSetting):
 
     eras: dict[str, list[str]] = {
         "2022_preEE": ["C", "D"],
-        "2022_EE": ["E", "F", "G"],
-        "2023_preBPix": ["C", "D"],
-        "2023_BPix" : ["E", "F", "G"]
+        #"2022_EE": ["E", "F", "G"],
+        #"2023_preBPix": ["C", "D"],
+        #"2023_BPix" : ["E", "F", "G"]
     }
     "eras for MC datasets"
     years: list[str] = ["2022", "2023"]
@@ -18,7 +18,7 @@ class CollisionData(GlobalSetting):
 class MC_TTbar(GlobalSetting):
     "Metadata for MC sample: TTbar"
 
-    datasets: list[str] = ["TTTo2L2Nu", "TTto4Q", "TTToSemiLeptonic"]
+    datasets: list[str] = ["TTToSemiLeptonic"]#,"TTToHadronic", "TTo2L2Nu"]
     "name of TTbar datasets"
 
 
