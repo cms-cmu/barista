@@ -14,6 +14,7 @@ class _roc_signal_selection:
     def __init__(self, sig: str):
         self.sig = sig
 
+    def __call__(self, batch: BatchType):
         selected = self._select(batch)
         return {
             "y_pred": batch[Output.hh_prob][selected],  # Signal probability
