@@ -1,4 +1,4 @@
-from ...hist import H
+from ...hist_tools import H
 from .lepton import _PlotDiLepton, _PlotLepton
 
 

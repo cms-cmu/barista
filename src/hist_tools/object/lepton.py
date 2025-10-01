@@ -1,4 +1,4 @@
-from ...hist import H
+from ...hist_tools import H
 from .vector import _PlotDiLorentzVector, _PlotLorentzVector
 
 

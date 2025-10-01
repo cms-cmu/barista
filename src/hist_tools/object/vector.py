@@ -1,7 +1,7 @@
 import awkward as ak
 import numpy as np
 
-from ...hist import H, Template
+from ...hist_tools import H, Template
 
 
 class _PlotLorentzVector(Template):

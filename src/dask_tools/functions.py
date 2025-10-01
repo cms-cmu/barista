@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import dask
 
-from ..math.utils import balance_split
+from ..math_tools.utils import balance_split
 
 if TYPE_CHECKING:
     from dask.base import DaskMethodsMixin

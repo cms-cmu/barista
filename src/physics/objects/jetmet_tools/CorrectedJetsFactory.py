@@ -5,7 +5,7 @@ from cachetools import Cache
 from coffea.jetmet_tools.CorrectedJetsFactory import *
 from coffea.jetmet_tools.CorrectedJetsFactory import _JERSF_FORM
 import numpy as np
-from src.math.random import Squares
+from src.math_tools.random import Squares
 
 
 def _rand_gauss(event, count, phi, eta, rng: Squares):

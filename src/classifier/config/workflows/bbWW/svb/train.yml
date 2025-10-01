@@ -32,7 +32,7 @@ model:
       # --kfold-seed-offsets 0-14 will use seed ("FvT", "random", 0), ... ("FvT", "random", 14) to train 15 models
       - --training FixedStep # setup training schedule
       # FixedStep is defined in config/scheduler
-      - epoch: 20 # setup kwargs for FixedStep
+      - epoch: 1 # setup kwargs for FixedStep
         bs_init: 1024 # equivalent to use FixedStep(epoch=20, bs_init=1024)
 
 setting:

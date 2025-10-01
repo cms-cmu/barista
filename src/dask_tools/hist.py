@@ -4,8 +4,8 @@ import dask_awkward as dak
 from hist.dask import Hist
 
 from ..aktools import RealNumber
-from ..hist import H, Template
-from ..hist import hist as _h
+from ..hist_tools import H, Template
+from ..hist_tools import hist as _h
 
 __all__ = [
     "Collection",
