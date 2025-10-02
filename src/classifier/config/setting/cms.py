@@ -18,7 +18,7 @@ class CollisionData(GlobalSetting):
 class MC_TTbar(GlobalSetting):
     "Metadata for MC sample: TTbar"
 
-    datasets: list[str] = ["TTToSemiLeptonic", "TTToHadronic", "TTo2L2Nu"]
+    datasets: list[str] = ["TTToSemiLeptonic", "TTToHadronic", "TTTo2L2Nu"]
     "name of TTbar datasets"
 
 
