@@ -254,7 +254,7 @@
     file: /cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2022_Summer22/jetvetomaps.json.gz
     tag: Summer22_23Sep2023_RunCD_V1
   JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V2_MC.tar.gz'
-  # JER_MC: 'data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
     B: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
     C: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz'
@@ -300,7 +300,7 @@
     file: '/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2022_Summer22EE/jetvetomaps.json.gz'
     tag: 'Summer22EE_23Sep2023_RunEFG_V1'
   JEC_MC: 'src/data/JEC/Summer22EE_22Sep2023_V2_MC.tar.gz'
-  # JER_MC: 'data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:
     E: 'src/data/JEC/Summer22EE_22Sep2023_RunE_V2_DATA.tar.gz'
     F: 'src/data/JEC/Summer22EE_22Sep2023_RunF_V2_DATA.tar.gz'
@@ -346,7 +346,7 @@
     file: '/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2023_Summer23/jetvetomaps.json.gz'
     tag: Summer23Prompt23_RunC_V1
   JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
-  # JER_MC: 'data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras are C. Labels in the code are arbitrary
     A: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
     B: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
@@ -396,7 +396,7 @@
     file: /cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2023_Summer23BPix/jetvetomaps.json.gz
     tag: 'Summer23BPixPrompt23_RunD_V1'
   JEC_MC: 'src/data/JEC/Summer23BPixPrompt23_V3_MC.tar.gz'
-  # JER_MC: 'data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras here are officially era D. Labels in the code are arbitrary
     D: 'src/data/JEC/Summer23BPixPrompt23_RunD_V3_DATA.tar.gz'
     E: 'src/data/JEC/Summer23BPixPrompt23_RunD_V3_DATA.tar.gz'
@@ -430,7 +430,7 @@
 '2016': 
   year_label: '2016'
   goldenJSON: 'src/data/goldenJSON/Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt'  ## placeholder
-  PU: 'data/PU/puWeights_legacy16.json.gz'
+  PU: 'src/data/PU/puWeights_legacy16.json.gz'
   JERC: 
     - '* * data/JEC/Summer16_07Aug2017_V11_MC/Summer16_07Aug2017_V11_MC_STEP_AK4PFchs.txt'
     - '* * data/JEC/Summer16_07Aug2017_V11_MC/RegroupedV2_Summer16_07Aug2017_V11_MC_UncertaintySources_AK4PFchs.junc.txt'
@@ -448,7 +448,7 @@
     - HF_2016
     - RelativeBal
     - RelativeSample_2016
-  btagSF: 'data/Btag/btagging_legacy16_deepJet_itFit.json.gz' 
+  btagSF: 'src/data/Btag/btagging_legacy16_deepJet_itFit.json.gz' 
   btagWP:
     #L: 0.0480
     #M: 0.2489
@@ -478,7 +478,7 @@
 '2017': 
   year_label: '2017'
   goldenJSON: 'src/data/goldenJSON/Cert_294927-306462_13TeV_UL2017_Collisions17_GoldenJSON.txt'  ### placeholder
-  PU: 'data/PU/puWeights_legacy17.json.gz'
+  PU: 'src/data/PU/puWeights_legacy17.json.gz'
   JERC:
     - '* * data/JEC/Fall17_17Nov2017_V32_MC/Fall17_17Nov2017_V32_MC_STEP_AK4PFchs.txt'
     - '* * data/JEC/Fall17_17Nov2017_V32_MC/RegroupedV2_Fall17_17Nov2017_V32_MC_UncertaintySources_AK4PFchs.junc.txt'
@@ -496,7 +496,7 @@
     - HF_2017
     - RelativeBal
     - RelativeSample_2017
-  btagSF: 'data/Btag/btagging_legacy17_deepJet.json.gz'
+  btagSF: 'src/data/Btag/btagging_legacy17_deepJet.json.gz'
   btagWP:
     #L: 0.0532
     #M: 0.3040
@@ -527,12 +527,10 @@
 '2018': 
   year_label: '2018'
   goldenJSON: 'src/data/goldenJSON/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt'
-  PU: 'data/PU/puWeights_legacy18.json.gz'
-  JERC:
-    - '* * data/JEC/Autumn18_V19_MC/Autumn18_V19_MC_STEP_AK4PFchs.txt'
-    - '* * data/JEC/Autumn18_V19_MC/RegroupedV2_Autumn18_V19_MC_UncertaintySources_AK4PFchs.junc.txt'
-    - '* * data/JEC/Autumn18_V7b_MC/Autumn18_V7b_MC_PtResolution_AK4PFchs.jr.txt'
-    - '* * data/JEC/Autumn18_V7b_MC/Autumn18_V7b_MC_SF_AK4PFchs.jersf.txt'
+  PU: 'src/data/PU/puWeights_legacy18.json.gz'
+  JEC_MC: 'src/data/JEC/Autumn18_V19_MC.tar.gz'
+  JER_MC: 'src/data/JEC/Autumn18_V7b_MC.tar.gz'
+  JEC_DATA: "dummy"
   JES_uncertainties:
     - Absolute
     - Absolute_2018
@@ -545,7 +543,7 @@
     - HF_2018
     - RelativeBal
     - RelativeSample_2018
-  btagSF: 'data/Btag/btagging_legacy18_deepJet.json.gz'
+  btagSF: 'src/data/Btag/btagging_legacy18_deepJet.json.gz'
   btagWP:
     #L: 0.0490
     #M: 0.2783

@@ -19,6 +19,8 @@ class _PlotDiLorentzVector(_PlotLorentzVector):
     dphi  = H((30, -np.pi, np.pi, ('dphi', R'$\Delta\phi$')))
     st    = H((50, 0, 1000, ('st', R'$S_{\mathrm{T}}$ [GeV]')))
 
+    lead = _PlotLorentzVector(('...', R'Lead Cand'), 'lead',     skip=['n'], bins={"mass": (50, 0, 100)})
+    subl = _PlotLorentzVector(('...', R'Subl Cand'), 'subl',     skip=['n'], bins={"mass": (50, 0, 100)})
 
 class LorentzVector:
     plot = _PlotLorentzVector

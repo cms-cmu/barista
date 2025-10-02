@@ -1,6 +1,3 @@
-# local configs
-/coffea4bees/analysis_dask/config/**/*.local.cfg.yml
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -80,7 +77,6 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-coffea4bees/notebooks/
 
 # IPython
 profile_default/
@@ -147,7 +143,7 @@ sync.sh
 *.code-workspace
 **/*.code-workspace
 .shell
-pixi.*
+
 
 # mypy
 .mypy_cache/
@@ -171,11 +167,9 @@ cython_debug/
 #.idea/
 
 
-coffea4bees/testJCM_*
 setupROOT.sh
 shell
 runCITests.shbootstrap.sh
-coffea4bees/local_test.py
 #*
 */#*
 */*/#*
@@ -183,7 +177,6 @@ coffea4bees/local_test.py
 */*/*/*/#*
 bootstrap.sh
 proxy/
-coffea4bees/analysis/hists/
 runCITests.sh
 .bashrc
 *output*
@@ -194,65 +187,6 @@ set_ROOT.sh
 .snakemake/
 .condor_config
 
-
 */*/.DS_Store
-coffea4bees/skimmer/metadata/declustering_seed_*.yml
-
-coffea4bees/jet_clustering/jet-splitting-PDFs-*/*txt
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-02-00/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-03-00/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-04-00/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-05-01/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-00/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-01/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-02/
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-06-03/
-coffea4bees/jet_clustering/jet-splitting-PDFs-*/*pdf
-coffea4bees/jet_clustering/jet-splitting-PDFs-*/all_splittings*yml
-coffea4bees/jet_clustering/jet-splitting-PDFs-*/all_splittings*yaml
-
-coffea4bees/makeslides.awk
-coffea4bees/makeslides_reclustering.awk
-coffea4bees/nominal_2022_EE_fromMake.config
-coffea4bees/nominal_2022_preEE_fromMake.config
-coffea4bees/nominal_2023_BPix_fromMake.config
-coffea4bees/nominal_2023_preBPix_fromMake.config
-coffea4bees/nominal_Run3_fromMake.config
-coffea4bees/nominal_RunII.config
-coffea4bees/nominal_RunII_fromMake.config
-coffea4bees/nominal_RunII_test.config
-coffea4bees/nominal_UL16_postVFP.config
-coffea4bees/nominal_UL16_postVFP_fromMake.config
-coffea4bees/nominal_UL16_preVFP.config
-coffea4bees/nominal_UL16_preVFP_fromMake.config
-coffea4bees/nominal_UL17.config
-coffea4bees/nominal_UL17_fromMake.config
-coffea4bees/nominal_UL18.config
-coffea4bees/nominal_UL18_fromMake.config
-coffea4bees/nominal_check_reclustered_splittings.config
-coffea4bees/plots_check_reclustered_splittings.config
-coffea4bees/jet_clustering/testTexSlides.tex
-
-
--dask-report-*.html
-coffea4bees/analysis/debugMixedDataCutFlow.py
-coffea4bees/analysis/debugRun3CutFlow.py
-coffea4bees/debug_HHRun3.py
-
-coffea4bees/skim2022_EE.sh
-coffea4bees/skim2022_preEE.sh
-coffea4bees/skim2023_BPix.sh
-coffea4bees/skim2023_preBPix.sh
-coffea4bees/skimmer/metadata/tmp_fourTag.yml
-coffea4bees/splitting_data_bb.pkl
-
-coffea4bees/selected_events.pkl
-.fontconfig/
-.cmslpc-local-conf
-coffea4bees/analysis/copy_from_PSC.py
-coffea4bees/plots/ANv*/
-coffea4bees/StatToy
-coffea4bees/jet_clustering/jet-splitting-PDFs-00-07-02/reclustering
-coffea4bees/analysis/plots_synthetic_*
-/bbreww/
-/coffea4bees/
+tmp/
+pixi*
