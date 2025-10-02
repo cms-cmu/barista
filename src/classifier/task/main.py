@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import uuid
+import importlib
 from collections import deque
 from dataclasses import dataclass
 from itertools import chain
@@ -92,16 +93,19 @@ class EntryPoint:
         return subargs
 
     @classmethod
-    def _fetch_config(cls, cat: str, ctx: _ModCtx):
-        parts = [_SRC, _CLASSIFIER, _CONFIG, cat]
+    def _fetch_config(cls, cat: str,base: str,  ctx: _ModCtx):
+        parts = [base, _CLASSIFIER, _CONFIG, cat]
         if ctx.test:
-            parts.insert(2, _TEST)
+            parts.insert(1, _TEST)
         return parts
 
+
+
     @classmethod
-    def __fetch_module_name(cls, module: str, cat: str, ctx: _ModCtx):
-        mods = cls._fetch_config(cat, ctx) + module.split(".")
+    def __fetch_module_name(cls, module: str, cat: str, base:str, ctx: _ModCtx):
+        mods = cls._fetch_config(cat, base, ctx) + module.split(".")
         return ".".join(mods[:-1]), mods[-1]
+
 
     @classmethod
     def _fetch_module(
@@ -113,6 +117,8 @@ class EntryPoint:
         force_ctx: list[_ModCtx] = None,
     ) -> tuple[ModuleType, type[Task], tuple[str, str]]:
         from src.classifier.config.state import Flags
+        config = os.environ.get("CLASSIFIER_CONFIG_PATHS", "")
+        basedir = [_SRC, config]
 
         if mock_flags is None:
             mock_flags = Flags
@@ -124,16 +130,23 @@ class EntryPoint:
             if mock_flags.test:
                 ctxs.insert(0, _ModCtx(test=True))
 
-        for i, ctx in enumerate(ctxs):
-            try:
-                modname, clsname = cls.__fetch_module_name(module, cat, ctx)
-                mods = import_(modname, clsname, True)
-            except Exception:
-                if raise_error and (i == len(ctxs) - 1):
-                    raise
-            else:
-                return *mods, (modname, clsname)
+        last_error = None
+        for base in basedir: # loop through given config path and src/ to look for all modules
+            for i, ctx in enumerate(ctxs):
+                try:
+                    modname, clsname = cls.__fetch_module_name(module, cat, base, ctx)
+                    mods = import_(modname, clsname, True)
+                except ModuleNotFoundError as e:
+                    last_error = e
+                    continue # Try the next context/base directory
+                else:
+                    return *mods, (modname, clsname)
+        if raise_error and last_error:
+            raise last_error
+
         return None, None, (modname, clsname)
+
+
 
     def _fetch_all(self, *cats: str):
         from src.classifier.config.state import Flags
