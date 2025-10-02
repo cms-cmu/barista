@@ -149,8 +149,8 @@ class FixedThresholdROC:
             "FPR": npext.to.base64(to_arr(fpr)), # false positive rate: FP/N
             "TPR": npext.to.base64(to_arr(tpr)), # true positive rate: TP/P
             "AUC": to_num(auc), # calculated area under curve
-            "P": to_num(P), # total positives
-            "N": to_num(N), # total negatives
-            "TP": npext.to.base64(to_arr(tp_counts)), # true positives
-            "FP": npext.to.base64(to_arr(fp_counts)), # false positives
+            "P": to_num(self.__P), # total positives
+            "N": to_num(self.__N), # total negatives
+            "TP": npext.to.base64(to_arr(self.__TP.hist())), # true positives
+            "FP": npext.to.base64(to_arr(self.__FP.hist() )), # false positives
         }
