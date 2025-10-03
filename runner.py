@@ -336,7 +336,7 @@ def setup_condor_cluster(config_runner):
     logging.info('Waiting for at least one worker...')
     client.wait_for_workers(1)
     logging.info('HTCondor cluster setup complete!')
-    return client
+    return client, cluster
 
 
 def setup_local_cluster(config_runner, args):
@@ -351,7 +351,7 @@ def setup_local_cluster(config_runner, args):
         'dashboard_address': config_runner['dashboard_address'],
     }
     cluster = LocalCluster(**cluster_args)
-    return Client(cluster)
+    return Client(cluster), cluster
 
 
 def setup_pico_base_name(configs):
@@ -542,6 +542,8 @@ def process_metadata_output(output, fileset, config_runner, args, client):
                 metadata[ikey]["sumw"] = fileset[ikey]["metadata"]["genEventSumw"]
 
     # Save metadata file
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
     output_file = ('picoaod_datasets.yml' if args.output_file.endswith('coffea') 
                    else args.output_file)
     dfile = f'{args.output_path}/{output_file}'
@@ -917,14 +919,15 @@ if __name__ == '__main__':
     logging.info("Setting up compute environment...")
     client = None
     pool = None
+    cluster = None
     
     if args.condor:
         logging.info("Configuring HTCondor cluster execution...")
         args.run_dask = True
-        client = setup_condor_cluster(config_runner)
+        client, cluster = setup_condor_cluster(config_runner)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
-        client = setup_local_cluster(config_runner, args)
+        client, cluster = setup_local_cluster(config_runner, args)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -969,7 +972,7 @@ if __name__ == '__main__':
     # Run dask performance only in dask jobs
     #
     if args.run_dask:
-        dask_report_file = f'/tmp/-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
+        dask_report_file = f'/tmp/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
         with performance_report(filename=dask_report_file):
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)

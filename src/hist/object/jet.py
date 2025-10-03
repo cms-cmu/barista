@@ -15,8 +15,8 @@ class _PlotJet(_PlotCommon, _PlotLorentzVector):
 
 
 class _PlotDiJet(_PlotCommon, _PlotDiLorentzVector):
-    ...
-
+    lead = _PlotJet(('...', R'Lead Cand'), 'lead',     skip=['n'], bins={"mass": (50, 0, 100)})
+    subl = _PlotJet(('...', R'Subl Cand'), 'subl',     skip=['n'], bins={"mass": (50, 0, 100)})
 
 class Jet:
     plot = _PlotJet
