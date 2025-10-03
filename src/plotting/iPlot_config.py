@@ -10,7 +10,7 @@ class plot_config:
         self.fileLabels          = None
         self.plotModifiers       = None
         self.combine_input_files = False
-        #hist_key = "hists"
+        self.hist_key            = "hists"
 
     def set_hist_key(self, hist_key):
         self.hist_key = hist_key
