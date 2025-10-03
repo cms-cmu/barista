@@ -89,6 +89,9 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
 
     hist_opts = hist_opts | cut_dict
 
+    hist_key = cfg.hist_key if hasattr(cfg, 'hist_key') else 'hists'
+
+
     hist_obj = None
     if len(cfg.hists) > 1 and not cfg.combine_input_files:
         if file_index is None:
@@ -104,7 +107,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
                 hist_opts.pop(_key)
 
         try:
-            hist_obj = cfg.hists[file_index]['hists'][var]
+            hist_obj = cfg.hists[file_index][hist_key][var]
         except (KeyError, IndexError) as e:
             raise ValueError(f"Failed to get histogram for var {var}: {str(e)}")
 
@@ -122,10 +125,10 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
                 for _key in unique_to_dict:
                     hist_opts.pop(_key)
 
-            if var in _input_data['hists'] and process in _input_data['hists'][var].axes["process"]:
+            if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
                 if "variation" in _input_data["categories"]:
                     hist_opts = hist_opts | {"variation": "nominal"}
-                hist_obj = _input_data['hists'][var]
+                hist_obj = _input_data[hist_key][var]
 
     if hist_obj is None:
         raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
