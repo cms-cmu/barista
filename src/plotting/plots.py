@@ -169,54 +169,64 @@ def load_hists(input_hists):
     return hists
 
 
-def read_axes_and_cuts(hists, plotConfig):
+def read_axes_and_cuts(hists, plotConfig, hist_keys=['hists']):
 
-    axisLabels = {}
-    cutList = []
+    axisLabelsDict = {}
+    cutListDict = {}
 
-    axisLabels["var"] = hists[0]['hists'].keys()
-    var1 = list(hists[0]['hists'].keys())[0]
+    for hk in hist_keys:
 
-    for a in hists[0]['hists'][var1].axes:
-        axisName = a.name
+        axisLabelsDict[hk] = {}
+        cutListDict[hk] = []
 
-        if axisName == var1:
-            continue
+        axisLabelsDict[hk]["var"] = hists[0][hk].keys()
+        var1 = list(hists[0][hk].keys())[0]
 
-        if isinstance(a, hist.axis.Boolean):
-            cutList.append(axisName)
-            continue
+        for a in hists[0][hk][var1].axes:
+            axisName = a.name
 
-        if a.extent > 20:
-            continue   # HACK to skip the variable bins FIX
+            if axisName == var1:
+                continue
 
-        axisLabels[axisName] = []
+            if isinstance(a, hist.axis.Boolean):
+                cutListDict[hk].append(axisName)
+                continue
 
-        for iBin in range(a.extent):
+            if a.extent > 20:
+                continue   # HACK to skip the variable bins FIX
 
-            value = a.value(iBin)
+            axisLabelsDict[hk][axisName] = []
 
-            axisLabels[axisName].append(value)
+            for iBin in range(a.extent):
 
-    return axisLabels, cutList
+                value = a.value(iBin)
+
+                axisLabelsDict[hk][axisName].append(value)
+
+    return axisLabelsDict, cutListDict
 
 
 def print_cfg(cfg):
 
-    print("Cuts...")
-    for c in cfg.cutList:
-        print(f"\t{c}")
+
+    for hk in cfg.axisLabelsDict.keys():
+
+        print(f"Hist key... {hk}")
+
+        print("\tCuts...")
+        for c in cfg.cutListDict[hk]:
+            print(f"\t\t{c}")
 
 
-    for axis, values in cfg.axisLabels.items():
-        if axis in ["var","process"]:
-            continue
-        print(f"{axis}:")
-        for v in values:
-            print(f"\t{v}")
+        for axis, values in cfg.axisLabelsDict[hk].items():
+            if axis in ["var","process"]:
+                continue
+            print(f"\t{axis}:")
+            for v in values:
+                print(f"\t\t{v}")
 
-    print("Processes...")
-    for key, values in cfg.plotConfig.items():
-        if key in ["hists", "stack"]:
-            for _key, _ in values.items():
-                print(f"\t{_key}")
+        print("Processes...")
+        for key, values in cfg.plotConfig.items():
+            if key in ["hists", "stack"]:
+                for _key, _ in values.items():
+                    print(f"\t\t{_key}")
