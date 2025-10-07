@@ -6,7 +6,7 @@ from functools import cached_property, reduce
 from itertools import chain
 from typing import TYPE_CHECKING, Iterable
 
-from utils import unique
+from src.utils import unique
 from src.classifier.config.main._utils import progress_advance
 from src.classifier.task import ArgParser, Dataset, converter, parse
 

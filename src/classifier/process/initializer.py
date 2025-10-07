@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Literal
 
-from utils import unique
+from src.utils import unique
 
 from ..utils import append_unique_instance
 
