@@ -2,7 +2,7 @@ import awkward as ak
 import numpy as np
 from hist import Hist
 
-from ..hist import Collection
+from ..hist_tools import Collection
 
 
 def projection_test(hist: Hist, **axes: list[float]):

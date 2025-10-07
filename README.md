@@ -34,7 +34,6 @@ barista/
 
 One can clone individual repositories for each analysis as need on top of the barista folder.
 
-
 To get started quickly:
 
 1. **Clone the repository**

@@ -143,7 +143,7 @@ sync.sh
 *.code-workspace
 **/*.code-workspace
 .shell
-pixi.*
+
 
 # mypy
 .mypy_cache/
@@ -188,5 +188,5 @@ set_ROOT.sh
 .condor_config
 
 */*/.DS_Store
-
 tmp/
+pixi*

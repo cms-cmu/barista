@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parent / "python"))
-
 import argparse
 import logging
 import warnings
