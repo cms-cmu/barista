@@ -490,7 +490,7 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
         year_str = plot_helpers.get_year_str(year=kwargs.get("year_str",kwargs.get('year', "RunII")))
 
-        hep.cms.label("Internal", data=True,
+        hep.cms.label(kwargs.get("CMSText","Internal"), data=True,
                       year=year_str, loc=0, ax=main_ax)
 
         if kwargs.get("do_title", True) and 'region' in plot_data["axis_opts"] :
@@ -688,9 +688,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                         plot_data["cut"],
                     ]
 
-                    print(plot_data["axis_opts"])
-                    for k, v in plot_data["axis_opts"].items():
-                        output_path.append(f"{k}_{plot_helpers.get_axis_str(v).replace(' ','_')}")
+                    if "axis_opts" in plot_data:
+                        for k, v in plot_data["axis_opts"].items():
+                            output_path.append(f"{k}_{plot_helpers.get_axis_str(v).replace(' ','_')}")
 
                     output_path.append(plot_data.get("process", ""))
 
@@ -900,7 +900,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
         ax = fig.gca()
 
 
-        hep.cms.label("Internal", data=True,
+        hep.cms.label(kwargs.get('CMSText', "Internal"), data=True,
                       year=kwargs.get('year', "RunII").replace("UL", "20"), loc=0, ax=ax)
 
         if 'region' in plot_data["axis_opts"]:
