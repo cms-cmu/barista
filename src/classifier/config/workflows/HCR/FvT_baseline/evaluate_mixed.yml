@@ -1,0 +1,43 @@
+# template:
+# - mixed: mixed data index
+# - tag: tag of the model
+# - user: lpc username
+
+main:
+  module: evaluate
+  option:
+    - --max-evaluators 3
+
+dataset:
+  - module: HCR.Eval
+    option:
+      - --files "year:2016" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2016_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "year:2017" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2017_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "year:2018" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2018_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --max-workers 8
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/tmp/data3b/friend.json@@HCR_input
+
+model:
+  - module: HCR.FvT.baseline.Eval
+    option:
+      - --models
+      - Final
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/FvT/baseline/{tag}-{mixed}/result.json
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name FvT
+      - --step 100000
+      - --workers 5
+      - --clean
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/FvT/baseline/{tag}-{mixed}/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 8

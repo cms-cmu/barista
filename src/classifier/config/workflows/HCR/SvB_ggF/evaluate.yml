@@ -1,0 +1,41 @@
+# template:
+# - user: lpc username
+# - model: name of the model
+
+
+main:
+  module: evaluate
+  option:
+    - --max-evaluators 3
+
+model:
+  - module: HCR.SvB.ggF.all_kl.Eval
+    option:
+      - --models
+      - Final
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/SvB/ggF/{model}/result.json
+
+dataset:
+  - module: HCR.SvB.Eval
+    option:
+      - --metadata datasets_HH4b
+      - --max-workers 8
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name SvB
+      - --step 100000
+      - --workers 5
+      - --clean
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/SvB/ggF/{model}/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 8

@@ -463,6 +463,6 @@ class Chain:
         if library == "np":
             return _merge_data_impl(*args)
         elif library == "ak":
-            from ..dask.awkward import partition_mapping
+            from ..dask_tools.awkward import partition_mapping
 
             return partition_mapping(_merge_data_impl, label="merge-friend-tree")(*args)
