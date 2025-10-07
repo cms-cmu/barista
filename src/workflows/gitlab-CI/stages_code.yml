@@ -9,3 +9,11 @@ code_kappa_framework_barista:
   image: gitlab-registry.cern.ch/cms-cmu/barista:latest
   script:
     - source src/scripts/code-kappa-framework.sh
+
+code_classifier_barista:
+  stage: code
+  extends:
+    - .base_classifier
+  script:
+    - source src/scripts/check-configs.sh
+  allow_failure: true
