@@ -15,5 +15,5 @@ code_classifier_barista:
   extends:
     - .base_classifier
   script:
-    - source src/scripts/check-configs.sh
+    - source src/scripts/code-classifier.sh
   allow_failure: true
