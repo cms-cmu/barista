@@ -1,6 +1,1 @@
-apptainer exec \
-    -B .:/srv \
-    --nv \
-    --pwd /srv \
-    docker://chuyuanliu/heptools:ml \
-    bash --init-file /entrypoint.sh
+echo "Deprecated. Use ./run_container classifier <args>"

@@ -62,8 +62,11 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
 fi
 
 export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
+mkdir -p "$APPTAINER_CACHEDIR"
 export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
+mkdir -p "$APPTAINER_TMPDIR"
 export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
+mkdir -p "$MPLCONFIGDIR"
 
 # --- Host-specific Configuration ---
 info "Determining configuration for hostname: $(hostname)"
@@ -124,16 +127,16 @@ run_combine() {
     check_apptainer
     info "Running Combine container..."
 
-    COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr//"
+    COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
 
     if [ -z "$*" ]; then
         info "No further arguments, just open the container..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/ --pwd /home/cmsusr// \
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/barista/ --pwd /home/cmsusr/barista/ \
         ${COMBINE_IMAGE} \
         /bin/bash -i -c "$COMBINE_SETUP && bash"
     else
         info "Arguments provided, run them inside the container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/ --pwd /home/cmsusr// \
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/barista/ --pwd /home/cmsusr/barista/ \
         ${COMBINE_IMAGE} \
         /bin/bash -c "$COMBINE_SETUP && $*"
     fi
