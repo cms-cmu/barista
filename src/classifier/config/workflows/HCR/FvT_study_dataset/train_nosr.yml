@@ -1,0 +1,30 @@
+# template:
+# - mixed: mixed data index
+
+# training set: mixed 4b + detector 3b + ttbar 4b + ttbar 3b
+# SB; tt+data JCM
+dataset:
+  - module: HCR.FvT_legacy.TrainBaseline
+    option:
+      - --no-SR # remove SR
+      - --data-source mixed
+      - --data-mixed-samples {mixed}
+      - --max-workers 8
+  - module: HCR.FvT_legacy.Train
+    option:
+      - --no-SR # remove SR
+      - --no-detector-4b
+      - --branch pseudoTagWeight_3bDvTMix4bDvT_v{mixed}
+      - --preprocess source:detector
+      - df.tools.add_columns
+      - weight: 1.0
+      - --preprocess source:detector
+      - compatibility.JCM.column.apply_JCM
+      - name: pseudoTagWeight_3bDvTMix4bDvT_v{mixed}
+      - --preprocess source:detector
+      - df.tools.drop_columns
+      - - pseudoTagWeight_3bDvTMix4bDvT_v{mixed}
+      - --files "label:data,source:detector,year:2016" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2016_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "label:data,source:detector,year:2017" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2017_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "label:data,source:detector,year:2018" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2018_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --max-workers 8

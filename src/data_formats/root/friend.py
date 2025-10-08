@@ -18,7 +18,7 @@ from typing import (
 )
 
 from ...config import Configurable, config
-from ...dask.delayed import delayed
+from ...dask_tools.delayed import delayed
 from ...storage.eos import EOS, PathLike
 from ...utils import map_executor
 from ._backend import NameMapping, apply_naming

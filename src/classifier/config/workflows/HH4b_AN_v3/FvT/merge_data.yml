@@ -1,0 +1,21 @@
+# template:
+# - user: lpc username
+
+main:
+  module: analyze
+  option:
+    - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/HH4b_v3/FvT/data/result.json
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name FvT
+      - --step 100000
+      - --optimize-step 10000
+      - --workers 20
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/HH4b_v3/FvT/data/
+      - result: merged.json

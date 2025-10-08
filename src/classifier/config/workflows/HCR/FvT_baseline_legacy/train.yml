@@ -1,0 +1,40 @@
+# template:
+# - offset: offset for kfold
+# - user: lpc username
+
+main:
+  module: train
+  option:
+    - --max-loaders 1
+    - --max-trainers 3
+
+model:
+  - module: HCR.FvT.baseline.Train
+    option:
+      - --kfolds 3
+      - --kfold-seed FvT random
+      - --kfold-seed-offsets {offset}
+      - --training FixedStep
+      - epoch: 10
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+# training set: detector 4b + detector 3b + ttbar 4b + ttbar 3b
+# SR(blinded) + SB; tt+data JCM
+dataset:
+  - module: HCR.FvT_legacy.TrainBaseline
+    option:
+      - --preprocess label:data
+      - df.tools.rename_columns
+      - mcPseudoTagWeight: weight
+      - --data-source detector
+      - --max-workers 8
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/FvT/baseline_legacy/JCM/data/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 4

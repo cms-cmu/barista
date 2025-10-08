@@ -189,8 +189,8 @@ my_setting = config("analysis.cuts.pt_min")
 
 ### Distributed Computing
 ```python
-from src.dask import delayed
-from src.hist import hist
+from src.dask_tools import delayed
+from src.hist_tools_tools import hist
 
 # Delayed histogram computation
 @delayed

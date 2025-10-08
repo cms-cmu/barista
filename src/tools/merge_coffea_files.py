@@ -16,9 +16,10 @@ def merge_coffea_files( files_to_merge, output_file ):
                 output[ikey] = iout[ikey]
             elif ikey == "hists":
                 for ihist in iout[ikey].keys():
+                    logging.info(f'   Merging histogram {ihist}')
                     try:
                         output[ikey][ihist] += iout[ikey][ihist]
-                    except KeyError:
+                    except (KeyError, ValueError):
                         output[ikey][ihist] = iout[ikey][ihist]
             else:
                 output[ikey] = output[ikey] | iout[ikey]

@@ -1,0 +1,61 @@
+# template:
+# - mixed: mixed data index
+# - offset: offset for kfold
+# - user: lpc username
+
+main:
+  module: train
+  option:
+    - --max-loaders 3
+    - --max-trainers 3
+
+model:
+  - module: HCR.FvT.baseline.Train
+    option:
+      - --kfolds 3
+      - --kfold-seed FvT random
+      - --kfold-seed-offsets {offset}
+      - --training FixedStep
+      - epoch: 10
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+# training set: mixed 4b + detector 3b + ttbar 4b + ttbar 3b
+# SR(blinded) + SB; no JCM
+dataset:
+  - module: HCR.FvT_legacy.TrainBaseline
+    option:
+      - --mc-processes # remove ttbar
+      - --data-source mixed
+      - --data-mixed-samples {mixed}
+      - --max-workers 8
+  - module: HCR.FvT_legacy.TrainBaseline
+    option:
+      - --data-source # remove data
+      - --branch pseudoTagWeight
+      - --preprocess label:ttbar
+      - df.tools.rename_columns
+      - mcPseudoTagWeight: weight
+      - --preprocess label:ttbar
+      - compatibility.JCM.column.undo_JCM
+      - name: pseudoTagWeight
+      - --preprocess label:ttbar
+      - df.tools.drop_columns
+      - - pseudoTagWeight
+  - module: HCR.FvT_legacy.Train
+    option:
+      - --no-detector-4b
+      - --files "label:data,source:detector,year:2016" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2016_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "label:data,source:detector,year:2017" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2017_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --files "label:data,source:detector,year:2018" root://cmseos.fnal.gov//store/user/jda102/condor/ZH4b/ULTrig//data2018_3b/picoAOD_3b_wJCM_newSBDef.root
+      - --max-workers 8
+
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/FvT/baseline_legacy/noJCM/mixed-{mixed}/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 4

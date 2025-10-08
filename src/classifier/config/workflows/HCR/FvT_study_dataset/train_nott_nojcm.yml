@@ -1,0 +1,20 @@
+# template:
+# - mixed: mixed data index
+# - user: lpc username
+
+# training set: mixed 4b + detector 3b
+# SB only; no JCM;
+dataset:
+  - module: HCR.FvT.TrainBaseline
+    option:
+      - --mc-processes # remove ttbar
+      - --no-SR # remove SR
+      - --no-detector-4b
+      - --data-source mixed detector
+      - --data-mixed-samples {mixed}
+      - --friends
+      -
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/friend.json@@HCR_input
+      - --max-workers 16
+
+# conclusion: bias(+spurious signal)↑↑, variance↓
