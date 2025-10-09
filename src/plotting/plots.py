@@ -104,7 +104,9 @@ def makePlot(cfg, var='selJets.pt',
 
     if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
         try:
+            if debug: print(f"makePlot: getting plot data from list")
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, **kwargs)
+            if debug: print(f"makePlot got plot data")
             return plot_helpers_make_plot.make_plot_from_dict(plot_data)
         except ValueError as e:
             raise ValueError(e)
@@ -113,6 +115,7 @@ def makePlot(cfg, var='selJets.pt',
         plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=None, axis_opts=axis_opts, **kwargs)
         return plot_helpers_make_plot.make_plot_from_dict(plot_data)
 
+    if debug: print(f"makePlot: getting plot data from config")
     plot_data = plot_helpers_make_plot_dict.get_plot_dict_from_config(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts,  **kwargs)
     return plot_helpers_make_plot.make_plot_from_dict(plot_data)
 
