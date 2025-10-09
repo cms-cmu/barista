@@ -13,6 +13,7 @@ class plot_config:
         self.hist_key            = "hists"
 
     def set_hist_key(self, hist_key):
-        self.hist_key = hist_key
-        self.axisLabels  = self.axisLabelsDict[hist_key]
-        self.cutList     = self.cutListDict[hist_key]
+        self.hist_key     = hist_key
+        self.axisLabels   = self.axisLabelsDict[hist_key]
+        self.cutList      = self.cutListDict[hist_key]
+        self.category_key = f"categories{hist_key.replace('hists', '')}"

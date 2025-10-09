@@ -11,7 +11,7 @@ class _PlotCommon:
     miniPFRelIso_all           = H((50,   0,     2    , ("miniPFRelIso_all"             ,'miniPFRelIso_all')))
     miniPFRelIso_chg           = H((50,   0,     2    , ("miniPFRelIso_chg"             ,'miniPFRelIso_chg')))
     r9                         = H((50,   0,     2    , ("r9"                           ,'r9')))
-    scEtOverPt                 = H((50,  -1,     1    , ("scEtOverPt"                   ,'scEtOverPt')))                
+    scEtOverPt                 = H((50,  -1,     1    , ("scEtOverPt"                   ,'scEtOverPt')))
     sieie                      = H((50,   0,     0.1  , ("sieie"                        ,'sieie')))
     pfRelIso03_all             = H((50,   0,     2    , ("pfRelIso03_all"               ,'pfRelIso03_all')))
     pfRelIso03_chg             = H((50,   0,     2    , ("pfRelIso03_chg"               ,'pfRelIso03_chg')))
@@ -34,7 +34,7 @@ class _PlotDiElec(_PlotCommon, _PlotDiLepton):
 class Elec:
     plot = _PlotElec
     plot_pair = _PlotDiElec
-    skip_detailed_plots = ['pdgId', 'dr03HcalDepth1TowerSumEt', 'dr03TkSumPt', 
-                           'hoe', 'eInvMinusPInv', 'miniPFRelIso_all', 'miniPFRelIso_chg', 
-                           'r9', 'scEtOverPt', 'sieie',  'cutBased', 'convVeto', 
+    skip_detailed_plots = ['pdgId', 'dr03HcalDepth1TowerSumEt', 'dr03TkSumPt',
+                           'hoe', 'eInvMinusPInv', 'miniPFRelIso_all', 'miniPFRelIso_chg',
+                           'r9', 'scEtOverPt', 'sieie',  'cutBased', 'convVeto',
                            'mvaFall17V2Iso', 'mvaFall17V2noIso', 'genPartFlav']
