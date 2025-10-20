@@ -59,7 +59,6 @@ stages:
   - build
   - setup
   - code 
-  - classifier
   - skimmer
   - friendtree
   - analysis
