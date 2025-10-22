@@ -10,7 +10,6 @@ from ..hist import FloatWeighted, RegularAxis
 from ..utils import to_arr, to_num
 
 
-
 def linear_differ(pos: Tensor, neg: Tensor):
     return (pos - neg) / 2 + 0.5
 
@@ -96,6 +95,8 @@ class FixedThresholdROC:
         y_pred: Tensor = None,
         y_true: Tensor = None,
         weight: Optional[Tensor] = None,
+        y_pred_full: Optional[Tensor] = None,
+        y_true_full: Optional[Tensor] = None,
     ):
         if y_pred is None or len(y_pred) == 0:
             return
@@ -104,6 +105,13 @@ class FixedThresholdROC:
             y_true.dtype,
             y_pred.device,
         )
+
+        if y_pred_full is not None:
+            if not hasattr(self, '_y_pred_full'):
+                self._y_pred_full = []
+                self._y_true_full = []
+            self._y_pred_full.append(to_arr(y_pred_full))
+            self._y_true_full.append(to_arr(y_true_full))
         # prepare data
         self._check_shape(y_pred=(y_pred, 2), y_true=(y_true, 1))
         if y_pred.dim() == 2:
@@ -149,7 +157,7 @@ class FixedThresholdROC:
         tp, _ = self.__TP.hist()
         fp, _ = self.__FP.hist() 
         fpr, tpr, auc = self.roc()
-        return {
+        result = {
             "FPR": npext.to.base64(to_arr(fpr)), # false positive rate: FP/N
             "TPR": npext.to.base64(to_arr(tpr)), # true positive rate: TP/P
             "AUC": to_num(auc), # calculated area under curve
@@ -158,3 +166,9 @@ class FixedThresholdROC:
             "TP": npext.to.base64(to_arr(tp)), # true positives
             "FP": npext.to.base64(to_arr(fp)), # false positives
         }
+
+        if hasattr(self, '_y_pred_full') and self._y_pred_full:
+            result["y_pred_full"] = npext.to.base64(np.concatenate(self._y_pred_full))
+            result["y_true_full"] = npext.to.base64(np.concatenate(self._y_true_full))
+        
+        return result
