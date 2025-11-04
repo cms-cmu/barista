@@ -106,12 +106,6 @@ class FixedThresholdROC:
             y_pred.device,
         )
 
-        if y_pred_full is not None:
-            if not hasattr(self, '_y_pred_full'):
-                self._y_pred_full = []
-                self._y_true_full = []
-            self._y_pred_full.append(to_arr(y_pred_full))
-            self._y_true_full.append(to_arr(y_true_full))
         # prepare data
         self._check_shape(y_pred=(y_pred, 2), y_true=(y_true, 1))
         if y_pred.dim() == 2:
@@ -166,9 +160,5 @@ class FixedThresholdROC:
             "TP": npext.to.base64(to_arr(tp)), # true positives
             "FP": npext.to.base64(to_arr(fp)), # false positives
         }
-
-        if hasattr(self, '_y_pred_full') and self._y_pred_full:
-            result["y_pred_full"] = npext.to.base64(np.concatenate(self._y_pred_full))
-            result["y_true_full"] = npext.to.base64(np.concatenate(self._y_true_full))
         
         return result
