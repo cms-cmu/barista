@@ -1,0 +1,30 @@
+# template:
+# - user: lpc username
+# - arch: name of the architecture
+
+main:
+  module: train
+  option:
+    - --max-loaders 2
+    - --max-trainers 3
+
+model:
+  - module: HCR.SvB.arch.{arch}.Train
+    option:
+      - --training FixedStep
+      - epoch: 20
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+
+dataset:
+  - module: cache
+    option:
+      - --input /srv/HH4b/classifier/cache/SvB_ggF_arch/result.json
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/SvB/ggF_arch/{arch}/
+

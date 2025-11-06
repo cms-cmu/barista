@@ -1,0 +1,16 @@
+# template:
+# - user: lpc username
+
+dataset:
+  - module: HCR.FvT.TrainBaseline
+    option:
+      - --metadata datasets_HH4b
+      - --max-workers 20
+      - --data-source detector
+      - --JCM-weight "" analysis/weights/JCM/AN_24_089_v3/jetCombinatoricModel_SB_6771c35.yml@@JCM_weights
+      - --friends "" root://cmseos.fnal.gov//store/user/chuyuanl/HH4b/friend/AN_v3/FvT/friend.json@@HCR_input
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/HH4b_v3/FvT/data/

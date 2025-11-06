@@ -1,0 +1,35 @@
+# template:
+# - user: lpc username
+
+main:
+  module: evaluate
+  option:
+    - --max-evaluators 3
+
+dataset:
+  - module: HCR.FvT_legacy.Eval
+    option:
+      - --max-workers 8
+
+model:
+  - module: HCR.FvT.baseline.Eval
+    option:
+      - --models
+      - Final
+      - root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/FvT/baseline_legacy/JCM/data/result.json
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name FvT
+      - --step 100000
+      - --workers 5
+      - --clean
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/friend/FvT/baseline_legacy/JCM/data/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 8

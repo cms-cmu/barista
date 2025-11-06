@@ -80,7 +80,7 @@ run_command "${cmd[@]}"
 ls -R $OUTPUT_DIR
 
 display_section_header "Merging skimmer outputs datasets"
-cmd=(python src/utils/merge_yaml_datasets.py \
+cmd=(python src/tools/merge_yaml_datasets.py \
     -m ${OUTPUT_DIR}/datasets_HH4b.yml \
     -f ${OUTPUT_DIR}/picoAOD_modify_branches.yml \
     -o ${OUTPUT_DIR}/picoAOD_modify_branches.yml)

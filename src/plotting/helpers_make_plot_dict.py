@@ -89,13 +89,16 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
 
     hist_opts = hist_opts | cut_dict
 
+    hist_key     = cfg.hist_key if hasattr(cfg, 'hist_key') else 'hists'
+    category_key = cfg.category_key if hasattr(cfg, 'category_key') else 'categories'
+
     hist_obj = None
     if len(cfg.hists) > 1 and not cfg.combine_input_files:
         if file_index is None:
             raise ValueError("Must provide file_index when using multiple input files without combine_input_files")
 
         try:
-            common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index]['categories'])
+            common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index][category_key])
         except (KeyError, IndexError) as e:
             raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
 
@@ -104,17 +107,17 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
                 hist_opts.pop(_key)
 
         try:
-            hist_obj = cfg.hists[file_index]['hists'][var]
+            hist_obj = cfg.hists[file_index][hist_key][var]
         except (KeyError, IndexError) as e:
             raise ValueError(f"Failed to get histogram for var {var}: {str(e)}")
 
-        if "variation" in cfg.hists[file_index]["categories"]:
+        if "variation" in cfg.hists[file_index][category_key]:
             hist_opts = hist_opts | {"variation": "nominal"}
 
     else:
         for _input_data in cfg.hists:
             try:
-                common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data['categories'])
+                common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
             except (KeyError, AttributeError) as e:
                 raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
 
@@ -122,13 +125,14 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
                 for _key in unique_to_dict:
                     hist_opts.pop(_key)
 
-            if var in _input_data['hists'] and process in _input_data['hists'][var].axes["process"]:
-                if "variation" in _input_data["categories"]:
+            if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
+                if "variation" in _input_data[category_key]:
                     hist_opts = hist_opts | {"variation": "nominal"}
-                hist_obj = _input_data['hists'][var]
+                hist_obj = _input_data[hist_key][var]
 
     if hist_obj is None:
         raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
+
 
     # Handle backwards compatibility
     try:
@@ -143,6 +147,16 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     except (KeyError, AttributeError) as e:
         raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
 
+
+    # Handle cuts from differnt hist_keys
+    for cut_key in cut_dict.keys():
+        if debug: print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
+        #breakpoint()
+        if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
+            if debug: print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
+            hist_opts.pop(cut_key)
+
+
     # Add rebin options
     varName = hist_obj.axes[-1].name
     if not do2d:
@@ -152,9 +166,10 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
 
     # Do the hist selection/binning
     try:
+        if debug: print(f"hist_opts are {hist_opts}")
         selected_hist = hist_obj[hist_opts]
     except Exception as e:
-        raise ValueError(f"Failed to select histogram: {str(e)}")
+        raise ValueError(f"helpers_make_plot_dict::Failed to select histogram: {str(e)} hist_opts was {hist_opts}")
 
     # Handle shape differences
     if do2d:
@@ -170,6 +185,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     except Exception as e:
         raise ValueError(f"Failed to apply scale factor: {str(e)}")
 
+    if debug: print(f"helpers_make_plot_dict::get_hist_data Leaving")
     return selected_hist
 
 
@@ -202,6 +218,9 @@ def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str
     selected_hist = None
     for _proc in proc_list:
 
+        if debug:
+            print(f" \t  process {_proc} \n")
+
         if type(_proc) is list:
             _selected_hist =  get_hist_data_list(proc_list=_proc, cfg=cfg, config=config, var=var,
                                                  cut=cut, rebin=rebin, year=year, do2d=do2d, axis_opts=axis_opts, file_index=file_index, debug=debug)
@@ -213,6 +232,9 @@ def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str
             selected_hist = _selected_hist
         else:
             selected_hist += _selected_hist
+
+    if debug:
+        print(f"Leaving get_hist_data_list\n")
 
     return selected_hist
 
@@ -248,13 +270,20 @@ def add_hist_data(*, cfg, config, var, cut, rebin, year, axis_opts, do2d=False, 
         config["y_label"]   = selected_hist.axes[1].label  # Y-axis label
 
     else:
-        config["values"]     = selected_hist.values().tolist()
-        config["variances"]  = selected_hist.variances().tolist()
-        config["centers"]    = selected_hist.axes[0].centers.tolist()
-        config["edges"]      = selected_hist.axes[0].edges.tolist()
-        config["x_label"]    = selected_hist.axes[0].label
-        config["under_flow"] = float(selected_hist.view(flow=True)["value"][0])
-        config["over_flow"]  = float(selected_hist.view(flow=True)["value"][-1])
+        if debug: print(f"fetching the data\n")
+        try:
+            config["values"]     = selected_hist.values().tolist()
+            config["variances"]  = selected_hist.variances().tolist()
+            config["centers"]    = selected_hist.axes[0].centers.tolist()
+            config["edges"]      = selected_hist.axes[0].edges.tolist()
+            config["x_label"]    = selected_hist.axes[0].label
+            config["under_flow"] = float(selected_hist.view(flow=True)["value"][0])
+            config["over_flow"]  = float(selected_hist.view(flow=True)["value"][-1])
+        except:
+            print("ERROR in add_hist_data")
+        if debug: print(f"DONE fetching the data\n")
+
+    if debug: print(f"Leaving add_hist_data\n")
 
     return
 
@@ -276,7 +305,7 @@ def _create_base_plot_dict(var: str, cut: str, axis_opts: Dict, process: Any, **
 
 def _handle_cut_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_plot: str,
                      axis_opts: Dict, cut_list: List[str], rebin: int, year: str, do2d: bool,
-                     label_override: Optional[List[str]] = None, debug: bool = False) -> None:
+                     label_override: Optional[List[str]] = None, hist_key_list: Optional[List[str]] = None, debug: bool = False) -> None:
     """Handle plotting multiple cuts."""
     if debug:
         print(f"in _handle_cut_list cut_list={cut_list}")
@@ -290,9 +319,13 @@ def _handle_cut_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_
         _process_config["label"] = plot_helpers.get_label(f"{process_config['label']} {_cut}", label_override, ic)
         _process_config["histtype"] = "errorbar"
 
+        if hist_key_list is not None:
+            cfg.set_hist_key(hist_key_list[ic])
+
         add_hist_data(cfg=cfg, config=_process_config,
                       var=var_to_plot, axis_opts=axis_opts, cut=_cut, rebin=rebin, year=year,
                       do2d=do2d, debug=debug)
+
 
         proc_id = process_config["label"] if isinstance(process_config["process"], list) else process_config["process"]
         plot_data["hists"][f"{proc_id}{_cut}{ic}"] = _process_config
@@ -360,7 +393,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
     label_override = kwargs.get("labels", None)
     year = kwargs.get("year", "RunII")
     file_labels = kwargs.get("fileLabels", [])
-
+    hist_key_list = kwargs.get("hist_key_list", None)
     plot_data = _create_base_plot_dict(var, cut, axis_opts, process, **kwargs)
 
     # Parse process configuration
@@ -417,7 +450,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
     if isinstance(cut, list):
         if debug: print(f"cut is a list {cut}")
         opts_dict.pop("cut")
-        _handle_cut_list(**opts_dict, cut_list=cut, var_to_plot=var_to_plot)
+        _handle_cut_list(**opts_dict, cut_list=cut, hist_key_list=hist_key_list, var_to_plot=var_to_plot)
         opts_dict["cut"] = cut
 
     elif len(cfg.hists) > 1 and not cfg.combine_input_files:

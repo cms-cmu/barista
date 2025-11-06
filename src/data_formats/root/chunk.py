@@ -6,7 +6,7 @@ from functools import partial
 from typing import Iterable, Optional
 from uuid import UUID
 
-from ...math.utils import balance_split
+from ...math_tools.utils import balance_split
 from ...storage.eos import EOS, PathLike
 from ...typetools import check_type
 from ...utils import map_executor

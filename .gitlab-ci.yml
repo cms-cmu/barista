@@ -31,9 +31,10 @@ variables:
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
   BBREWW_BRANCH: '$CI_COMMIT_REF_NAME'
-  COFFEA4BEES_BRANCH: "new_master"
+  COFFEA4BEES_BRANCH: '$CI_COMMIT_REF_NAME'
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
+  RUN_PAGES: "false"  # Control whether to run the pages job
   DATASET: coffea4bees/metadata/datasets_HH4b_v1p1.yml
   DATASET_RUN3: coffea4bees/metadata/datasets_synthetic_test_Run3.yml
   # # DATASET: metadata/datasets_HH4b_cernbox.yml
@@ -49,7 +50,7 @@ include:
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'cms-cmu/coffea4bees'
-    ref: 'new_master'
+    ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
@@ -64,8 +65,6 @@ stages:
   - tools
   - plot
   - cutflow
-  - classifier
-  - reana
   - deploy
   - validation
   - pages
@@ -86,7 +85,7 @@ setup_workspace:
     - ls bbreww/
 
     # --- coffea4bees ---
-    - COFFEA4BEES_DEFAULT_BRANCH="new_master" 
+    - COFFEA4BEES_DEFAULT_BRANCH="master" 
     - echo "Checking for branch '$COFFEA4BEES_BRANCH' in coffea4bees..."
     - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/coffea4bees.git "$COFFEA4BEES_BRANCH" || COFFEA4BEES_BRANCH="$COFFEA4BEES_DEFAULT_BRANCH"
     - echo "Cloning coffea4bees from branch '$COFFEA4BEES_BRANCH'"
@@ -103,6 +102,11 @@ setup_workspace:
   needs:
     - setup_workspace
   image: ${CI_REGISTRY_IMAGE}:test
+  before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
   tags:
     - k8s-cvmfs
   retry: 2
@@ -112,11 +116,13 @@ setup_workspace:
   needs:
     - setup_workspace
   before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_DIR/output/ || true
+    - echo "Setting combine framework"
     - source /cvmfs/cms.cern.ch/cmsset_default.sh
     - cd /home/cmsusr/CMSSW_11_3_4/
     - cmsenv || true
-    - cd -
-    - cd barista_framework/
+    - cd $CI_PROJECT_DIR/
     - pwd && ls -la
     - ls -la coffea4bees/
   tags:
@@ -130,6 +136,9 @@ setup_workspace:
   image: registry.hub.docker.com/chuyuanliu/heptools:ml-cpu # TODO change to central repo
   before_script:
     - source /entrypoint.sh
+    - cd $CI_PROJECT_DIR/
+    - pwd && ls -la
+    - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
   artifacts:
@@ -154,6 +163,8 @@ pages:
     - cp docs/requirements.txt .
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master")'
+      when: always
+    - if: '$RUN_PAGES == "true"'
       when: always
     - when: never
 

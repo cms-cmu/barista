@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Plot styling configuration
-plt.style.use([hep.style.CMS, {'font.size': 16}])
+plt.style.use([hep.style.CMS, {'font.size': 22}])
 
 # Constants for plotting
 DEFAULT_FIGURE_SIZE = 7
@@ -368,13 +368,13 @@ def _draw_plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> None:
         # Set labels
         if kwargs.get("xlabel", None):
             plt.xlabel(kwargs.get("xlabel"))
-        plt.xlabel(plt.gca().get_xlabel(), loc='right', fontsize=kwargs.get('xlabel_fontsize', 22))
+        plt.xlabel(plt.gca().get_xlabel(), loc='right', fontsize=kwargs.get('xlabel_fontsize', 30))
 
         if kwargs.get("ylabel", None):
             plt.ylabel(kwargs.get("ylabel"))
         if norm:
             plt.ylabel(plt.gca().get_ylabel() + " (normalized)")
-        plt.ylabel(plt.gca().get_ylabel(), loc='top', fontsize=kwargs.get('ylabel_fontsize', 22))
+        plt.ylabel(plt.gca().get_ylabel(), loc='top', fontsize=kwargs.get('ylabel_fontsize', 30), labelpad=kwargs.get("ylabel_labelpad",-4))
 
         # Set scales
         if kwargs.get("yscale", None):
@@ -490,7 +490,7 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
         year_str = plot_helpers.get_year_str(year=kwargs.get("year_str",kwargs.get('year', "RunII")))
 
-        hep.cms.label("Internal", data=True,
+        hep.cms.label(kwargs.get("CMSText","Internal"), data=True,
                       year=year_str, loc=0, ax=main_ax)
 
         if kwargs.get("do_title", True) and 'region' in plot_data["axis_opts"] :
@@ -617,8 +617,8 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
             # Set ratio plot labels and limits
             plt.ylabel(kwargs.get("rlabel", "Ratio"))
-            plt.ylabel(plt.gca().get_ylabel(), loc='center', fontsize=kwargs.get('rlabel_fontsize', 22))
-            plt.xlabel(kwargs.get("xlabel", top_xlabel), loc='right', fontsize=kwargs.get('xlabel_fontsize', 22))
+            plt.ylabel(plt.gca().get_ylabel(), loc='center', fontsize=kwargs.get('rlabel_fontsize', 30))
+            plt.xlabel(kwargs.get("xlabel", top_xlabel), loc='right', fontsize=kwargs.get('xlabel_fontsize', 30))
             plt.ylim(*kwargs.get('rlim', [0, 2]))
 
             if kwargs.get("ratio_legend_order", {}):
@@ -685,7 +685,6 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                         kwargs.get("year", "RunII"),
                         plot_data["cut"],
                     ]
-
 
                     for k in sorted(plot_data["axis_opts"].keys()):
                         if k in ["name"]:
@@ -901,7 +900,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
         ax = fig.gca()
 
 
-        hep.cms.label("Internal", data=True,
+        hep.cms.label(kwargs.get('CMSText', "Internal"), data=True,
                       year=kwargs.get('year', "RunII").replace("UL", "20"), loc=0, ax=ax)
 
         if 'region' in plot_data["axis_opts"]:

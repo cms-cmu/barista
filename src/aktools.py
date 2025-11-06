@@ -9,7 +9,7 @@ import awkward as ak
 import numpy as np
 from awkward import Array
 
-from .math.partition import Partition
+from .math_tools.partition import Partition
 from .typetools import check_type
 from .utils import astuple
 

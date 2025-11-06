@@ -1,0 +1,40 @@
+# template:
+# - user: lpc username
+# - synthetic: seed of synthetic dataset
+
+main:
+  module: evaluate
+  option:
+    - --max-evaluators 3
+
+dataset:
+  - module: HCR.FvT.Eval
+    option:
+      - --max-workers 8
+      - --metadata datasets_HH4b
+      - --data-source detector # only evaluate on data
+      - --mc-processes # set mc-processes to empty (to remove ttbar)
+      - --friends "" root://cmseos.fnal.gov//store/user/chuyuanl/HH4b/friend/AN_v3/FvT/friend.json@@HCR_input
+
+model:
+  - module: HCR.FvT.baseline.Eval
+    option:
+      - --models
+      - Final
+      - root://cmseos.fnal.gov//store/user/{user}/XX4b/FvT/seed-{synthetic}/model/result.json # TODO may need to match the output path in train.yml
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name FvT
+      - --step 100000
+      - --workers 5
+      - --clean
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/XX4b/FvT/seed-{synthetic}/friend/ # TODO need to change
+  - module: ml.DataLoader
+    option:
+      - num_workers: 8

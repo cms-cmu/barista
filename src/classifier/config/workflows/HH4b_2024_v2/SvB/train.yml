@@ -1,0 +1,39 @@
+# template:
+# - model: path to model
+# - FvT: path to FvT friend tree
+
+main:
+  module: train
+  option:
+    - --max-loaders 2
+    - --max-trainers 3
+
+model:
+  - module: HCR.SvB.ggF.baseline.Train
+    option:
+      - --roc-signal-by-category # calculate ROC by category
+      - --training FixedStep
+      - epoch: 20
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+
+dataset:
+  - module: HCR.SvB.Background # load background dataset
+    option:
+      - --metadata datasets_HH4b_2024_v2
+      - --norm 3
+      - --JCM-weight "" analysis/weights/JCM/2024_v2/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights
+      - --friends "" metadata/datasets_HH4b_2024_v2_classifier_input.json@@HCR_input
+      - --friends label:data {FvT}/result.json@@analysis.0.merged # setup the path to FvT friend tree
+
+  - module: HCR.SvB.Signal # load signal dataset
+    option:
+      - --metadata datasets_HH4b_2024_v2
+      - --friends "" metadata/datasets_HH4b_2024_v2_classifier_input.json@@HCR_input
+
+setting:
+  - module: IO
+    option:
+      - output: "{model}"

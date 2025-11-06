@@ -1,0 +1,32 @@
+# template:
+# - name: name of the workflow
+# - mixed: mixed data index
+# - user: lpc username
+# - offset: offset for kfold
+
+main:
+  module: train
+  option:
+    - --max-loaders 2
+    - --max-trainers 3
+
+model:
+  - module: HCR.FvT.baseline.Train
+    option:
+      - --kfolds 3
+      - --kfold-seed FvT random
+      - --kfold-seed-offsets {offset}
+      - --training FixedStep
+      - epoch: 10
+        bs_init: 1024
+      - --finetuning FinetuneStep
+      - epoch: 1
+        bs_init: 16384
+
+setting:
+  - module: IO
+    option:
+      - output: root://cmseos.fnal.gov//store/user/{user}/HH4b/classifier/FvT/{name}/mixed-{mixed}/
+  - module: ml.DataLoader
+    option:
+      - num_workers: 4

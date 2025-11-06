@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from ...dask.delayed import delayed
+from ...dask_tools.delayed import delayed
 from ...storage.eos import EOS, PathLike
 from .chunk import Chunk
 from .io import ReaderOptions, TreeReader, TreeWriter, WriterOptions

@@ -108,11 +108,18 @@ Generic, reusable utilities that don't fit into specific domains.
 - String manipulation
 - Retry mechanisms
 - Generic wrapper functions
-- **`merge_yaml_datasets.py`** - Utility to merge multiple YAML dataset files
 - **`fix_eos.py`** - Utility to repair corrupted EOS files
 
 
 **Use when:** You need generic helper functions, argument parsing, or common utility operations.
+
+### Tools for Physics Data (`tools/`)
+
+Useful scripts and utilities for handling physics data.
+
+ - **merge_yaml_datasets.py** - Merge multiple YAML dataset files into one
+ - **merge_coffea_files.py** - Merge multiple Coffea output files
+
 
 ### 🧪 Tests (`tests/`)
 Test suite mirroring the package structure.
@@ -120,6 +127,12 @@ Test suite mirroring the package structure.
 - Unit tests for all modules
 - Integration tests
 - Test utilities and fixtures
+
+### Friendtrees (`friendtrees/`)
+
+Utilities to create and manage friend trees.
+
+
 
 ## Design Principles
 
@@ -176,8 +189,8 @@ my_setting = config("analysis.cuts.pt_min")
 
 ### Distributed Computing
 ```python
-from src.dask import delayed
-from src.hist import hist
+from src.dask_tools import delayed
+from src.hist_tools_tools import hist
 
 # Delayed histogram computation
 @delayed
