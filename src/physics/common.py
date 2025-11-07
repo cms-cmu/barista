@@ -28,10 +28,8 @@ def mask_event_decision(event, decision='OR', branch='HLT', list_to_mask=[''], l
             else: logging.warning(f'\n{i} branch not in {branch} for event.')
     else: logging.warning(f'\n{branch} branch not in event.')
     if not tmp_list:
-        print(f'tmp_list {tmp_list}\n\n')
-        sys.exit(0)
-    #     tmp_list = [np.zeros(len(event), dtype=bool)]
-    #     logging.warning(f'No {list_to_mask} branches found in event. Returning empty mask.')
+        tmp_list = [np.zeros(len(event), dtype=bool)]
+        logging.warning(f'No {list_to_mask} branches found in event. Returning empty mask.')
 
     tmp_array = np.array( tmp_list )
 
