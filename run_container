@@ -25,6 +25,8 @@ show_help() {
     echo "                        Opens an interactive shell if no commands are given."
     echo "  classifier [command...] Run commands inside the classifier container."
     echo "                        Opens an interactive shell if no commands are given."
+    echo "  brilcalc [command...] Run commands inside the brilcalc container."
+    echo "                        Opens an interactive shell if no commands are given."
     echo "  snakemake [options]   Run snakemake using the local Pixi environment for better dependency management."
     echo "                        Requires --snakefile argument. Automatically installs Pixi if needed."
     echo "                        Use --reinstall or --fresh to clean and reinstall the environment."
@@ -38,6 +40,8 @@ show_help() {
     echo "  $0 python --version    Run 'python --version' in the analysis container."
     echo "  $0 combine             Open an interactive shell in the combine container."
     echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
+    echo "  $0 brilcalc           Open an interactive shell in the brilcalc container."
+    echo "  $0 brilcalc python src/tools/compute_lumi_processes.py --input input.yml  Run compute_lumi_processes.py in the brilcalc container."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
     echo "  $0 snakemake --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
     echo "  $0 snakemake --reinstall --snakefile Snakefile  Clean and reinstall environment, then run snakemake."
@@ -139,6 +143,24 @@ run_combine() {
         APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/barista/ --pwd /home/cmsusr/barista/ \
         ${COMBINE_IMAGE} \
         /bin/bash -c "$COMBINE_SETUP && $*"
+    fi
+}
+
+# Function to run the combine container
+run_brilcalc() {
+    check_apptainer
+    info "Running Brilcalc container..."
+
+    if [ -z "$*" ]; then
+        info "No further arguments, just open the container..."
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/srv --pwd /srv/ \
+        --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages /cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest \
+        /bin/bash 
+    else
+        info "Arguments provided, run them inside the container ..."
+        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/srv --pwd /srv/ \
+        --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages /cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest \
+        /bin/bash -c "$*"
     fi
 }
 
@@ -330,6 +352,9 @@ else
     case "$1" in
         "combine")
         run_combine "${@:2}" # Run combine, passing along any remaining arguments
+        ;;
+        "brilcalc")
+        run_brilcalc "${@:2}" # Run brilcalc, passing along any remaining arguments
         ;;
         "snakemake_container")
         run_snakemake_container "${@:2}" # Run snakemake, passing along any remaining arguments
