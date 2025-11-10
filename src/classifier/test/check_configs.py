@@ -1,8 +1,7 @@
 import importlib
 import logging
-from itertools import chain
+from pathlib import Path
 
-from src.classifier.task import main
 from rich.logging import RichHandler
 
 from .utils.import_check import ImportTracker, walk_packages
@@ -12,20 +11,19 @@ def walk_configs():
     failed = False
     with import_checker() as _import_checker:
         checkers = [_import_checker]
-        for module in chain(
-            *[
-                walk_packages(
-                    "/".join(
-                        main.EntryPoint._fetch_config("", main._ModCtx(test=test))[:-1]
-                    ),
-                    Path(__file__).resolve().parents[2],
-                )
-                for test in [False, True]
-            ]
-        ):
-            logging.info(f'Checking "{module}"')
-            for checker in checkers:
-                failed |= checker(module)
+        # Construct paths for both normal and test configs
+        config_paths = [
+            "src/classifier/config",  # Normal config path
+            "src/classifier/test/config",  # Test config path
+        ]
+        for config_path in config_paths:
+            for module in walk_packages(
+                config_path,
+                str(Path(__file__).resolve().parents[2]),
+            ):
+                logging.info(f'Checking "{module}"')
+                for checker in checkers:
+                    failed |= checker(module)
 
     return failed
 
