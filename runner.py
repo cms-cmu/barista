@@ -24,7 +24,7 @@ import fsspec
 import psutil
 import yaml
 from omegaconf import OmegaConf
-from src.addhash import get_git_diff, get_git_revision_hash
+from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
 from coffea import processor
 from coffea.dataset_tools import rucio_utils
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
@@ -377,13 +377,44 @@ def setup_pico_base_name(configs):
 
 
 def create_reproducible_info(args):
-    """Create reproducible information dictionary."""
-    return {
+    """Create reproducible information dictionary for both barista and processor repositories."""
+    info = {
         'date': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-        'hash': args.githash if args.githash else get_git_revision_hash(),
         'args': str(args),
-        'diff': args.gitdiff if args.gitdiff else str(get_git_diff()),
     }
+    
+    # Get barista (current directory) git info
+    barista_root = os.getcwd()
+    if args.githash or args.gitdiff:
+        # Use override values if provided
+        info['barista'] = {
+            'hash': args.githash if args.githash else get_git_revision_hash(barista_root),
+            'diff': args.gitdiff if args.gitdiff else str(get_git_diff(barista_root)),
+        }
+    else:
+        info['barista'] = {
+            'hash': get_git_revision_hash(barista_root),
+            'diff': str(get_git_diff(barista_root)),
+        }
+    
+    # Get processor repository git info from processor path
+    # Extract repo name from first folder in processor path
+    processor_path = args.processor
+    processor_repo_name = processor_path.split('/')[0] if '/' in processor_path else 'processor'
+    processor_repo_root = find_git_root(processor_path)
+    
+    if processor_repo_root and processor_repo_root != barista_root:
+        info[processor_repo_name] = {
+            'hash': get_git_revision_hash(processor_repo_root),
+            'diff': str(get_git_diff(processor_repo_root)),
+        }
+    else:
+        # If processor is not a separate git repo or same as barista
+        info[processor_repo_name] = {
+            'hash': 'Same repository as barista' if processor_repo_root == barista_root else 'Not a git repository',
+            'diff': '',
+        }    
+    return info
 
 
 def compute_with_client(client, func, *args, **kwargs):
