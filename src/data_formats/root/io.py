@@ -39,7 +39,13 @@ import uproot
 from packaging.version import Version
 
 from ...storage.eos import EOS, PathLike
-from ._backend import concat_record, len_record, record_backend, slice_record
+from ._backend import (
+    concat_record,
+    len_record,
+    materialize_record,
+    record_backend,
+    slice_record,
+)
 from .chunk import Chunk
 
 if TYPE_CHECKING:
@@ -114,7 +120,7 @@ class TreeWriter:
     Parameters
     ----------
     name : str, optional, default='Events'
-        Name of tree.
+        Default name of tree.
     parents : bool, optional, default=True
         Create parent directories if not exist.
     basket_size : int, optional
@@ -123,7 +129,7 @@ class TreeWriter:
         Additional options passed to :func:`uproot.recreate`.
     Attributes
     ----------
-    tree : ~heptools.root.chunk.Chunk
+    tree : ~heptools.root.chunk.Chunk or list[~heptools.root.chunk.Chunk]
         Created :class:`TTree`.
     """
 
@@ -134,15 +140,15 @@ class TreeWriter:
         basket_size: int = ...,
         **options,
     ):
-        self._name = name
+        self._default_name = name
         self._parents = parents
         self._basket_size = basket_size
         self._options = options
 
-        self.tree: Chunk = None
+        self.tree: Chunk | list[Chunk] = None
         self._reset()
 
-    def __call__(self, path: PathLike):
+    def __call__(self, path: PathLike, name: str = None):
         """
         Set output path.
 
@@ -150,12 +156,15 @@ class TreeWriter:
         ----------
         path : PathLike
             Path to output ROOT file.
+        name : str, optional
+            Name of tree. If given, it will temporarily override the tree name.
 
         Returns
         -------
         self : TreeWriter
         """
         self._path = EOS(path)
+        self._tree_name = name or self._default_name
         return self
 
     def __enter__(self):
@@ -169,6 +178,7 @@ class TreeWriter:
         self.tree = None
         self._temp = self._path.local_temp(dir=".")
         self._file = uproot.recreate(self._temp, **self._options)
+        self._trees = {self._tree_name: 0}
         return self
 
     def __exit__(self, *exc):
@@ -177,12 +187,24 @@ class TreeWriter:
         """
         if not any(exc):
             self._flush()
-            empty = self._name not in self._file
             self._file.close()
-            if not empty:
-                self.tree = Chunk(source=self._temp, name=self._name, fetch=True)
-                self.tree.path = self._path
+            self.tree = []
+            with uproot.open(self._temp) as file:
+                for tree, size in self._trees.items():
+                    if size == 0 or size is None:
+                        continue
+                    chunk = Chunk(source=self._temp, name=tree)
+                    chunk._fetch_file(file)
+                    chunk.path = self._path
+                    self.tree.append(chunk)
+                    if chunk.num_entries != size:
+                        raise RuntimeError(
+                            f'Tree "{tree}" is corrupted. Expected {size} entries, got {chunk.num_entries}.'
+                        )
+            if len(self.tree) > 0:
                 self._temp.move_to(self._path, parents=self._parents, overwrite=True)
+                if len(self.tree) == 1:
+                    self.tree = self.tree[0]
             else:
                 self._temp.rm()
         else:
@@ -200,6 +222,7 @@ class TreeWriter:
         self._file = None
         self._buffer = None if self._basket_size is ... else []
         self._backend = None
+        self._trees = None
 
     def _flush(self):
         if self._basket_size is ...:
@@ -214,15 +237,18 @@ class TreeWriter:
 
                 if akext.is_jagged(data):
                     data = {k: data[k] for k in data.fields}
-            if self._name not in self._file:
-                self._file[self._name] = data
+            if self._tree_name not in self._file:
+                self._file[self._tree_name] = data
             else:
-                self._file[self._name].extend(data)
+                self._file[self._tree_name].extend(data)
         data = None
 
     def extend(self, data: RecordLike):
         """
         Extend the :class:`TTree` with ``data`` using :meth:`uproot.writing.writable.WritableTree.extend`.
+
+        .. note::
+                The `VirtualArray` in `awkward < 2.0` will be materialized.
 
         Parameters
         ----------
@@ -251,6 +277,8 @@ class TreeWriter:
             return
         elif size is None:
             raise ValueError("The extended data does not have a well-defined length.")
+        materialize_record(data, backend)
+        self._trees[self._tree_name] += size
         if self._basket_size is ...:
             self._backend = backend
             self._buffer = data
@@ -267,6 +295,33 @@ class TreeWriter:
                     self._flush()
         return self
 
+    def switch(self, name: str):
+        """
+        Switch to another tree in the same ROOT file.
+
+        .. warning::
+
+            The buffer will be immediately flushed regardless of the basket size.
+            It is recommended to finish the current tree before switching.
+
+        Parameters
+        ----------
+        name : str
+            Name of tree.
+
+        Returns
+        -------
+        self : TreeWriter
+        """
+        if name == self._tree_name:
+            return self
+        if self._trees.get(name, 0) is None:
+            raise ValueError(f'Tree name "{name}" conflicts with metadata name.')
+        self._flush()
+        self._tree_name = name
+        self._trees.setdefault(self._tree_name, 0)
+        return self
+
     def save_metadata(self, name: str, metadata: dict[str, UprootSupportedDtypes]):
         """
         Save metadata to ROOT file.
@@ -277,7 +332,19 @@ class TreeWriter:
             Name of metadata.
         metadata : dict[str, UprootSupportedDtypes]
             A dictionary of metadata.
+
+        Returns
+        -------
+        self : TreeWriter
         """
+        if name in self._trees:
+            size = self._trees[name]
+            if size is None:
+                raise ValueError(f'Metadata name "{name}" already exists.')
+            else:
+                raise ValueError(f'Metadata name "{name}" conflicts with other trees.')
+        else:
+            self._trees[name] = None
         if Version(uproot.__version__) >= Version("5.0.0"):
             self._file[name] = {k: [v] for k, v in metadata.items()}
         else:
@@ -291,6 +358,7 @@ class TreeWriter:
                     k = f"{_UTF8_NULL}{k}"
                 data[k] = ak.Array([v])
             self._file[name] = data
+        return self
 
 
 class TreeReader(_Reader):
