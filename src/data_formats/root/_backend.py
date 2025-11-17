@@ -257,3 +257,17 @@ def apply_naming(naming: str | NameMapping, keys: dict[str, str]):
         return naming(**keys)
     else:
         raise TypeError(f'Unknown naming "{naming}"')
+
+
+def materialize_record(data, library: Backends = ...):
+    if library is ...:
+        library = record_backend(data)
+    if library == "ak":
+        import awkward as ak
+
+        if hasattr(ak, "materialized"):
+            ak.materialized(data)
+    elif library in ("np", "pd") or library.startswith("dict"):
+        pass
+    else:
+        raise TypeError(_UNKNOWN.format(library=library))

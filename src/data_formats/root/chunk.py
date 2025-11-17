@@ -189,14 +189,17 @@ class Chunk(metaclass=_ChunkMeta):
             import uproot
 
             with uproot.open(self.path) as file:
-                tree = file[self.name]
-                if self._branches is ...:
-                    self._branches = frozenset(tree.keys())
-                if self._num_entries is ...:
-                    self._num_entries = tree.num_entries
-                if self._uuid is ...:
-                    self._uuid = file.file.uuid
+                self._fetch_file(file)
         return self
+
+    def _fetch_file(self, file):
+        tree = file[self.name]
+        if self._branches is ...:
+            self._branches = frozenset(tree.keys())
+        if self._num_entries is ...:
+            self._num_entries = tree.num_entries
+        if self._uuid is ...:
+            self._uuid = file.file.uuid
 
     def __hash__(self):
         return hash((self.uuid, self.name))
