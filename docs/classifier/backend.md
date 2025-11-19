@@ -1,7 +1,5 @@
 # Backend
 
-The monitor system consists of a central server that handles the aggregation and visualization of the data and multiple clients that send log, progress and other information to the server. For now, the visualization is limited to the console output provided by [`rich`](https://rich.readthedocs.io/en/stable/index.html) package.
-
 This section of the documentation explains how the classifier runs in the backend to implement it for different physics analyses. The base code of the classifier inside `src/classifier` does not require changes for specific analyses and thus will not be covered here. Most of the examples will refer to the bbreww framework for the HH-bbWW analysis, but these also apply to the coffea4bees framework. 
 
 We run the classifier using one of the run.sh files in classifier/config/workflows/.../run.sh. Most of the variables defined in this file are explained in [HCR training](hcr.md). 
