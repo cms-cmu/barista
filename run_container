@@ -77,7 +77,8 @@ info "Determining configuration for hostname: $(hostname)"
 # Default Pixi installation directory
 PIXI_DIR="$HOME/.pixi"
 if [[ $(hostname) == *"cmslpc"* ]]; then
-    export APPTAINER_BINDPATH=/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/
+    export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
+
     # On LPC, use a shared/persistent storage area instead of $HOME
     PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
     if [ ! -d "$PIXI_DIR" ]; then
@@ -88,7 +89,7 @@ elif [[ $(hostname) == *"lxplus"* ]]; then
 elif [[ $(hostname) == *"rogue"* ]]; then
     export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
 else
-   warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
+    warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
 fi
 
 # Function to check if apptainer is installed (only needed for container functions)
@@ -100,17 +101,23 @@ check_apptainer() {
 run_coffea() {
     check_apptainer
     info "Running Coffea container..."
+
+    # Initialize lpcjobqueue if needed (one-time setup)
+    if [[ $(hostname) == *"cmslpc"* ]]; then
+        if [[ ! -f ".shell" ]]; then
+            info "Setting up lpcjobqueue for HTCondor submission..."
+            curl -OL https://raw.githubusercontent.com/CoffeaTeam/lpcjobqueue/main/bootstrap.sh
+            bash bootstrap.sh
+            rm bootstrap.sh
+            sed -i -e 's|APPTAINER_SHELL.*|APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \\|' -e 's|/srv/.bashrc|/srv/.bashrc|' shell
+            mv shell .shell
+            info "lpcjobqueue initialized."
+        fi
+    fi
+
     if [ -z "$*" ]; then
         if [[ $(hostname) == *"cmslpc"* ]]; then
-            if [[ ! -f ".shell" ]]; then
-                info "No .shell file found. Installing lpcjobqueue..."
-                curl -OL https://raw.githubusercontent.com/CoffeaTeam/lpcjobqueue/main/bootstrap.sh
-                bash bootstrap.sh
-                rm bootstrap.sh
-                sed -i -e 's|APPTAINER_SHELL.*|APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \\|' -e 's|/srv/.bashrc|/srv/.bashrc|' shell
-                mv shell .shell
-            fi
-            # For htcondor jobs
+            # Use the generated wrapper for interactive mode (proven to work)
             ./.shell ../${COFFEA_IMAGE#/cvmfs/unpacked.cern.ch/}
         else
             info "Leaving the container open..."
@@ -120,9 +127,35 @@ run_coffea() {
         fi
     else
         info "Arguments provided, run them inside the container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
-        "$COFFEA_IMAGE" \
-        /bin/bash -c "$*"
+        if [[ $(hostname) == *"cmslpc"* ]]; then
+             # STRATEGY: Patch the existing .shell script to run commands instead of opening a shell.
+             # This guarantees the environment (binds, vars, tmpdir) is IDENTICAL to the working interactive mode.
+             
+             cp .shell .shell.run
+             
+             # Remove the last line of .shell (which opens the interactive session)
+             sed -i '/^APPTAINER_SHELL/d' .shell.run
+             
+             # Append the logic to run the passed command
+             # We shift the first argument (image name) and pass the rest to bash -c
+             cat <<'EOF' >> .shell.run
+shift
+APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
+  /cvmfs/unpacked.cern.ch/registry.hub.docker.com/${COFFEA_IMAGE} \
+  /bin/bash -c "source /srv/.bashrc && $*"
+EOF
+             chmod +x .shell.run
+             
+             # Run the patched script with the image argument (required by .shell logic) + your command
+             ./.shell.run "../${COFFEA_IMAGE#/cvmfs/unpacked.cern.ch/}" "$@"
+             
+             # Cleanup
+             rm .shell.run
+        else
+            APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
+            "$COFFEA_IMAGE" \
+            /bin/bash -c "$*"
+        fi
     fi
 }
 
