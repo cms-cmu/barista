@@ -117,27 +117,26 @@ You can run the required software interactively or as a job using the [run_conta
 
 
 ```bash
+./run_container --help
+[INFO] Determining configuration for hostname: cmslpc341.fnal.gov
 Usage: ./run_container [command] [options]
 
 Commands:
-  [command...]         Run commands inside the analysis container.
-                       Opens an interactive shell if no commands are given.
-                       (Interactive shell is the only option to run on LPC HTCondor).
-  combine [command...] Run commands inside the combine container.
-                       Opens an interactive shell if no commands are given.
-  snakemake [options]  Run snakemake with the specified options.
-                       Requires --snakefile argument.
-  --help               Show this help message.
+  [command...]          Run commands inside the coffea container.
+                        (Interactive shell is the only option to run on LPC HTCondor).
+  combine [cmd...]      Run commands inside the combine container.
+  classifier [cmd...]   Run commands inside the classifier container.
+  brilcalc [cmd...]     Run commands inside the brilcalc container.
+  snakemake [opts]      Run snakemake using the local Pixi environment.
+                        Use --reinstall to clean environment.
+  snakemake_container   Run snakemake inside a container (backup option).
+  --help                Show this help message.
 
 Examples:
-  source run_container
-  # Open an interactive shell in the analysis container (HTCondor jobs)
-  ./run_container
-  ./run_container combine
-  # Open an interactive shell in the combine container
-  ./run_container combine combine -M AsymptoticLimits
-  # Run snakemake with the specified Snakefile
-  ./run_container snakemake --snakefile coffea4bees/workflows/Snakefile --cores 4
+  ./run_container                     Open interactive shell (Coffea).
+  ./run_container python script.py    Run script in Coffea container.
+  ./run_container combine             Open Combine container.
+  ./run_container snakemake -s Snakefile
 ```
 
 
