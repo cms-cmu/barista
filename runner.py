@@ -379,9 +379,20 @@ def setup_condor_cluster(config_runner, tarball_path):
     """Setup Condor cluster configuration."""
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
-    
+
     logging.info("Initializing HTCondor cluster configuration...")
     
+    for base in config_runner['analysis_base_path']:
+        prologue_commands = [f"mkdir -p {base}"]
+        for file_path in config_runner['condor_transfer_input_files']:
+            if file_path.rstrip('/') == base:
+                continue # Skip if it's the base path itself (backward compatibility)
+
+            if file_path.startswith(f"{base}/"):
+                # Extract the subdirectory name and move these files to correct directory structure
+                subdir = file_path.split('/')[1]
+                prologue_commands.append(f"mv {subdir} {base}/")
+
     cluster_args = {
         'transfer_input_files': [tarball_path],
         'shared_temp_directory': '/tmp',
@@ -392,7 +403,8 @@ def setup_condor_cluster(config_runner, tarball_path):
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
-        ]
+        ],
+        'job_script_prologue': prologue_commands
     }
     logging.info("Cluster arguments: ")
     logging.info(pretty_repr(cluster_args))
@@ -402,7 +414,7 @@ def setup_condor_cluster(config_runner, tarball_path):
     
     logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
     cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
-    
+
     logging.info("Creating Dask client...")
     client = Client(cluster)
 
