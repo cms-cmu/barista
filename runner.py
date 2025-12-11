@@ -358,21 +358,25 @@ def setup_pico_base_name(configs):
     """Determine the pico base name based on configuration."""
     config_config = configs.get("config", {})
     config_runner = configs.get("runner", {})
-    
+
     # Check for explicit pico_base_name first
     if (pico_base_name := config_config.get("pico_base_name")) is not None:
         return pico_base_name
-    
+
     # Check for special configurations
     if "declustering_rand_seed" in config_config:
         return f'picoAOD_seed{config_config["declustering_rand_seed"]}'
-    
+
     class_name = config_runner.get("class_name")
     if class_name == "SubSampler":
         return 'picoAOD_PSData'
+    elif class_name == "HemiMixer":
+        return 'picoAOD_mixed_all'
+    elif class_name == "MixedDataSplitter":
+        return f'picoAOD_mixed_v{config_config.get("mixed_sub_sample")}'
     elif class_name == "Skimmer" and config_config.get("skim4b", False):
         return 'picoAOD_fourTag'
-    
+
     return None
 
 
