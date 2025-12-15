@@ -55,10 +55,10 @@ class WorkerInitializer(WorkerPlugin):
 def checking_input_files(outfiles):
     '''Check if the input files are corrupted'''
     logging.info(f"Checking {len(outfiles)} input files for corruption...")
-    
+
     good_files = []
     corrupted_count = 0
-    
+
     for outfile in outfiles:
             try:
                 # Attempt to open the file with uproot to check for corruption
@@ -68,7 +68,7 @@ def checking_input_files(outfiles):
                 corrupted_count += 1
                 logging.error(f"Error opening file {outfile}: {e}")
                 logging.error(f"Skipping corrupted file {outfile}")
-    
+
     logging.info(f"File check complete: {len(good_files)} good files, {corrupted_count} corrupted files")
     return good_files
 
@@ -127,7 +127,7 @@ def profile(func):
 # Dataset processing helper functions
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
-    
+
     if dataset_name == 'mixeddata':
         return 'mixed_data'
     elif dataset_name == 'datamixed':
@@ -169,7 +169,7 @@ def process_mc_dataset(dataset, year, metadata, metadata_dataset, fileset, args,
     else:
         metadata_dataset[dataset]['genEventSumw'] = 1
         meta_files = metadata['datasets'][dataset][year][config_runner['data_tier']]
-    
+
     dataset_key = f"{dataset}_{year}"
     fileset[dataset_key] = create_fileset_entry(dataset_key, meta_files, metadata_dataset[dataset], args, config_runner)
     logging.info(f'Dataset {dataset_key} with {len(fileset[dataset_key]["files"])} files')
@@ -179,26 +179,26 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
     """Process datasets that create multiple samples (mixed, synthetic, etc.)."""
     type_names = {
         'mixed_data': 'Mixed Data',
-        'data_mixed': 'Data Mixed', 
+        'data_mixed': 'Data Mixed',
         'synthetic_data': 'Synthetic Data'
     }
     logging.info(f"Config {type_names.get(dataset_type, dataset_type.title())}")
-    
+
     nSamples = metadata['datasets'][dataset]["nSamples"]
     sample_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
     logging.info(f"Number of samples is {nSamples}")
-    
+
     for v in range(nSamples):
         sample_name = f"{name_prefix}_v{v}"
         idataset = f'{sample_name}_{year}'
-        
+
         metadata_dataset[idataset] = copy(metadata_dataset[dataset])
         metadata_dataset[idataset]['processName'] = sample_name
-        
+
         # Apply extra metadata if provided
         if extra_metadata_fn:
             extra_metadata_fn(metadata_dataset[idataset], sample_config, v)
-        
+
         sample_files = [f.replace("XXX", str(v)) for f in sample_config['files_template']]
         fileset[idataset] = create_fileset_entry(idataset, sample_files, metadata_dataset[idataset], args, config_runner)
         logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
@@ -207,13 +207,13 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
 def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process data for mixed dataset configuration."""
     logging.info("Config Data for Mixed")
-    
+
     nMixedSamples = metadata['datasets'][dataset]["nSamples"]
     use_kfold = config_runner.get("use_kfold", False)
     use_ZZinSB = config_runner.get("use_ZZinSB", False)
     use_ZZandZHinSB = config_runner.get("use_ZZandZHinSB", False)
     data_3b_mix_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
-    
+
     logging.info(f"Number of mixed samples is {nMixedSamples}")
     logging.info(f"Using kfolding? {use_kfold}")
     logging.info(f"Using ZZinSB? {use_ZZinSB}")
@@ -222,17 +222,17 @@ def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, arg
     idataset = f'{dataset}_{year}'
     metadata_dataset[idataset] = copy(metadata_dataset[dataset])
     metadata_dataset[idataset]['JCM_loads'] = [
-        data_3b_mix_config['JCM_load_template'].replace("XXX", str(v)) 
+        data_3b_mix_config['JCM_load_template'].replace("XXX", str(v))
         for v in range(nMixedSamples)
     ]
-    
+
     # Select appropriate template based on configuration
     template_mapping = {
         'use_kfold': ('FvT_file_kfold_template', 'FvT_name_kfold_template'),
         'use_ZZinSB': ('FvT_file_ZZinSB_template', 'FvT_name_ZZinSB_template'),
         'use_ZZandZHinSB': ('FvT_file_ZZandZHinSB_template', 'FvT_name_ZZandZHinSB_template')
     }
-    
+
     file_template, name_template = None, None
     for flag, (f_tmpl, n_tmpl) in template_mapping.items():
         if config_runner.get(flag, False):
@@ -240,13 +240,13 @@ def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, arg
             break
     else:
         file_template, name_template = 'FvT_file_template', 'FvT_name_template'
-    
+
     metadata_dataset[idataset]['FvT_files'] = [
-        data_3b_mix_config[file_template].replace("XXX", str(v)) 
+        data_3b_mix_config[file_template].replace("XXX", str(v))
         for v in range(nMixedSamples)
     ]
     metadata_dataset[idataset]['FvT_names'] = [
-        data_3b_mix_config[name_template].replace("XXX", str(v)) 
+        data_3b_mix_config[name_template].replace("XXX", str(v))
         for v in range(nMixedSamples)
     ]
 
@@ -257,7 +257,7 @@ def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, arg
 def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process TT for mixed dataset configuration."""
     logging.info("Config TT for Mixed")
-    
+
     nMixedSamples = metadata['datasets'][dataset]["nSamples"]
     TT_3b_mix_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
     logging.info(f"Number of mixed samples is {nMixedSamples}")
@@ -265,11 +265,11 @@ def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, arg
     idataset = f'{dataset}_{year}'
     metadata_dataset[idataset] = copy(metadata_dataset[dataset])
     metadata_dataset[idataset]['FvT_files'] = [
-        TT_3b_mix_config['FvT_file_template'].replace("XXX", str(v)) 
+        TT_3b_mix_config['FvT_file_template'].replace("XXX", str(v))
         for v in range(nMixedSamples)
     ]
     metadata_dataset[idataset]['FvT_names'] = [
-        TT_3b_mix_config['FvT_name_template'].replace("XXX", str(v)) 
+        TT_3b_mix_config['FvT_name_template'].replace("XXX", str(v))
         for v in range(nMixedSamples)
     ]
     metadata_dataset[idataset]['genEventSumw'] = TT_3b_mix_config['sumw']
@@ -280,7 +280,7 @@ def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, arg
 
 def process_data_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process regular data dataset configuration.
-    
+
     Supports datasets named like 'data', 'data_Muon', 'data_Electron', etc.
     Structure: datasets[dataset][year][data_tier] -> eras
     """
@@ -306,9 +306,9 @@ def setup_condor_cluster(config_runner):
     """Setup Condor cluster configuration."""
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
-    
+
     logging.info("Initializing HTCondor cluster configuration...")
-    
+
     cluster_args = {
         'transfer_input_files': config_runner['condor_transfer_input_files'],
         'shared_temp_directory': '/tmp',
@@ -326,10 +326,10 @@ def setup_condor_cluster(config_runner):
 
     logging.info("Creating HTCondor cluster...")
     cluster = LPCCondorCluster(**cluster_args)
-    
+
     logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
     cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
-    
+
     logging.info("Creating Dask client...")
     client = Client(cluster)
 
@@ -342,7 +342,7 @@ def setup_condor_cluster(config_runner):
 def setup_local_cluster(config_runner, args):
     """Setup local Dask cluster configuration."""
     from dask.distributed import Client, LocalCluster
-    
+
     n_workers = 4 if args.skimming else 6
     cluster_args = {
         'n_workers': n_workers,
@@ -373,7 +373,7 @@ def setup_pico_base_name(configs):
     elif class_name == "HemiMixer":
         return 'picoAOD_mixed_all'
     elif class_name == "MixedDataSplitter":
-        return f'picoAOD_mixed_v{config_config.get("mixed_sub_sample")}'
+        return f'picoAOD_mixed_v{config_config.get("mixed_subsample")}'
     elif class_name == "Skimmer" and config_config.get("skim4b", False):
         return 'picoAOD_fourTag'
 
@@ -402,7 +402,7 @@ def find_matching_dataset(dataset, metadata):
     """Find matching dataset in metadata, supporting substring matching."""
     if dataset in metadata['datasets']:
         return dataset
-    
+
     # Look for a key that contains the dataset name
     matching_keys = [key for key in metadata['datasets'].keys() if dataset in key]
     if len(matching_keys) == 1:
@@ -420,11 +420,11 @@ def find_matching_dataset(dataset, metadata):
 def calculate_cross_section(matched_dataset, dataset_type, metadata):
     """Calculate cross-section for a given dataset."""
     # Data datasets should have xs=1
-    if (dataset_type == 'data' or 
-        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data'] or 
+    if (dataset_type == 'data' or
+        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data'] or
         'xs' not in metadata['datasets'][matched_dataset]):
         return 1.0
-    
+
     xs = metadata['datasets'][matched_dataset]['xs']
     return xs if isinstance(xs, float) else eval(xs)
 
@@ -468,7 +468,7 @@ def setup_config_defaults(config_runner, args):
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 45]
     }
-    
+
     for key, default_value in defaults.items():
         config_runner.setdefault(key, default_value)
 
@@ -481,7 +481,7 @@ def setup_executor(config_runner, args, client, pool):
         'skipbadfiles': config_runner['skipbadfiles'],
         'xrootdtimeout': 600
     }
-    
+
     if args.debug:
         logging.info("Running iterative executor in debug mode")
         return processor.iterative_executor, executor_args
@@ -508,7 +508,7 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
     if not complete and (config_runner["maxchunks"] is None) and not args.test:
         logging.error("The jobs above failed. Merging is skipped.")
         return output
-    
+
     # Prepare resize arguments
     kwargs = {
         'base_path': configs["config"]["base_path"],
@@ -516,18 +516,18 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
         'step': config_runner.get("basketsize", configs["config"]["step"]),
         'chunk_size': config_runner.get("picosize", config_runner["chunksize"]),
     }
-    
+
     # Add pico_base_name if needed
     if (pico_base_name := setup_pico_base_name(configs)) is not None:
         kwargs["pico_base_name"] = pico_base_name
-    
+
     # Resize output
     output = compute_with_client(client, resize, **kwargs)
-    
+
     # Keep only file names for each chunk
     for dataset, chunks in output.items():
         chunks['files'] = [str(f.path) for f in chunks['files']]
-    
+
     return output
 
 
@@ -541,14 +541,14 @@ def process_metadata_output(output, fileset, config_runner, args, client):
             metadata[ikey].update(output[ikey])
             metadata[ikey]['reproducible'] = create_reproducible_info(args)
 
-            if (config_runner["data_tier"] in ['picoAOD'] and 
+            if (config_runner["data_tier"] in ['picoAOD'] and
                 "genEventSumw" in fileset[ikey]["metadata"]):
                 metadata[ikey]["sumw"] = fileset[ikey]["metadata"]["genEventSumw"]
 
     # Save metadata file
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
-    output_file = ('picoaod_datasets.yml' if args.output_file.endswith('coffea') 
+    output_file = ('picoaod_datasets.yml' if args.output_file.endswith('coffea')
                    else args.output_file)
     dfile = f'{args.output_path}/{output_file}'
     yaml.dump(metadata, open(dfile, 'w'), default_flow_style=False)
@@ -560,17 +560,17 @@ def process_analysis_output(output, args):
     output['reproducible'] = {
         args.output_file: create_reproducible_info(args)
     }
-    
+
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
 
 def process_friend_trees(output, config_runner, configs, args, client):
     """Process friend tree metadata if it exists."""
-    friend_base = (config_runner["friend_base"] or 
+    friend_base = (config_runner["friend_base"] or
                    configs.get("config", {}).get(config_runner["friend_base_argname"], None))
     friends = output.get("friends", None)
-    
+
     if friend_base is not None and friends is not None:
         from src.data_formats.awkward.zip import NanoAOD
 
@@ -580,10 +580,10 @@ def process_friend_trees(output, config_runner, configs, args, client):
             'naming': _friend_merge_name,
             'transform': NanoAOD(regular=False, jagged=True),
         }
-        
+
         if args.run_dask:
             merged_friends = client.compute(
-                {k: friends[k].merge(**merge_kw, clean=False, dask=True) 
+                {k: friends[k].merge(**merge_kw, clean=False, dask=True)
                  for k in friends},
                 sync=True,
             )
@@ -600,7 +600,7 @@ def process_friend_trees(output, config_runner, configs, args, client):
         metafile = (EOS(args.output_path) / str(args.output_file)).with_suffix(".json")
         with fsspec.open(metafile, "wt") as f:
             json.dump(friends, f, cls=DefaultEncoder)
-        
+
         logging.info("The following friends trees are created:")
         logging.info(pretty_repr([*friends.keys()]))
         logging.info(f"Saved friend tree metadata to {metafile}")
@@ -620,7 +620,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     # Get the processor instance
     processor_name = args.processor.split('.')[0].replace("/", '.')
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
-    
+
     output, metrics = processor.run_uproot_job(
         fileset,
         treename='Events',
@@ -639,12 +639,12 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     # Process output based on job type
     if args.skimming:
         output = process_skimming_output(output, fileset, configs, config_runner, args, client)
-        
+
         # Log performance again after processing
         elapsed = time.time() - tstart
         nEvent = metrics['entries']
         logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
-        
+
         process_metadata_output(output, fileset, config_runner, args, client)
     else:
         process_analysis_output(output, args)
@@ -828,7 +828,7 @@ if __name__ == '__main__':
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
     configs = yaml.safe_load(open(args.configs, 'r'))
-    
+
     if not 'config' in configs: configs['config'] = {}
     # Add corrections_metadata to configs
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
@@ -843,17 +843,17 @@ if __name__ == '__main__':
     if os.path.isdir(args.metadata):
         files= [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
         datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
-    else:   
+    else:
         #backward compatibility if .yml file is directly provided
         datasets = yaml.safe_load(open(args.metadata, 'r'))
 
-    
+
     logging.info(f"Loading triggers metadata from: {args.triggers}")
     triggers = yaml.safe_load(open(args.triggers, 'r'))
-    
+
     logging.info(f"Loading luminosities metadata from: {args.luminosities}")
     luminosities = yaml.safe_load(open(args.luminosities, 'r'))
-    
+
     metadata = {**datasets, **triggers, **luminosities}
     logging.info("Successfully loaded all metadata files")
 
@@ -868,12 +868,12 @@ if __name__ == '__main__':
     logging.info(f"Starting dataset processing for {len(args.years)} year(s) and {len(args.datasets)} dataset(s)")
     metadata_dataset = {}
     fileset = {}
-    
+
     for year in args.years:
         logging.info(f"Processing year: {year}")
         for dataset in args.datasets:
             logging.info(f"Processing dataset: {dataset}")
-            
+
             # Find matching dataset
             matched_dataset = find_matching_dataset(dataset, metadata)
             if matched_dataset is None:
@@ -897,7 +897,7 @@ if __name__ == '__main__':
                 'lumi': float(metadata['luminosities'][year]),
                 'trigger': metadata['triggers'][year],
             }
-            # Main dataset processing logic            
+            # Main dataset processing logic
             if dataset_type == 'mc':
                 process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixed_data':
@@ -924,7 +924,7 @@ if __name__ == '__main__':
     client = None
     pool = None
     cluster = None
-    
+
     if args.condor:
         logging.info("Configuring HTCondor cluster execution...")
         args.run_dask = True
@@ -951,7 +951,7 @@ if __name__ == '__main__':
 
     logging.info(f"Executor arguments:")
     logging.info(pretty_repr(executor_args))
-    
+
     # Setup processor
     logging.info("Loading processor class...")
     processor_name = args.processor.split('.')[0].replace("/", '.')
@@ -980,7 +980,7 @@ if __name__ == '__main__':
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
         with performance_report(filename=dask_report_file):
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
-        
+
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:
@@ -989,7 +989,7 @@ if __name__ == '__main__':
                 logging.info(f"Successfully closed {obj_name}")
             except (RuntimeError, NameError) as e:
                 logging.warning(f"Error closing {obj_name}: {e}")
-        
+
         logging.info(f'Dask performance report saved in {dask_report_file}')
     else:
         logging.info("Starting local job execution...")
@@ -1000,7 +1000,7 @@ if __name__ == '__main__':
         logging.info("Shutting down process pool...")
         pool.shutdown(wait=True)
         logging.info("Process pool shutdown complete")
-    
+
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
