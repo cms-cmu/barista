@@ -21,13 +21,13 @@ def extract_jetmet_tar_files(tar_file_name: str=None,
     """
 
     extracted_files = []
-    extract_path = f"/tmp/{os.getenv('USER') or os.getenv('LOGNAME') or os.getenv('USERNAME') or os.getuid()}//"
-
-    # Ensure the extraction path exists
-    try:
-        os.makedirs(extract_path, exist_ok=True)
-    except FileExistsError:
-        pass
+    # Prefer Condor scratch, then TMPDIR, then fallback to /tmp
+    extract_path = (
+        os.getenv("_CONDOR_SCRATCH_DIR")
+        or os.getenv("TMPDIR")
+        or f"/tmp/{os.getenv('USER') or os.getuid()}/"
+    )
+    os.makedirs(extract_path, exist_ok=True)
 
     with tarfile.open(tar_file_name, "r:gz") as tar:
         for member in tar.getmembers():

@@ -1,348 +1,265 @@
 #!/usr/bin/env bash
 
-# Script to run either a coffea, combine, snakemake, or classifier container
-# --- Helper for colored output ---
-info() {
-    echo -e "\033[1;34m[INFO]\033[0m $1"
-}
-error() {
-    echo -e "\033[1;31m[ERROR]\033[0m $1"
-}
-warning() {
-    echo -e "\033[1;33m[WARNING]\033[0m $1"
-}
-
-
-# Function to display help message
-show_help() {
-    echo "Usage: $0 [command] [options]"
-    echo ""
-    echo "Commands:"
-    echo "  [command...]          Run commands inside the coffea container."
-    echo "                        Opens an interactive shell if no commands are given."
-    echo "                        (Interactive shell is the only option to run on LPC HTCondor)."
-    echo "  combine [command...]  Run commands inside the combine container."
-    echo "                        Opens an interactive shell if no commands are given."
-    echo "  classifier [command...] Run commands inside the classifier container."
-    echo "                        Opens an interactive shell if no commands are given."
-    echo "  snakemake [options]   Run snakemake using the local Pixi environment for better dependency management."
-    echo "                        Requires --snakefile argument. Automatically installs Pixi if needed."
-    echo "                        Use --reinstall or --fresh to clean and reinstall the environment."
-    echo "                        Use 'source script.sh' to run bash scripts in the Pixi environment."
-    echo "  snakemake_container [options]   Run snakemake inside a container with the specified options."
-    echo "                        Requires --snakefile argument."
-    echo "  --help                Show this help message."
-    echo ""
-    echo "Examples:"
-    echo "  $0                     Open an interactive shell in the analysis container. (This is the only option to run on LPC HTCondor)."
-    echo "  $0 python --version    Run 'python --version' in the analysis container."
-    echo "  $0 combine             Open an interactive shell in the combine container."
-    echo "  $0 combine combine -M AsymptoticLimits  Run combine in the combine container."
-    echo "  $0 snakemake --snakefile Snakefile  Run snakemake with the specified Snakefile."
-    echo "  $0 snakemake --snakefile Snakefile  Run snakemake with Pixi-managed environment and dependencies."
-    echo "  $0 snakemake --reinstall --snakefile Snakefile  Clean and reinstall environment, then run snakemake."
-    echo "  $0 snakemake source script.sh       Run a bash script in the Pixi environment."
-    echo "  $0 snakemake_container --snakefile Snakefile  Run snakemake with the specified Snakefile inside a container (backup option)."
-    echo "  $0 classifier          Open an interactive shell in the classifier container."
-    echo "  $0 classifier python --version  Run 'python --version' in the classifier container."
-}
-
-
-# Define default paths
+# --- Configuration ---
+# Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
 CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
+# Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
     CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/${CLASSIFIER_IMAGE#docker://}"
+    BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
+# Directories
 export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-mkdir -p "$APPTAINER_CACHEDIR"
 export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
-mkdir -p "$APPTAINER_TMPDIR"
 export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
-mkdir -p "$MPLCONFIGDIR"
-
-# --- Host-specific Configuration ---
-info "Determining configuration for hostname: $(hostname)"
-# Default Pixi installation directory
 PIXI_DIR="$HOME/.pixi"
-if [[ $(hostname) == *"cmslpc"* ]]; then
-    export APPTAINER_BINDPATH=/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/
-    # On LPC, use a shared/persistent storage area instead of $HOME
-    PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
-    if [ ! -d "$PIXI_DIR" ]; then
-        info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
-    fi
-elif [[ $(hostname) == *"lxplus"* ]]; then
-    export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-elif [[ $(hostname) == *"rogue"* ]]; then
-    export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
-else
-   warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
-fi
 
-# Function to check if apptainer is installed (only needed for container functions)
+mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
+
+# --- Helpers ---
+info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
+error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; }
+warning() { echo -e "\033[1;33m[WARNING]\033[0m $1"; }
+
 check_apptainer() {
-    command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed.  Aborting."; exit 1; }
+    command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed. Aborting."; exit 1; }
 }
 
-# Function to run the coffea container
+show_help() {
+    cat << EOF
+Usage: $0 [command] [options]
+
+Commands:
+  [command...]          Run commands inside the coffea container.
+                        (Interactive shell is the only option to run on LPC HTCondor).
+  combine [cmd...]      Run commands inside the combine container.
+  classifier [cmd...]   Run commands inside the classifier container.
+  brilcalc [cmd...]     Run commands inside the brilcalc container.
+  snakemake [opts]      Run snakemake using the local Pixi environment.
+                        Use --reinstall to clean environment.
+  snakemake_container   Run snakemake inside a container (backup option).
+  --help                Show this help message.
+
+Examples:
+  $0                     Open interactive shell (Coffea).
+  $0 python script.py    Run script in Coffea container.
+  $0 combine             Open Combine container.
+  $0 snakemake -s Snakefile
+EOF
+}
+
+# --- Host Detection & Setup ---
+setup_host_env() {
+    info "Determining configuration for hostname: $(hostname)"
+    if [[ $(hostname) == *"cmslpc"* ]]; then
+        export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
+        PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
+        if [ ! -d "$PIXI_DIR" ]; then
+            info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
+        fi
+    elif [[ $(hostname) == *"lxplus"* ]]; then
+        export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
+    elif [[ $(hostname) == *"rogue"* ]]; then
+        export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
+    else
+        warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
+    fi
+}
+
+# --- LPC Specific Logic ---
+setup_lpc_jobqueue() {
+    # Only run on LPC
+    [[ $(hostname) != *"cmslpc"* ]] && return 0
+
+    # Bootstrap if missing
+    if [[ ! -f ".bashrc" || ! -f ".cmslpc-local-conf" ]]; then
+        info "Setting up lpcjobqueue configuration..."
+        curl -OL https://raw.githubusercontent.com/CoffeaTeam/lpcjobqueue/main/bootstrap.sh
+        bash bootstrap.sh
+        rm bootstrap.sh shell
+    else
+        info "lpcjobqueue configuration found. Skipping bootstrap."
+    fi
+
+    # Define LPC specific variables and binds
+    local LPC_CONDOR_CONFIG="/etc/condor/config.d/01_cmslpc_interactive"
+    local LPC_CONDOR_LOCAL="/usr/local/bin/cmslpc-local-conf.py"
+    
+    export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${LPC_CONDOR_CONFIG},${LPC_CONDOR_LOCAL}:${LPC_CONDOR_LOCAL}.orig,${PWD}/.cmslpc-local-conf:${LPC_CONDOR_LOCAL}"
+}
+
+# --- Container Functions ---
+
 run_coffea() {
     check_apptainer
     info "Running Coffea container..."
+    setup_lpc_jobqueue
+
+    # Base flags for apptainer
+    local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
+    
+    # Add LPC specific env var if needed
+    if [[ $(hostname) == *"cmslpc"* ]]; then
+        FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
+    fi
+
     if [ -z "$*" ]; then
+        # Interactive Mode
         if [[ $(hostname) == *"cmslpc"* ]]; then
-            if [[ ! -f ".shell" ]]; then
-                info "No .shell file found. Installing lpcjobqueue..."
-                curl -OL https://raw.githubusercontent.com/CoffeaTeam/lpcjobqueue/main/bootstrap.sh
-                bash bootstrap.sh
-                rm bootstrap.sh
-                sed -i -e 's|APPTAINER_SHELL.*|APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \\|' -e 's|/srv/.bashrc|/srv/.bashrc|' shell
-                mv shell .shell
-            fi
-            # For htcondor jobs
-            ./.shell ../${COFFEA_IMAGE#/cvmfs/unpacked.cern.ch/}
+            info "Opening interactive shell with lpcjobqueue environment..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
         else
-            info "Leaving the container open..."
-            APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
-            "$COFFEA_IMAGE" \
-            /bin/bash 
+            info "Opening interactive shell..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
         fi
     else
-        info "Arguments provided, run them inside the container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
-        "$COFFEA_IMAGE" \
-        /bin/bash -c "$*"
+        # Non-Interactive Mode
+        info "Running command inside container..."
+        local CMD="$*"
+        if [[ $(hostname) == *"cmslpc"* ]]; then
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+        else
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
+        fi
     fi
 }
 
-# Function to run the combine container
 run_combine() {
     check_apptainer
     info "Running Combine container..."
-
-    COMBINE_SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
+    local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
+    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
 
     if [ -z "$*" ]; then
-        info "No further arguments, just open the container..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/barista/ --pwd /home/cmsusr/barista/ \
-        ${COMBINE_IMAGE} \
-        /bin/bash -i -c "$COMBINE_SETUP && bash"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
     else
-        info "Arguments provided, run them inside the container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B ${PWD}:/home/cmsusr/barista/ --pwd /home/cmsusr/barista/ \
-        ${COMBINE_IMAGE} \
-        /bin/bash -c "$COMBINE_SETUP && $*"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$SETUP && $*"
     fi
 }
 
-# Function to run snakemake in container
+run_brilcalc() {
+    check_apptainer
+    info "Running Brilcalc container..."
+    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
+
+    if [ -z "$*" ]; then
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
+    else
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash -c "$*"
+    fi
+}
+
+run_classifier() {
+    check_apptainer
+    info "Running Classifier container..."
+    local INIT_FILE="/entrypoint.sh"
+    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
+
+    if [ -z "$*" ]; then
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE"
+    else
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE" -c "$*"
+    fi
+}
+
 run_snakemake_container() {
     check_apptainer
     info "Running Snakemake container..."
-    if [ -z "$1" ]; then
-        error "No arguments supplied for snakemake."
-        show_help
-        exit 1
-    fi
+    [[ -z "$1" ]] && { error "No arguments supplied."; show_help; exit 1; }
+    [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]] && { error "--snakefile (-s) argument required."; exit 1; }
 
-    if [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]]; then
-        error "The --snakefile (-s) argument is required to run snakemake."
-        show_help
-        exit 1
-    fi
-
-    info "Executing Snakemake command inside the container..."
-    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ \
-    "$SNAKEMAKE_IMAGE" \
-    /bin/bash -c "snakemake $*"
-
-    info "Workflow execution finished successfully!. Try to run snakemake for better dependency management."
+    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
 }
 
-# Function to run snakemake
+# --- Pixi / Snakemake Local ---
+
+install_pixi() {
+    if ! command -v pixi &> /dev/null; then
+        info "Installing Pixi to ${PIXI_DIR}..."
+        export PIXI_HOME="${PIXI_DIR}"
+        mkdir -p "${PIXI_DIR}"
+        curl -fsSL https://pixi.sh/install.sh | bash || return 1
+        export PATH="${PIXI_DIR}/bin:$PATH"
+    fi
+    command -v pixi &> /dev/null || return 1
+}
+
 run_snakemake() {
     info "Running Snakemake with Pixi environment..."
     set -eo pipefail
 
-    # Check for reinstall flag
     local REINSTALL=false
     local ARGS=()
     
-    # Parse arguments to check for --reinstall flag and source command
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --reinstall|--fresh)
-                REINSTALL=true
-                shift
-                ;;
-            --help|-h)
-                # Show snakemake help
-                ARGS+=("--help")
-                shift
-                ;;
-            source)
-                # Special handling for bash scripts
-                ARGS+=("$@")  # Add all remaining arguments
-                break
-                ;;
-            *)
-                ARGS+=("$1")
-                shift
-                ;;
+            --reinstall|--fresh) REINSTALL=true; shift ;;
+            --help|-h) ARGS+=("--help"); shift ;;
+            source) ARGS+=("$@"); break ;;
+            *) ARGS+=("$1"); shift ;;
         esac
     done
 
-    # Check if we have remaining arguments after removing --reinstall
-    if [ ${#ARGS[@]} -eq 0 ]; then
-        if [ "$REINSTALL" = true ]; then
-            # Add --help to show snakemake help after reinstall
-            ARGS+=("--help")
-        else
-            error "No arguments supplied for snakemake."
-            show_help
-            exit 1
-        fi
-    fi
+    [[ ${#ARGS[@]} -eq 0 && "$REINSTALL" != true ]] && { error "No arguments supplied."; show_help; exit 1; }
 
-    local PIXI_CONFIG="software/pixi/pixi.toml"
+    # Install Pixi
+    install_pixi || { error "Pixi installation failed."; exit 1; }
 
-    # 1. Check for and Install Pixi
-    if ! command -v pixi &> /dev/null; then
-        info "Pixi not found. Installing to ${PIXI_DIR}..."
-        export PIXI_HOME="${PIXI_DIR}"
-        mkdir -p "${PIXI_DIR}"
-        
-        if ! curl -fsSL https://pixi.sh/install.sh | bash; then
-            error "Failed to install Pixi. Check network connection and permissions."
-            exit 1
-        fi
-
-        export PATH="${PIXI_DIR}/bin:$PATH"
-        
-        if ! command -v pixi &> /dev/null; then
-            error "Pixi installation failed or PATH not updated correctly."
-            echo "Please restart your shell and try again."
-            exit 1
-        fi
-        info "Pixi installed successfully."
-    else
-        info "Pixi found at: $(command -v pixi)"
-    fi
-
-    # 2. Handle reinstall option
+    # Reinstall logic
     if [ "$REINSTALL" = true ]; then
-        info "Reinstall requested. Cleaning up existing environment..."
+        info "Cleaning up environment..."
         rm -f pixi.toml pixi.lock
-        info "Environment cleanup complete. Proceeding with fresh installation..."
     fi
 
-    # 3. Sync pixi.toml from template (always use latest from software/pixi/)
+    # Sync Config
+    local PIXI_CONFIG="software/pixi/pixi.toml"
     if [ -f "${PIXI_CONFIG}" ]; then
-        info "Syncing pixi.toml from ${PIXI_CONFIG}..."
         cp "${PIXI_CONFIG}" pixi.toml
     else
-        error "No pixi configuration template found at ${PIXI_CONFIG}"
-        error "Please create ${PIXI_CONFIG} first."
-        exit 1
+        error "Template ${PIXI_CONFIG} not found."; exit 1
     fi
 
-    # 4. Install environment
-    info "Installing Pixi environment..."
-    if ! pixi install; then
-        error "Failed to install Pixi environment. Check pixi.toml for issues."
-        exit 1
+    # Install Environment
+    pixi install || { error "Pixi install failed."; exit 1; }
+
+    # Install Reana Client (Custom)
+    if ! pixi run python -c "import reana_client" 2>/dev/null; then
+        info "Installing reana-client..."
+        pixi run install-reana || warning "reana-client install failed."
     fi
 
-    # 5. Install reana-client pre-release (after main environment)
-    if pixi run python -c "import reana_client" 2>/dev/null; then
-        info "reana-client is already installed and available."
-    else
-        info "Installing reana-client==0.95.0a2..."
-        if pixi run install-reana; then
-            info "Successfully installed reana-client==0.95.0a2"
-        else
-            warning "Failed to install reana-client==0.95.0a2. REANA workflows may not work."
-            warning "You can try installing it manually with: pixi run install-reana"
-        fi
-    fi
-
-    # 6. Verify Snakemake is available
-    if ! pixi run python -c "import snakemake" 2>/dev/null; then
-        error "Snakemake not available in environment. Check dependencies in pixi.toml."
-        exit 1
-    fi
-
-    # 7. Run Snakemake or bash script
+    # Execute
     if [ "${ARGS[0]}" = "source" ]; then
-        # Handle bash script execution
-        local script_command="${ARGS[*]}"
-        info "Executing: pixi run bash -c \"${script_command}\""
-        pixi run bash -c "${script_command}"
+        pixi run bash -c "${ARGS[*]}"
     else
-        # Handle normal snakemake execution
-        info "Executing: pixi run snakemake ${ARGS[*]}"
         pixi run snakemake "${ARGS[@]}"
     fi
-    
-    info "Workflow execution finished successfully!"
+    info "Execution finished successfully!"
 }
 
+# --- Main Dispatch ---
 
-# Function to run the classifier container
-run_classifier() {
-    check_apptainer
-    info "Running Classifier container..."
-    INIT_FILE="/entrypoint.sh"
-    if [ -z "$*" ]; then
-        info "No arguments provided, opening interactive shell in classifier container..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --nv --pwd /srv \
-        "$CLASSIFIER_IMAGE" \
-        bash --init-file "$INIT_FILE"
-    else
-        info "Arguments provided, running them inside the classifier container ..."
-        APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --nv --pwd /srv \
-        "$CLASSIFIER_IMAGE" \
-        bash --init-file "$INIT_FILE" -c "$*"
+setup_host_env
 
-        info "Workflow execution finished successfully!"
-
-    fi
-}
-
-
-# Main logic: check arguments and run the appropriate container
 if [ "$1" == "--help" ]; then
     show_help
     exit 0
 fi
 
-if [ -z "$1" ]; then
-    # If no arguments, just run coffea with the default image
-    run_coffea
-else
-    case "$1" in
-        "combine")
-        run_combine "${@:2}" # Run combine, passing along any remaining arguments
-        ;;
-        "snakemake_container")
-        run_snakemake_container "${@:2}" # Run snakemake, passing along any remaining arguments
-        ;;
-        "snakemake")
-        run_snakemake "${@:2}" # Run snakemake, passing along any remaining arguments
-        ;;
-        "classifier")
-        run_classifier "${@:2}" # Run classifier, passing along any remaining arguments
-        ;;
-        *)
-        # If not combine or snakemake, assume the arguments are commands for coffea
-        run_coffea "$@"
-        ;;
-    esac
-fi
+case "$1" in
+    "combine")             run_combine "${@:2}" ;;
+    "brilcalc")            run_brilcalc "${@:2}" ;;
+    "snakemake_container") run_snakemake_container "${@:2}" ;;
+    "snakemake")           run_snakemake "${@:2}" ;;
+    "classifier")          run_classifier "${@:2}" ;;
+    *)                     run_coffea "$@" ;;
+esac

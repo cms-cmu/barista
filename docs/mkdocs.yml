@@ -95,6 +95,7 @@ nav:
     - Home: index.md
     - Source Code:
         - Overview: src/index.md
+        - Tools: src/tools.md
     - Software:
         - Overview: software/index.md
     - Classifier:

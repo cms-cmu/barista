@@ -23,8 +23,11 @@ import uproot
 import fsspec
 import psutil
 import yaml
+import tempfile
+import atexit
+import shutil
 from omegaconf import OmegaConf
-from src.addhash import get_git_diff, get_git_revision_hash
+from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
 from coffea import processor
 from coffea.dataset_tools import rucio_utils
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
@@ -43,11 +46,81 @@ dask.config.set({'logging.distributed': 'error'})
 NanoAODSchema.warn_missing_crossrefs = False
 warnings.filterwarnings("ignore")
 
+# Global variable to track temp directory for cleanup
+_temp_condor_dir = None
+
+def create_code_tarball(condor_transfer_input_files):
+    """Create a tarball of code in a temporary directory.
+
+    Each job gets a unique temporary directory to avoid conflicts
+    between concurrent jobs on shared clusters.
+
+    Args:
+        condor_transfer_input_files: List of paths to include in tarball
+
+    Returns:
+        Tuple of (tarball_path, temp_dir_path) for cleanup later
+    """
+    import tarfile
+    import os
+
+    # Create unique temporary directory with descriptive prefix
+    # Format: /tmp/barista_condor_USERID_TIMESTAMP_RANDOMID/
+    import getpass
+    username = getpass.getuser()
+    temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_')
+    tarball_path = os.path.join(temp_dir, 'code_barista.tar.gz')
+
+    logging.info(f"Creating tarball in temporary directory: {temp_dir}")
+    logging.info(f"Including {len(condor_transfer_input_files)} path(s)")
+
+    with tarfile.open(tarball_path, "w:gz") as tar:
+        for path in condor_transfer_input_files:
+            if os.path.exists(path):
+                # Add with arcname to preserve directory structure
+                tar.add(path, arcname=path)
+                logging.info(f"  ✓ Added {path}")
+            else:
+                logging.warning(f"  ✗ Path not found: {path}")
+
+    tarball_size_mb = os.path.getsize(tarball_path) / (1024 * 1024)
+    logging.info(f"Tarball created: {tarball_path} ({tarball_size_mb:.2f} MB)")
+    return tarball_path, temp_dir
+
+def cleanup_temp_condor_dir():
+    """Clean up temporary condor directory at program exit."""
+    global _temp_condor_dir
+    if _temp_condor_dir and os.path.exists(_temp_condor_dir):
+        try:
+            logging.info(f"Cleaning up temporary directory: {_temp_condor_dir}")
+            shutil.rmtree(_temp_condor_dir)
+            logging.info("Temporary directory cleaned up successfully")
+        except Exception as e:
+            logging.warning(f"Error cleaning up temporary directory {_temp_condor_dir}: {e}")
+    _temp_condor_dir = None
+
+
 @dataclass
 class WorkerInitializer(WorkerPlugin):
     uproot_xrootd_retry_delays: list[float] = None
 
     def setup(self, worker=None):
+        import os
+        import tarfile
+        import sys
+
+        # Unpack code package if present (for HTCondor jobs)
+        if os.path.exists("code_barista.tar.gz"):
+            logging.info("Extracting code_barista.tar.gz on worker...")
+            with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
+                tar.extractall()
+            logging.info("Code package extracted successfully")
+
+        # Add current directory to Python path so imports work
+        if os.getcwd() not in sys.path:
+            sys.path.insert(0, os.getcwd())
+            logging.info(f"Added {os.getcwd()} to sys.path")
+
         if delays := self.uproot_xrootd_retry_delays:
             from src.data_formats.root.patch import uproot_XRootD_retry
             uproot_XRootD_retry(len(delays) + 1, delays)
@@ -302,7 +375,7 @@ def add_fvt_metadata(meta, config, v):
     meta['FvT_file'] = config['FvT_file_template'].replace("XXX", str(v))
 
 
-def setup_condor_cluster(config_runner):
+def setup_condor_cluster(config_runner, tarball_path):
     """Setup Condor cluster configuration."""
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
@@ -310,7 +383,7 @@ def setup_condor_cluster(config_runner):
     logging.info("Initializing HTCondor cluster configuration...")
 
     cluster_args = {
-        'transfer_input_files': config_runner['condor_transfer_input_files'],
+        'transfer_input_files': [tarball_path],
         'shared_temp_directory': '/tmp',
         'cores': config_runner['condor_cores'],
         'memory': config_runner['condor_memory'],
@@ -381,13 +454,44 @@ def setup_pico_base_name(configs):
 
 
 def create_reproducible_info(args):
-    """Create reproducible information dictionary."""
-    return {
+    """Create reproducible information dictionary for both barista and processor repositories."""
+    info = {
         'date': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-        'hash': args.githash if args.githash else get_git_revision_hash(),
         'args': str(args),
-        'diff': args.gitdiff if args.gitdiff else str(get_git_diff()),
     }
+
+    # Get barista (current directory) git info
+    barista_root = os.getcwd()
+    if args.githash or args.gitdiff:
+        # Use override values if provided
+        info['barista'] = {
+            'hash': args.githash if args.githash else get_git_revision_hash(barista_root),
+            'diff': args.gitdiff if args.gitdiff else str(get_git_diff(barista_root)),
+        }
+    else:
+        info['barista'] = {
+            'hash': get_git_revision_hash(barista_root),
+            'diff': str(get_git_diff(barista_root)),
+        }
+
+    # Get processor repository git info from processor path
+    # Extract repo name from first folder in processor path
+    processor_path = args.processor
+    processor_repo_name = processor_path.split('/')[0] if '/' in processor_path else 'processor'
+    processor_repo_root = find_git_root(processor_path)
+
+    if processor_repo_root and processor_repo_root != barista_root:
+        info[processor_repo_name] = {
+            'hash': get_git_revision_hash(processor_repo_root),
+            'diff': str(get_git_diff(processor_repo_root)),
+        }
+    else:
+        # If processor is not a separate git repo or same as barista
+        info[processor_repo_name] = {
+            'hash': 'Same repository as barista' if processor_repo_root == barista_root else 'Not a git repository',
+            'diff': '',
+        }
+    return info
 
 
 def compute_with_client(client, func, *args, **kwargs):
@@ -925,10 +1029,20 @@ if __name__ == '__main__':
     pool = None
     cluster = None
 
+    # Register cleanup function to run at exit
+    atexit.register(cleanup_temp_condor_dir)
+
+    # Setup compute environment
+    logging.info("Setting up compute environment...")
+    client = None
+    pool = None
+    cluster = None
+
     if args.condor:
         logging.info("Configuring HTCondor cluster execution...")
         args.run_dask = True
-        client, cluster = setup_condor_cluster(config_runner)
+        tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'])
+        client, cluster = setup_condor_cluster(config_runner, tarball_path)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
         client, cluster = setup_local_cluster(config_runner, args)
@@ -938,6 +1052,7 @@ if __name__ == '__main__':
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         pool = ProcessPoolExecutor(max_workers=config_runner['workers'], initializer=worker_initializer.setup)
         logging.info(f"Process pool created with {config_runner['workers']} workers")
+
 
     # Register worker plugin if using Dask
     if client is not None:
