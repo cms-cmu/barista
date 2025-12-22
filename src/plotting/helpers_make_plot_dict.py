@@ -13,6 +13,7 @@ import copy
 import src.plotting.helpers as plot_helpers
 import hist
 import numpy as np
+from rich.pretty import pretty_repr
 
 
 def print_list_debug_info(process, cut, axis_opts):
@@ -51,13 +52,13 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     """
     # Input validation
     if not isinstance(process, str):
-        raise TypeError(f"process must be a string, got {type(process)}")
+        raise TypeError(f"get_hist_data::process must be a string, got {type(process)}")
     if not isinstance(var, str):
-        raise TypeError(f"var must be a string, got {type(var)}")
+        raise TypeError(f"get_hist_data::var must be a string, got {type(var)} = {var}")
     if not isinstance(cut, str):
-        raise TypeError(f"cut must be a string, got {type(cut)}")
+        raise TypeError(f"get_hist_data::cut must be a string, got {type(cut)}")
     if not isinstance(rebin, int):
-        raise TypeError(f"rebin must be an integer, got {type(rebin)}")
+        raise TypeError(f"get_hist_data::rebin must be an integer, got {type(rebin)}")
     if rebin < 1:
         raise ValueError(f"rebin must be positive, got {rebin}")
 
@@ -398,12 +399,14 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
 
     # Parse process configuration
     if isinstance(process, list):
+        if debug: print(f"process is a list {process}... parsing each process config")
         var_to_plot = var
         process_config = []
         for p in process:
             try:
                 _p_config = plot_helpers.get_value_nested_dict(cfg.plotConfig, p)
                 process_config.append( _p_config )
+                if debug: print(f" added process config for {p} {pretty_repr(process_config[-1])}")
             except ValueError:
                 if not p.find("HH4b") == -1:
                     print(f"Trying HH4b {p}")
@@ -738,12 +741,22 @@ def _handle_input_files(plot_data: Dict, process_config: Dict, cfg: Any, var_to_
 
         plot_data["hists"][f"{proc_id}file{iF}"] = _process_config
 
+def get_var_to_plot(var, var_over_ride: Dict, proc_id: str, iP: int, debug: bool) -> str:
+        """Get the variable to plot, considering overrides."""
+        this_var = var
+        if isinstance(var, list):
+            this_var = var[iP]
+
+        return var_over_ride.get(proc_id, this_var)
+
+
 def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
                          axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
                          var_over_ride: Dict, label_override: Optional[List[str]] = None, debug: bool = False) -> None:
     """Handle plotting multiple processes."""
     for iP, _proc_conf in enumerate(process_config):
         if debug:
+            print("In _handle_process_list")
             print_list_debug_info(_proc_conf["process"],  cut, axis_opts)
 
         _process_config = copy.deepcopy(_proc_conf)
@@ -751,7 +764,8 @@ def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: An
         _process_config["histtype"] = "errorbar"
 
         _proc_id = _proc_conf["label"] if isinstance(_proc_conf["process"], list) else _proc_conf["process"]
-        var_to_plot = var_over_ride.get(_proc_id, var)
+
+        var_to_plot = get_var_to_plot(var, var_over_ride, _proc_id, iP, debug)
 
         add_hist_data(cfg=cfg, config=_process_config,
                      var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
