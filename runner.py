@@ -203,6 +203,8 @@ def get_dataset_type(dataset_name):
 
     if dataset_name == 'mixeddata':
         return 'mixed_data'
+    if dataset_name == 'mixeddata_4b':
+        return 'mixeddata_4b'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
     elif dataset_name == 'synthetic_data':
@@ -252,6 +254,7 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
     """Process datasets that create multiple samples (mixed, synthetic, etc.)."""
     type_names = {
         'mixed_data': 'Mixed Data',
+        'mixeddata_4b': 'New Mixed Data',
         'data_mixed': 'Data Mixed',
         'synthetic_data': 'Synthetic Data'
     }
@@ -273,8 +276,13 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
             extra_metadata_fn(metadata_dataset[idataset], sample_config, v)
 
         sample_files = [f.replace("XXX", str(v)) for f in sample_config['files_template']]
+        logging.debug(f"samples_files is {sample_files}")
+        logging.debug(f"files_template is {sample_config['files_template']}")
         fileset[idataset] = create_fileset_entry(idataset, sample_files, metadata_dataset[idataset], args, config_runner)
         logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
+        logging.debug(f'metadata_dataset is')
+        logging.debug(f'idataset is {idataset}')
+        logging.debug(pretty_repr(metadata_dataset))
 
 
 def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
@@ -724,6 +732,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     # Get the processor instance
     processor_name = args.processor.split('.')[0].replace("/", '.')
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
+    logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
     output, metrics = processor.run_uproot_job(
         fileset,
@@ -1006,6 +1015,8 @@ if __name__ == '__main__':
                 process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixed_data':
                 process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
+            elif dataset_type == 'mixeddata_4b':
+                process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'data_mixed':
                 process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'synthetic_data':
@@ -1019,6 +1030,7 @@ if __name__ == '__main__':
 
     # Summary of processed datasets
     logging.info(f"Dataset processing complete. Total datasets in fileset: {len(fileset)}")
+    logging.debug(f"fileset is {pretty_repr(fileset)}")
     if fileset:
         total_files = sum(len(dataset_info['files']) for dataset_info in fileset.values())
         logging.info(f"Total files across all datasets: {total_files}")
@@ -1075,6 +1087,7 @@ if __name__ == '__main__':
 
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
+    logging.debug(f" and is {pretty_repr(fileset)}")
     for dataset_key in sorted(fileset.keys()):
         logging.info(f"  - {dataset_key}: {len(fileset[dataset_key]['files'])} files")
 
