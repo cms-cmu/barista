@@ -20,7 +20,7 @@ def group_lumis_into_ranges(lumi_list):
     if not lumi_list:
         return []
     
-    sorted_lumis = sorted(lumi_list)
+    sorted_lumis = sorted(set(lumi_list))
     ranges = []
     start = end = sorted_lumis[0]
     

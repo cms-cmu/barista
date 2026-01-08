@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+
 import logging
 import sys
 from abc import ABC, abstractmethod
+from functools import reduce
+import operator
 from concurrent.futures import ProcessPoolExecutor
 from queue import Queue
 from threading import Thread
@@ -239,7 +242,7 @@ class ChainLoader(Generic[Unpack[_ChainResultT]]):
 
     @property
     def result(self) -> tuple[Unpack[_ChainResultT]]:
-        return (*(loader.result for loader in self.__loaders),)
+        return reduce(operator.add, (loader.result for loader in self.__loaders))
 
     def __iter__(self) -> Generator[tuple[BatchDumper, BatchType], None, None]:
         with (
