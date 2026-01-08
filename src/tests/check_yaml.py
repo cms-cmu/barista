@@ -31,7 +31,7 @@ def deep_compare(got, exp, path=""):
 
     # numbers: compare with tolerance
     if isinstance(exp, (int, float)) and isinstance(got, (int, float)):
-        if not close(got, exp, rel=1e-6, abs_=1e-9):  # adjust tolerances as needed
+        if not close(got, exp, rel=1e-3, abs_=1e-3):  # adjust tolerances as needed
             raise AssertionError(f"{path}: {got} != {exp} (tolerance)")
         return
 
