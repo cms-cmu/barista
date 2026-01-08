@@ -351,12 +351,12 @@
   JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras are C. Labels in the code are arbitrary
-    A: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
-    B: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
-    C: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
-    D: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
-    E: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
-    F: 'src/data/JEC/Summer23Prompt23_RunCv123_V3_DATA.tar.gz'
+    A: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    B: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    C: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    D: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    E: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    F: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
@@ -400,8 +400,8 @@
   JEC_MC: 'src/data/JEC/Summer23BPixPrompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras here are officially era D. Labels in the code are arbitrary
-    D: 'src/data/JEC/Summer23BPixPrompt23_RunD_V3_DATA.tar.gz'
-    E: 'src/data/JEC/Summer23BPixPrompt23_RunD_V3_DATA.tar.gz'
+    D: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
+    E: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
