@@ -265,8 +265,10 @@
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20/btagging.json.gz'
-  btagWP:
-    L: 0.047
+  btagWP:   # https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22/#ak4-b-tagging
+    #L: 0.047
+    L: 0.113    
+    #L: 0.146
     M: 0.245
   btag_uncertainties:
     - cferr1
@@ -311,8 +313,10 @@
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20/btagging.json.gz'
-  btagWP:
-    L: 0.0499
+  btagWP:  #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22EE/#ak4-b-tagging
+    #L: 0.0499
+    L: 0.1201
+    #L: 0.1552 
     M: 0.2605
   btag_uncertainties:
     - cferr1
@@ -360,8 +364,10 @@
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
-  btagWP:
-    L: 0.0358
+  btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23/#ak4-b-tagging
+    #L: 0.0358
+    L: 0.08777
+    #L: 0.11375
     M: 0.1917
   btag_uncertainties:
     - cferr1
@@ -405,8 +411,10 @@
   JES_uncertainties:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
-  btagWP:
-    L: 0.0359
+  btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
+    #L: 0.0359
+    L: 0.0879
+    #L: 0.1139
     M: 0.1919
   btag_uncertainties:
     - cferr1
