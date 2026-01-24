@@ -17,14 +17,6 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
-# Directories
-export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
-export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
-PIXI_DIR="$HOME/.pixi"
-
-mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
-
 # --- Helpers ---
 info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; }
@@ -58,8 +50,15 @@ EOF
 }
 
 # --- Host Detection & Setup ---
+PIXI_DIR="$HOME/.pixi"
 setup_host_env() {
     info "Determining configuration for hostname: $(hostname)"
+
+    # Directories
+    export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
+    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
+    export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
+
     if [[ $(hostname) == *"cmslpc"* ]]; then
         export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
         PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
@@ -72,7 +71,13 @@ setup_host_env() {
         export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
     else
         warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
+        # Default: use home directory for persistence
+        export APPTAINER_CACHEDIR="$HOME/.apptainer/cache"
+        export APPTAINER_TMPDIR="$HOME/.apptainer/tmp"
+        export MPLCONFIGDIR="$HOME/.config/matplotlib"
     fi
+    mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
+
 }
 
 # --- LPC Specific Logic ---

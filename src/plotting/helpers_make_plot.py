@@ -694,7 +694,7 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
 
                     output_path.append(plot_data.get("process", ""))
 
-                except NameError:
+                except (NameError, KeyError):
                     print("Setting output path to outputFolder only")
                     output_path = [kwargs.get("outputFolder")]
 
