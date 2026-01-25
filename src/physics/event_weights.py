@@ -36,14 +36,8 @@ def add_weights(event, do_MC_weights: bool = True,
     corrections_metadata : dict, optional
         Dictionary containing paths to correction files, particularly for pileup reweighting.
         Expected to have a "PU" key pointing to the pileup correction file.
-    apply_trigWeight : bool, default True
-        Whether to apply trigger efficiency scale factors.
-    friend_trigWeight : callable, optional
-        Function to retrieve trigger weights from friend trees when not available in main event.
     isTTForMixed : bool, default False
         Special flag for ttbar mixed samples to skip pileup reweighting.
-    target : callable, optional
-        Target function for friend tree access (used with friend_trigWeight).
     run_systematics : bool, default False
         Whether to include systematic uncertainty variations in addition to nominal weights.
         When True, adds up/down variations for trigger, pileup, prefiring, and PS weights.
@@ -90,26 +84,6 @@ def add_weights(event, do_MC_weights: bool = True,
         list_weight_names.append('genweight')
         logging.debug( f"genweight {weights.partial_weight(include=['genweight'])[:10]}\n" )
         logging.debug( f" = {event.genWeight} * ({lumi} * {xs} * {kFactor} / {event.metadata['genEventSumw']})\n")
-
-        # trigger Weight (to be updated)
-        if apply_trigWeight:
-            trigWeight = event.trigWeight if "trigWeight" in event.fields else friend_trigWeight.arrays(target) if friend_trigWeight else logging.error(f"No friend tree for trigWeight found.")
-
-            if run_systematics:
-                hlt = ak.where(event.passHLT, 1., 0.) # type: ignore
-                weights.add( 
-                    "CMS_bbbb_resolved_ggf_triggerEffSF",
-                    trigWeight.Data, ##* ak.where(trigWeight.MC != 0, hlt / trigWeight.MC, 1) ### uncomment for new data.
-                    trigWeight.MC,
-                    hlt
-                )
-            else:
-                weights.add( 
-                    "CMS_bbbb_resolved_ggf_triggerEffSF", 
-                    trigWeight.Data
-                )
-            list_weight_names.append('CMS_bbbb_resolved_ggf_triggerEffSF')
-            logging.debug( f"trigWeight {weights.partial_weight(include=['CMS_bbbb_resolved_ggf_triggerEffSF'])[:10]}\n" )
 
         # puWeight
         if not isTTForMixed:
