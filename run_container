@@ -168,7 +168,8 @@ run_classifier() {
     info "Running Classifier container..."
     local INIT_FILE="/entrypoint.sh"
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
-
+    ulimit -n 65536
+    
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE"
     else
