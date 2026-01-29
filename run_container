@@ -52,32 +52,53 @@ EOF
 # --- Host Detection & Setup ---
 PIXI_DIR="$HOME/.pixi"
 setup_host_env() {
-    info "Determining configuration for hostname: $(hostname)"
+    local HOST
+    HOST=$(hostname)
+    info "Determining configuration for hostname: $HOST"
 
-    # Directories
-    export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
-    export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
+    # Common Bind Paths
+    local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
+    local COMMON_BINDS="/cvmfs,${GRID_BINDS}"
+    
+    # Default to using /tmp for cache on known clusters (faster, avoids quota issues)
+    local USE_TMP_CACHE=true
 
-    if [[ $(hostname) == *"cmslpc"* ]]; then
-        export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
-        PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
-        if [ ! -d "$PIXI_DIR" ]; then
-            info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
-        fi
-    elif [[ $(hostname) == *"lxplus"* ]]; then
-        export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-    elif [[ $(hostname) == *"rogue"* || $(hostname) == *"falcon"* ]]; then
-        export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
+    case "$HOST" in
+        *cmslpc*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/uscmst1b_scratch,/uscms_data"
+            PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
+            if [ ! -d "$PIXI_DIR" ]; then
+                info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
+            fi
+            ;;
+        *lxplus*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
+            ;;
+        *falcon*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
+            ;;
+        *rogue*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/"
+            ;;
+        *)
+            warning "Unknown hostname. Using defaults (HOME) for cache/config."
+            USE_TMP_CACHE=false
+            ;;
+    esac
+
+    # Set directories based on strategy
+    if [ "$USE_TMP_CACHE" = true ]; then
+        local TMP_BASE="/tmp/$(whoami)"
+        export APPTAINER_CACHEDIR="${TMP_BASE}/apptainer_cache"
+        export APPTAINER_TMPDIR="${TMP_BASE}/.apptainer/"
+        export MPLCONFIGDIR="${TMP_BASE}/.config/matplotlib"
     else
-        warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
-        # Default: use home directory for persistence
         export APPTAINER_CACHEDIR="$HOME/.apptainer/cache"
         export APPTAINER_TMPDIR="$HOME/.apptainer/tmp"
         export MPLCONFIGDIR="$HOME/.config/matplotlib"
     fi
+    
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
-
 }
 
 # --- LPC Specific Logic ---
