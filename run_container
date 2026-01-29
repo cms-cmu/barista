@@ -67,7 +67,7 @@ setup_host_env() {
         fi
     elif [[ $(hostname) == *"lxplus"* ]]; then
         export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-    elif [[ $(hostname) == *"rogue"* ]]; then
+    elif [[ $(hostname) == *"rogue"* || $(hostname) == *"falcon"* ]]; then
         export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
     else
         warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
