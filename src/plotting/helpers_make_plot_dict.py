@@ -101,7 +101,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         try:
             common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index][category_key])
         except (KeyError, IndexError) as e:
-            raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
+            raise ValueError(f"Failed to compare dictionary keys (multiple hists): {str(e)}")
 
         if len(unique_to_dict) > 0:
             for _key in unique_to_dict:
