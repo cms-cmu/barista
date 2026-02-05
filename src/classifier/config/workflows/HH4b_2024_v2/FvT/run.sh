@@ -7,7 +7,7 @@ export FvT="${BASE}/friend/FvT/"
 export PLOT="root://eosuser.cern.ch//eos/user/${CERNUSER}/www/HH4b/classifier/HH4b_2024_v2/"
 #####################
 
-export WFS="classifier/config/workflows/HH4b_2024_v2/FvT"
+export WFS="src/classifier/config/workflows/HH4b_2024_v2/FvT"
 
 # the first argument can be a port
 if [ -z "$1" ]; then
@@ -17,14 +17,14 @@ else
 fi
 
 # train with train.yml and common.yml configs
-./pyml.py \
+./src/pyml.py \
     template "model: ${MODEL}" $WFS/train.yml \
     -from $WFS/../common.yml \
     -setting Monitor "address: :${port}" \
     -flag debug # use debug flag
 
 # plot the AUC and ROC
-./pyml.py analyze \
+./src/pyml.py analyze \
     --results ${MODEL}/result.json \
     -analysis HCR.LossROC \
     -setting IO "output: ${PLOT}" \
@@ -32,7 +32,7 @@ fi
     -setting Monitor "address: :${port}"
 
 # evaluate with evaluate.yml and common.yml configs
-./pyml.py \
+./src/pyml.py \
     template "{model: ${MODEL}, FvT: ${FvT}}" $WFS/evaluate.yml \
     -from $WFS/../common.yml \
     -setting Monitor "address: :${port}"
