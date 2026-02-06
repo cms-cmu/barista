@@ -1,0 +1,24 @@
+setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true # use a custom dataloader to speed up batch generation
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  ## remove the whole block below if you want to use all years ##
+  - module: cms.CollisionData
+    option:
+      - eras:
+          2022_EE: [E, F, G]
+          2022_preEE: [B, C, D]
+          2023_BPix: [D, E]
+          2023_preBPix: [A, B, C, D, E, F]                        
+          # only use UL18 data for 2024_v2 test.
+          # JCM for UL17 looks broken.
+          # UL16 skim is incomplete.
+  - module: HCR.InputBranch
+    option:
+      - feature_ancillary: [xW, nSelJets, xbW, year]
+      # remove the "year" from the input when the dataset only contains one year
+      # otherwise the variance will be infinite and the output will be NaN
+  ##########################################################
