@@ -129,7 +129,7 @@ class EOS:
         return self.path.exists()
 
     @classmethod
-    @retry(1)
+    @retry(5, delay=2.0)
     def cmd(cls, *args) -> tuple[bool, bytes]:
         args = [str(arg) for arg in args if arg]
         if cls.run:
