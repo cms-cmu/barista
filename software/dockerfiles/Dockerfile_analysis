@@ -1,4 +1,4 @@
-FROM docker.io/coffeateam/coffea-base-almalinux8:0.7.30-py3.10
+FROM docker.io/coffeateam/coffea-base-almalinux9:0.7.30-py3.10
 
 RUN dnf install -y poppler-utils && \
     dnf clean all && rm -rf /var/cache/dnf && \
