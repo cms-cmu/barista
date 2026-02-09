@@ -1,8 +1,10 @@
 import logging
-from coffea.analysis_tools import Weights
 import correctionlib
 import awkward as ak
 import numpy as np
+
+from coffea.analysis_tools import Weights
+from src.physics.common import apply_btag_sf
 
 def add_weights(event, do_MC_weights: bool = True,
                 dataset: str = None,
@@ -210,5 +212,44 @@ def add_weights(event, do_MC_weights: bool = True,
 
     logging.debug(f"weights event {weights.weight()[:10]}")
     logging.debug(f"Weight Statistics {weights.weightStatistics}")
+
+    return weights, list_weight_names
+
+def add_btagweights( event, weights,
+                    list_weight_names: list = [],
+                    shift_name: str = None,
+                    run_systematics: bool = False,
+                    use_prestored_btag_SF: bool = False,
+                    corrections_metadata: dict = None,
+                    jet_field: str = 'selJet_no_bRegCorr'
+                    ):
+
+    if use_prestored_btag_SF:
+        weights.add( "CMS_btag", event.CMSbtag )
+    else:
+
+        sys_value = "central"
+        if shift_name and ( 'CMS_scale_j_' in shift_name ):
+            if 'Down' in shift_name:
+                sys_value = f"down_jes{shift_name.replace('CMS_scale_j_', '').replace('Down', '')}"
+            elif 'Up' in shift_name:
+                sys_value = f"up_jes{shift_name.replace('CMS_scale_j_', '').replace('Up', '')}"
+        logging.debug(f"shift_name: {shift_name}, sys_value: {sys_value}\n\n")
+
+        btag_SF_weights = apply_btag_sf(
+            event[jet_field],
+            sys_value="central",
+            correction_file=corrections_metadata["btagSF"],
+            btag_uncertainties=corrections_metadata["btag_uncertainties"] if (not shift_name) & run_systematics else None
+        )
+
+        if (not shift_name) & run_systematics:
+            weights.add_multivariation( f"CMS_btag", btag_SF_weights["btagSF_central"],
+                                        corrections_metadata["btag_uncertainties"],
+                                        [ var.to_numpy() for name, var in btag_SF_weights.items() if "_up" in name ],
+                                        [ var.to_numpy() for name, var in btag_SF_weights.items() if "_down" in name ], )
+        else:
+            weights.add( "CMS_btag", btag_SF_weights["btagSF_central"] )
+    list_weight_names.append(f"CMS_btag")
 
     return weights, list_weight_names
