@@ -63,6 +63,8 @@ setup_host_env() {
     # Default to using /tmp for cache on known clusters (faster, avoids quota issues)
     local USE_TMP_CACHE=true
 
+    export USE_SLURM=false
+
     case "$HOST" in
         *cmslpc*)
             export APPTAINER_BINDPATH="${COMMON_BINDS},/uscmst1b_scratch,/uscms_data"
@@ -74,11 +76,18 @@ setup_host_env() {
         *lxplus*)
             export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
             ;;
-        *falcon*)
-            export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
-            ;;
-        *rogue*)
+        *falcon*|*rogue*)
+            # Standard binds for these clusters
             export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/"
+            
+            # Check if we are ALREADY in a job. If not, enable Slurm wrapper.
+            if [ -z "$SLURM_JOB_ID" ]; then
+                USE_SLURM=true
+                # Define defaults: Partition, Time, Cores, RAM
+                # You can customize these or allow overrides via environment variables
+                export SLURM_DEFAULTS="--partition=work --time=24:00:00 --cpus-per-task=1 --mem=4G"
+                info "Slurm detected. Jobs will be submitted via srun."
+            fi
             ;;
         *)
             warning "Unknown hostname. Using defaults (HOME) for cache/config."
@@ -138,11 +147,21 @@ run_coffea() {
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
+    # --- NEW SLURM LOGIC for Falcon/rogue0X---
+    local RUNNER=""
+    if [ "$USE_SLURM" = "true" ]; then
+        # Use user-provided SLURM_ARGS or fall back to defaults
+        RUNNER="srun ${SLURM_ARGS:-$SLURM_DEFAULTS}"
+    fi
+
     if [ -z "$*" ]; then
         # Interactive Mode
         if [[ $(hostname) == *"cmslpc"* ]]; then
             info "Opening interactive shell with lpcjobqueue environment..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
+        elif [ "$USE_SLURM" = "true" ]; then
+            info "Opening interactive shell via Slurm (srun)..."
+            APPTAINER_SHELL=$(which bash) $RUNNER --pty apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash 
         else
             info "Opening interactive shell..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
@@ -153,6 +172,8 @@ run_coffea() {
         local CMD="$*"
         if [[ $(hostname) == *"cmslpc"* ]]; then
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+        elif [ "$USE_SLURM" = "true" ]; then
+            APPTAINER_SHELL=$(which bash) $RUNNER apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         else
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         fi
