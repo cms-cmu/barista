@@ -52,32 +52,62 @@ EOF
 # --- Host Detection & Setup ---
 PIXI_DIR="$HOME/.pixi"
 setup_host_env() {
-    info "Determining configuration for hostname: $(hostname)"
+    local HOST
+    HOST=$(hostname)
+    info "Determining configuration for hostname: $HOST"
 
-    # Directories
-    export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
-    export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
+    # Common Bind Paths
+    local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
+    local COMMON_BINDS="/cvmfs,${GRID_BINDS}"
+    
+    # Default to using /tmp for cache on known clusters (faster, avoids quota issues)
+    local USE_TMP_CACHE=true
 
-    if [[ $(hostname) == *"cmslpc"* ]]; then
-        export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
-        PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
-        if [ ! -d "$PIXI_DIR" ]; then
-            info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
-        fi
-    elif [[ $(hostname) == *"lxplus"* ]]; then
-        export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-    elif [[ $(hostname) == *"rogue"* ]]; then
-        export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
+    export USE_SLURM=false
+
+    case "$HOST" in
+        *cmslpc*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/uscmst1b_scratch,/uscms_data"
+            PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
+            if [ ! -d "$PIXI_DIR" ]; then
+                info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
+            fi
+            ;;
+        *lxplus*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
+            ;;
+        *falcon*|*rogue*)
+            # Standard binds for these clusters
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/"
+            
+            # Check if we are ALREADY in a job. If not, enable Slurm wrapper.
+            if [ -z "$SLURM_JOB_ID" ]; then
+                USE_SLURM=true
+                # Define defaults: Partition, Time, Cores, RAM
+                # You can customize these or allow overrides via environment variables
+                export SLURM_DEFAULTS="--partition=work --time=24:00:00 --cpus-per-task=1 --mem=4G"
+                info "Slurm detected. Jobs will be submitted via srun."
+            fi
+            ;;
+        *)
+            warning "Unknown hostname. Using defaults (HOME) for cache/config."
+            USE_TMP_CACHE=false
+            ;;
+    esac
+
+    # Set directories based on strategy
+    if [ "$USE_TMP_CACHE" = true ]; then
+        local TMP_BASE="/tmp/$(whoami)"
+        export APPTAINER_CACHEDIR="${TMP_BASE}/apptainer_cache"
+        export APPTAINER_TMPDIR="${TMP_BASE}/.apptainer/"
+        export MPLCONFIGDIR="${TMP_BASE}/.config/matplotlib"
     else
-        warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
-        # Default: use home directory for persistence
         export APPTAINER_CACHEDIR="$HOME/.apptainer/cache"
         export APPTAINER_TMPDIR="$HOME/.apptainer/tmp"
         export MPLCONFIGDIR="$HOME/.config/matplotlib"
     fi
+    
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
-
 }
 
 # --- LPC Specific Logic ---
@@ -117,11 +147,21 @@ run_coffea() {
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
+    # --- NEW SLURM LOGIC for Falcon/rogue0X---
+    local RUNNER=""
+    if [ "$USE_SLURM" = "true" ]; then
+        # Use user-provided SLURM_ARGS or fall back to defaults
+        RUNNER="srun ${SLURM_ARGS:-$SLURM_DEFAULTS}"
+    fi
+
     if [ -z "$*" ]; then
         # Interactive Mode
         if [[ $(hostname) == *"cmslpc"* ]]; then
             info "Opening interactive shell with lpcjobqueue environment..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
+        elif [ "$USE_SLURM" = "true" ]; then
+            info "Opening interactive shell via Slurm (srun)..."
+            APPTAINER_SHELL=$(which bash) $RUNNER --pty apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash 
         else
             info "Opening interactive shell..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
@@ -132,6 +172,8 @@ run_coffea() {
         local CMD="$*"
         if [[ $(hostname) == *"cmslpc"* ]]; then
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+        elif [ "$USE_SLURM" = "true" ]; then
+            APPTAINER_SHELL=$(which bash) $RUNNER apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         else
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         fi
