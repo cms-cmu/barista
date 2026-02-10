@@ -57,20 +57,21 @@ deploy_container:
       changes:
         - software/dockerfiles/Dockerfile_analysis
 
-build_container_reana:
-  extends:
-    - .buildah
-  before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:reana_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
-    - echo $REGISTRY_IMAGE_PATH
-  variables:
-    DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis_reana"
-    EXTRA_TAGS: "reana_latest"
-  rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-      - software/dockerfiles/Dockerfile_analysis
+# We used to use reana in the container. We are not using it anymore, but we keep the code here in case we want to go back to it in the future.
+# build_container_reana:
+#   extends:
+#     - .buildah
+#   before_script:
+#     - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:reana_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
+#     - echo $REGISTRY_IMAGE_PATH
+#   variables:
+#     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis_reana"
+#     EXTRA_TAGS: "reana_latest"
+#   rules:
+#     - if: $RECREATE_CONTAINERS == "true"
+#     - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
+#       changes:
+#       - software/dockerfiles/Dockerfile_analysis
 
 
 build_container_classifier:
