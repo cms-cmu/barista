@@ -74,7 +74,24 @@ deploy_container:
 #       - software/dockerfiles/Dockerfile_analysis
 
 
-build_container_classifier:
+build_container_classifier_gpu:
+  extends:
+    - .buildah
+  before_script:
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
+    - echo $REGISTRY_IMAGE_PATH
+    - cd software/dockerfiles/ml/
+  variables:
+    DOCKER_FILE_NAME: "Dockerfile_ml_gpu"
+    EXTRA_TAGS: "classifier_latest"
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+      - software/dockerfiles/ml/Dockerfile_ml_gpu
+      - software/dockerfiles/ml/env_ml_gpu.yml
+
+build_container_classifier_cpu:
   extends:
     - .buildah
   before_script:
@@ -83,7 +100,7 @@ build_container_classifier:
     - cd software/dockerfiles/ml/
   variables:
     DOCKER_FILE_NAME: "Dockerfile_ml_cpu"
-    EXTRA_TAGS: "classifier_latest"
+    EXTRA_TAGS: "classifier_cpu_latest"
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
