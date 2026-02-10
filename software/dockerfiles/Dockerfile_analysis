@@ -1,7 +1,11 @@
-FROM docker.io/coffeateam/coffea-base-almalinux8:0.7.30-py3.10
+FROM docker.io/coffeateam/coffea-base-almalinux9:0.7.30-py3.10
 
 RUN dnf install -y poppler-utils && \
     dnf clean all && rm -rf /var/cache/dnf && \
     mamba install -y conda-forge::nodejs && \
     # pip install --upgrade pip && \
-    pip install pycodestyle memory-profiler fsspec-xrootd omegaconf dbs3-client 
+    pip install pycodestyle memory-profiler fsspec-xrootd omegaconf dbs3-client narwhals
+
+# 1. Create the specific directory Slurm expects for plugins (for falcon)
+RUN mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm
+RUN mkdir -p /host

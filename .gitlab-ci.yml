@@ -133,7 +133,7 @@ setup_workspace:
   needs:
     - voms_proxy
     - setup_workspace
-  image: registry.hub.docker.com/chuyuanliu/heptools:ml-cpu # TODO change to central repo
+  image: ${CI_REGISTRY_IMAGE}:classifier_cpu_test
   before_script:
     - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/

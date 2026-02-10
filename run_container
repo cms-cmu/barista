@@ -4,8 +4,10 @@
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
-SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
-CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
+# CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
@@ -13,7 +15,8 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
-    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_CPU_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_CPU_IMAGE#docker://}"
     BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
@@ -34,7 +37,8 @@ Commands:
   [command...]          Run commands inside the coffea container.
                         (Interactive shell is the only option to run on LPC HTCondor).
   combine [cmd...]      Run commands inside the combine container.
-  classifier [cmd...]   Run commands inside the classifier container.
+  classifier [cmd...]   Run commands inside the classifier with GPU container.
+  classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
   brilcalc [cmd...]     Run commands inside the brilcalc container.
   snakemake [opts]      Run snakemake using the local Pixi environment.
                         Use --reinstall to clean environment.
@@ -46,6 +50,8 @@ Examples:
   $0 python script.py    Run script in Coffea container.
   $0 combine             Open Combine container.
   $0 snakemake -s Snakefile
+  $0 classifier          Run commands inside the classifier with GPU container.
+  $0 classifier_cpu      Run commands inside the classifier with CPU container.
 EOF
 }
 
@@ -60,9 +66,8 @@ setup_host_env() {
     local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
     local COMMON_BINDS="/cvmfs,${GRID_BINDS}"
     
-    # Default to using /tmp for cache on known clusters (faster, avoids quota issues)
-    local USE_TMP_CACHE=true
-
+    # Standard Cache Setup (using /tmp to be safe/fast)
+    local CACHE_BASE="/tmp/$(whoami)"
     export USE_SLURM=false
 
     case "$HOST" in
@@ -77,36 +82,74 @@ setup_host_env() {
             export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
             ;;
         *falcon*|*rogue*)
-            # Standard binds for these clusters
-            export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/"
+            # 1. Basic Mounts
+            if [[ $HOST == *falcon* ]]; then
+                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
+            else
+                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/${USER}"
+            fi
             
-            # Check if we are ALREADY in a job. If not, enable Slurm wrapper.
+            # 2. SLURM CONFIG, USERS, & MUNGE (CRITICAL FIX)
+            #    Added /run/munge and /var/run/munge so sbatch can authenticate
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/etc/slurm,/etc/passwd,/etc/group,/run/munge,/var/run/munge"
+
+            # 3. QUARANTINE BINDS
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr:/host/usr,/lib:/host/lib,/lib64:/host/lib64"
+
+            # 4. PLUGIN BIND
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr/lib/x86_64-linux-gnu/slurm-wlm"
+
+            # 5. GENERATE WRAPPER
+            WRAPPER_DIR="${CACHE_BASE}/slurm_wrappers"
+            mkdir -p "$WRAPPER_DIR"
+            
+            cat <<EOF > "${WRAPPER_DIR}/slurm_wrapper.sh"
+#!/bin/bash
+# Define Host Library Paths (Ubuntu/Debian specific)
+HOST_LIBS="/host/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu/slurm-wlm:/host/lib64:/host/usr/lib64"
+
+# Define Host Loader
+if [ -f "/host/lib64/ld-linux-x86-64.so.2" ]; then
+    LOADER="/host/lib64/ld-linux-x86-64.so.2"
+else
+    LOADER="/host/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+fi
+
+# Target Binary
+NAME=\$(basename "\$0")
+BINARY="/host/usr/bin/\$NAME"
+
+# Execute
+exec "\$LOADER" --library-path "\$HOST_LIBS" "\$BINARY" "\$@"
+EOF
+            chmod +x "${WRAPPER_DIR}/slurm_wrapper.sh"
+
+            # Create Symlinks
+            for cmd in sbatch squeue scancel scontrol; do
+                ln -sf "${WRAPPER_DIR}/slurm_wrapper.sh" "${WRAPPER_DIR}/${cmd}"
+            done
+
+            # 6. Add wrappers to PATH (Must be FIRST)
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${WRAPPER_DIR}:/opt/slurm_wrappers"
+            export APPTAINERENV_PATH="/opt/slurm_wrappers:\${PATH}"
+            export SINGULARITYENV_PATH="/opt/slurm_wrappers:\${PATH}"
+            
+            # 7. Enable Slurm Mode if we aren't already in a job
             if [ -z "$SLURM_JOB_ID" ]; then
-                USE_SLURM=true
-                # Define defaults: Partition, Time, Cores, RAM
-                # You can customize these or allow overrides via environment variables
-                export SLURM_DEFAULTS="--partition=work --time=24:00:00 --cpus-per-task=1 --mem=4G"
-                info "Slurm detected. Jobs will be submitted via srun."
+                export USE_SLURM=true 
             fi
             ;;
         *)
             warning "Unknown hostname. Using defaults (HOME) for cache/config."
-            USE_TMP_CACHE=false
+            CACHE_BASE=$HOME
+            mkdir -p "$CACHE_BASE"
             ;;
     esac
 
-    # Set directories based on strategy
-    if [ "$USE_TMP_CACHE" = true ]; then
-        local TMP_BASE="/tmp/$(whoami)"
-        export APPTAINER_CACHEDIR="${TMP_BASE}/apptainer_cache"
-        export APPTAINER_TMPDIR="${TMP_BASE}/.apptainer/"
-        export MPLCONFIGDIR="${TMP_BASE}/.config/matplotlib"
-    else
-        export APPTAINER_CACHEDIR="$HOME/.apptainer/cache"
-        export APPTAINER_TMPDIR="$HOME/.apptainer/tmp"
-        export MPLCONFIGDIR="$HOME/.config/matplotlib"
-    fi
-    
+    # Cache Configuration
+    export APPTAINER_CACHEDIR="${CACHE_BASE}/apptainer_cache"
+    export APPTAINER_TMPDIR="${CACHE_BASE}/.apptainer/"
+    export MPLCONFIGDIR="${CACHE_BASE}/.config/matplotlib"
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
 }
 
@@ -139,42 +182,48 @@ run_coffea() {
     info "Running Coffea container..."
     setup_lpc_jobqueue
 
-    # Base flags for apptainer
+    # 1. Base Flags
     local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
     
-    # Add LPC specific env var if needed
+    # LPC-Specific Environment Variable
     if [[ $(hostname) == *"cmslpc"* ]]; then
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
-    # --- NEW SLURM LOGIC for Falcon/rogue0X---
-    local RUNNER=""
-    if [ "$USE_SLURM" = "true" ]; then
-        # Use user-provided SLURM_ARGS or fall back to defaults
-        RUNNER="srun ${SLURM_ARGS:-$SLURM_DEFAULTS}"
+    # 2. FALCON / ROGUE Logic
+    if [[ $(hostname) == *falcon* || $(hostname) == *rogue* ]]; then
+        # Critical: Mirror Bind for Dask
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # CASE A: Inside a job -> Run locally
+            info "Inside Slurm Job ($SLURM_JOB_ID). Running container directly..."
+        else
+            # CASE B: Login Node -> Submit Interactive Job
+            info "Not in a job. Launching interactive Slurm session..."
+            srun --pty --partition=work --time=04:00:00 --mem=4G "$0" "$@"
+            return # Stop execution on login node
+        fi
     fi
 
+    # 3. EXECUTION LOGIC
     if [ -z "$*" ]; then
-        # Interactive Mode
+        # --- INTERACTIVE SHELL ---
         if [[ $(hostname) == *"cmslpc"* ]]; then
-            info "Opening interactive shell with lpcjobqueue environment..."
+            info "Opening interactive shell (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
-        elif [ "$USE_SLURM" = "true" ]; then
-            info "Opening interactive shell via Slurm (srun)..."
-            APPTAINER_SHELL=$(which bash) $RUNNER --pty apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash 
         else
             info "Opening interactive shell..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
         fi
     else
-        # Non-Interactive Mode
-        info "Running command inside container..."
+        # --- COMMAND EXECUTION ---
         local CMD="$*"
         if [[ $(hostname) == *"cmslpc"* ]]; then
+            info "Running command (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
-        elif [ "$USE_SLURM" = "true" ]; then
-            APPTAINER_SHELL=$(which bash) $RUNNER apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         else
+            info "Running command..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         fi
     fi
@@ -211,11 +260,19 @@ run_classifier() {
     local INIT_FILE="/entrypoint.sh"
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
+
+    if [[ "$1" == "cpu" ]]; then
+        info "Using CPU version of the classifier container..."
+        IMAGE="$CLASSIFIER_CPU_IMAGE"
+    else
+        info "Using GPU version of the classifier container..."
+        IMAGE="$CLASSIFIER_IMAGE"
+    fi
     
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE" -c "$*"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$*"
     fi
 }
 
@@ -309,5 +366,6 @@ case "$1" in
     "snakemake_container") run_snakemake_container "${@:2}" ;;
     "snakemake")           run_snakemake "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
+    "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac
