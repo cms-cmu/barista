@@ -2,19 +2,21 @@
 
 # --- Configuration ---
 # Image Definitions
-# COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:20260210_dfca774f"
+COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
-SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
-CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
+# CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
-    # COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
+    COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
-    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_CPU_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_CPU_IMAGE#docker://}"
     BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
@@ -35,7 +37,8 @@ Commands:
   [command...]          Run commands inside the coffea container.
                         (Interactive shell is the only option to run on LPC HTCondor).
   combine [cmd...]      Run commands inside the combine container.
-  classifier [cmd...]   Run commands inside the classifier container.
+  classifier [cmd...]   Run commands inside the classifier with GPU container.
+  classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
   brilcalc [cmd...]     Run commands inside the brilcalc container.
   snakemake [opts]      Run snakemake using the local Pixi environment.
                         Use --reinstall to clean environment.
@@ -47,6 +50,8 @@ Examples:
   $0 python script.py    Run script in Coffea container.
   $0 combine             Open Combine container.
   $0 snakemake -s Snakefile
+  $0 classifier          Run commands inside the classifier with GPU container.
+  $0 classifier_cpu      Run commands inside the classifier with CPU container.
 EOF
 }
 
@@ -255,11 +260,19 @@ run_classifier() {
     local INIT_FILE="/entrypoint.sh"
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
+
+    if [[ "$1" == "cpu" ]]; then
+        info "Using CPU version of the classifier container..."
+        IMAGE="$CLASSIFIER_CPU_IMAGE"
+    else
+        info "Using GPU version of the classifier container..."
+        IMAGE="$CLASSIFIER_IMAGE"
+    fi
     
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE" -c "$*"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$*"
     fi
 }
 
@@ -353,5 +366,6 @@ case "$1" in
     "snakemake_container") run_snakemake_container "${@:2}" ;;
     "snakemake")           run_snakemake "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
+    "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac
