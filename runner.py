@@ -420,6 +420,47 @@ def setup_condor_cluster(config_runner, tarball_path):
     logging.info('HTCondor cluster setup complete!')
     return client, cluster
 
+def setup_slurm_cluster(config_runner, args):
+    """Setup Slurm cluster configuration."""
+    from dask_jobqueue import SLURMCluster
+    from dask.distributed import Client
+
+    logging.info("Initializing Slurm cluster configuration...")
+
+    # 1. Define how to start the worker.
+    # We point 'python' to your wrapper script so workers start inside the container.
+    worker_python = "./run_container python"
+
+    cluster_args = {
+        'queue': config_runner.get('slurm_queue', 'work'),
+        'cores': config_runner.get('slurm_cores', 1),
+        'memory': config_runner.get('slurm_memory', '4GB'),
+        'walltime': config_runner.get('slurm_walltime', '12:00:00'),
+        'python': worker_python,
+        'local_directory': '$TMPDIR', 
+        'log_directory': f'{args.output_path}/logs_slurm',
+        'job_extra_directives': [], 
+        # 'scheduler_options': {'dashboard_address': config_runner['dashboard_address']},  ## does not work in slurm/falcon
+    }
+
+    # Add optional accounting if needed
+    if 'slurm_account' in config_runner:
+        cluster_args['account'] = config_runner['slurm_account']
+
+    logging.info(f"Creating Slurm cluster with config: {cluster_args}")
+    cluster = SLURMCluster(**cluster_args)
+
+    logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
+    cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
+
+    logging.info("Creating Dask client...")
+    client = Client(cluster)
+    
+    # Print the dashboard link
+    logging.info(f"Dask Dashboard: {client.dashboard_link}")
+
+    return client, cluster
+
 
 def setup_local_cluster(config_runner, args):
     """Setup local Dask cluster configuration."""
@@ -569,6 +610,11 @@ def setup_config_defaults(config_runner, args):
         'condor_cores': 2,
         'condor_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
+        'slurm_queue': 'work',       # Change to your cluster's partition name
+        'slurm_cores': 1,
+        'slurm_memory': '4GB',
+        'slurm_walltime': '12:00:00',
+        'slurm_account': None,
         'min_workers': 1,
         'max_workers': 100,
         'workers': 2,
@@ -602,7 +648,7 @@ def setup_executor(config_runner, args, client, pool):
         executor_args.update({
             "client": client,
             "align_clusters": False,
-            "status": False  # disable progressbar for Dask
+            "status": True if args.slurm else False  # disable progressbar for Dask
         })
         return processor.dask_executor, executor_args
     else:
@@ -889,6 +935,13 @@ if __name__ == '__main__':
         default=False,
         help='Submit jobs to HTCondor cluster'
     )
+    exec_group.add_argument(
+        '--slurm',
+        dest="slurm",
+        action="store_true",
+        default=False,
+        help='Submit jobs to Slurm cluster using dask-jobqueue in Falcon'
+    )
 
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
@@ -1056,6 +1109,10 @@ if __name__ == '__main__':
         args.run_dask = True
         tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'])
         client, cluster = setup_condor_cluster(config_runner, tarball_path)
+    elif args.slurm:  # <--- NEW
+        logging.info("Configuring Slurm cluster execution...")
+        args.run_dask = True
+        client, cluster = setup_slurm_cluster(config_runner, args)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
         client, cluster = setup_local_cluster(config_runner, args)
@@ -1105,7 +1162,8 @@ if __name__ == '__main__':
     # Run dask performance only in dask jobs
     #
     if args.run_dask:
-        dask_report_file = f'/tmp/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
+        import getpass
+        dask_report_file = f'/tmp/{getpass.getuser()}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
         with performance_report(filename=dask_report_file):
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)

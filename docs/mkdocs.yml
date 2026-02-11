@@ -104,6 +104,7 @@ nav:
         - Task system: classifier/task.md
         - Monitor system: classifier/monitor.md
         - Histogram: classifier/histogram.md
+        - Backend: classifier/backend.md
     - HH4b Analysis:
         - Overview: bbbb/index.md
         - Analysis: bbbb/analysis.md
