@@ -238,9 +238,14 @@ class TreeWriter:
                 if akext.is_jagged(data):
                     data = {k: data[k] for k in data.fields}
             if self._tree_name not in self._file:
-                self._file[self._tree_name] = data
-            else:
-                self._file[self._tree_name].extend(data)
+                if self._backend == "pd":
+                    branch_types = {col: data[col].values.dtype for col in data.columns}
+                elif self._backend == "np":
+                    branch_types = {k: v.dtype for k, v in data.items()}
+                else:
+                    branch_types = {k: data[k].type for k in data.fields}
+                self._file.mktree(self._tree_name, branch_types)
+            self._file[self._tree_name].extend(data)
         data = None
 
     def extend(self, data: RecordLike):
