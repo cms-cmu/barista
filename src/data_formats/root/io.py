@@ -244,8 +244,8 @@ class TreeWriter:
                     branch_types = {k: v.dtype for k, v in data.items()}
                 elif hasattr(data, "fields"):
                     branch_types = {k: data[k].type for k in data.fields}
-                else(data, dict):
-                    branch_types = {k: v.type if hasattr(v, "type") else v.dtype for k, v in data.items()
+                elif isinstance(data, dict):
+                    branch_types = {k: v.type if hasattr(v, "type") else v.dtype for k, v in data.items()}
                 self._file.mktree(self._tree_name, branch_types)
             self._file[self._tree_name].extend(data)
         data = None
