@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import sys
 import time
 from threading import Lock, Thread
 from typing import Callable
@@ -46,7 +47,7 @@ class Dashboard:
         with Live(
             cls.layout,
             refresh_per_second=cfg.Console.fps,
-            transient=True,
+            transient=sys.stdout.isatty(),
             console=cls.console,
         ):
             while True:
@@ -64,7 +65,7 @@ class Dashboard:
 
 @cfg.check(cfg.Console)
 def setup_backend():
-    Dashboard.console = Console(markup=True)
+    Dashboard.console = Console(markup=True, force_terminal=True, no_color=not sys.stdout.isatty())
     Dashboard.layout = UniqueGroup()
     Dashboard._lock = Lock()
     Thread(target=Dashboard.start, daemon=True).start()
