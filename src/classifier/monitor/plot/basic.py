@@ -251,7 +251,7 @@ def plot_multiphase_curve(
     phases = {}
     for i, r in phase.astype(str).iterrows():
         phases[i + 1] = "\n".join(
-            code.html("custom_tooltip", key=k, value=v) for k, v in r.items()
+            code.html("custom_tooltip", key=k, value=str(v)) for k, v in r.items()
         )
     # plot data
     shared_slider = None
