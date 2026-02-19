@@ -5,7 +5,7 @@
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
-# CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+#CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
@@ -208,10 +208,31 @@ run_brilcalc() {
 run_classifier() {
     check_apptainer
     info "Running Classifier container..."
+
     local INIT_FILE="/entrypoint.sh"
+    local USE_SLURM=false
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
 
+    # Bind X509 proxy for XRootD authentication
+    local PROXY="/tmp/x509up_u$(id -u)"
+    if [ -f "$PROXY" ]; then
+        FLAGS+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
+    fi
+    
+    # Parse out "slurm" and "cpu" flags from args
+    for arg in "$@"; do
+        if [[ "$arg" == "slurm" ]]; then
+            USE_SLURM=true
+        elif [[ "$arg" == "cpu" ]]; then
+            info "Using CPU version of the classifier container..."
+            IMAGE="$CLASSIFIER_CPU_IMAGE"
+        else
+            ARGS+=("$arg")
+        fi
+    done
+    local USER_CMD="${ARGS[*]}"
+    
     if [[ "$1" == "cpu" ]]; then
         info "Using CPU version of the classifier container..."
         IMAGE="$CLASSIFIER_CPU_IMAGE"
@@ -219,11 +240,18 @@ run_classifier() {
         info "Using GPU version of the classifier container..."
         IMAGE="$CLASSIFIER_IMAGE"
     fi
-    
-    if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
+
+    if [ "$USE_SLURM" = true ]; then
+	local SLURM_CONF="${SLURM_CONF:-software/slurm/slurm.conf}"
+	mkdir -p logs
+	local CMD="source $INIT_FILE && export PYTHONUNBUFFERED=1 && $USER_CMD"
+
+	info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
+	{ echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "apptainer exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch
+    elif [ -z "$USER_CMD" ]; then
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" # interactive shell
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$*"
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD" # user command locally
     fi
 }
 
