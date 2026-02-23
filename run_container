@@ -68,7 +68,6 @@ setup_host_env() {
     
     # Standard Cache Setup (using /tmp to be safe/fast)
     local CACHE_BASE="/tmp/$(whoami)"
-    export USE_SLURM=false
 
     case "$HOST" in
         *cmslpc*)
@@ -81,62 +80,14 @@ setup_host_env() {
         *lxplus*)
             export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
             ;;
+        *runner*)
+            PIXI_DIR="/tmp/pixi"
+            ;;
         *falcon*|*rogue*)
-            # 1. Basic Mounts
             if [[ $HOST == *falcon* ]]; then
                 export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
             else
                 export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/${USER}"
-            fi
-            
-            # 2. SLURM CONFIG, USERS, & MUNGE (CRITICAL FIX)
-            #    Added /run/munge and /var/run/munge so sbatch can authenticate
-            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/etc/slurm,/etc/passwd,/etc/group,/run/munge,/var/run/munge"
-
-            # 3. QUARANTINE BINDS
-            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr:/host/usr,/lib:/host/lib,/lib64:/host/lib64"
-
-            # 4. PLUGIN BIND
-            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr/lib/x86_64-linux-gnu/slurm-wlm"
-
-            # 5. GENERATE WRAPPER
-            WRAPPER_DIR="${CACHE_BASE}/slurm_wrappers"
-            mkdir -p "$WRAPPER_DIR"
-            
-            cat <<EOF > "${WRAPPER_DIR}/slurm_wrapper.sh"
-#!/bin/bash
-# Define Host Library Paths (Ubuntu/Debian specific)
-HOST_LIBS="/host/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu/slurm-wlm:/host/lib64:/host/usr/lib64"
-
-# Define Host Loader
-if [ -f "/host/lib64/ld-linux-x86-64.so.2" ]; then
-    LOADER="/host/lib64/ld-linux-x86-64.so.2"
-else
-    LOADER="/host/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
-fi
-
-# Target Binary
-NAME=\$(basename "\$0")
-BINARY="/host/usr/bin/\$NAME"
-
-# Execute
-exec "\$LOADER" --library-path "\$HOST_LIBS" "\$BINARY" "\$@"
-EOF
-            chmod +x "${WRAPPER_DIR}/slurm_wrapper.sh"
-
-            # Create Symlinks
-            for cmd in sbatch squeue scancel scontrol; do
-                ln -sf "${WRAPPER_DIR}/slurm_wrapper.sh" "${WRAPPER_DIR}/${cmd}"
-            done
-
-            # 6. Add wrappers to PATH (Must be FIRST)
-            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${WRAPPER_DIR}:/opt/slurm_wrappers"
-            export APPTAINERENV_PATH="/opt/slurm_wrappers:\${PATH}"
-            export SINGULARITYENV_PATH="/opt/slurm_wrappers:\${PATH}"
-            
-            # 7. Enable Slurm Mode if we aren't already in a job
-            if [ -z "$SLURM_JOB_ID" ]; then
-                export USE_SLURM=true 
             fi
             ;;
         *)
@@ -193,7 +144,7 @@ run_coffea() {
     # 2. FALCON / ROGUE Logic
     if [[ $(hostname) == *falcon* || $(hostname) == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
