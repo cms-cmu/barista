@@ -202,16 +202,11 @@ def _detect_junc_sources(cset, prefix: str, suffix: str) -> list:
 
 def apply_jerc_corrections_jsonpog(
     event,
-    jerc_file: str,
-    jec_campaign: str,
-    jec_version: str,
+    corrections_metadata: dict = {},
     isMC: bool = True,
-    run_tag: str | None = None,
-    jet_type: str = "AK4PFchs",
-    jer_campaign: str = None,
-    jer_version: str = None,
-    junc_sources=None,
+    dataset: str = None,
     run_systematics: bool = False,
+    jet_type: str = "AK4PFchs",
     seeds=("JER",),
     jet_corr_factor: float = 1.0,
 ):
@@ -222,53 +217,54 @@ def apply_jerc_corrections_jsonpog(
     ``/cvmfs/.../jsonpog-integration/POG/JME/…/jet_jerc.json.gz``
     instead of extracting txt files from tar archives.
 
-    Delegates all correction math to :class:`FixedCorrectedJetsFactory` (the
-    same code path as :func:`apply_jerc_corrections`).  The only difference is
-    that the ``JECStack`` is replaced by lightweight adapter objects
-    (``_JsonPogJEC`` / ``_JsonPogJER`` / ``_JsonPogJERSF`` / ``_JsonPogJUNC``)
-    that call correctionlib under the hood.
+    All JEC/JER campaign names, versions, run tags, and uncertainty source
+    lists are read from ``corrections_metadata``, mirroring the interface
+    of :func:`apply_jerc_corrections`.
 
-    Key naming convention inside the JSON-POG file::
+    The ``corrections_metadata`` dict must contain a ``jec`` sub-dict with::
 
-        MC   compound : {jec_campaign}_{jec_version}_MC_L1L2L3Res_{jet_type}
-        DATA compound : {jec_campaign}_{run_tag}_{jec_version}_DATA_L1L2L3Res_{jet_type}
-        JER resolution: {jer_campaign}_{jer_version}_MC_PtResolution_{jet_type}
-        JER SF        : {jer_campaign}_{jer_version}_MC_ScaleFactor_{jet_type}
-        JES source    : {jec_campaign}_{jec_tag}_{source}_{jet_type}
+        jec:
+          file:          <path to jet_jerc.json.gz>
+          jec_campaign:  Summer19UL18
+          jec_version:   V5
+          jer_campaign:  Summer19UL18      # optional; JER skipped if absent
+          jer_version:   JRV2              # optional
+          run_tags:                        # DATA only: era letter → run tag
+            A: RunA
+            ...
 
-    Note that the JER campaign name can differ from the JEC campaign
-    (e.g. ``Summer20UL16APV`` vs ``Summer19UL16APV``).
+    And optionally ``jes_unc`` (list of JES uncertainty source names).
 
     Args:
-        event:           NanoAOD event array.
-        jerc_file:       Absolute path to ``jet_jerc.json.gz``.
-        jec_campaign:    JEC campaign, e.g. ``"Summer19UL16APV"``.
-        jec_version:     JEC version, e.g. ``"V7"`` (same for MC and DATA).
-        isMC:            ``True`` for simulation, ``False`` for collision data.
-        run_tag:         Data run era inserted before *jec_version* in the key,
-                         e.g. ``"RunBCD"``.  Only used when ``isMC=False``.
-        jet_type:        Jet algorithm label, e.g. ``"AK4PFchs"``.
-        jer_campaign:    JER campaign (may differ from JEC),
-                         e.g. ``"Summer20UL16APV"``.  JER is skipped if ``None``.
-        jer_version:     JER version tag, e.g. ``"JRV3"``.
-        junc_sources:    Controls JES uncertainty evaluation (only when
-                         ``run_systematics=True``).
-                         ``None``  → skip all JES variations.
-                         ``[]``    → auto-detect and run every source in the file.
-                         ``['Total', 'Regrouped_Absolute', …]`` → explicit list.
-        run_systematics: Compute JER up/down and JES up/down variations.
-        seeds:           Seed sequence for the deterministic JER Gaussian RNG.
-        jet_corr_factor: Optional multiplicative factor applied to raw pt/mass
-                         before JEC (useful for cross-checks; default ``1``).
+        event:               NanoAOD event array.
+        corrections_metadata: Year-level corrections dict (e.g.
+                             ``corrections_metadata['UL18']``).
+        isMC:                ``True`` for simulation, ``False`` for data.
+        dataset:             Dataset name; last character is used to look up
+                             the run tag for DATA.
+        run_systematics:     Compute JER up/down and JES up/down variations.
+        jet_type:            Jet algorithm label, e.g. ``"AK4PFchs"``.
+        seeds:               Seed sequence for the deterministic JER RNG.
+        jet_corr_factor:     Multiplicative factor on raw pt/mass (default 1).
 
     Returns:
         Awkward array with the same structure as :func:`apply_jerc_corrections`.
     """
-    logging.info("Applying JSON-POG JEC/JER corrections")
+    logging.info(f"Applying JSON-POG JEC/JER corrections for {dataset}")
 
     from src.physics.objects.jetmet_tools.CorrectedJetsFactory import (
         _JsonPogJEC, _JsonPogJER, _JsonPogJERSF, _JsonPogJUNC, _JsonPogJECStack,
     )
+
+    # ── extract parameters from corrections_metadata ──────────────────────────
+    jec_meta     = corrections_metadata["jec"]
+    jerc_file    = jec_meta["file"]
+    jec_campaign = jec_meta["jec_campaign"]
+    jec_version  = jec_meta["jec_version"]
+    jer_campaign = jec_meta.get("jer_campaign")
+    jer_version  = jec_meta.get("jer_version")
+    run_tag      = jec_meta.get("run_tags", {}).get(dataset[-1]) if (not isMC and dataset) else None
+    junc_sources = corrections_metadata.get("jes_unc") if run_systematics else None
 
     cset       = correctionlib.CorrectionSet.from_file(jerc_file)
     era        = "MC" if isMC else "DATA"
