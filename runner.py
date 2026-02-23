@@ -206,6 +206,10 @@ def get_dataset_type(dataset_name):
         return 'mixed_data'
     if dataset_name == 'mixeddata_4b':
         return 'mixeddata_4b'
+    elif dataset_name in ['mixeddata_4b_noTT']:
+        return 'mixeddata_4b_noTT'
+    elif dataset_name in ['mixeddata_4b_pz']:
+        return 'mixeddata_4b_pz'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
     elif dataset_name == 'synthetic_data':
@@ -1019,6 +1023,10 @@ if __name__ == '__main__':
                 process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
             elif dataset_type == 'mixeddata_4b':
                 process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type in ['mixeddata_4b_noTT']:
+                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type in ['mixeddata_4b_pz']:
+                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'data_mixed':
                 process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'synthetic_data':
