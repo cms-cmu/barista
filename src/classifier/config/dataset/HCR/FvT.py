@@ -20,8 +20,8 @@ def _data_selection(df: pd.DataFrame):
 
 
 def _ttbar_selection(df: pd.DataFrame):
-    return df[_common_selection(df) & df["passHLT"]]
-    #return df[_common_selection(df)]
+    #return df[_common_selection(df) & df["passHLT"]]  # Use this line for Run3
+    return df[_common_selection(df)]
 
 
 def _ttbar_3b_selection(df: pd.DataFrame):
