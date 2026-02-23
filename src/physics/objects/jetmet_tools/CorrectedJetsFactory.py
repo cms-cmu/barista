@@ -8,6 +8,118 @@ import numpy as np
 from src.math_tools.random import Squares
 
 
+# ── correctionlib → FixedCorrectedJetsFactory adapters ───────────────────────
+#
+# These thin wrappers expose the same interface that FixedCorrectedJetsFactory
+# expects from a JECStack ( .signature + .getCorrection / .getResolution /
+# .getScaleFactor / .getUncertainty ), but pull data from a correctionlib
+# CorrectionSet (JSON-POG) instead of txt files.
+#
+# Inputs arrive as flat awkward arrays from out_dict; numpy.asarray() is used
+# to materialise virtual arrays on the fly before calling correctionlib.
+
+
+class _JsonPogJEC:
+    """Compound JEC correction (L1L2L3Res) from a JSON-POG file."""
+
+    signature = ("JetA", "JetEta", "JetPt", "Rho")
+
+    def __init__(self, corr):
+        self._corr = corr
+
+    def getCorrection(self, JetA, JetEta, JetPt, Rho, form, lazy_cache):
+        vals = self._corr.evaluate(
+            numpy.asarray(JetA,   dtype=numpy.float32),
+            numpy.asarray(JetEta, dtype=numpy.float32),
+            numpy.asarray(JetPt,  dtype=numpy.float32),
+            numpy.asarray(Rho,    dtype=numpy.float32),
+        ).astype(numpy.float32)
+        return awkward.Array(vals)
+
+
+class _JsonPogJER:
+    """JER pt-resolution correction from a JSON-POG file."""
+
+    signature = ("JetEta", "JetPt", "Rho")
+
+    def __init__(self, corr):
+        self._corr = corr
+
+    def getResolution(self, JetEta, JetPt, Rho, form, lazy_cache):
+        vals = self._corr.evaluate(
+            numpy.asarray(JetEta, dtype=numpy.float32),
+            numpy.asarray(JetPt,  dtype=numpy.float32),
+            numpy.asarray(Rho,    dtype=numpy.float32),
+        ).astype(numpy.float32)
+        return awkward.Array(vals)
+
+
+class _JsonPogJERSF:
+    """JER scale-factor correction from a JSON-POG file.
+
+    Returns a ``(n_jets, 3)`` array [nom, up, down] so that
+    ``jer_smear`` can index it as ``jersf[:, variation]``.
+    """
+
+    signature = ("JetEta",)
+
+    def __init__(self, corr):
+        self._corr = corr
+
+    def getScaleFactor(self, JetEta, form, lazy_cache):
+        eta = numpy.asarray(JetEta, dtype=numpy.float32)
+        stacked = numpy.stack(
+            [
+                self._corr.evaluate(eta, "nom").astype(numpy.float32),
+                self._corr.evaluate(eta, "up").astype(numpy.float32),
+                self._corr.evaluate(eta, "down").astype(numpy.float32),
+            ],
+            axis=1,
+        )
+        return awkward.Array(stacked)
+
+
+class _JsonPogJUNC:
+    """JES uncertainty sources from a JSON-POG file.
+
+    ``getUncertainty`` returns ``[(name, (n_jets, 2) array)]`` where column
+    0 is the up factor ``1+δ`` and column 1 is the down factor ``1-δ``,
+    matching the convention expected by ``CorrectedJetsFactory.build()``.
+    """
+
+    signature = ("JetEta", "JetPt")
+
+    def __init__(self, source_pairs):
+        # source_pairs: list of (str, correctionlib.Correction) tuples
+        self._sources = source_pairs
+
+    def getUncertainty(self, JetEta, JetPt):
+        eta = numpy.asarray(JetEta, dtype=numpy.float32)
+        pt  = numpy.asarray(JetPt,  dtype=numpy.float32)
+        result = []
+        for name, corr in self._sources:
+            delta    = corr.evaluate(eta, pt).astype(numpy.float32)
+            unc_vals = awkward.Array(
+                numpy.stack([1.0 + delta, 1.0 - delta], axis=1)
+            )
+            result.append((name, unc_vals))
+        return result
+
+
+class _JsonPogJECStack:
+    """Minimal JECStack replacement that holds JSON-POG backed evaluators.
+
+    Only the four attributes accessed by ``FixedCorrectedJetsFactory.build()``
+    are needed: ``jec``, ``jer``, ``jersf``, ``junc``.
+    """
+
+    def __init__(self, jec=None, jer=None, jersf=None, junc=None):
+        self.jec   = jec
+        self.jer   = jer
+        self.jersf = jersf
+        self.junc  = junc
+
+
 def _rand_gauss(event, count, phi, eta, rng: Squares):
     # construct bit-128 counter from [event[64], phi[32], eta[32]]
     counter = numpy.empty((len(phi), 2), dtype=numpy.uint64)

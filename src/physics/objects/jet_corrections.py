@@ -177,6 +177,164 @@ def jet_corrections( uncorr_jets,
 
     return corr_jets
 
+# ── JSON-POG (correctionlib) based JERC ───────────────────────────────────────
+
+# Correction levels that appear in the JSON-POG key names but are NOT
+# JES uncertainty sources (used to filter them out during auto-detection).
+_JEC_LEVELS = frozenset({"L1FastJet", "L2Relative", "L3Absolute", "L2L3Residual", "L1RC"})
+
+
+def _detect_junc_sources(cset, prefix: str, suffix: str) -> list:
+    """Return all JES uncertainty source names present in *cset*.
+
+    Iterates over ``cset.keys()`` and strips *prefix* / *suffix* from each
+    matching key, then filters out known JEC correction levels so only genuine
+    uncertainty sources (``Total``, ``Regrouped_*``, individual sources, …)
+    are returned.
+    """
+    return [
+        key[len(prefix):-len(suffix)]
+        for key in cset.keys()
+        if key.startswith(prefix) and key.endswith(suffix)
+        and key[len(prefix):-len(suffix)] not in _JEC_LEVELS
+    ]
+
+
+def apply_jerc_corrections_jsonpog(
+    event,
+    jerc_file: str,
+    jec_campaign: str,
+    jec_version: str,
+    isMC: bool = True,
+    run_tag: str | None = None,
+    jet_type: str = "AK4PFchs",
+    jer_campaign: str = None,
+    jer_version: str = None,
+    junc_sources=None,
+    run_systematics: bool = False,
+    seeds=("JER",),
+    jet_corr_factor: float = 1.0,
+):
+    """Apply JEC/JER corrections from a CMS JSON-POG file via correctionlib.
+
+    Drop-in replacement for :func:`apply_jerc_corrections` that reads directly
+    from the JSON-POG files shipped in
+    ``/cvmfs/.../jsonpog-integration/POG/JME/…/jet_jerc.json.gz``
+    instead of extracting txt files from tar archives.
+
+    Delegates all correction math to :class:`FixedCorrectedJetsFactory` (the
+    same code path as :func:`apply_jerc_corrections`).  The only difference is
+    that the ``JECStack`` is replaced by lightweight adapter objects
+    (``_JsonPogJEC`` / ``_JsonPogJER`` / ``_JsonPogJERSF`` / ``_JsonPogJUNC``)
+    that call correctionlib under the hood.
+
+    Key naming convention inside the JSON-POG file::
+
+        MC   compound : {jec_campaign}_{jec_version}_MC_L1L2L3Res_{jet_type}
+        DATA compound : {jec_campaign}_{run_tag}_{jec_version}_DATA_L1L2L3Res_{jet_type}
+        JER resolution: {jer_campaign}_{jer_version}_MC_PtResolution_{jet_type}
+        JER SF        : {jer_campaign}_{jer_version}_MC_ScaleFactor_{jet_type}
+        JES source    : {jec_campaign}_{jec_tag}_{source}_{jet_type}
+
+    Note that the JER campaign name can differ from the JEC campaign
+    (e.g. ``Summer20UL16APV`` vs ``Summer19UL16APV``).
+
+    Args:
+        event:           NanoAOD event array.
+        jerc_file:       Absolute path to ``jet_jerc.json.gz``.
+        jec_campaign:    JEC campaign, e.g. ``"Summer19UL16APV"``.
+        jec_version:     JEC version, e.g. ``"V7"`` (same for MC and DATA).
+        isMC:            ``True`` for simulation, ``False`` for collision data.
+        run_tag:         Data run era inserted before *jec_version* in the key,
+                         e.g. ``"RunBCD"``.  Only used when ``isMC=False``.
+        jet_type:        Jet algorithm label, e.g. ``"AK4PFchs"``.
+        jer_campaign:    JER campaign (may differ from JEC),
+                         e.g. ``"Summer20UL16APV"``.  JER is skipped if ``None``.
+        jer_version:     JER version tag, e.g. ``"JRV3"``.
+        junc_sources:    Controls JES uncertainty evaluation (only when
+                         ``run_systematics=True``).
+                         ``None``  → skip all JES variations.
+                         ``[]``    → auto-detect and run every source in the file.
+                         ``['Total', 'Regrouped_Absolute', …]`` → explicit list.
+        run_systematics: Compute JER up/down and JES up/down variations.
+        seeds:           Seed sequence for the deterministic JER Gaussian RNG.
+        jet_corr_factor: Optional multiplicative factor applied to raw pt/mass
+                         before JEC (useful for cross-checks; default ``1``).
+
+    Returns:
+        Awkward array with the same structure as :func:`apply_jerc_corrections`.
+    """
+    logging.info("Applying JSON-POG JEC/JER corrections")
+
+    from src.physics.objects.jetmet_tools.CorrectedJetsFactory import (
+        _JsonPogJEC, _JsonPogJER, _JsonPogJERSF, _JsonPogJUNC, _JsonPogJECStack,
+    )
+
+    cset       = correctionlib.CorrectionSet.from_file(jerc_file)
+    era        = "MC" if isMC else "DATA"
+    jec_tag    = f"{run_tag}_{jec_version}_{era}" if (not isMC and run_tag) else f"{jec_version}_{era}"
+    key_suffix = f"_{jet_type}"
+
+    # ── prepare raw quantities (identical to apply_jerc_corrections) ──────────
+    event["Jet", "pt_raw"]   = (1 - event.Jet.rawFactor) * event.Jet.pt   * jet_corr_factor
+    event["Jet", "mass_raw"] = (1 - event.Jet.rawFactor) * event.Jet.mass * jet_corr_factor
+    nominal_jet = event.Jet
+    if isMC:
+        nominal_jet["pt_gen"] = ak.values_astype(
+            ak.fill_none(nominal_jet.matched_gen.pt, 0), np.float32
+        )
+    nominal_jet["rho"] = ak.broadcast_arrays(
+        event.Rho.fixedGridRhoFastjetAll if "Rho" in event.fields else event.fixedGridRhoFastjetAll,
+        nominal_jet.pt,
+    )[0]
+
+    # ── JEC adapter ───────────────────────────────────────────────────────────
+    compound_key = f"{jec_campaign}_{jec_tag}_L1L2L3Res{key_suffix}"
+    jec = _JsonPogJEC(cset.compound[compound_key])
+
+    # ── JER adapters (MC only, when campaign/version are provided) ────────────
+    jer   = None
+    jersf = None
+    if isMC and jer_campaign and jer_version:
+        jer   = _JsonPogJER(cset[f"{jer_campaign}_{jer_version}_MC_PtResolution{key_suffix}"])
+        jersf = _JsonPogJERSF(cset[f"{jer_campaign}_{jer_version}_MC_ScaleFactor{key_suffix}"])
+
+    # ── JES uncertainty adapters ──────────────────────────────────────────────
+    junc = None
+    if run_systematics and junc_sources is not None:
+        key_prefix   = f"{jec_campaign}_{jec_tag}_"
+        sources      = junc_sources or _detect_junc_sources(cset, key_prefix, key_suffix)
+        known_keys   = set(cset.keys())
+        source_pairs = []
+        for src in sources:
+            key = f"{jec_campaign}_{jec_tag}_{src}{key_suffix}"
+            if key in known_keys:
+                source_pairs.append((src, cset[key]))
+            else:
+                logging.warning(f"JES source {key!r} not found in CorrectionSet, skipping")
+        if source_pairs:
+            junc = _JsonPogJUNC(source_pairs)
+
+    # ── assemble mock JECStack and run FixedCorrectedJetsFactory ─────────────
+    jec_stack = _JsonPogJECStack(jec=jec, jer=jer, jersf=jersf, junc=junc)
+
+    name_map = {
+        "JetPt":    "pt",
+        "JetMass":  "mass",
+        "JetEta":   "eta",
+        "JetPhi":   "phi",
+        "JetA":     "area",
+        "ptGenJet": "pt_gen",
+        "ptRaw":    "pt_raw",
+        "massRaw":  "mass_raw",
+        "Rho":      "rho",
+    }
+
+    from src.physics.objects.jetmet_tools import CorrectedJetsFactory
+    jet_factory = CorrectedJetsFactory(name_map, jec_stack)
+    return jet_factory.build(nominal_jet, event.event, seeds=seeds)
+
+
 def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):
     '''
     taken from https://github.com/PocketCoffea/PocketCoffea/blob/main/pocket_coffea/lib/cut_functions.py#L65

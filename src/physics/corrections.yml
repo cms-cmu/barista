@@ -20,18 +20,30 @@
     D: 'src/data/JEC/Summer19UL16APV_RunBCD_V7_DATA.tar.gz'
     E: 'src/data/JEC/Summer19UL16APV_RunEF_V7_DATA.tar.gz'
     F: 'src/data/JEC/Summer19UL16APV_RunEF_V7_DATA.tar.gz'
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016preVFP-UL-NanoAODv9/latest/jet_jerc.json.gz'
+    jec_campaign: Summer19UL16APV
+    jec_version: V7
+    jer_campaign: Summer20UL16APV
+    jer_version: JRV3
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      B: RunBCD
+      C: RunBCD
+      D: RunBCD
+      E: RunEF
+      F: RunEF
   JES_uncertainties:
-    - Absolute
-    - Absolute_2016
-    - BBEC1
-    - BBEC1_2016
-    - EC2
-    - EC2_2016
-    - FlavorQCD
-    - HF
-    - HF_2016
-    - RelativeBal
-    - RelativeSample_2016
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2016
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2016
+    - Regrouped_EC2
+    - Regrouped_EC2_2016
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2016
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2016
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016preVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0508
@@ -70,7 +82,7 @@
     tag: 2016postVFP
   mu_sf: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run2-2016postVFP-UL-NanoAODv9/2024-07-02/muon_Z.json.gz'
   jet_veto_maps: 
-    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/fatJet_jerc.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/jetvetomaps.json.gz'
     tag: Summer19UL16_V1
   JEC_MC: 'src/data/JEC/Summer19UL16_V7_MC.tar.gz'
   JER_MC: 'src/data/JEC/Summer20UL16_JRV3_MC.tar.gz'
@@ -78,18 +90,28 @@
     F: 'src/data/JEC/Summer19UL16_RunFGH_V7_DATA.tar.gz'
     G: 'src/data/JEC/Summer19UL16_RunFGH_V7_DATA.tar.gz'
     H: 'src/data/JEC/Summer19UL16_RunFGH_V7_DATA.tar.gz'
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL16
+    jec_version: V7
+    jer_campaign: Summer20UL16
+    jer_version: JRV3
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      F: RunFGH
+      G: RunFGH
+      H: RunFGH
   JES_uncertainties:
-    - Absolute
-    - Absolute_2016
-    - BBEC1
-    - BBEC1_2016
-    - EC2
-    - EC2_2016
-    - FlavorQCD
-    - HF
-    - HF_2016
-    - RelativeBal
-    - RelativeSample_2016
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2016
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2016
+    - Regrouped_EC2
+    - Regrouped_EC2_2016
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2016
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2016
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016postVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0480
@@ -137,18 +159,30 @@
     D: 'src/data/JEC/Summer19UL17_RunD_V5_DATA.tar.gz'
     E: 'src/data/JEC/Summer19UL17_RunE_V5_DATA.tar.gz'
     F: 'src/data/JEC/Summer19UL17_RunF_V5_DATA.tar.gz'
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2017-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL17   # campaign prefix used in JSON-POG key names
+    jec_version: V5              # JEC version tag
+    jer_campaign: Summer19UL17   # JER campaign (same as JEC for UL18; differs for UL16APV)
+    jer_version: JRV2            # JER version tag
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      B: RunB
+      C: RunC
+      D: RunD
+      E: RunE
+      F: RunF
   JES_uncertainties:
-    - Absolute
-    - Absolute_2017
-    - BBEC1
-    - BBEC1_2017
-    - EC2
-    - EC2_2017
-    - FlavorQCD
-    - HF
-    - HF_2017
-    - RelativeBal
-    - RelativeSample_2017
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2017
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2017
+    - Regrouped_EC2
+    - Regrouped_EC2_2017
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2017
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2017
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2017-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0532
@@ -178,36 +212,40 @@
     - ecalBadCalibFilter
   rochesterCorrections: data/Muon/RoccoR2017UL.txt
 
-'UL18': 
+'UL18':
   year_label: '2018'
   goldenJSON: 'src/data/goldenJSON/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt'
   PU: '/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run2-2018-UL-NanoAODv9/2021-09-10/puWeights.json.gz'
-  ele_sf: 
+  ele_sf:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run2-2018-UL-NanoAODv9/2024-07-02/electron.json.gz'
     tag: '2018'
   mu_sf: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run2-2018-UL-NanoAODv9/2024-07-02/muon_Z.json.gz'
-  jet_veto_maps: 
+  jet_veto_maps:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jetvetomaps.json.gz'
     tag: Summer19UL18_V1
-  JEC_MC: 'src/data/JEC/Summer19UL18_V5_MC.tar.gz'
-  JER_MC: 'src/data/JEC/Summer19UL18_JRV2_MC.tar.gz'
-  JEC_DATA:
-    A: 'src/data/JEC/Summer19UL18_RunA_V5_DATA.tar.gz'
-    B: 'src/data/JEC/Summer19UL18_RunB_V5_DATA.tar.gz'
-    C: 'src/data/JEC/Summer19UL18_RunC_V5_DATA.tar.gz'
-    D: 'src/data/JEC/Summer19UL18_RunD_V5_DATA.tar.gz'
-  JES_uncertainties:
-    - Absolute
-    - Absolute_2018
-    - BBEC1
-    - BBEC1_2018
-    - EC2
-    - EC2_2018
-    - FlavorQCD
-    - HF
-    - HF_2018
-    - RelativeBal
-    - RelativeSample_2018
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL18   # campaign prefix used in JSON-POG key names
+    jec_version: V5              # JEC version tag
+    jer_campaign: Summer19UL18   # JER campaign (same as JEC for UL18; differs for UL16APV)
+    jer_version: JRV2            # JER version tag
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      A: RunA
+      B: RunB
+      C: RunC
+      D: RunD
+  JES_uncertainties:  # JSON-POG Regrouped source names (used with apply_jerc_corrections_jsonpog)
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2018
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2018
+    - Regrouped_EC2
+    - Regrouped_EC2_2018
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2018
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2018
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2018-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0490
@@ -235,11 +273,6 @@
     - BadPFMuonDzFilter
     - hfNoisyHitsFilter
     - ecalBadCalibFilter
-  jec: 
-    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
-    data_campaign: Summer19UL18
-    jec_campaign: V5
-    jer_campaign: JRV2
   rochesterCorrections: data/Muon/RoccoR2018UL.txt
 
 '2022_preEE':
