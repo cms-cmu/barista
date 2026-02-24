@@ -270,7 +270,7 @@ def main():
     )
     parser.add_argument(
         "-o", "--output-dir", default=None,
-        help="Output directory. Default: plotsForPaper/hepdata_submission/ "
+        help="Output directory. Default: plotsForPaper_output/hepdata_submission/ "
              "in the current working directory.",
     )
     parser.add_argument(
@@ -295,9 +295,9 @@ def main():
             print(f"ERROR: File not found: {f}")
             sys.exit(1)
 
-    # Default output dir: plotsForPaper/hepdata_submission/ in cwd
+    # Default output dir: plotsForPaper_output/hepdata_submission/ in cwd
     if args.output_dir is None:
-        output_dir = os.path.join("plotsForPaper", "hepdata_submission")
+        output_dir = os.path.join("plotsForPaper_output", "hepdata_submission")
     else:
         output_dir = args.output_dir
 
