@@ -38,8 +38,22 @@ install-reana = "pip install --pre reana-client==0.95.0a2"
 # jupyter = "*"
 # ipython = "*"
 
+[feature.hepdata.dependencies]
+# Lightweight env for HEPData submission (used ~once/year)
+python = ">=3.11"
+pip = "*"
+
+[feature.hepdata.pypi-dependencies]
+hepdata-validator = "*"
+hepdata-lib = "*"
+
+[feature.hepdata.tasks]
+validate = "hepdata-validate"
+
 [environments]
 # Default environment includes all base dependencies
 default = {features = [], solve-group = "default"}
 # Development environment includes dev dependencies
 dev = {features = ["dev"], solve-group = "default"}
+# HEPData tools (validate/create submissions)
+hepdata = {features = ["hepdata"], solve-group = "hepdata"}
