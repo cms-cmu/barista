@@ -847,7 +847,7 @@ if __name__ == '__main__':
         '-e', '--eras',
         nargs='+',
         dest='era',
-        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'C01', 'C02', 'C11', 'C12', 'C3', 'C4', 'D1', 'D2'],
         help='Data era(s) to process (data only). Examples: --eras A B C'
     )
 

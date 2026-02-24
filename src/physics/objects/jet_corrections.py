@@ -71,7 +71,17 @@ def apply_jerc_corrections( event,
 
     logging.info(f"Applying JEC/JER corrections for {dataset}")
 
-    jec_file = corrections_metadata['JEC_MC'] if isMC else corrections_metadata['JEC_DATA'][dataset[-1]]
+    if isMC:
+        jec_file = corrections_metadata['JEC_MC']
+    else:
+        jec_data = corrections_metadata['JEC_DATA']
+        jec_file = None
+        for key in sorted(jec_data, key=len, reverse=True):
+            if dataset.endswith(key):
+                jec_file = jec_data[key]
+                break
+        if jec_file is None:
+            raise KeyError(f"No JEC_DATA key matched dataset {dataset!r}; available keys: {list(jec_data.keys())}")
     extracted_files = extract_jetmet_tar_files(jec_file, jet_type=jet_type)
     if run_systematics: jec_levels.append("RegroupedV2")
     weight_sets = list(set([file for level in jec_levels for file in extracted_files if level in file]))  ## list(set()) to remove duplicates
@@ -136,53 +146,11 @@ def apply_jerc_corrections( event,
 
     return jet_variations
 
-##### JER needs to be included
-def jet_corrections( uncorr_jets,
-                    fixedGridRhoFastjetAll,
-                    isMC,
-                    jercFile="/cvmfs/cms.cern.ch/rsync/cms-nanoAOD/jsonpog-integration/POG/JME/2018_UL/jet_jerc.json.gz",
-                    data_campaign="Summer19UL18",
-                    jec_campaign='V5_MC',
-                    jer_campaign='JRV2_MC',
-                    jec_type=["L1L2L3Res"],  ####, "PtResolution", 'ScaleFactor'
-                    jettype='AK4PFchs',
-                    variation='nom'
-                    ):
-
-    JECFile = correctionlib.CorrectionSet.from_file(jercFile)
-    # preparing jets
-    uncorr_jets['pt_raw'] = (1 - uncorr_jets['rawFactor']) * uncorr_jets['pt']
-    uncorr_jets['mass_raw'] = (1 - uncorr_jets['rawFactor']) * uncorr_jets['mass']
-    uncorr_jets['rho'] = ak.broadcast_arrays(fixedGridRhoFastjetAll, uncorr_jets.pt)[0]
-    j, nj = ak.flatten(uncorr_jets), ak.num(uncorr_jets)
-
-    jec_campaign = f'{jec_campaign}_{"MC" if isMC else "DATA"}'
-
-    total_flat_jec = np.ones( len(j), dtype="float32" )
-    for ijec in jec_type:
-
-        if 'L1' in ijec:
-            corr = JECFile.compound[f'{data_campaign}_{jec_campaign}_{ijec}_{jettype}'] if 'L1L2L3' in ijec else JECFile[f'{data_campaign}_{jec_campaign}_{ijec}_{jettype}']
-            flat_jec = corr.evaluate( j['area'], j['eta'], j['pt_raw'], j['rho']  )
-        else:
-            corr = JECFile[f'{data_campaign}_{jec_campaign}_{ijec}_{jettype}']
-            flat_jec = corr.evaluate( j['eta'], j['pt_raw']  )
-        total_flat_jec *= flat_jec
-    jec = ak.unflatten(total_flat_jec, nj)
-
-    corr_jets = uncorr_jets
-    corr_jets['jet_energy_correction'] = jec
-    corr_jets['pt'] = corr_jets.pt_raw * jec
-    corr_jets['mass'] = corr_jets.mass_raw * jec
-
-    return corr_jets
-
 # ── JSON-POG (correctionlib) based JERC ───────────────────────────────────────
 
 # Correction levels that appear in the JSON-POG key names but are NOT
 # JES uncertainty sources (used to filter them out during auto-detection).
 _JEC_LEVELS = frozenset({"L1FastJet", "L2Relative", "L3Absolute", "L2L3Residual", "L1RC"})
-
 
 def _detect_junc_sources(cset, prefix: str, suffix: str) -> list:
     """Return all JES uncertainty source names present in *cset*.
@@ -263,8 +231,19 @@ def apply_jerc_corrections_jsonpog(
     jec_version  = jec_meta["jec_version"]
     jer_campaign = jec_meta.get("jer_campaign")
     jer_version  = jec_meta.get("jer_version")
-    run_tag      = jec_meta.get("run_tags", {}).get(dataset[-1]) if (not isMC and dataset) else None
     junc_sources = corrections_metadata.get("jes_unc") if run_systematics else None
+
+    # Resolve run_tag for DATA: match the dataset suffix against run_tags keys
+    # (longest match first to handle multi-char eras like C01, D1, etc.)
+    run_tag = None
+    if not isMC and dataset:
+        run_tags = jec_meta.get("run_tags", {})
+        for key in sorted(run_tags, key=len, reverse=True):
+            if dataset.endswith(key):
+                run_tag = run_tags[key]
+                break
+        if run_tag is None and run_tags:
+            logging.warning(f"No run_tag matched for dataset {dataset!r} in {list(run_tags.keys())}")
 
     cset       = correctionlib.CorrectionSet.from_file(jerc_file)
     era        = "MC" if isMC else "DATA"
