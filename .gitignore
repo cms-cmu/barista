@@ -190,3 +190,5 @@ set_ROOT.sh
 */*/.DS_Store
 tmp/
 pixi*
+.pixi*
+test.pdf*~
