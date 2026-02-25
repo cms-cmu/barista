@@ -32,6 +32,30 @@
     - HF_2016
     - RelativeBal
     - RelativeSample_2016
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016preVFP-UL-NanoAODv9/latest/jet_jerc.json.gz'
+    jec_campaign: Summer19UL16APV
+    jec_version: V7
+    jer_campaign: Summer20UL16APV
+    jer_version: JRV3
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      B: RunBCD
+      C: RunBCD
+      D: RunBCD
+      E: RunEF
+      F: RunEF
+  jes_unc:
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2016
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2016
+    - Regrouped_EC2
+    - Regrouped_EC2_2016
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2016
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2016
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016preVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0508
@@ -70,7 +94,7 @@
     tag: 2016postVFP
   mu_sf: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run2-2016postVFP-UL-NanoAODv9/2024-07-02/muon_Z.json.gz'
   jet_veto_maps: 
-    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/fatJet_jerc.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/jetvetomaps.json.gz'
     tag: Summer19UL16_V1
   JEC_MC: 'src/data/JEC/Summer19UL16_V7_MC.tar.gz'
   JER_MC: 'src/data/JEC/Summer20UL16_JRV3_MC.tar.gz'
@@ -90,6 +114,28 @@
     - HF_2016
     - RelativeBal
     - RelativeSample_2016
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2016postVFP-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL16
+    jec_version: V7
+    jer_campaign: Summer20UL16
+    jer_version: JRV3
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      F: RunFGH
+      G: RunFGH
+      H: RunFGH
+  jes_unc:
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2016
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2016
+    - Regrouped_EC2
+    - Regrouped_EC2_2016
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2016
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2016
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016postVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0480
@@ -149,6 +195,30 @@
     - HF_2017
     - RelativeBal
     - RelativeSample_2017
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2017-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL17   # campaign prefix used in JSON-POG key names
+    jec_version: V5              # JEC version tag
+    jer_campaign: Summer19UL17   # JER campaign (same as JEC for UL18; differs for UL16APV)
+    jer_version: JRV2            # JER version tag
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      B: RunB
+      C: RunC
+      D: RunD
+      E: RunE
+      F: RunF
+  jes_unc:
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2017
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2017
+    - Regrouped_EC2
+    - Regrouped_EC2_2017
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2017
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2017
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2017-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0532
@@ -178,15 +248,15 @@
     - ecalBadCalibFilter
   rochesterCorrections: data/Muon/RoccoR2017UL.txt
 
-'UL18': 
+'UL18':
   year_label: '2018'
   goldenJSON: 'src/data/goldenJSON/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt'
   PU: '/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run2-2018-UL-NanoAODv9/2021-09-10/puWeights.json.gz'
-  ele_sf: 
+  ele_sf:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run2-2018-UL-NanoAODv9/2024-07-02/electron.json.gz'
     tag: '2018'
   mu_sf: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run2-2018-UL-NanoAODv9/2024-07-02/muon_Z.json.gz'
-  jet_veto_maps: 
+  jet_veto_maps:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jetvetomaps.json.gz'
     tag: Summer19UL18_V1
   JEC_MC: 'src/data/JEC/Summer19UL18_V5_MC.tar.gz'
@@ -208,6 +278,29 @@
     - HF_2018
     - RelativeBal
     - RelativeSample_2018
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
+    jec_campaign: Summer19UL18   # campaign prefix used in JSON-POG key names
+    jec_version: V5              # JEC version tag
+    jer_campaign: Summer19UL18   # JER campaign (same as JEC for UL18; differs for UL16APV)
+    jer_version: JRV2            # JER version tag
+    run_tags:                    # maps dataset era letter → JSON-POG run tag (DATA only)
+      A: RunA
+      B: RunB
+      C: RunC
+      D: RunD
+  jes_unc:  # JSON-POG Regrouped source names (used with apply_jerc_corrections_jsonpog)
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2018
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2018
+    - Regrouped_EC2
+    - Regrouped_EC2_2018
+    - Regrouped_FlavorQCD
+    - Regrouped_HF
+    - Regrouped_HF_2018
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2018
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2018-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0490
@@ -235,11 +328,6 @@
     - BadPFMuonDzFilter
     - hfNoisyHitsFilter
     - ecalBadCalibFilter
-  jec: 
-    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run2-2018-UL-NanoAODv9/2025-04-11/jet_jerc.json.gz'
-    data_campaign: Summer19UL18
-    jec_campaign: V5
-    jer_campaign: JRV2
   rochesterCorrections: data/Muon/RoccoR2018UL.txt
 
 '2022_preEE':
@@ -259,10 +347,22 @@
   JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V2_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
-    B: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
-    C: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz'
-    D: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz'
+    B: &2022_B 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
+    C: *2022_B
+    D: *2022_B
   JES_uncertainties:
+    - DUMMY
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2025-09-23/jet_jerc.json.gz'
+    jec_campaign: Summer22_22Sep2023
+    jec_version: V3
+    jer_campaign: Summer22_22Sep2023
+    jer_version: JRV1
+    run_tags:
+      B: RunCD
+      C: RunCD
+      D: RunCD
+  jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:   # https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22/#ak4-b-tagging
@@ -312,6 +412,18 @@
     G: 'src/data/JEC/Summer22EE_22Sep2023_RunG_V2_DATA.tar.gz'
   JES_uncertainties:
     - DUMMY
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-10-07/jet_jerc.json.gz'
+    jec_campaign: Summer22EE_22Sep2023
+    jec_version: V3
+    jer_campaign: Summer22EE_22Sep2023
+    jer_version: JRV1
+    run_tags:
+      E: RunE
+      F: RunF
+      G: RunG
+  jes_unc:  
+    - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:  #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22EE/#ak4-b-tagging
     #L: 0.0499
@@ -355,13 +467,36 @@
   JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras are C. Labels in the code are arbitrary
-    A: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    B: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    D: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    E: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    F: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    C01: &2023_C01 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    C02: *2023_C01
+    C03: *2023_C01
+    C11: *2023_C01
+    C12: *2023_C01
+    C13: *2023_C01
+    C3: *2023_C01
+    C4: &2023_C4 'src/data/JEC/Summer23Prompt23_RunCv4_V4_DATA.tar.gz'
+    C04: *2023_C4
+    C14: *2023_C4
   JES_uncertainties:
+    - DUMMY
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-10-07/jet_jerc.json.gz'
+    jec_campaign: Summer23Prompt23
+    jec_version: V3
+    jer_campaign: Summer23Prompt23
+    jer_version: RunCv1_JRV1
+    run_tags:
+      C01: &2023_C_run_tag RunCv123
+      C02: *2023_C_run_tag
+      C03: *2023_C_run_tag
+      C11: *2023_C_run_tag
+      C12: *2023_C_run_tag
+      C13: *2023_C_run_tag
+      C3:  *2023_C_run_tag
+      C4: &2023_C4_run_tag RunCv4
+      C04: *2023_C4_run_tag
+      C14: *2023_C4_run_tag
+  jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23/#ak4-b-tagging
@@ -406,9 +541,28 @@
   JEC_MC: 'src/data/JEC/Summer23BPixPrompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras here are officially era D. Labels in the code are arbitrary
-    D: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
-    E: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
+    D1: &2023_D1 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
+    D2: *2023_D1
+    D01: *2023_D1
+    D02: *2023_D1
+    D11: *2023_D1
+    D12: *2023_D1
   JES_uncertainties:
+    - DUMMY
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-10-07/jet_jerc.json.gz'
+    jec_campaign: Summer23BPixPrompt23
+    jec_version: V3
+    jer_campaign: Summer23BPixPrompt23
+    jer_version: RunD_JRV1
+    run_tags:
+      D1: &2023_D_run_tag RunD
+      D2: *2023_D_run_tag
+      D01: *2023_D_run_tag
+      D02: *2023_D_run_tag
+      D11: *2023_D_run_tag
+      D12: *2023_D_run_tag
+  jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
