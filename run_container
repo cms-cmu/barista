@@ -42,6 +42,7 @@ Commands:
   brilcalc [cmd...]     Run commands inside the brilcalc container.
   snakemake [opts]      Run snakemake using the local Pixi environment.
                         Use --reinstall to clean environment.
+  reana [opts]          Run reana-client using the local Pixi environment.
   snakemake_container   Run snakemake inside a container (backup option).
   --help                Show this help message.
 
@@ -50,6 +51,7 @@ Examples:
   $0 python script.py    Run script in Coffea container.
   $0 combine             Open Combine container.
   $0 snakemake -s Snakefile
+  $0 reana ls
   $0 classifier          Run commands inside the classifier with GPU container.
   $0 classifier_cpu      Run commands inside the classifier with CPU container.
 EOF
@@ -61,6 +63,10 @@ setup_host_env() {
     local HOST
     HOST=$(hostname)
     info "Determining configuration for hostname: $HOST"
+
+    # Prevent Python from loading ~/.local/lib/pythonX.Y/site-packages from the host
+    export APPTAINERENV_PYTHONNOUSERSITE=1
+    export PYTHONNOUSERSITE=1
 
     # Common Bind Paths
     local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
@@ -134,7 +140,7 @@ run_coffea() {
     setup_lpc_jobqueue
 
     # 1. Base Flags
-    local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
+    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --pwd /srv/ )
     
     # LPC-Specific Environment Variable
     if [[ $(hostname) == *"cmslpc"* ]]; then
@@ -144,7 +150,7 @@ run_coffea() {
     # 2. FALCON / ROGUE Logic
     if [[ $(hostname) == *falcon* || $(hostname) == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
+        FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
@@ -184,7 +190,7 @@ run_combine() {
     check_apptainer
     info "Running Combine container..."
     local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
-    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
+    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
@@ -196,7 +202,7 @@ run_combine() {
 run_brilcalc() {
     check_apptainer
     info "Running Brilcalc container..."
-    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
+    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
@@ -211,7 +217,7 @@ run_classifier() {
 
     local INIT_FILE="/entrypoint.sh"
     local USE_SLURM=false
-    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
+    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
 
     # Bind X509 proxy for XRootD authentication
@@ -261,7 +267,7 @@ run_snakemake_container() {
     [[ -z "$1" ]] && { error "No arguments supplied."; show_help; exit 1; }
     [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]] && { error "--snakefile (-s) argument required."; exit 1; }
 
-    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
+    APPTAINER_SHELL=$(which bash) apptainer exec "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
 }
 
 # --- Pixi / Snakemake Local ---
@@ -315,12 +321,6 @@ run_snakemake() {
     # Install Environment
     pixi install || { error "Pixi install failed."; exit 1; }
 
-    # Install Reana Client (Custom)
-    if ! pixi run python -c "import reana_client" 2>/dev/null; then
-        info "Installing reana-client..."
-        pixi run install-reana || warning "reana-client install failed."
-    fi
-
     # Execute
     if [ "${ARGS[0]}" = "source" ]; then
         pixi run bash -c "${ARGS[*]}"
@@ -330,9 +330,60 @@ run_snakemake() {
     info "Execution finished successfully!"
 }
 
+run_reana() {
+    info "Running REANA client with Pixi environment..."
+    set -eo pipefail
+
+    local REINSTALL=false
+    local ARGS=()
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --reinstall|--fresh) REINSTALL=true; shift ;;
+            --help|-h) ARGS+=("--help"); shift ;;
+            source) ARGS+=("$@"); break ;;
+            *) ARGS+=("$1"); shift ;;
+        esac
+    done
+
+    [[ ${#ARGS[@]} -eq 0 && "$REINSTALL" != true ]] && { error "No arguments supplied."; show_help; exit 1; }
+
+    # Install Pixi
+    install_pixi || { error "Pixi installation failed."; exit 1; }
+
+    # Reinstall logic
+    if [ "$REINSTALL" = true ]; then
+        info "Cleaning up environment..."
+        rm -f pixi.toml pixi.lock
+    fi
+
+    # Sync Config
+    local PIXI_CONFIG="software/pixi/pixi.toml"
+    if [ -f "${PIXI_CONFIG}" ]; then
+        cp "${PIXI_CONFIG}" pixi.toml
+    else
+        error "Template ${PIXI_CONFIG} not found."; exit 1
+    fi
+
+    # Install Environment
+    pixi install -e reana || { error "Pixi install failed."; exit 1; }
+
+    # Execute
+    export PYTHONNOUSERSITE=1
+    if [ "${ARGS[0]}" = "source" ]; then
+        pixi run -e reana bash -c "${ARGS[*]}"
+    else
+        pixi run -e reana reana-client "${ARGS[@]}"
+    fi
+    info "Execution finished successfully!"
+}
+
 # --- Main Dispatch ---
 
 setup_host_env
+
+# Default to strict isolation
+ISOLATED_FLAGS=( --contain --cleanenv )
 
 if [ "$1" == "--help" ]; then
     show_help
@@ -344,6 +395,7 @@ case "$1" in
     "brilcalc")            run_brilcalc "${@:2}" ;;
     "snakemake_container") run_snakemake_container "${@:2}" ;;
     "snakemake")           run_snakemake "${@:2}" ;;
+    "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
     "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     *)                     run_coffea "$@" ;;

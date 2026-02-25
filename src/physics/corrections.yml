@@ -347,9 +347,9 @@
   JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V2_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
-    B: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
-    C: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz'
-    D: 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz'
+    B: &2022_B 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
+    C: *2022_B
+    D: *2022_B
   JES_uncertainties:
     - DUMMY
   jec:
@@ -467,12 +467,16 @@
   JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras are C. Labels in the code are arbitrary
-    C01: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C02: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C11: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C12: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C3: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
-    C4: 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    C01: &2023_C01 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
+    C02: *2023_C01
+    C03: *2023_C01
+    C11: *2023_C01
+    C12: *2023_C01
+    C13: *2023_C01
+    C3: *2023_C01
+    C4: &2023_C4 'src/data/JEC/Summer23Prompt23_RunCv4_V4_DATA.tar.gz'
+    C04: *2023_C4
+    C14: *2023_C4
   JES_uncertainties:
     - DUMMY
   jec:
@@ -482,12 +486,16 @@
     jer_campaign: Summer23Prompt23
     jer_version: RunCv1_JRV1
     run_tags:
-      C01: RunCv123
-      C02: RunCv123
-      C11: RunCv123
-      C12: RunCv123
-      C3: RunCv123
-      C4: RunCv4
+      C01: &2023_C_run_tag RunCv123
+      C02: *2023_C_run_tag
+      C03: *2023_C_run_tag
+      C11: *2023_C_run_tag
+      C12: *2023_C_run_tag
+      C13: *2023_C_run_tag
+      C3:  *2023_C_run_tag
+      C4: &2023_C4_run_tag RunCv4
+      C04: *2023_C4_run_tag
+      C14: *2023_C4_run_tag
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
@@ -533,8 +541,12 @@
   JEC_MC: 'src/data/JEC/Summer23BPixPrompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA:  ### all eras here are officially era D. Labels in the code are arbitrary
-    D1: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
-    D2: 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
+    D1: &2023_D1 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
+    D2: *2023_D1
+    D01: *2023_D1
+    D02: *2023_D1
+    D11: *2023_D1
+    D12: *2023_D1
   JES_uncertainties:
     - DUMMY
   jec:
@@ -544,8 +556,14 @@
     jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1
     run_tags:
-      D1: RunD
-      D2: RunD
+      D1: &2023_D_run_tag RunD
+      D2: *2023_D_run_tag
+      D01: *2023_D_run_tag
+      D02: *2023_D_run_tag
+      D11: *2023_D_run_tag
+      D12: *2023_D_run_tag
+  jes_unc:  
+    - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
     #L: 0.0359
