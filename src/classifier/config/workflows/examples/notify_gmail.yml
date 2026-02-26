@@ -1,7 +1,0 @@
-# chmod 600
-
-setting:
-  - module: monitor.Gmail
-    option:
-      - address: example@gmail.com
-      - password: XXXX XXXX XXXX XXXX
