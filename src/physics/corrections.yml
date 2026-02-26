@@ -466,7 +466,7 @@
     tag: Summer23Prompt23_RunC_V1
   JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
-  JEC_DATA:  ### all eras are C. Labels in the code are arbitrary
+  JEC_DATA: 
     C01: &2023_C01 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
     C02: *2023_C01
     C03: *2023_C01
@@ -540,7 +540,7 @@
     tag: 'Summer23BPixPrompt23_RunD_V1'
   JEC_MC: 'src/data/JEC/Summer23BPixPrompt23_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
-  JEC_DATA:  ### all eras here are officially era D. Labels in the code are arbitrary
+  JEC_DATA:
     D1: &2023_D1 'src/data/JEC/Summer23BPixPrompt23_RunD_V4_DATA.tar.gz'
     D2: *2023_D1
     D01: *2023_D1
@@ -589,6 +589,81 @@
     - eeBadScFilter
     - ecalBadCalibFilter
   rochesterCorrections: data/Muon/DUMMY.txt
+
+'2024':  ##### ALL THESE VALUES SHOULD BE UPDATED
+  year_label: '2024'
+  goldenJSON: 'src/data/goldenJSON/Cert_Collisions2024_378981_386951_Golden.json'
+  PU: '/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/puWeights_BCDEFGHI.json.gz'
+  ele_sf: 
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-15/electron.json.gz'
+    HLT: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-15/electronHlt.json.gz'
+    tag: 2024Prompt
+  mu_sf: 
+    sf: /cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-11-27/muon_Z.json.gz
+    HLT: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-11-27/muon_Z.json.gz'
+  jet_veto_maps: 
+    file: /cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetvetomaps.json.gz
+    tag: 'Summer24Prompt24_RunBCDEFGHI_V1'
+  JEC_MC: 'src/data/JEC/Summer24Prompt24_V3_MC.tar.gz'
+  # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  JEC_DATA: 
+    C: 'src/data/JEC/Summer24Prompt24_RunCnib1_V2_DATA.tar.gz'
+    D: 'src/data/JEC/Summer24Prompt24_RunDnib1_V2_DATA.tar.gz'
+    E: 'src/data/JEC/Summer24Prompt24_RunEnib1_V2_DATA.tar.gz'
+    F1: 'src/data/JEC/Summer24Prompt24_RunFnib1_V2_DATA.tar.gz'
+    F2: 'src/data/JEC/Summer24Prompt24_RunFnib2_V2_DATA.tar.gz'
+    F3: 'src/data/JEC/Summer24Prompt24_RunFnib3_V2_DATA.tar.gz'
+    G1: 'src/data/JEC/Summer24Prompt24_RunGnib1_V2_DATA.tar.gz'
+    G2: 'src/data/JEC/Summer24Prompt24_RunGnib2_V2_DATA.tar.gz'
+    H: 'src/data/JEC/Summer24Prompt24_RunHnib1_V2_DATA.tar.gz'
+    I: 'src/data/JEC/Summer24Prompt24_RunInib1_V2_DATA.tar.gz'
+  JES_uncertainties:
+    - DUMMY
+  jec:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jet_jerc.json.gz'
+    jec_campaign: Summer24Prompt24
+    jec_version: V2
+    jer_campaign: Summer24Prompt24
+    jer_version: RunD_JRV1 ### DUMMY, TO BE UPDATED
+    run_tags:
+      C: RunCnib1
+      D: RunDnib1
+      E: RunEnib1
+      F1: RunFnib1
+      F2: RunFnib2
+      F3: RunFnib3
+      G1: RunGnib1
+      G2: RunGnib2
+      H: RunHnib1
+      I: RunInib1
+  jes_unc:  
+    - DUMMY
+  btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2026-01-30/btagging.json.gz'
+  btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
+    #L: 0.0359
+    L: 0.0879
+    #L: 0.1139
+    M: 0.1919
+  btag_uncertainties:
+    - cferr1
+    - cferr2
+    - hf
+    - hfstats1
+    - hfstats2
+    - lf
+    - lfstats1
+    - lfstats2
+  NoiseFilter:
+    - goodVertices
+    - globalSuperTightHalo2016Filter
+    - EcalDeadCellTriggerPrimitiveFilter    
+    - BadPFMuonFilter
+    - BadPFMuonDzFilter
+    - hfNoisyHitsFilter
+    - eeBadScFilter
+    - ecalBadCalibFilter
+  rochesterCorrections: data/Muon/DUMMY.txt
+
 
 # legacy for non UL HH4b sample
 '2016': 

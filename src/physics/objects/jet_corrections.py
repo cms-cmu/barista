@@ -1,4 +1,4 @@
-import os
+import os, sys
 import tarfile
 import logging
 
@@ -37,7 +37,7 @@ def extract_jetmet_tar_files(tar_file_name: str=None,
 
                 new_file_name = member.name
                 if ('Puppi' in jet_type) and (jet_type in member.name):
-                    if ('Summer23' not in member.name):
+                    if ('Summer23' not in member.name) and ('Summer24' not in member.name):  # only apply to old JECs where puppi and CHS files have different name formats
                         new_file_name = member.name.replace('_', '', 1) #22 and 23 corrections have different name formats
                         member.name = new_file_name
 
@@ -54,6 +54,8 @@ def extract_jetmet_tar_files(tar_file_name: str=None,
                 file_path = os.path.join(extract_path, member.name)
                 if jet_type in member.name:
                     extracted_files.append(f"* * {file_path}")
+
+    logging.debug(f"Extracted files for jet type {jet_type}: {extracted_files}")
 
     return extracted_files
 

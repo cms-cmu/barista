@@ -64,10 +64,6 @@ setup_host_env() {
     HOST=$(hostname)
     info "Determining configuration for hostname: $HOST"
 
-    # Prevent Python from loading ~/.local/lib/pythonX.Y/site-packages from the host
-    export APPTAINERENV_PYTHONNOUSERSITE=1
-    export PYTHONNOUSERSITE=1
-
     # Common Bind Paths
     local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
     local COMMON_BINDS="/cvmfs,${GRID_BINDS}"
@@ -140,17 +136,17 @@ run_coffea() {
     setup_lpc_jobqueue
 
     # 1. Base Flags
-    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --pwd /srv/ )
+    local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
     
     # LPC-Specific Environment Variable
     if [[ $(hostname) == *"cmslpc"* ]]; then
-        FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
+        FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy")
     fi
 
     # 2. FALCON / ROGUE Logic
     if [[ $(hostname) == *falcon* || $(hostname) == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
@@ -190,7 +186,7 @@ run_combine() {
     check_apptainer
     info "Running Combine container..."
     local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
-    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
+    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
@@ -202,7 +198,7 @@ run_combine() {
 run_brilcalc() {
     check_apptainer
     info "Running Brilcalc container..."
-    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
+    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
@@ -217,7 +213,7 @@ run_classifier() {
 
     local INIT_FILE="/entrypoint.sh"
     local USE_SLURM=false
-    local FLAGS=( "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --nv --pwd /srv )
+    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
 
     # Bind X509 proxy for XRootD authentication
@@ -267,7 +263,7 @@ run_snakemake_container() {
     [[ -z "$1" ]] && { error "No arguments supplied."; show_help; exit 1; }
     [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]] && { error "--snakefile (-s) argument required."; exit 1; }
 
-    APPTAINER_SHELL=$(which bash) apptainer exec "${ISOLATED_FLAGS[@]}" -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
+    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
 }
 
 # --- Pixi / Snakemake Local ---
@@ -381,9 +377,6 @@ run_reana() {
 # --- Main Dispatch ---
 
 setup_host_env
-
-# Default to strict isolation
-ISOLATED_FLAGS=( --contain --cleanenv )
 
 if [ "$1" == "--help" ]; then
     show_help
