@@ -277,43 +277,88 @@ def _draw_plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> None:
         if kwargs.get("debug", False):
             logger.info(f'\t in _draw_plot ... kwargs = {kwargs}')
         norm = kwargs.get("norm", False)
+        uniform_bins = kwargs.get("uniform_bins", False)
 
         # Draw the stack
         stack_dict = plot_data.get("stack", {})
         if not stack_dict:
             logger.warning("No stack data provided in plot_data")
 
-        stack_dict_for_hist = {}
-        for k, v in stack_dict.items():
-            try:
-                stack_dict_for_hist[k] = plot_helpers.make_hist(
-                    edges=v["edges"],
-                    values=v["values"],
-                    variances=v["variances"],
-                    x_label=v["x_label"],
-                    under_flow=v["under_flow"],
-                    over_flow=v["over_flow"],
-                    add_flow=kwargs.get("add_flow", False)
-                )
-            except KeyError as e:
-                logger.error(f"Missing required key in stack data: {e}")
-                raise
+        if uniform_bins and len(stack_dict):
+            # --- Uniform bin mode: manually draw stacked bars with integer x-positions ---
+            ax = plt.gca()
+            # Extract values and edges from each stack component
+            stack_keys = list(stack_dict.keys())
+            stack_values_list = []
+            stack_edges = None
+            for k in stack_keys:
+                v = stack_dict[k]
+                vals = np.array(v["values"], dtype=float)
+                if kwargs.get("add_flow", False):
+                    vals = vals.copy()
+                    vals[0] += v["under_flow"]
+                    vals[-1] += v["over_flow"]
+                if norm:
+                    total = vals.sum()
+                    if total > 0:
+                        vals = vals / total
+                stack_values_list.append(vals)
+                if stack_edges is None:
+                    stack_edges = np.array(v["edges"])
 
-        stack_colors_fill = [v.get("fillcolor") for _, v in stack_dict.items()]
-        stack_colors_edge = [v.get("edgecolor") for _, v in stack_dict.items()]
+            n = len(stack_values_list[0])
+            uniform_edges = np.arange(n + 1) - 0.5
+            bottoms = np.zeros(n)
 
-        if len(stack_dict_for_hist):
-            s = hist.Stack.from_dict(stack_dict_for_hist)
+            stack_colors_fill = [stack_dict[k].get("fillcolor") for k in stack_keys]
+            stack_colors_edge = [stack_dict[k].get("edgecolor") for k in stack_keys]
 
-            s.plot(stack=True, histtype="fill",
-                   color=stack_colors_fill,
-                   label=None,
-                   density=norm)
+            for i, vals in enumerate(stack_values_list):
+                ax.stairs(vals + bottoms, uniform_edges,
+                          color=stack_colors_fill[i], fill=True,
+                          baseline=bottoms, linewidth=0)
+                ax.stairs(vals + bottoms, uniform_edges,
+                          color=stack_colors_edge[i], linewidth=1.0,
+                          baseline=bottoms)
+                bottoms += vals
 
-            s.plot(stack=True, histtype="step",
-                   color=stack_colors_edge,
-                   label=None,
-                   density=norm)
+            # Store edges for tick labels (set later in _plot_from_dict)
+            plot_data["_uniform_bin_edges"] = stack_edges
+            plot_data["_uniform_n_bins"] = n
+
+        else:
+            # --- Original mode: use hist.Stack plotting ---
+            stack_dict_for_hist = {}
+            for k, v in stack_dict.items():
+                try:
+                    stack_dict_for_hist[k] = plot_helpers.make_hist(
+                        edges=v["edges"],
+                        values=v["values"],
+                        variances=v["variances"],
+                        x_label=v["x_label"],
+                        under_flow=v["under_flow"],
+                        over_flow=v["over_flow"],
+                        add_flow=kwargs.get("add_flow", False)
+                    )
+                except KeyError as e:
+                    logger.error(f"Missing required key in stack data: {e}")
+                    raise
+
+            stack_colors_fill = [v.get("fillcolor") for _, v in stack_dict.items()]
+            stack_colors_edge = [v.get("edgecolor") for _, v in stack_dict.items()]
+
+            if len(stack_dict_for_hist):
+                s = hist.Stack.from_dict(stack_dict_for_hist)
+
+                s.plot(stack=True, histtype="fill",
+                       color=stack_colors_fill,
+                       label=None,
+                       density=norm)
+
+                s.plot(stack=True, histtype="step",
+                       color=stack_colors_edge,
+                       label=None,
+                       density=norm)
 
         stack_patches = []
 
@@ -334,30 +379,81 @@ def _draw_plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> None:
         hist_artists = {}
         for hist_proc_name, hist_data in plot_data.get("hists", {}).items():
             try:
-                hist_obj = plot_helpers.make_hist(
-                    edges=hist_data["edges"],
-                    values=hist_data["values"],
-                    variances=hist_data["variances"],
-                    x_label=hist_data["x_label"],
-                    under_flow=hist_data["under_flow"],
-                    over_flow=hist_data["over_flow"],
-                    add_flow=kwargs.get("add_flow", False)
-                )
+                if uniform_bins:
+                    # --- Uniform bin mode: manually draw with integer x-positions ---
+                    ax = plt.gca()
+                    vals = np.array(hist_data["values"], dtype=float)
+                    varis = np.array(hist_data["variances"], dtype=float)
+                    edges = np.array(hist_data["edges"])
 
-                _plot_options = {
-                    "density": norm,
-                    "label": hist_data.get("label", ""),
-                    "color": hist_data.get('fillcolor', 'k'),
-                    "histtype": kwargs.get("histtype", hist_data.get("histtype", "errorbar")),
-                    "linewidth": kwargs.get("linewidth", hist_data.get("linewidth", 2)),
-                    "yerr": False,
-                }
+                    if kwargs.get("add_flow", False):
+                        vals = vals.copy()
+                        vals[0] += hist_data["under_flow"]
+                        vals[-1] += hist_data["over_flow"]
 
-                if kwargs.get("histtype", hist_data.get("histtype", "errorbar")) in ["errorbar"]:
-                    _plot_options["markersize"] = 12
-                    _plot_options["yerr"] = True
+                    if norm:
+                        total = vals.sum()
+                        if total > 0:
+                            varis = varis / (total ** 2)
+                            vals = vals / total
 
-                hist_artists[hist_data.get("label")] = hist_obj.plot(**_plot_options)[0]
+                    n = len(vals)
+                    x_positions = np.arange(n)
+                    errs = np.sqrt(varis)
+
+                    histtype = kwargs.get("histtype", hist_data.get("histtype", "errorbar"))
+                    color = hist_data.get('fillcolor', 'k')
+                    label = hist_data.get("label", "")
+
+                    if histtype == "errorbar":
+                        container = ax.errorbar(
+                            x_positions, vals, yerr=errs,
+                            fmt='o', color=color, label=label,
+                            markersize=12, linewidth=kwargs.get("linewidth", hist_data.get("linewidth", 2)),
+                        )
+                        hist_artists[label] = container
+                    elif histtype == "step":
+                        # Use stairs for step-style plot
+                        uniform_edges = np.arange(n + 1) - 0.5
+                        stairs_artist = ax.stairs(vals, uniform_edges,
+                                                  color=color, label=label,
+                                                  linewidth=kwargs.get("linewidth", hist_data.get("linewidth", 2)))
+                        hist_artists[label] = stairs_artist
+                    else:
+                        ax.bar(x_positions, vals, width=0.9,
+                               color=color, label=label,
+                               linewidth=kwargs.get("linewidth", hist_data.get("linewidth", 2)))
+
+                    # Store edges for tick labels
+                    plot_data["_uniform_bin_edges"] = edges
+                    plot_data["_uniform_n_bins"] = n
+
+                else:
+                    # --- Original mode ---
+                    hist_obj = plot_helpers.make_hist(
+                        edges=hist_data["edges"],
+                        values=hist_data["values"],
+                        variances=hist_data["variances"],
+                        x_label=hist_data["x_label"],
+                        under_flow=hist_data["under_flow"],
+                        over_flow=hist_data["over_flow"],
+                        add_flow=kwargs.get("add_flow", False)
+                    )
+
+                    _plot_options = {
+                        "density": norm,
+                        "label": hist_data.get("label", ""),
+                        "color": hist_data.get('fillcolor', 'k'),
+                        "histtype": kwargs.get("histtype", hist_data.get("histtype", "errorbar")),
+                        "linewidth": kwargs.get("linewidth", hist_data.get("linewidth", 2)),
+                        "yerr": False,
+                    }
+
+                    if kwargs.get("histtype", hist_data.get("histtype", "errorbar")) in ["errorbar"]:
+                        _plot_options["markersize"] = 12
+                        _plot_options["yerr"] = True
+
+                    hist_artists[hist_data.get("label")] = hist_obj.plot(**_plot_options)[0]
 
             except KeyError as e:
                 logger.error(f"Missing required key in histogram data: {e}")
@@ -498,6 +594,8 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
         _draw_plot_from_dict(plot_data, **kwargs)
 
+        uniform_bins = kwargs.get("uniform_bins", False)
+
         if do_ratio:
             top_xlabel = plt.gca().get_xlabel()
             plt.xlabel("")
@@ -520,21 +618,36 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
                     label = ratio_data.get("label", ratio_name)  # Use ratio_name as fallback
 
                     if error_bar_type == "band":
-                        # Only works for constant bin size
-                        bin_width = (ratio_data["centers"][1] - ratio_data["centers"][0])
+                        if uniform_bins:
+                            # Uniform bin mode: use integer positions with width=1
+                            n = len(ratio_data["ratio"])
+                            for i, (yi, err) in enumerate(zip(ratio_data["ratio"], ratio_data["error"])):
+                                plt.fill_between(
+                                    [i - 0.5, i + 0.5],
+                                    yi - err,
+                                    yi + err,
+                                    hatch=ratio_data.get("hatch", "/"),
+                                    edgecolor=ratio_data.get("color", "black"),
+                                    facecolor=ratio_data.get("facecolor", 'none'),
+                                    linewidth=0.0,
+                                    zorder=1
+                                )
+                        else:
+                            # Only works for constant bin size
+                            bin_width = (ratio_data["centers"][1] - ratio_data["centers"][0])
 
-                        # Create hatched error regions using fill_between
-                        for xi, yi, err in zip(ratio_data["centers"], ratio_data["ratio"], ratio_data["error"]):
-                            plt.fill_between(
-                                [xi - bin_width/2, xi + bin_width/2],
-                                yi - err,
-                                yi + err,
-                                hatch=ratio_data.get("hatch", "/"),
-                                edgecolor=ratio_data.get("color", "black"),
-                                facecolor=ratio_data.get("facecolor", 'none'),
-                                linewidth=0.0,
-                                zorder=1
-                            )
+                            # Create hatched error regions using fill_between
+                            for xi, yi, err in zip(ratio_data["centers"], ratio_data["ratio"], ratio_data["error"]):
+                                plt.fill_between(
+                                    [xi - bin_width/2, xi + bin_width/2],
+                                    yi - err,
+                                    yi + err,
+                                    hatch=ratio_data.get("hatch", "/"),
+                                    edgecolor=ratio_data.get("color", "black"),
+                                    facecolor=ratio_data.get("facecolor", 'none'),
+                                    linewidth=0.0,
+                                    zorder=1
+                                )
 
                         # Create a proxy artist for the legend
                         from matplotlib.patches import Rectangle
@@ -548,43 +661,43 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
                     elif error_bar_type in ["step","fill"]:
 
-                        hist_obj = plot_helpers.make_hist(
-                            edges=ratio_data["edges"],
-                            values=ratio_data["ratio"],
-                            variances=ratio_data["variances"],
-                            x_label=ratio_data.get("x_label",""),
-                            under_flow=ratio_data.get("under_flow",0),
-                            over_flow=ratio_data.get("over_flow", 0),
-                            add_flow=kwargs.get("add_flow", False)
-                        )
+                        if uniform_bins:
+                            # Uniform bin mode: use stairs with integer edges
+                            vals = np.array(ratio_data["ratio"], dtype=float)
+                            n = len(vals)
+                            uniform_edges = np.arange(n + 1) - 0.5
+                            color = ratio_data.get('fillcolor', 'k')
+                            lw = kwargs.get("linewidth", ratio_data.get("linewidth", 2))
 
-                        _plot_options = {
-                            "density": False,
-                            "label": ratio_data.get("label", ""),
-                            "color": ratio_data.get('fillcolor', 'k'),
-                            "histtype": ratio_data.get("type", "errorbar"),
-                            "linewidth": kwargs.get("linewidth", ratio_data.get("linewidth", 2)),
-                            "yerr": False,
-                        }
+                            if error_bar_type == "fill":
+                                stairs_artist = ratio_ax.stairs(vals, uniform_edges,
+                                                                color=color, fill=True,
+                                                                linewidth=0)
+                                legend_handles[label] = stairs_artist
+                                # Add edge
+                                edge_color = ratio_data.get('edgecolor', 'k')
+                                ratio_ax.stairs(vals, uniform_edges,
+                                                color=edge_color, linewidth=lw)
+                            else:
+                                stairs_artist = ratio_ax.stairs(vals, uniform_edges,
+                                                                color=color, linewidth=lw)
+                                legend_handles[label] = stairs_artist
+                        else:
+                            hist_obj = plot_helpers.make_hist(
+                                edges=ratio_data["edges"],
+                                values=ratio_data["ratio"],
+                                variances=ratio_data["variances"],
+                                x_label=ratio_data.get("x_label",""),
+                                under_flow=ratio_data.get("under_flow",0),
+                                over_flow=ratio_data.get("over_flow", 0),
+                                add_flow=kwargs.get("add_flow", False)
+                            )
 
-                        #if kwargs.get("histtype", hist_data.get("histtype", "errorbar")) in ["errorbar"]:
-                        #    _plot_options["markersize"] = 12
-                        #    _plot_options["yerr"] = True
-
-                        # Capture the plot handle - extract the stairs from StairsArtists
-                        plot_result = hist_obj.plot(**_plot_options)
-                        if plot_result and len(plot_result) > 0:
-                            stairs_artist = plot_result[0]
-                            # Extract the actual stairs object for the legend
-                            if hasattr(stairs_artist, 'stairs') and stairs_artist.stairs is not None:
-                                legend_handles[label] = stairs_artist.stairs
-
-                        if ratio_data.get("type") == "fill":
-                            _plot_options_edge = {
+                            _plot_options = {
                                 "density": False,
                                 "label": ratio_data.get("label", ""),
-                                "color": ratio_data.get('edgecolor', 'k'),
-                                "histtype": "step",
+                                "color": ratio_data.get('fillcolor', 'k'),
+                                "histtype": ratio_data.get("type", "errorbar"),
                                 "linewidth": kwargs.get("linewidth", ratio_data.get("linewidth", 2)),
                                 "yerr": False,
                             }
@@ -594,20 +707,56 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
                             #    _plot_options["yerr"] = True
 
                             # Capture the plot handle - extract the stairs from StairsArtists
-                            plot_result = hist_obj.plot(**_plot_options_edge)
+                            plot_result = hist_obj.plot(**_plot_options)
+                            if plot_result and len(plot_result) > 0:
+                                stairs_artist = plot_result[0]
+                                # Extract the actual stairs object for the legend
+                                if hasattr(stairs_artist, 'stairs') and stairs_artist.stairs is not None:
+                                    legend_handles[label] = stairs_artist.stairs
+
+                            if ratio_data.get("type") == "fill":
+                                _plot_options_edge = {
+                                    "density": False,
+                                    "label": ratio_data.get("label", ""),
+                                    "color": ratio_data.get('edgecolor', 'k'),
+                                    "histtype": "step",
+                                    "linewidth": kwargs.get("linewidth", ratio_data.get("linewidth", 2)),
+                                    "yerr": False,
+                                }
+
+                                #if kwargs.get("histtype", hist_data.get("histtype", "errorbar")) in ["errorbar"]:
+                                #    _plot_options["markersize"] = 12
+                                #    _plot_options["yerr"] = True
+
+                                # Capture the plot handle - extract the stairs from StairsArtists
+                                plot_result = hist_obj.plot(**_plot_options_edge)
 
 
 
                     else:
-                        handle = ratio_ax.errorbar(
-                            ratio_data["centers"],
-                            ratio_data["ratio"],
-                            yerr=ratio_data["error"],
-                            color=ratio_data.get("color", "black"),
-                            marker=ratio_data.get("marker", "o"),
-                            linestyle=ratio_data.get("linestyle", "none"),
-                            markersize=ratio_data.get("markersize", 4),
-                        )
+                        if uniform_bins:
+                            # Uniform bin mode: use integer positions
+                            n = len(ratio_data["ratio"])
+                            x_positions = np.arange(n)
+                            handle = ratio_ax.errorbar(
+                                x_positions,
+                                ratio_data["ratio"],
+                                yerr=ratio_data["error"],
+                                color=ratio_data.get("color", "black"),
+                                marker=ratio_data.get("marker", "o"),
+                                linestyle=ratio_data.get("linestyle", "none"),
+                                markersize=ratio_data.get("markersize", 4),
+                            )
+                        else:
+                            handle = ratio_ax.errorbar(
+                                ratio_data["centers"],
+                                ratio_data["ratio"],
+                                yerr=ratio_data["error"],
+                                color=ratio_data.get("color", "black"),
+                                marker=ratio_data.get("marker", "o"),
+                                linestyle=ratio_data.get("linestyle", "none"),
+                                markersize=ratio_data.get("markersize", 4),
+                            )
                         legend_handles[label] = handle
 
 
@@ -631,6 +780,24 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
 
                 print(handles, labels)
                 ratio_ax.legend(handles, labels, ncol=2, loc=kwargs.get("ratio_legend_loc",'upper left'))  # or specify location like loc='upper right'
+
+        # Set uniform bin tick labels on the bottom-most axis
+        if uniform_bins and "_uniform_bin_edges" in plot_data:
+            n = plot_data["_uniform_n_bins"]
+            bottom_ax = ratio_ax if do_ratio else main_ax
+            # Show bin index as label, with sparse ticks to avoid clutter
+            tick_step = kwargs.get("uniform_bins_tick_step", max(1, n // 10))
+            tick_positions = list(range(0, n, tick_step))
+            bottom_ax.set_xticks(tick_positions)
+            bottom_ax.set_xticklabels([str(i) for i in tick_positions],
+                                       fontsize=kwargs.get("uniform_bins_fontsize", 14))
+            bottom_ax.set_xlim(-0.5, n - 0.5)
+            if not kwargs.get("xlabel", None):
+                bottom_ax.set_xlabel("Bin index", loc='right',
+                                      fontsize=kwargs.get('xlabel_fontsize', 30))
+            # Clean up temporary keys
+            del plot_data["_uniform_bin_edges"]
+            del plot_data["_uniform_n_bins"]
 
         return fig, main_ax, ratio_ax
 
