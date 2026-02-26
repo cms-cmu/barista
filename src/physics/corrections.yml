@@ -604,7 +604,7 @@
   jet_veto_maps: 
     file: /cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetvetomaps.json.gz
     tag: 'Summer24Prompt24_RunBCDEFGHI_V1'
-  JEC_MC: 'src/data/JEC/Summer24Prompt24_V2_MC.tar.gz'
+  JEC_MC: 'src/data/JEC/Summer24Prompt24_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
     C: 'src/data/JEC/Summer24Prompt24_RunCnib1_V2_DATA.tar.gz'
