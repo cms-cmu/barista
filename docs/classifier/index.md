@@ -28,66 +28,70 @@
 
 !!! note
 
-    You are assumed to be in the `/coffea4bees/` directory to run the following commands.
+    You are assumed to be in the `barista/` directory to run the following commands.
 
-#### Use Container (Recommended)
+#### Container Setup and Usage
 
-!!! warning
+The classifier runs in dedicated Apptainer containers with different modes for GPU and CPU workloads.
 
-    You may need to change the apptainer cache and temp directory before pulling any image, especially when the home directory has a limited quota. The directories are controlled by the following environment variables:
-    ```bash
+##### Container Types
 
-    export APPTAINER_CACHEDIR=
-    export APPTAINER_TMPDIR=
-    ```
+- **GPU Container** (`classifier`): For training and GPU-accelerated inference
+- **CPU Container** (`classifier_cpu`): For data processing, evaluation, and CPU-only tasks
 
-The docker image is available as:
+##### Cluster-Specific Behavior
 
-- `docker://chuyuanliu/heptools:ml`
-- `/cvmfs/unpacked.cern.ch/registry.hub.docker.com/chuyuanliu/heptools:ml` (only when CVMFS is available)
+**On FALCON cluster:**
 
-The image is built from the following configurations:
+- All jobs with commands automatically submit to SLURM batch queue
+- Interactive shells (CPU only) launch in an interactive SLURM session (`srun`)
 
-- [`base.Dockerfile`](https://github.com/chuyuanliu/heptools/blob/be5a3122dd506a3899d1a69bf48770e1569bfeed/docker/base.Dockerfile): base image
-- [`ml.Dockerfile`](https://github.com/chuyuanliu/heptools/blob/be5a3122dd506a3899d1a69bf48770e1569bfeed/docker/ml.Dockerfile): ml image derived from base image
-- [`base.yml`](https://github.com/chuyuanliu/heptools/blob/be5a3122dd506a3899d1a69bf48770e1569bfeed/docker/base.yml): used by `base.Dockerfile`
-- [`base-linux.yml`](https://github.com/chuyuanliu/heptools/blob/be5a3122dd506a3899d1a69bf48770e1569bfeed/docker/base-linux.yml): used by `base.Dockerfile`
-- [`ml.yml`](https://github.com/chuyuanliu/heptools/blob/be5a3122dd506a3899d1a69bf48770e1569bfeed/docker/ml.yml): used by `ml.Dockerfile`
+**On other clusters (LPC, lxplus, etc.):**
 
-Run the following command to start an interactive shell:
+- Jobs run locally in the container without SLURM submission
+
+##### Usage Examples
+
+**GPU Container**
 
 ```bash
-apptainer exec \
-    -B .:/srv \
-    --nv \
-    --pwd /srv \
-    docker://chuyuanliu/heptools:ml \
-    bash --init-file /entrypoint.sh
+# Run training script (submits to SLURM on FALCON, runs locally elsewhere)
+./run_container classifier python train_model.py
+
+# GPU interactive mode is NOT supported (security restriction)
 ```
 
-where:
+!!! warning "GPU Interactive Mode"
+    Interactive shells are disabled for the GPU container to prevent accidental resource consumption on GPU nodes.
 
-- `-B .:/srv` mount the current directory to `/srv`
-- `--nv` enable GPU
-- `--pwd /srv` equivalent to `cd /srv` when starting the container
-- `bash --init-file /entrypoint.sh` (**important**) start a bash shell and run the initialization script.
+**CPU Container**
 
-#### Use Conda
+```bash
+# Run processing script (submits to SLURM on FALCON, runs locally elsewhere)
+./run_container classifier_cpu python process_data.py
 
-The conda environment can be created from the `base.yml`, `base-linux.yml` and `ml.yml` files listed above.
-`classifier/env.yml` is deprecated and not actively maintained.
+# Interactive shell on FALCON (auto-submits interactive SLURM job)
+./run_container classifier_cpu
 
-#### `rogue01/rogue02` specific
+# Interactive shell on other clusters (opens immediately)
+./run_container classifier_cpu
+```
 
-- change the cache and temp directory for apptainer:
+!!! tip "Checking Interactive Mode"
+    When in an interactive SLURM session on FALCON, check the job ID:
+    ```bash
+    echo $SLURM_JOB_ID  # Non-empty = you're in a SLURM job
+    ```
 
-    1. `mkdir -p /mnt/scratch/${USER}/.apptainer`
-    2. add the following to `~/.bashrc`
+#### Slurm Behavior and Job Monitoring (on Falcon)
 
-        ```bash
-        export APPTAINER_TMPDIR=/mnt/scratch/${USER}/.apptainer/
-        export APPTAINER_CACHEDIR=/mnt/scratch/${USER}/.apptainer/
-        ```
+* to check status of the job, use squeue
+* the slurm configuration is inside `barista/software/slurm/slurm.conf` if you need to request more resources
+* to check the progress of the submitted job:
+
+```
+tail -f slurm_logs/classifier_batch_<job_id>.out
+```
 
 ## Command-line Interface
 

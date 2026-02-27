@@ -29,6 +29,23 @@ check_apptainer() {
     command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed. Aborting."; exit 1; }
 }
 
+add_x509_proxy_flags() {
+    local HOST="$1"
+    local -n FLAGS_REF="$2"
+
+    case "$HOST" in
+        *cmslpc*|*lxplus*|*falcon*|*rogue*)
+            local PROXY="${PWD}/proxy/x509_proxy"
+            if [ -f "$PROXY" ]; then
+                FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
+            else
+                warning "Proxy file not found at ${PROXY}. Run manually to create it if needed:"
+                warning "mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy"
+            fi
+            ;;
+    esac
+}
+
 show_help() {
     cat << EOF
 Usage: $0 [command] [options]
@@ -134,19 +151,21 @@ run_coffea() {
     check_apptainer
     info "Running Coffea container..."
     setup_lpc_jobqueue
+    local HOST
+    HOST=$(hostname)
 
     # 1. Base Flags
     local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
     
     # LPC-Specific Environment Variable
-    if [[ $(hostname) == *"cmslpc"* ]]; then
-        FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy")
+    if [[ $HOST == *"cmslpc"* ]]; then
+        FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
     # 2. FALCON / ROGUE Logic
-    if [[ $(hostname) == *falcon* || $(hostname) == *rogue* ]]; then
+    if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env X509_USER_PROXY="${PWD}/proxy/x509_proxy" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
@@ -154,15 +173,17 @@ run_coffea() {
         else
             # CASE B: Login Node -> Submit Interactive Job
             info "Not in a job. Launching interactive Slurm session..."
-            srun --pty --partition=work --time=04:00:00 --mem=4G "$0" "$@"
+            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" "$@"
             return # Stop execution on login node
         fi
     fi
 
+    add_x509_proxy_flags "$HOST" FLAGS
+
     # 3. EXECUTION LOGIC
     if [ -z "$*" ]; then
         # --- INTERACTIVE SHELL ---
-        if [[ $(hostname) == *"cmslpc"* ]]; then
+        if [[ $HOST == *"cmslpc"* ]]; then
             info "Opening interactive shell (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
         else
@@ -172,7 +193,7 @@ run_coffea() {
     else
         # --- COMMAND EXECUTION ---
         local CMD="$*"
-        if [[ $(hostname) == *"cmslpc"* ]]; then
+        if [[ $HOST == *"cmslpc"* ]]; then
             info "Running command (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
         else
@@ -213,47 +234,78 @@ run_classifier() {
 
     local INIT_FILE="/entrypoint.sh"
     local USE_SLURM=false
+    local IS_CPU=false
+    local IMAGE="$CLASSIFIER_IMAGE"  # Default to GPU
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
 
-    # Bind X509 proxy for XRootD authentication
-    local PROXY="/tmp/x509up_u$(id -u)"
-    if [ -f "$PROXY" ]; then
-        FLAGS+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
+    # Detect if on FALCON (auto-enable SLURM)
+    local HOST=$(hostname)
+    if [[ $HOST == *falcon* ]]; then
+        USE_SLURM=true
+        info "FALCON cluster detected. Will submit jobs via SLURM."
     fi
-    
-    # Parse out "slurm" and "cpu" flags from args
-    for arg in "$@"; do
-        if [[ "$arg" == "slurm" ]]; then
-            USE_SLURM=true
-        elif [[ "$arg" == "cpu" ]]; then
-            info "Using CPU version of the classifier container..."
-            IMAGE="$CLASSIFIER_CPU_IMAGE"
-        else
-            ARGS+=("$arg")
-        fi
-    done
-    local USER_CMD="${ARGS[*]}"
-    
+
+    # Handle CPU flag (passed from dispatcher as first arg if classifier_cpu)
     if [[ "$1" == "cpu" ]]; then
         info "Using CPU version of the classifier container..."
         IMAGE="$CLASSIFIER_CPU_IMAGE"
+        IS_CPU=true
+        shift  # Remove "cpu" from args
     else
         info "Using GPU version of the classifier container..."
-        IMAGE="$CLASSIFIER_IMAGE"
     fi
 
-    if [ "$USE_SLURM" = true ]; then
-	local SLURM_CONF="${SLURM_CONF:-software/slurm/slurm.conf}"
-	mkdir -p logs
-	local CMD="source $INIT_FILE && export PYTHONUNBUFFERED=1 && $USER_CMD"
+    # Collect remaining user arguments
+    local USER_CMD="$*"
 
-	info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
-	{ echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "apptainer exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch
+    # CPU: Handle FALCON interactive session (like run_coffea)
+    if [ "$IS_CPU" = true ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # Already inside a job
+            info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive CPU classifier shell..."
+        else
+            # Login node - submit interactive job
+            info "Not in a job. Launching interactive Slurm session..."
+            srun --pty --partition=work --time=04:00:00 --mem=4G "$0" classifier_cpu
+            return
+        fi
+    fi
+
+    # GPU: Handle FALCON interactive session with default MPS share
+    if [ "$IS_CPU" = false ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # Already inside a job
+            info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
+        else
+            # Login node - submit interactive GPU job
+            info "Not in a job. Launching interactive GPU Slurm session with --gres=mps:20..."
+            srun --pty --partition=work --time=04:00:00 --mem=4G --gres=mps:20 "$0" classifier
+            return
+        fi
+    fi
+
+    add_x509_proxy_flags "$HOST" FLAGS
+
+    # Execute
+    if [ "$USE_SLURM" = true ] && [ -n "$USER_CMD" ]; then
+        # FALCON with command: submit to SLURM
+        local SLURM_CONF="${SLURM_CONF:-software/slurm/slurm.conf}"
+        mkdir -p slurm_logs
+        local CMD="source $INIT_FILE && export PYTHONUNBUFFERED=1 && $USER_CMD"
+        local SLURM_GRES_ARGS=()
+        if [ "$IS_CPU" = false ]; then
+            SLURM_GRES_ARGS=( --gres=mps:20 )
+        fi
+
+        info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
+        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "apptainer exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
     elif [ -z "$USER_CMD" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" # interactive shell
+        # Interactive (FALCON job or non-FALCON)
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD" # user command locally
+        # CPU with command or non-FALCON GPU/CPU with command
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
     fi
 }
 

@@ -192,3 +192,5 @@ tmp/
 pixi*
 .pixi*
 test.pdf*~
+slurm_logs/
+logs/
