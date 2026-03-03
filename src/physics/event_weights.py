@@ -1,8 +1,10 @@
 import logging
-from coffea.analysis_tools import Weights
 import correctionlib
 import awkward as ak
 import numpy as np
+
+from coffea.analysis_tools import Weights
+from src.physics.common import apply_btag_sf
 
 def add_weights(event, do_MC_weights: bool = True,
                 dataset: str = None,

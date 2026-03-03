@@ -55,22 +55,6 @@ To understand the details of the whole workflow, check the comments in the follo
 - `${WFS}/SvB/evaluate.yml` (basically the same as the FvT evaluation)
 - `${WFS}/SvB/run.sh`
 
-## Slurm Jobs Submission
-- to run on slurm (inside falcon node of the local cluster):
-
-```
-./run_container classifier slurm source <path_to_file/run.sh>
-```
-
-- this will directly submit a slurm job that runs whatever is specified after  `slurm` above
-- to check status of the job, use `squeue` 
-- the slurm configuration is inside `barista/software/slurm/slurm.conf` if you  need to request more resources
-- to check the progress of the submitted job:
-
-```
-tail -f logs/classifier_batch_<job_id>.out
-```
-
 ## Plotting
 
 - make a local copy of config `analysis_dask/config/userdata.cfg.yml` and fill all required fields
