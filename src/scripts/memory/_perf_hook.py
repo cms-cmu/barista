@@ -44,6 +44,13 @@ class PerfTracker:
         default_factory=lambda: psutil.Process(os.getpid())
     )
 
+    def __getstate__(self):
+        return {"records": self.records}
+
+    def __setstate__(self, state):
+        self.records = state["records"]
+        self._process = psutil.Process(os.getpid())
+
     def rss_mb(self) -> float:
         return self._process.memory_info().rss / (1024 * 1024)
 
