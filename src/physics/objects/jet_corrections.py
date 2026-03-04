@@ -150,6 +150,19 @@ def apply_jerc_corrections( event,
 
 # ── JSON-POG (correctionlib) based JERC ───────────────────────────────────────
 
+# Cache parsed CorrectionSets so the JSON-POG file (≈70 MB) is loaded once
+# per file path rather than once per chunk.
+_cset_cache: dict = {}
+
+def _get_correction_set(path: str):
+    """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
+    if path not in _cset_cache:
+        logging.debug(f"CorrectionSet cache miss — loading {path}")
+        _cset_cache[path] = correctionlib.CorrectionSet.from_file(path)
+    else:
+        logging.debug(f"CorrectionSet cache hit for {path}")
+    return _cset_cache[path]
+
 # Correction levels that appear in the JSON-POG key names but are NOT
 # JES uncertainty sources (used to filter them out during auto-detection).
 _JEC_LEVELS = frozenset({"L1FastJet", "L2Relative", "L3Absolute", "L2L3Residual", "L1RC"})
@@ -247,7 +260,7 @@ def apply_jerc_corrections_jsonpog(
         if run_tag is None and run_tags:
             logging.warning(f"No run_tag matched for dataset {dataset!r} in {list(run_tags.keys())}")
 
-    cset       = correctionlib.CorrectionSet.from_file(jerc_file)
+    cset       = _get_correction_set(jerc_file)
     era        = "MC" if isMC else "DATA"
     jec_tag    = f"{run_tag}_{jec_version}_{era}" if (not isMC and run_tag) else f"{jec_version}_{era}"
     key_suffix = f"_{jet_type}"
