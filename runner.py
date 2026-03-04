@@ -214,6 +214,8 @@ def get_dataset_type(dataset_name):
         return 'data_mixed'
     elif dataset_name == 'synthetic_data':
         return 'synthetic_data'
+    elif dataset_name == 'synthetic_data_noTT':
+        return 'synthetic_data_noTT'
     elif dataset_name == 'data_3b_for_mixed':
         return 'data_for_mix'
     elif dataset_name in ['TTToHadronic_for_mixed', 'TTToSemiLeptonic_for_mixed', 'TTTo2L2Nu_for_mixed']:
@@ -540,7 +542,7 @@ def calculate_cross_section(matched_dataset, dataset_type, metadata):
     """Calculate cross-section for a given dataset."""
     # Data datasets should have xs=1
     if (dataset_type == 'data' or
-        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data'] or
+        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data', 'synthetic_data_noTT'] or
         'xs' not in metadata['datasets'][matched_dataset]):
         return 1.0
 
@@ -1031,6 +1033,8 @@ if __name__ == '__main__':
                 process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'synthetic_data':
                 process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type == 'synthetic_data_noTT':
+                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'data_for_mix':
                 process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'tt_for_mixed':
