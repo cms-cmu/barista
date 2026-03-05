@@ -1,4 +1,4 @@
-[project]
+[workspace]
 name = "snakemake-analysis"
 version = "0.1.0"
 description = "Snakemake environment for HH4b analysis"
@@ -24,10 +24,12 @@ graphviz = "*"
 [pypi-dependencies]
 # Pip-only packages from Dockerfile
 panoptes-ui = "*"
+snakemake-logger-plugin-snkmt = "*"
 
 [tasks]
 # Define common tasks
 snakemake = "snakemake"
+snkmt = "snkmt"
 install = "pixi install"
 shell = "bash"
 
