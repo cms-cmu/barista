@@ -153,7 +153,7 @@ class CommonTrain(Common):
                     **enum_dict(MassRegion)
                 ).set(name=_Derived.region_index),
                 map_selection_to_flag(
-                    **enum_dict(NTag)
+                    **self.ntag_columns()
                 ).set(name=_Derived.ntag_index),
                 drop_columns(
                     "ZZSR", "ZHSR", "HHSR", "SR", "SB",
@@ -164,6 +164,9 @@ class CommonTrain(Common):
         if Flags.debug:
             self.postprocessors.append(_debug_print_weight)
         # fmt: on
+
+    def ntag_columns(self):
+        return enum_dict(NTag)
 
     def other_branches(self):
         return {

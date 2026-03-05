@@ -33,7 +33,7 @@ class FromRoot:
         chain = self.chain.copy().add_chunk(chunk)
         df = chain.concat(library="pd", reader_options={"branch_filter": self.branches})
         for preprocessor in self.preprocessors:
-            if len(df) == 0:
+            if df is None or len(df) == 0:
                 return None
             df = preprocessor(df)
         return df
