@@ -198,6 +198,24 @@ def profile(func):
     return wrapper
 
 
+def apply_storage_remap(obj, remaps):
+    """
+    Recursively walk a nested dict/list structure and replace string prefixes
+    according to the remaps list, where each entry is {'from': str, 'to': str}.
+    Only strings that start with a 'from' prefix are modified.
+    """
+    if isinstance(obj, str):
+        for remap in remaps:
+            if obj.startswith(remap['from']):
+                return remap['to'] + obj[len(remap['from']):]
+        return obj
+    elif isinstance(obj, dict):
+        return {k: apply_storage_remap(v, remaps) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [apply_storage_remap(item, remaps) for item in obj]
+    return obj
+
+
 # Dataset processing helper functions
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
@@ -826,6 +844,14 @@ if __name__ == '__main__':
         default="hists/",
         help='Directory path where output files will be saved'
     )
+    io_group.add_argument(
+        '--storage-remap',
+        dest="storage_remap",
+        default=None,
+        metavar='FILE',
+        help='Path to a YAML file defining storage prefix remappings (e.g. FNAL EOS -> CMU EOS). '
+             'Applied to all file paths in the datasets metadata at load time.'
+    )
 
     # Load corrections metadata and extract year keys
     with open('src/physics/corrections.yml', 'r') as f:
@@ -976,6 +1002,16 @@ if __name__ == '__main__':
     luminosities = yaml.safe_load(open(args.luminosities, 'r'))
 
     metadata = {**datasets, **triggers, **luminosities}
+
+    if args.storage_remap:
+        logging.info(f"Applying storage remaps from: {args.storage_remap}")
+        with open(args.storage_remap, 'r') as f:
+            remap_config = yaml.safe_load(f)
+        remaps = remap_config.get('remaps', [])
+        logging.info(f"  {len(remaps)} prefix remap(s) loaded")
+        metadata = apply_storage_remap(metadata, remaps)
+        logging.info("Storage remapping applied.")
+
     logging.info("Successfully loaded all metadata files")
 
     # Setup configuration
