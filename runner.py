@@ -815,6 +815,12 @@ if __name__ == '__main__':
         help='Path to the luminosities metadata YAML file'
     )
     io_group.add_argument(
+        '--friends',
+        dest="friends",
+        default="coffea4bees/metadata/friends_HH4b.yml",
+        help='Path to the per-year friends metadata YAML file (None to disable)'
+    )
+    io_group.add_argument(
         '-o', '--output',
         dest="output_file",
         default="hists.coffea",
@@ -977,6 +983,21 @@ if __name__ == '__main__':
 
     metadata = {**datasets, **triggers, **luminosities}
     logging.info("Successfully loaded all metadata files")
+
+    # Inject per-year friends as defaults into config.friends
+    if args.friends:
+        logging.info(f"Loading friends metadata from: {args.friends}")
+        friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
+        year_friends = {}
+        for year in args.years:
+            for k, v in friends_by_year.get(year, {}).items():
+                if k in year_friends and year_friends[k] != v:
+                    logging.warning(f"Friends key '{k}' has conflicting values across years {args.years}; using value for {year}")
+                year_friends[k] = v
+        if year_friends:
+            existing_friends = configs.get('config', {}).get('friends') or {}
+            configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
+            logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
     # Setup configuration
     logging.info("Setting up configuration defaults...")
