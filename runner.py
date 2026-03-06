@@ -209,6 +209,8 @@ def get_dataset_type(dataset_name):
         return 'mixeddata_4b'
     elif dataset_name in ['mixeddata_4b_noTT']:
         return 'mixeddata_4b_noTT'
+    elif dataset_name in ['mixeddata_all']:
+        return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
     elif dataset_name == 'datamixed':
@@ -687,7 +689,7 @@ def process_analysis_output(output, args):
         os.makedirs(args.output_path)
 
 
-def process_friend_trees(output, config_runner, configs, args, client):
+def process_friend_trees(output, config_runner, configs, args, client, fileset=None):
     """Process friend tree metadata if it exists."""
     friend_base = (config_runner["friend_base"] or
                    configs.get("config", {}).get(config_runner["friend_base_argname"], None))
@@ -696,10 +698,24 @@ def process_friend_trees(output, config_runner, configs, args, client):
     if friend_base is not None and friends is not None:
         from src.data_formats.awkward.zip import NanoAOD
 
+        # Build reverse mapping: parent dir name (path1) -> dataset key
+        # This allows the naming function to use the dataset key as the output
+        # subdirectory even when input files live in era-named subdirs (e.g. mixeddata_all)
+        path1_to_dataset = {}
+        if fileset:
+            for dataset_key, dataset_info in fileset.items():
+                for f in dataset_info["files"]:
+                    parent_dir = f.rstrip('/').split('/')[-2]
+                    path1_to_dataset[parent_dir] = dataset_key
+
+        def _merge_naming(path0, path1, name, **_):
+            dir_name = path1_to_dataset.get(path1, path1)
+            return f'{dir_name}/{path0.replace("picoAOD", name)}'
+
         merge_kw = {
             'step': config_runner["friend_merge_step"],
             'base_path': friend_base,
-            'naming': _friend_merge_name,
+            'naming': _merge_naming,
             'transform': NanoAOD(regular=False, jagged=True),
         }
 
@@ -771,7 +787,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
         process_metadata_output(output, fileset, config_runner, args, client)
     else:
         process_analysis_output(output, args)
-        process_friend_trees(output, config_runner, configs, args, client)
+        process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
         save_coffea_output(output, config_runner, args)
 
 
@@ -1032,6 +1048,8 @@ if __name__ == '__main__':
                 process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixed_data':
                 process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
+            elif dataset_type == 'mixeddata_all':
+                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixeddata_4b':
                 process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type in ['mixeddata_4b_noTT']:
