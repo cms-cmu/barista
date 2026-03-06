@@ -268,6 +268,12 @@ class _load_root:
 
     def __call__(self):
         data = self.load()
+        if len(data) == 0:
+            raise ValueError(
+                f"Dataset loaded 0 events. Check that input ROOT files contain "
+                f"the expected branches (e.g. lowpt_fourTag, lowpt_threeTag) "
+                f"and that the event selection is not rejecting all events."
+            )
         for p in self.postprocessors:
             data = p(data)
         return self.to_tensor.tensor(data)
@@ -323,9 +329,13 @@ class _load_root:
                         )
                     ),
                 ]
-        df = pd.concat(
-            filter(lambda x: x is not None, dfs), ignore_index=True, copy=False
-        )
+        objs = list(filter(lambda x: x is not None, dfs))
+        if not objs:
+            df = pd.DataFrame()
+            logging.info("Loaded <DataFrame>: empty (all chunks filtered or empty)")
+            return df
+            
+        df = pd.concat(objs, ignore_index=True)
         logging.info(
             "Loaded <DataFrame>:",
             f"entries: {len(df)}",
