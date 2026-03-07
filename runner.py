@@ -1118,7 +1118,7 @@ if __name__ == '__main__':
     pool = None
     cluster = None
 
-    # Register cleanup function to run at exit
+    # Register cleanup function to run at  exit
     atexit.register(cleanup_temp_condor_dir)
 
     # Setup compute environment
