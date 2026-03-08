@@ -482,20 +482,10 @@
   jec:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-10-07/jet_jerc.json.gz'
     jec_campaign: Summer23Prompt23
-    jec_version: V3
+    jec_version: V2
     jer_campaign: Summer23Prompt23
     jer_version: RunCv1_JRV1
-    run_tags:
-      C01: &2023_C_run_tag RunCv123
-      C02: *2023_C_run_tag
-      C03: *2023_C_run_tag
-      C11: *2023_C_run_tag
-      C12: *2023_C_run_tag
-      C13: *2023_C_run_tag
-      C3:  *2023_C_run_tag
-      C4: &2023_C4_run_tag RunCv4
-      C04: *2023_C4_run_tag
-      C14: *2023_C4_run_tag
+    #run_tags: not needed 
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
@@ -555,13 +545,7 @@
     jec_version: V3
     jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1
-    run_tags:
-      D1: &2023_D_run_tag RunD
-      D2: *2023_D_run_tag
-      D01: *2023_D_run_tag
-      D02: *2023_D_run_tag
-      D11: *2023_D_run_tag
-      D12: *2023_D_run_tag
+    #run_tags: not needed 
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
