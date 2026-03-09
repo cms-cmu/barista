@@ -262,7 +262,8 @@ def apply_jerc_corrections_jsonpog(
 
     cset       = _get_correction_set(jerc_file)
     era        = "MC" if isMC else "DATA"
-    jec_tag    = f"{run_tag}_{jec_version}_{era}" if (not isMC and run_tag) else f"{jec_version}_{era}"
+    run_tag_prefix = f"{run_tag}_" if run_tag else ""
+    jec_tag    = f"{run_tag_prefix}{jec_version}_{era}"
     key_suffix = f"_{jet_type}"
 
     # ── prepare raw quantities (identical to apply_jerc_corrections) ──────────
@@ -281,6 +282,12 @@ def apply_jerc_corrections_jsonpog(
     # ── JEC adapter ───────────────────────────────────────────────────────────
     compound_key = f"{jec_campaign}_{jec_tag}_L1L2L3Res{key_suffix}"
     jec = _JsonPogJEC(cset.compound[compound_key])
+
+    # Broadcast run number to per-jet only when the compound correction needs it
+    if "run" in jec.signature:
+        nominal_jet["run"] = ak.broadcast_arrays(
+            ak.values_astype(event.run, np.float32), nominal_jet.pt,
+        )[0]
 
     # ── JER adapters (MC only, when campaign/version are provided) ────────────
     jer   = None
@@ -318,6 +325,7 @@ def apply_jerc_corrections_jsonpog(
         "ptRaw":    "pt_raw",
         "massRaw":  "mass_raw",
         "Rho":      "rho",
+        "run":      "run",
     }
 
     from src.physics.objects.jetmet_tools import CorrectedJetsFactory

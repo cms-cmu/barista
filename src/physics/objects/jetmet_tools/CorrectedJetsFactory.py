@@ -22,18 +22,30 @@ from src.math_tools.random import Squares
 class _JsonPogJEC:
     """Compound JEC correction (L1L2L3Res) from a JSON-POG file."""
 
-    signature = ("JetA", "JetEta", "JetPt", "Rho")
-
     def __init__(self, corr):
         self._corr = corr
+        # Derive signature from the compound correction's input names,
+        # mapping JSON-POG names to the name_map keys used by the factory.
+        self._jsonpog_names = [inp.name for inp in corr.inputs]
+        _pogname_to_namemap = {
+            "JetA":   "JetA",
+            "JetEta": "JetEta",
+            "JetPt":  "JetPt",
+            "JetPhi": "JetPhi",
+            "Rho":    "Rho",
+            "run":    "run",
+        }
+        self.signature = tuple(
+            _pogname_to_namemap[n] for n in self._jsonpog_names
+            if n in _pogname_to_namemap
+        )
 
-    def getCorrection(self, JetA, JetEta, JetPt, Rho, form, lazy_cache):
-        vals = self._corr.evaluate(
-            numpy.asarray(JetA,   dtype=numpy.float32),
-            numpy.asarray(JetEta, dtype=numpy.float32),
-            numpy.asarray(JetPt,  dtype=numpy.float32),
-            numpy.asarray(Rho,    dtype=numpy.float32),
-        ).astype(numpy.float32)
+    def getCorrection(self, form, lazy_cache, **kwargs):
+        arrays = [
+            numpy.asarray(kwargs[k], dtype=numpy.float32)
+            for k in self.signature
+        ]
+        vals = self._corr.evaluate(*arrays).astype(numpy.float32)
         return awkward.Array(vals)
 
 
