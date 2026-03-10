@@ -1228,7 +1228,7 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends as defaults into config.friends if the processor accepts them
-    if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
+    if args.friends: #and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
         friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
         year_friends = {}
