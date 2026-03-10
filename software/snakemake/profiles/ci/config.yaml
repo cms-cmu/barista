@@ -1,0 +1,3 @@
+# Snakemake profile for GitLab CI runners
+default-resources:
+  tmpdir: "/tmp"

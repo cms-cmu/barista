@@ -76,43 +76,78 @@ EOF
 
 # --- Host Detection & Setup ---
 PIXI_DIR="$HOME/.pixi"
+PROFILE_DIR="software/snakemake/profiles"
+
+# Detect which cluster profile to use based on hostname
+detect_cluster_profile() {
+    local HOST
+    HOST=$(hostname)
+    case "$HOST" in
+        *cmslpc*)  echo "lpc" ;;
+        *lxplus*)  echo "lxplus" ;;
+        *falcon*)  echo "falcon" ;;
+        *rogue*)   echo "rogue" ;;
+        *runner*)  echo "ci" ;;
+        *)         echo "default" ;;
+    esac
+}
+
+# Parse apptainer-args from a Snakemake profile config.yaml
+parse_apptainer_args() {
+    local CONFIG_FILE="$1"
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -n 's/^apptainer-args:[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE"
+    fi
+}
+
 setup_host_env() {
     local HOST
     HOST=$(hostname)
-    info "Determining configuration for hostname: $HOST"
+    CLUSTER_PROFILE=$(detect_cluster_profile)
+    local PROFILE_CONFIG="${PROFILE_DIR}/${CLUSTER_PROFILE}/config.yaml"
+    info "Determining configuration for hostname: $HOST (profile: $CLUSTER_PROFILE)"
 
-    # Common Bind Paths
-    local GRID_BINDS="/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security"
-    local COMMON_BINDS="/cvmfs,${GRID_BINDS}"
-    
+    # Parse bind paths from profile config
+    local APPTAINER_ARGS
+    APPTAINER_ARGS=$(parse_apptainer_args "$PROFILE_CONFIG")
+    if [ -n "$APPTAINER_ARGS" ]; then
+        # Convert -B flags to comma-separated APPTAINER_BINDPATH
+        # Extract all paths after -B flags
+        local BIND_PATHS=""
+        local ARGS_ARRAY=($APPTAINER_ARGS)
+        local i=0
+        while [ $i -lt ${#ARGS_ARRAY[@]} ]; do
+            if [ "${ARGS_ARRAY[$i]}" = "-B" ] && [ $((i+1)) -lt ${#ARGS_ARRAY[@]} ]; then
+                [ -n "$BIND_PATHS" ] && BIND_PATHS="${BIND_PATHS},"
+                BIND_PATHS="${BIND_PATHS}${ARGS_ARRAY[$((i+1))]}"
+                i=$((i+2))
+            else
+                i=$((i+1))
+            fi
+        done
+        export APPTAINER_BINDPATH="$BIND_PATHS"
+    fi
+
     # Standard Cache Setup (using /tmp to be safe/fast)
     local CACHE_BASE="/tmp/$(whoami)"
 
+    # Cluster-specific non-bind-path settings
     case "$HOST" in
         *cmslpc*)
-            export APPTAINER_BINDPATH="${COMMON_BINDS},/uscmst1b_scratch,/uscms_data"
             PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
             if [ ! -d "$PIXI_DIR" ]; then
                 info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
             fi
             ;;
-        *lxplus*)
-            export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
-            ;;
         *runner*)
             PIXI_DIR="/tmp/pixi"
             ;;
-        *falcon*|*rogue*)
-            if [[ $HOST == *falcon* ]]; then
-                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
-            else
-                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/${USER}"
-            fi
-            ;;
         *)
-            warning "Unknown hostname. Using defaults (HOME) for cache/config."
-            CACHE_BASE=$HOME
-            mkdir -p "$CACHE_BASE"
+            if [ -z "$APPTAINER_ARGS" ]; then
+                warning "Unknown hostname. Using defaults (HOME) for cache/config."
+                CACHE_BASE=$HOME
+                mkdir -p "$CACHE_BASE"
+            fi
             ;;
     esac
 
@@ -368,6 +403,22 @@ run_snakemake() {
 
     # Install Environment
     pixi install || { error "Pixi install failed."; exit 1; }
+
+    # Auto-inject cluster profile if user didn't specify one
+    local HAS_PROFILE=false
+    for arg in "${ARGS[@]}"; do
+        if [[ "$arg" == "--profile" ]]; then
+            HAS_PROFILE=true
+            break
+        fi
+    done
+    if [ "$HAS_PROFILE" = false ]; then
+        local AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}"
+        if [ -d "$AUTO_PROFILE" ]; then
+            info "Auto-injecting Snakemake profile: $AUTO_PROFILE"
+            ARGS=("--profile" "$AUTO_PROFILE" "${ARGS[@]}")
+        fi
+    fi
 
     # Execute
     if [ "${ARGS[0]}" = "source" ]; then
