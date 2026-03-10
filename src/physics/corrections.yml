@@ -364,6 +364,7 @@
       D: RunCD
   jes_unc:  
     - DUMMY
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2025-09-23/jetid.json.gz'
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:   # https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22/#ak4-b-tagging
     #L: 0.047
@@ -424,6 +425,7 @@
       G: RunG
   jes_unc:  
     - DUMMY
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-10-07/jetid.json.gz'
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:  #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22EE/#ak4-b-tagging
     #L: 0.0499
@@ -479,23 +481,14 @@
     C14: *2023_C4
   JES_uncertainties:
     - DUMMY
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-10-07/jetid.json.gz'
   jec:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-10-07/jet_jerc.json.gz'
     jec_campaign: Summer23Prompt23
-    jec_version: V3
+    jec_version: V2
     jer_campaign: Summer23Prompt23
     jer_version: RunCv1_JRV1
-    run_tags:
-      C01: &2023_C_run_tag RunCv123
-      C02: *2023_C_run_tag
-      C03: *2023_C_run_tag
-      C11: *2023_C_run_tag
-      C12: *2023_C_run_tag
-      C13: *2023_C_run_tag
-      C3:  *2023_C_run_tag
-      C4: &2023_C4_run_tag RunCv4
-      C04: *2023_C4_run_tag
-      C14: *2023_C4_run_tag
+    #run_tags: not needed 
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
@@ -555,15 +548,10 @@
     jec_version: V3
     jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1
-    run_tags:
-      D1: &2023_D_run_tag RunD
-      D2: *2023_D_run_tag
-      D01: *2023_D_run_tag
-      D02: *2023_D_run_tag
-      D11: *2023_D_run_tag
-      D12: *2023_D_run_tag
+    #run_tags: not needed 
   jes_unc:  
     - DUMMY
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-10-07/jetid.json.gz'
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
     #L: 0.0359
@@ -625,17 +613,8 @@
     jec_version: V2
     jer_campaign: Summer24Prompt24
     jer_version: RunD_JRV1 ### DUMMY, TO BE UPDATED
-    run_tags:
-      C: RunCnib1
-      D: RunDnib1
-      E: RunEnib1
-      F1: RunFnib1
-      F2: RunFnib2
-      F3: RunFnib3
-      G1: RunGnib1
-      G2: RunGnib2
-      H: RunHnib1
-      I: RunInib1
+    #run_tags: not needed in 2024
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetid.json.gz'
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2026-01-30/btagging.json.gz'
