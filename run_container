@@ -5,7 +5,6 @@
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
-#CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
@@ -367,6 +366,15 @@ install_pixi() {
 }
 
 run_snakemake() {
+    # FALCON: Launch interactive Slurm session if on login node
+    local HOST
+    HOST=$(hostname)
+    if [[ $HOST == *falcon* ]] && [ -z "$SLURM_JOB_ID" ]; then
+        info "Not in a job. Launching interactive Slurm session for Snakemake..."
+        srun --pty --partition=work --time=04:00:00 --mem=4G "$0" snakemake "$@"
+        return
+    fi
+
     info "Running Snakemake with Pixi environment..."
     set -eo pipefail
 
