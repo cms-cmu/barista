@@ -189,9 +189,12 @@ set_ROOT.sh
 
 */*/.DS_Store
 tmp/
-/pixi.t*
+/pixi.toml
+/pixi.lock
 /.pixi*
 test.pdf*~
 slurm_logs/
 logs/
 notes/
+.bashrc
+.cmslpc-local.conf

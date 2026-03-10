@@ -32,7 +32,7 @@ from ..training import (
 )
 
 if TYPE_CHECKING:
-    from storage.eos import PathLike
+    from src.storage.eos import PathLike
 
 
 @dataclass
