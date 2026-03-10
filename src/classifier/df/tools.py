@@ -186,7 +186,7 @@ class prescale:
             return df
         columns = [*(self._columns | {Columns.weight})]
         if self._selection is not None:
-            prescaled = np.asarray(self._selection(df))
+            prescaled = np.asarray(self._selection(df), copy=True)
         else:
             prescaled = np.ones(len(df), dtype=np.bool_)
         unprescaled = ~prescaled

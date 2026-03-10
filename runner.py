@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 import argparse
+import inspect
 import sys
 from pathlib import Path
 
@@ -198,6 +199,24 @@ def profile(func):
     return wrapper
 
 
+def apply_storage_remap(obj, remaps):
+    """
+    Recursively walk a nested dict/list structure and replace string prefixes
+    according to the remaps list, where each entry is {'from': str, 'to': str}.
+    Only strings that start with a 'from' prefix are modified.
+    """
+    if isinstance(obj, str):
+        for remap in remaps:
+            if obj.startswith(remap['from']):
+                return remap['to'] + obj[len(remap['from']):]
+        return obj
+    elif isinstance(obj, dict):
+        return {k: apply_storage_remap(v, remaps) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [apply_storage_remap(item, remaps) for item in obj]
+    return obj
+
+
 # Dataset processing helper functions
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
@@ -206,10 +225,18 @@ def get_dataset_type(dataset_name):
         return 'mixed_data'
     if dataset_name == 'mixeddata_4b':
         return 'mixeddata_4b'
+    elif dataset_name in ['mixeddata_4b_noTT']:
+        return 'mixeddata_4b_noTT'
+    elif dataset_name in ['mixeddata_all']:
+        return 'mixeddata_all'
+    elif dataset_name in ['mixeddata_4b_pz']:
+        return 'mixeddata_4b_pz'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
     elif dataset_name == 'synthetic_data':
         return 'synthetic_data'
+    elif dataset_name == 'synthetic_data_noTT':
+        return 'synthetic_data_noTT'
     elif dataset_name == 'data_3b_for_mixed':
         return 'data_for_mix'
     elif dataset_name in ['TTToHadronic_for_mixed', 'TTToSemiLeptonic_for_mixed', 'TTTo2L2Nu_for_mixed']:
@@ -395,7 +422,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'transfer_input_files': [tarball_path],
         'shared_temp_directory': '/tmp',
         'cores': config_runner['condor_cores'],
-        'memory': config_runner['condor_memory'],
+        'memory': config_runner['worker_memory'],
         'ship_env': False,
         'scheduler_options': {'dashboard_address': config_runner['dashboard_address']},
         'worker_extra_args': [
@@ -421,19 +448,21 @@ def setup_condor_cluster(config_runner, tarball_path):
     return client, cluster
 
 
-def setup_local_cluster(config_runner, args):
+def setup_local_cluster(config_runner):
     """Setup local Dask cluster configuration."""
     from dask.distributed import Client, LocalCluster
 
-    n_workers = 4 if args.skimming else 6
     cluster_args = {
-        'n_workers': n_workers,
-        'memory_limit': config_runner['condor_memory'],
+        'n_workers': config_runner['workers'],
+        'memory_limit': config_runner['worker_memory'],
         'threads_per_worker': 1,
-        'dashboard_address': config_runner['dashboard_address'],
+        'dashboard_address': f":{config_runner['dashboard_address']}",  # bind to 0.0.0.0, not just localhost
     }
     cluster = LocalCluster(**cluster_args)
-    return Client(cluster), cluster
+    client = Client(cluster)
+    logging.info(f"Dask dashboard: {client.dashboard_link}")
+    logging.info(f"  SSH tunnel:   ssh -L {config_runner['dashboard_address']}:<compute_node>:{config_runner['dashboard_address']} <login_node>")
+    return client, cluster
 
 
 def setup_pico_base_name(configs):
@@ -534,7 +563,7 @@ def calculate_cross_section(matched_dataset, dataset_type, metadata):
     """Calculate cross-section for a given dataset."""
     # Data datasets should have xs=1
     if (dataset_type == 'data' or
-        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data'] or
+        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data', 'synthetic_data_noTT'] or
         'xs' not in metadata['datasets'][matched_dataset]):
         return 1.0
 
@@ -567,7 +596,7 @@ def setup_config_defaults(config_runner, args):
         'rucio_regex_sites': "T[23]",
         'class_name': 'analysis',
         'condor_cores': 2,
-        'condor_memory': '4GB',
+        'worker_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
         'max_workers': 100,
@@ -602,7 +631,7 @@ def setup_executor(config_runner, args, client, pool):
         executor_args.update({
             "client": client,
             "align_clusters": False,
-            "status": False  # disable progressbar for Dask
+            "status": args.run_dask and not args.condor
         })
         return processor.dask_executor, executor_args
     else:
@@ -678,7 +707,7 @@ def process_analysis_output(output, args):
         os.makedirs(args.output_path)
 
 
-def process_friend_trees(output, config_runner, configs, args, client):
+def process_friend_trees(output, config_runner, configs, args, client, fileset=None):
     """Process friend tree metadata if it exists."""
     friend_base = (config_runner["friend_base"] or
                    configs.get("config", {}).get(config_runner["friend_base_argname"], None))
@@ -687,10 +716,24 @@ def process_friend_trees(output, config_runner, configs, args, client):
     if friend_base is not None and friends is not None:
         from src.data_formats.awkward.zip import NanoAOD
 
+        # Build reverse mapping: parent dir name (path1) -> dataset key
+        # This allows the naming function to use the dataset key as the output
+        # subdirectory even when input files live in era-named subdirs (e.g. mixeddata_all)
+        path1_to_dataset = {}
+        if fileset:
+            for dataset_key, dataset_info in fileset.items():
+                for f in dataset_info["files"]:
+                    parent_dir = f.rstrip('/').split('/')[-2]
+                    path1_to_dataset[parent_dir] = dataset_key
+
+        def _merge_naming(path0, path1, name, **_):
+            dir_name = path1_to_dataset.get(path1, path1)
+            return f'{dir_name}/{path0.replace("picoAOD", name)}'
+
         merge_kw = {
             'step': config_runner["friend_merge_step"],
             'base_path': friend_base,
-            'naming': _friend_merge_name,
+            'naming': _merge_naming,
             'transform': NanoAOD(regular=False, jagged=True),
         }
 
@@ -762,7 +805,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
         process_metadata_output(output, fileset, config_runner, args, client)
     else:
         process_analysis_output(output, args)
-        process_friend_trees(output, config_runner, configs, args, client)
+        process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
         save_coffea_output(output, config_runner, args)
 
 
@@ -807,6 +850,12 @@ if __name__ == '__main__':
         help='Path to the luminosities metadata YAML file'
     )
     io_group.add_argument(
+        '--friends',
+        dest="friends",
+        default="coffea4bees/metadata/friends_HH4b.yml",
+        help='Path to the per-year friends metadata YAML file (None to disable)'
+    )
+    io_group.add_argument(
         '-o', '--output',
         dest="output_file",
         default="hists.coffea",
@@ -817,6 +866,14 @@ if __name__ == '__main__':
         dest="output_path",
         default="hists/",
         help='Directory path where output files will be saved'
+    )
+    io_group.add_argument(
+        '--storage-remap',
+        dest="storage_remap",
+        default=None,
+        metavar='FILE',
+        help='Path to a YAML file defining storage prefix remappings (e.g. FNAL EOS -> CMU EOS). '
+             'Applied to all file paths in the datasets metadata at load time.'
     )
 
     # Load corrections metadata and extract year keys
@@ -845,8 +902,8 @@ if __name__ == '__main__':
         '-e', '--eras',
         nargs='+',
         dest='era',
-        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
-        help='Data era(s) to process (data only). Examples: --eras A B C'
+        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2' ],
+        help='Data era(s) to process (data only). Examples: --eras A B C.'
     )
 
     # Processing mode options
@@ -889,7 +946,6 @@ if __name__ == '__main__':
         default=False,
         help='Submit jobs to HTCondor cluster'
     )
-
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
     debug_group.add_argument(
@@ -969,7 +1025,19 @@ if __name__ == '__main__':
     luminosities = yaml.safe_load(open(args.luminosities, 'r'))
 
     metadata = {**datasets, **triggers, **luminosities}
+
+    if args.storage_remap:
+        logging.info(f"Applying storage remaps from: {args.storage_remap}")
+        with open(args.storage_remap, 'r') as f:
+            remap_config = yaml.safe_load(f)
+        remaps = remap_config.get('remaps', [])
+        logging.info(f"  {len(remaps)} prefix remap(s) loaded")
+        metadata = apply_storage_remap(metadata, remaps)
+        logging.info("Storage remapping applied.")
+
     logging.info("Successfully loaded all metadata files")
+
+    # Per-year friends are loaded and injected after the processor class is known (see below)
 
     # Setup configuration
     logging.info("Setting up configuration defaults...")
@@ -1016,12 +1084,20 @@ if __name__ == '__main__':
                 process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixed_data':
                 process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
+            elif dataset_type == 'mixeddata_all':
+                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixeddata_4b':
                 process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type in ['mixeddata_4b_noTT']:
+                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type in ['mixeddata_4b_pz']:
+                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'data_mixed':
                 process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'synthetic_data':
                 process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+            elif dataset_type == 'synthetic_data_noTT':
+                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'data_for_mix':
                 process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'tt_for_mixed':
@@ -1042,7 +1118,7 @@ if __name__ == '__main__':
     pool = None
     cluster = None
 
-    # Register cleanup function to run at exit
+    # Register cleanup function to run at  exit
     atexit.register(cleanup_temp_condor_dir)
 
     # Setup compute environment
@@ -1058,7 +1134,7 @@ if __name__ == '__main__':
         client, cluster = setup_condor_cluster(config_runner, tarball_path)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
-        client, cluster = setup_local_cluster(config_runner, args)
+        client, cluster = setup_local_cluster(config_runner)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -1086,6 +1162,21 @@ if __name__ == '__main__':
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
+    # Inject per-year friends as defaults into config.friends if the processor accepts them
+    if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
+        logging.info(f"Loading friends metadata from: {args.friends}")
+        friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
+        year_friends = {}
+        for year in args.years:
+            for k, v in friends_by_year.get(year, {}).items():
+                if k in year_friends and year_friends[k] != v:
+                    logging.warning(f"Friends key '{k}' has conflicting values across years {args.years}; using value for {year}")
+                year_friends[k] = v
+        if year_friends:
+            existing_friends = configs.get('config', {}).get('friends') or {}
+            configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
+            logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
+
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
     logging.debug(f" and is {pretty_repr(fileset)}")
@@ -1105,7 +1196,8 @@ if __name__ == '__main__':
     # Run dask performance only in dask jobs
     #
     if args.run_dask:
-        dask_report_file = f'/tmp/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
+        os.makedirs(args.output_path, exist_ok=True)
+        dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
         with performance_report(filename=dask_report_file):
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)

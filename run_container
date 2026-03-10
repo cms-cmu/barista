@@ -4,8 +4,9 @@
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
-SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"
-CLASSIFIER_IMAGE="docker://chuyuanliu/heptools:ml"
+SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
+CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
@@ -13,7 +14,8 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
-    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
+    CLASSIFIER_CPU_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_CPU_IMAGE#docker://}"
     BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
@@ -26,6 +28,23 @@ check_apptainer() {
     command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed. Aborting."; exit 1; }
 }
 
+add_x509_proxy_flags() {
+    local HOST="$1"
+    local -n FLAGS_REF="$2"
+
+    case "$HOST" in
+        *cmslpc*|*lxplus*|*falcon*|*rogue*)
+            local PROXY="${PWD}/proxy/x509_proxy"
+            if [ -f "$PROXY" ]; then
+                FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
+            else
+                warning "Proxy file not found at ${PROXY}. Run manually to create it if needed:"
+                warning "mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy"
+            fi
+            ;;
+    esac
+}
+
 show_help() {
     cat << EOF
 Usage: $0 [command] [options]
@@ -34,10 +53,12 @@ Commands:
   [command...]          Run commands inside the coffea container.
                         (Interactive shell is the only option to run on LPC HTCondor).
   combine [cmd...]      Run commands inside the combine container.
-  classifier [cmd...]   Run commands inside the classifier container.
+  classifier [cmd...]   Run commands inside the classifier with GPU container.
+  classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
   brilcalc [cmd...]     Run commands inside the brilcalc container.
   snakemake [opts]      Run snakemake using the local Pixi environment.
                         Use --reinstall to clean environment.
+  reana [opts]          Run reana-client using the local Pixi environment.
   snakemake_container   Run snakemake inside a container (backup option).
   --help                Show this help message.
 
@@ -46,38 +67,94 @@ Examples:
   $0 python script.py    Run script in Coffea container.
   $0 combine             Open Combine container.
   $0 snakemake -s Snakefile
+  $0 reana ls
+  $0 classifier          Run commands inside the classifier with GPU container.
+  $0 classifier_cpu      Run commands inside the classifier with CPU container.
 EOF
 }
 
 # --- Host Detection & Setup ---
 PIXI_DIR="$HOME/.pixi"
-setup_host_env() {
-    info "Determining configuration for hostname: $(hostname)"
+PROFILE_DIR="software/snakemake/profiles"
 
-    # Directories
-    export APPTAINER_CACHEDIR="/tmp/$(whoami)/apptainer_cache"
-    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
-    export MPLCONFIGDIR="/tmp/$(whoami)/.config/matplotlib"
+# Detect which cluster profile to use based on hostname
+detect_cluster_profile() {
+    local HOST
+    HOST=$(hostname)
+    case "$HOST" in
+        *cmslpc*)  echo "lpc" ;;
+        *lxplus*)  echo "lxplus" ;;
+        *falcon*)  echo "falcon" ;;
+        *rogue*)   echo "rogue" ;;
+        *runner*)  echo "ci" ;;
+        *)         echo "default" ;;
+    esac
+}
 
-    if [[ $(hostname) == *"cmslpc"* ]]; then
-        export APPTAINER_BINDPATH="/uscmst1b_scratch,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/uscms_data/"
-        PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
-        if [ ! -d "$PIXI_DIR" ]; then
-            info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
-        fi
-    elif [[ $(hostname) == *"lxplus"* ]]; then
-        export APPTAINER_BINDPATH=/afs,/eos,/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-    elif [[ $(hostname) == *"rogue"* ]]; then
-        export APPTAINER_BINDPATH=/cvmfs,/cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security,/home/export/,/mnt/scratch/
-    else
-        warning "Unknown hostname. Setting APPTAINER_BINDPATH to default."
-        # Default: use home directory for persistence
-        export APPTAINER_CACHEDIR="$HOME/.apptainer/cache"
-        export APPTAINER_TMPDIR="$HOME/.apptainer/tmp"
-        export MPLCONFIGDIR="$HOME/.config/matplotlib"
+# Parse apptainer-args from a Snakemake profile config.yaml
+parse_apptainer_args() {
+    local CONFIG_FILE="$1"
+    if [ -f "$CONFIG_FILE" ]; then
+        sed -n 's/^apptainer-args:[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE"
     fi
-    mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
+}
 
+setup_host_env() {
+    local HOST
+    HOST=$(hostname)
+    CLUSTER_PROFILE=$(detect_cluster_profile)
+    local PROFILE_CONFIG="${PROFILE_DIR}/${CLUSTER_PROFILE}/config.yaml"
+    info "Determining configuration for hostname: $HOST (profile: $CLUSTER_PROFILE)"
+
+    # Parse bind paths from profile config
+    local APPTAINER_ARGS
+    APPTAINER_ARGS=$(parse_apptainer_args "$PROFILE_CONFIG")
+    if [ -n "$APPTAINER_ARGS" ]; then
+        # Convert -B flags to comma-separated APPTAINER_BINDPATH
+        # Extract all paths after -B flags
+        local BIND_PATHS=""
+        local ARGS_ARRAY=($APPTAINER_ARGS)
+        local i=0
+        while [ $i -lt ${#ARGS_ARRAY[@]} ]; do
+            if [ "${ARGS_ARRAY[$i]}" = "-B" ] && [ $((i+1)) -lt ${#ARGS_ARRAY[@]} ]; then
+                [ -n "$BIND_PATHS" ] && BIND_PATHS="${BIND_PATHS},"
+                BIND_PATHS="${BIND_PATHS}${ARGS_ARRAY[$((i+1))]}"
+                i=$((i+2))
+            else
+                i=$((i+1))
+            fi
+        done
+        export APPTAINER_BINDPATH="$BIND_PATHS"
+    fi
+
+    # Standard Cache Setup (using /tmp to be safe/fast)
+    local CACHE_BASE="/tmp/$(whoami)"
+
+    # Cluster-specific non-bind-path settings
+    case "$HOST" in
+        *cmslpc*)
+            PIXI_DIR="/uscms_data/d3/${USER}/.pixi"
+            if [ ! -d "$PIXI_DIR" ]; then
+                info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
+            fi
+            ;;
+        *runner*)
+            PIXI_DIR="/tmp/pixi"
+            ;;
+        *)
+            if [ -z "$APPTAINER_ARGS" ]; then
+                warning "Unknown hostname. Using defaults (HOME) for cache/config."
+                CACHE_BASE=$HOME
+                mkdir -p "$CACHE_BASE"
+            fi
+            ;;
+    esac
+
+    # Cache Configuration
+    export APPTAINER_CACHEDIR="${CACHE_BASE}/apptainer_cache"
+    export APPTAINER_TMPDIR="${CACHE_BASE}/.apptainer/"
+    export MPLCONFIGDIR="${CACHE_BASE}/.config/matplotlib"
+    mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
 }
 
 # --- LPC Specific Logic ---
@@ -108,31 +185,53 @@ run_coffea() {
     check_apptainer
     info "Running Coffea container..."
     setup_lpc_jobqueue
+    local HOST
+    HOST=$(hostname)
 
-    # Base flags for apptainer
+    # 1. Base Flags
     local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
     
-    # Add LPC specific env var if needed
-    if [[ $(hostname) == *"cmslpc"* ]]; then
+    # LPC-Specific Environment Variable
+    if [[ $HOST == *"cmslpc"* ]]; then
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
+    # 2. FALCON / ROGUE Logic
+    if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
+        # Critical: Mirror Bind for Dask
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # CASE A: Inside a job -> Run locally
+            info "Inside Slurm Job ($SLURM_JOB_ID). Running container directly..."
+        else
+            # CASE B: Login Node -> Submit Interactive Job
+            info "Not in a job. Launching interactive Slurm session..."
+            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" "$@"
+            return # Stop execution on login node
+        fi
+    fi
+
+    add_x509_proxy_flags "$HOST" FLAGS
+
+    # 3. EXECUTION LOGIC
     if [ -z "$*" ]; then
-        # Interactive Mode
-        if [[ $(hostname) == *"cmslpc"* ]]; then
-            info "Opening interactive shell with lpcjobqueue environment..."
+        # --- INTERACTIVE SHELL ---
+        if [[ $HOST == *"cmslpc"* ]]; then
+            info "Opening interactive shell (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
         else
             info "Opening interactive shell..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
         fi
     else
-        # Non-Interactive Mode
-        info "Running command inside container..."
+        # --- COMMAND EXECUTION ---
         local CMD="$*"
-        if [[ $(hostname) == *"cmslpc"* ]]; then
+        if [[ $HOST == *"cmslpc"* ]]; then
+            info "Running command (LPC mode)..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
         else
+            info "Running command..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         fi
     fi
@@ -166,14 +265,81 @@ run_brilcalc() {
 run_classifier() {
     check_apptainer
     info "Running Classifier container..."
+
     local INIT_FILE="/entrypoint.sh"
+    local USE_SLURM=false
+    local IS_CPU=false
+    local IMAGE="$CLASSIFIER_IMAGE"  # Default to GPU
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
     ulimit -n 65536
-    
-    if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE"
+
+    # Detect if on FALCON (auto-enable SLURM)
+    local HOST=$(hostname)
+    if [[ $HOST == *falcon* ]]; then
+        USE_SLURM=true
+        info "FALCON cluster detected. Will submit jobs via SLURM."
+    fi
+
+    # Handle CPU flag (passed from dispatcher as first arg if classifier_cpu)
+    if [[ "$1" == "cpu" ]]; then
+        info "Using CPU version of the classifier container..."
+        IMAGE="$CLASSIFIER_CPU_IMAGE"
+        IS_CPU=true
+        shift  # Remove "cpu" from args
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$CLASSIFIER_IMAGE" bash --init-file "$INIT_FILE" -c "$*"
+        info "Using GPU version of the classifier container..."
+    fi
+
+    # Collect remaining user arguments
+    local USER_CMD="$*"
+
+    # CPU: Handle FALCON interactive session (like run_coffea)
+    if [ "$IS_CPU" = true ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # Already inside a job
+            info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive CPU classifier shell..."
+        else
+            # Login node - submit interactive job
+            info "Not in a job. Launching interactive Slurm session..."
+            srun --pty --partition=work --time=04:00:00 --mem=4G "$0" classifier_cpu
+            return
+        fi
+    fi
+
+    # GPU: Handle FALCON interactive session with default MPS share
+    if [ "$IS_CPU" = false ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # Already inside a job
+            info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
+        else
+            # Login node - submit interactive GPU job
+            info "Not in a job. Launching interactive GPU Slurm session with --gres=mps:20..."
+            srun --pty --partition=work --time=04:00:00 --mem=4G --gres=mps:20 "$0" classifier
+            return
+        fi
+    fi
+
+    add_x509_proxy_flags "$HOST" FLAGS
+
+    # Execute
+    if [ "$USE_SLURM" = true ] && [ -n "$USER_CMD" ]; then
+        # FALCON with command: submit to SLURM
+        local SLURM_CONF="${SLURM_CONF:-software/slurm/slurm.conf}"
+        mkdir -p slurm_logs
+        local CMD="source $INIT_FILE && export PYTHONUNBUFFERED=1 && $USER_CMD"
+        local SLURM_GRES_ARGS=()
+        if [ "$IS_CPU" = false ]; then
+            SLURM_GRES_ARGS=( --gres=mps:20 )
+        fi
+
+        info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
+        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "apptainer exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
+    elif [ -z "$USER_CMD" ]; then
+        # Interactive (FALCON job or non-FALCON)
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
+    else
+        # CPU with command or non-FALCON GPU/CPU with command
+        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
     fi
 }
 
@@ -200,6 +366,15 @@ install_pixi() {
 }
 
 run_snakemake() {
+    # FALCON: Launch interactive Slurm session if on login node
+    local HOST
+    HOST=$(hostname)
+    if [[ $HOST == *falcon* ]] && [ -z "$SLURM_JOB_ID" ]; then
+        info "Not in a job. Launching interactive Slurm session for Snakemake..."
+        srun --pty --partition=work --time=04:00:00 --mem=4G "$0" snakemake "$@"
+        return
+    fi
+
     info "Running Snakemake with Pixi environment..."
     set -eo pipefail
 
@@ -237,10 +412,20 @@ run_snakemake() {
     # Install Environment
     pixi install || { error "Pixi install failed."; exit 1; }
 
-    # Install Reana Client (Custom)
-    if ! pixi run python -c "import reana_client" 2>/dev/null; then
-        info "Installing reana-client..."
-        pixi run install-reana || warning "reana-client install failed."
+    # Auto-inject cluster profile if user didn't specify one
+    local HAS_PROFILE=false
+    for arg in "${ARGS[@]}"; do
+        if [[ "$arg" == "--profile" ]]; then
+            HAS_PROFILE=true
+            break
+        fi
+    done
+    if [ "$HAS_PROFILE" = false ]; then
+        local AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}"
+        if [ -d "$AUTO_PROFILE" ]; then
+            info "Auto-injecting Snakemake profile: $AUTO_PROFILE"
+            ARGS=("--profile" "$AUTO_PROFILE" "${ARGS[@]}")
+        fi
     fi
 
     # Execute
@@ -248,6 +433,54 @@ run_snakemake() {
         pixi run bash -c "${ARGS[*]}"
     else
         pixi run snakemake "${ARGS[@]}"
+    fi
+    info "Execution finished successfully!"
+}
+
+run_reana() {
+    info "Running REANA client with Pixi environment..."
+    set -eo pipefail
+
+    local REINSTALL=false
+    local ARGS=()
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --reinstall|--fresh) REINSTALL=true; shift ;;
+            --help|-h) ARGS+=("--help"); shift ;;
+            source) ARGS+=("$@"); break ;;
+            *) ARGS+=("$1"); shift ;;
+        esac
+    done
+
+    [[ ${#ARGS[@]} -eq 0 && "$REINSTALL" != true ]] && { error "No arguments supplied."; show_help; exit 1; }
+
+    # Install Pixi
+    install_pixi || { error "Pixi installation failed."; exit 1; }
+
+    # Reinstall logic
+    if [ "$REINSTALL" = true ]; then
+        info "Cleaning up environment..."
+        rm -f pixi.toml pixi.lock
+    fi
+
+    # Sync Config
+    local PIXI_CONFIG="software/pixi/pixi.toml"
+    if [ -f "${PIXI_CONFIG}" ]; then
+        cp "${PIXI_CONFIG}" pixi.toml
+    else
+        error "Template ${PIXI_CONFIG} not found."; exit 1
+    fi
+
+    # Install Environment
+    pixi install -e reana || { error "Pixi install failed."; exit 1; }
+
+    # Execute
+    export PYTHONNOUSERSITE=1
+    if [ "${ARGS[0]}" = "source" ]; then
+        pixi run -e reana bash -c "${ARGS[*]}"
+    else
+        pixi run -e reana reana-client "${ARGS[@]}"
     fi
     info "Execution finished successfully!"
 }
@@ -266,6 +499,8 @@ case "$1" in
     "brilcalc")            run_brilcalc "${@:2}" ;;
     "snakemake_container") run_snakemake_container "${@:2}" ;;
     "snakemake")           run_snakemake "${@:2}" ;;
+    "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
+    "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac

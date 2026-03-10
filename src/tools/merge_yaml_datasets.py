@@ -15,6 +15,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main_file = yaml.safe_load(open(args.main_file, 'r'))
+    
+    # Check if main_file has 'datasets' key (old format) or not (new format)
+    if 'datasets' in main_file:
+        datasets = main_file['datasets']
+    else:
+        datasets = main_file
 
     for ifile in args.files_to_add:
 
@@ -24,7 +30,7 @@ if __name__ == '__main__':
             tmp_split = ('_UL' if 'UL' in ikey else '_20')
             dataset = ikey.split( tmp_split )[0]
             year = tmp_split.split('_')[1] + '_'.join(ikey.split(tmp_split)[1:])
-            if dataset in main_file['datasets']:
+            if dataset in datasets:
                 for iname in ['source', 'kFactor',
                               'lumi', 'xs',
                               'cutFlowFourTag', 'cutFlowFourTagUnitWeight',
@@ -35,20 +41,25 @@ if __name__ == '__main__':
 
                 if args.add_to_dataset:
                     dataset = f"{dataset}_{args.add_to_dataset}"
-                    if dataset not in main_file['datasets']:
-                        main_file['datasets'][dataset] = { year: {} }
+                    if dataset not in datasets:
+                        datasets[dataset] = { year: {} }
                     else:
-                        main_file['datasets'][dataset][year] = {}
+                        datasets[dataset][year] = {}
 
                 if 'data' in dataset:
                     era = year[-1]
                     year = ''.join(year[:-1])
 
-                    if 'picoAOD' not in main_file['datasets'][dataset][year]:
-                        main_file['datasets'][dataset][year]['picoAOD'] = {}
+                    if 'picoAOD' not in datasets[dataset][year]:
+                        datasets[dataset][year]['picoAOD'] = {}
 
-                    main_file['datasets'][dataset][year]['picoAOD'][era] = tmp_file[ikey]
+                    datasets[dataset][year]['picoAOD'][era] = tmp_file[ikey]
                 else:
-                    main_file['datasets'][dataset][year]['picoAOD'] = tmp_file[ikey]
+                    datasets[dataset][year]['picoAOD'] = tmp_file[ikey]
 
-    yaml.dump(main_file, open(args.output_file, 'w'), default_flow_style=False)
+    # Write back in the same format as input
+    if 'datasets' in main_file:
+        main_file['datasets'] = datasets
+        yaml.dump(main_file, open(args.output_file, 'w'), default_flow_style=False)
+    else:
+        yaml.dump(datasets, open(args.output_file, 'w'), default_flow_style=False)

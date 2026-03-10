@@ -323,7 +323,7 @@ class Chunk(metaclass=_ChunkMeta):
         """
         chunks = [chunk.deepcopy() for chunk in chunks]
         branches = set(chunk.branches for chunk in chunks)
-        if len(branches) == 1:
+        if len(branches) <= 1:
             return chunks
         else:
             common = frozenset.intersection(*branches)

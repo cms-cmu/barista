@@ -1,0 +1,3 @@
+# Default Snakemake profile for unknown hosts
+default-resources:
+  tmpdir: "/tmp"

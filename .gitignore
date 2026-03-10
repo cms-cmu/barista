@@ -189,4 +189,9 @@ set_ROOT.sh
 
 */*/.DS_Store
 tmp/
-pixi*
+/pixi.t*
+/.pixi*
+test.pdf*~
+slurm_logs/
+logs/
+notes/

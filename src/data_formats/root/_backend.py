@@ -116,7 +116,7 @@ def concat_record(data: list, library: Backends = ...):
     elif library == "pd":
         import pandas as pd
 
-        return pd.concat(data, ignore_index=True, sort=False, copy=False, axis=0)
+        return pd.concat(data, ignore_index=True, sort=False, axis=0)
     elif library == "np":
         import numpy as np
 
@@ -145,7 +145,7 @@ def merge_record(data: list, library: Backends = ...):
     elif library == "pd":
         import pandas as pd
 
-        df = pd.concat(data, ignore_index=False, sort=False, copy=False, axis=1)
+        df = pd.concat(data, ignore_index=False, sort=False, axis=1)
         return df.loc[:, ~df.columns.duplicated(keep="last")]
     elif library == "np" or library.startswith("dict"):
         return reduce(op.or_, data)
