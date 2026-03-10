@@ -1,0 +1,4 @@
+# Snakemake profile for CMU Rogue cluster
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/ -B /mnt/scratch/${USER}"
+default-resources:
+  tmpdir: "/tmp"
