@@ -19,6 +19,10 @@ def _data_selection(df: pd.DataFrame):
     return df[_common_selection(df) & (~(df["SR"] & df["fourTag"])) & df["passHLT"]]
 
 
+def _mixed_all_selection(df: pd.DataFrame):
+    return df[_common_selection(df)]
+
+
 def _ttbar_selection(df: pd.DataFrame):
     return df[_common_selection(df) & df["passHLT"]]  # Use this line for Run3
     #return df[_common_selection(df)]
@@ -26,6 +30,42 @@ def _ttbar_selection(df: pd.DataFrame):
 
 def _remove_sr(df: pd.DataFrame):
     return df[~df["SR"]]
+
+
+def _fill_nan(df: pd.DataFrame):
+    import logging
+
+    import numpy as np
+
+    for col in ["xW", "xbW"]:
+        if col in df.columns:
+            n_nan = df[col].isna().sum()
+            if n_nan > 0:
+                logging.warning(f"MvD: filling {n_nan} NaN values in '{col}' with 0")
+                df[col] = df[col].fillna(0)
+
+    for col in ["NotCanJet_mass"]:
+        if col not in df.columns:
+            continue
+        if df[col].dtype == "awkward":
+            import awkward as ak
+
+            ak_arr = df[col].ak.array
+            flat = ak.to_numpy(ak.flatten(ak_arr))
+            n_nan = int(np.isnan(flat).sum())
+            if n_nan > 0:
+                logging.warning(f"MvD: filling {n_nan} NaN in jagged '{col}' with 0")
+                from awkward_pandas import AwkwardExtensionArray
+
+                filled_flat = np.where(np.isnan(flat), np.float32(0), flat)
+                df[col] = AwkwardExtensionArray(ak.unflatten(filled_flat, ak.num(ak_arr)))
+        else:
+            n_nan = df[col].isna().sum()
+            if n_nan > 0:
+                logging.warning(f"MvD: filling {n_nan} NaN values in '{col}' with 0")
+                df[col] = df[col].fillna(0)
+
+    return df
 
 
 class Train(CommonTrain):
@@ -72,7 +112,8 @@ class Train(CommonTrain):
             _group.fullmatch(
                 ("source:mixed_all",),
                 processors=[
-                    lambda: _common_selection,
+                    lambda: _fill_nan,
+                    lambda: _mixed_all_selection,
                     lambda: add_label_index_from_column(fourTag="mix4"),
                 ],
                 name="mixed_all 4b selection",
