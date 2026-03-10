@@ -26,7 +26,7 @@ class cache(Dataset):
     )
 
     def train(self):
-        from storage.eos import EOS
+        from src.storage.eos import EOS
 
         metafile = EOS(self.opts.input)
         base = metafile.parent

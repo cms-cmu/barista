@@ -902,7 +902,7 @@ if __name__ == '__main__':
         '-e', '--eras',
         nargs='+',
         dest='era',
-        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2' ],
+        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2', 'I2', 'I3' ],
         help='Data era(s) to process (data only). Examples: --eras A B C.'
     )
 
@@ -1163,7 +1163,7 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends as defaults into config.friends if the processor accepts them
-    if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
+    if args.friends: #and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
         friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
         year_friends = {}

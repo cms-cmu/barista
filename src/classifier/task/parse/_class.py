@@ -3,11 +3,16 @@ from ...utils import import_
 from ._dict import mapping
 
 
-def instance(opt: list[str], pkg: str, /, *args, **kwargs):
+def instance(opt: list[str], pkg: str | list[str], /, *args, **kwargs):
     if len(opt) < 1:
         return None
-    parts = f"{pkg}.{opt[0]}".split(".")
-    _, cls = import_(".".join(parts[:-1]), parts[-1])
+    pkgs = [pkg] if isinstance(pkg, str) else pkg
+    cls = None
+    for p in pkgs:
+        parts = f"{p}.{opt[0]}".split(".")
+        _, cls = import_(".".join(parts[:-1]), parts[-1])
+        if cls is not None:
+            break
     if cls is None:
         return None
     if len(opt) > 1:

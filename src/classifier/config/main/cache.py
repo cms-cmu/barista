@@ -15,7 +15,7 @@ from ._utils import LoadTrainingSets, progress_advance
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-    from storage.eos import EOS
+    from src.storage.eos import EOS
     from torch.utils.data import StackDataset
 
 

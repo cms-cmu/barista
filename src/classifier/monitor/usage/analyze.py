@@ -8,7 +8,7 @@ import networkx as nx
 import numba as nb
 import numpy as np
 import pandas as pd
-from storage.eos import EOS
+from src.storage.eos import EOS
 from bokeh.embed import file_html
 from bokeh.layouts import column, row
 from bokeh.models import (

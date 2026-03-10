@@ -112,7 +112,7 @@ class _ggF(_MCDataset):
         return ",".join(f"{k}:{v:.6g}" for k, v in couplings.items())
 
     def __new__(cls, self: MC, metadata: str):
-        from physics.dihiggs.kappa_framework import Coupling
+        from src.physics.dihiggs.kappa_framework import Coupling
 
         filelists = []
         datasets = {}
@@ -188,7 +188,7 @@ def _mixeddata_all(self: Data, metadata: str):
 def _synthetic(self: Data, metadata: str):
     files = []
     if "synthetic" in self.data_sources:
-        from storage.eos import EOS
+        from src.storage.eos import EOS
 
         samples = parse.intervals(self.opts.data_synthetic_samples)
         for year, eras in CollisionData.eras.items():

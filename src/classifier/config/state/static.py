@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from storage.eos import EOS, PathLike
+    from src.storage.eos import EOS, PathLike
 
 
 class GitRepo:
