@@ -76,7 +76,11 @@ if [[ $use_tar -eq 1 ]]; then
   echo "Packing $source_folder into a tarball for transfer..."
   if [[ ! $source_folder =~ ^root:// ]]; then
       # Need a robust temp dir
+<<<<<<< HEAD
       tmp_dir="$(mktemp -d -p /tmp)"
+=======
+      tmp_dir="$(mktemp -d)"
+>>>>>>> eb3e6837 (Update imports to use src directory structure and enhance .gitignore for new files)
       trap 'rm -rf "$tmp_dir"' EXIT
       archive_name="transfer_$(date +%s).tar.gz"
       tar -C "$source_folder" -czf "$tmp_dir/$archive_name" .
