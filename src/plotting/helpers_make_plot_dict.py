@@ -785,6 +785,7 @@ def _handle_var_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_lis
 
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iv]
+        _process_config["edgecolor"] = plot_helpers.COLORS[iv]
         _process_config["label"] = plot_helpers.get_label(f"{process_config['label']} {_var}", label_override, iv)
         _process_config["histtype"] = "errorbar"
 
@@ -806,6 +807,7 @@ def _handle_year_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var: s
 
         _process_config = copy.copy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iy]
+        _process_config["edgecolor"] = plot_helpers.COLORS[iy]
         _process_config["label"] = plot_helpers.get_label(f"{process_config['label']} {_year}", label_override, iy)
         _process_config["histtype"] = "errorbar"
 
