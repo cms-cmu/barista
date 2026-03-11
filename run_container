@@ -2,7 +2,7 @@
 
 # --- Configuration ---
 # Image Definitions
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
+COFFEA_IMAGE="docker://registry.hub.docker.com/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
@@ -35,11 +35,25 @@ add_x509_proxy_flags() {
     case "$HOST" in
         *cmslpc*|*lxplus*|*falcon*|*rogue*)
             local PROXY="${PWD}/proxy/x509_proxy"
+            local NEED_RENEW=false
+
+            if [ ! -f "$PROXY" ]; then
+                NEED_RENEW=true
+            elif ! voms-proxy-info -file "$PROXY" -exists -valid 1:00 2>/dev/null; then
+                warning "Proxy expired or expiring within 1 hour."
+                NEED_RENEW=true
+            fi
+
+            if [ "$NEED_RENEW" = true ]; then
+                info "Creating/renewing VOMS proxy..."
+                mkdir -p proxy
+                voms-proxy-init -voms cms -valid 192:00 -out "$PROXY"
+            fi
+
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
             else
-                warning "Proxy file not found at ${PROXY}. Run manually to create it if needed:"
-                warning "mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy"
+                warning "Proxy creation failed. Some operations may not work."
             fi
             ;;
     esac
