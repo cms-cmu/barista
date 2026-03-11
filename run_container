@@ -95,7 +95,12 @@ detect_cluster_profile() {
 parse_apptainer_args() {
     local CONFIG_FILE="$1"
     if [ -f "$CONFIG_FILE" ]; then
-        sed -n 's/^apptainer-args:[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE"
+        local raw
+        raw=$(sed -n 's/^apptainer-args:[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE")
+        # Expand shell variables like ${USER} in bind paths
+        raw="${raw//\$\{USER\}/$USER}"
+        raw="${raw//\$USER/$USER}"
+        echo "$raw"
     fi
 }
 
