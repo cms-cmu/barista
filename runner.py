@@ -617,30 +617,31 @@ def setup_config_defaults(config_runner, args):
 
 def setup_executor(config_runner, args, client, pool):
     """Setup processor executor based on configuration."""
-    executor_args = {
+    runner_args = {
         'schema': config_runner['schema'],
         'savemetrics': True,
         'skipbadfiles': config_runner['skipbadfiles'],
-        'xrootdtimeout': 600
+        'xrootdtimeout': 600,
+        'chunksize': config_runner['chunksize'],
+        'maxchunks': config_runner['maxchunks'],
     }
 
     if args.debug:
         logging.info("Running iterative executor in debug mode")
-        return processor.iterative_executor, executor_args
+        executor = processor.IterativeExecutor()
+        return executor, runner_args
     elif args.condor or args.run_dask:
-        executor_args.update({
-            "client": client,
-            "align_clusters": False,
-            "status": args.run_dask and not args.condor
-        })
-        return processor.dask_executor, executor_args
+        executor = processor.DaskExecutor(
+            client=client,
+            status=args.run_dask and not args.condor,
+        )
+        return executor, runner_args
     else:
         logging.info("Running futures executor")
-        executor_args.update({
-            "pool": pool,
-            "workers": config_runner['workers']
-        })
-        return processor.futures_executor, executor_args
+        executor = processor.FuturesExecutor(
+            workers=config_runner['workers'],
+        )
+        return executor, runner_args
 
 
 def process_skimming_output(output, fileset, configs, config_runner, args, client):
@@ -778,17 +779,27 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
-    output, metrics = processor.run_uproot_job(
+    runner = processor.Runner(
+        executor=executor,
+        schema=executor_args['schema'],
+        savemetrics=executor_args['savemetrics'],
+        skipbadfiles=executor_args['skipbadfiles'],
+        xrootdtimeout=executor_args['xrootdtimeout'],
+        chunksize=executor_args['chunksize'],
+        maxchunks=executor_args['maxchunks'],
+    )
+    result = runner(
         fileset,
         treename='Events',
         processor_instance=analysis_class(**configs.get('config', {})),
-        executor=executor,
-        executor_args=executor_args,
-        chunksize=config_runner['chunksize'],
-        maxchunks=config_runner['maxchunks'],
     )
+    if isinstance(result, tuple):
+        output, metrics = result
+    else:
+        output = result
+        metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
     elapsed = time.time() - tstart
-    nEvent = metrics['entries']
+    nEvent = metrics.get('entries', 0)
     logging.info(f'Metrics:')
     logging.info(pretty_repr(metrics))
     logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
@@ -852,7 +863,7 @@ if __name__ == '__main__':
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default="coffea4bees/metadata/friends_HH4b.yml",
+        default= None,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
     io_group.add_argument(
