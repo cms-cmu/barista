@@ -307,6 +307,19 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                     ):
                         hist_args = self.__backend__.broadcast_all(**hist_args)
                     ############################################################
+                    # awkward v2 preserves optional types (?bool, ?float);
+                    # convert to concrete numpy before filling boost-histogram
+                    for k, v in hist_args.items():
+                        if isinstance(v, ak.Array) and ak.any(ak.is_none(v)):
+                            if "bool" in str(v.type):
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, False))
+                            else:
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
+                        elif isinstance(v, ak.Array):
+                            try:
+                                hist_args[k] = ak.to_numpy(v)
+                            except ValueError:
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
                     hists._hists[name].fill(**hist_args)
                     hists._filled.add(name)
                 except Exception:
