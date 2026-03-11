@@ -101,7 +101,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         try:
             common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index][category_key])
         except (KeyError, IndexError) as e:
-            raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
+            raise ValueError(f"Failed to compare dictionary keys (multiple hists): {str(e)}")
 
         if len(unique_to_dict) > 0:
             for _key in unique_to_dict:
@@ -785,6 +785,7 @@ def _handle_var_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_lis
 
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iv]
+        _process_config["edgecolor"] = plot_helpers.COLORS[iv]
         _process_config["label"] = plot_helpers.get_label(f"{process_config['label']} {_var}", label_override, iv)
         _process_config["histtype"] = "errorbar"
 
@@ -806,6 +807,7 @@ def _handle_year_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var: s
 
         _process_config = copy.copy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iy]
+        _process_config["edgecolor"] = plot_helpers.COLORS[iy]
         _process_config["label"] = plot_helpers.get_label(f"{process_config['label']} {_year}", label_override, iy)
         _process_config["histtype"] = "errorbar"
 
