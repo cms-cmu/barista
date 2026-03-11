@@ -117,3 +117,33 @@ CI stage definitions are modular, split across:
 - The Dockerfile is at `software/dockerfiles/Dockerfile_analysis` (base: `coffeateam/coffea-base-almalinux8`)
 - Pixi (`pixi.toml` / `software/pixi/`) manages the Snakemake environment; container manages the analysis environment
 - Documentation auto-deploys to `barista.docs.cern.ch` via MkDocs on push to master
+
+## Automated Issue Bot
+
+When invoked headlessly by the issue-bot (running on falcon.phys.cmu.edu):
+
+- Do NOT run git commands — branching, committing, and pushing are handled externally
+- No interactive input is available — if the issue is ambiguous, make changes using your best judgement and list any judgement calls made
+- Use `/test-local-CI` to validate changes before finishing
+
+## Where to Make Changes
+
+For issues filed against **coffea4bees**, start in `coffea4bees/`. If the root cause lies in the barista base library (`src/`), fix it there — follow the root cause wherever it leads.
+
+For issues filed against **barista**, edit in `src/`. Do not add analysis-specific logic to `src/`.
+
+## Where to Look for Common Issue Types
+
+| Issue type | Start here |
+|---|---|
+| Event weights, scale factors | `coffea4bees/analysis/weights/` |
+| Trigger emulation | `coffea4bees/analysis/trigger_emulator/` |
+| Event selection, cutflow | `coffea4bees/analysis/helpers/` |
+| Dataset / metadata | `coffea4bees/metadata/` |
+| Histogram filling | `coffea4bees/analysis/processors/processor_HH4b.py` |
+| Skimming (NanoAOD→PicoAOD) | `coffea4bees/skimmer/` |
+| Base class framework | `src/` |
+
+## Validating a Fix
+
+After making changes, run `/test-local-CI`. A successful fix means all previously passing tests still pass with no new failures. Report which tests passed and which (if any) failed.

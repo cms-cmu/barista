@@ -171,14 +171,14 @@ def _mixeddata(self: Data, metadata: str):
 def _mixeddata_all(self: Data, metadata: str):
     files = []
     if "mixed_all" in self.data_sources:
-        for year in CollisionData.years:
+        for year in CollisionData.eras:
             file_list: list[str] = parse.mapping(
                 metadata + f".mixeddata_all.{year}.picoAOD.files", default="file"
             )
             if file_list:
                 files.append(
                     [
-                        f"label:data,year:{year},source:mixed_all",
+                        f"label:data,year:{year},source:mixed_all",  # year is e.g. 2022_EE
                         *file_list,
                     ]
                 )

@@ -1,0 +1,4 @@
+# Snakemake profile for CMU Falcon cluster
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/"
+default-resources:
+  tmpdir: "/tmp"
