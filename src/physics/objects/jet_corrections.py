@@ -356,7 +356,7 @@ def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):
         corr.evaluate("jetvetomap", etaFlat, phiFlat),
         counts=etaCounts,
     )
-    jetMask = ak.where( weight == 0, True, False, axis=1 )  # if 0 is not vetoed, then True
+    jetMask = ak.where( weight == 0, True, False )  # if 0 is not vetoed, then True
 
     if event_veto == False:
         veto_mask = jetMask & mask_for_VetoMap
