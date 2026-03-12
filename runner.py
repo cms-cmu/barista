@@ -852,7 +852,7 @@ if __name__ == '__main__':
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default="coffea4bees/metadata/friends_HH4b.yml",
+        default= None,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
     io_group.add_argument(
