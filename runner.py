@@ -61,7 +61,7 @@ def create_code_tarball(condor_transfer_input_files):
         condor_transfer_input_files: List of paths to include in tarball
 
     Returns:
-        Tuple of (tarball_path, temp_dir_path) for cleanup later
+        Tuple of  (tarball_path, temp_dir_path) for cleanup later
     """
     import tarfile
     import os
