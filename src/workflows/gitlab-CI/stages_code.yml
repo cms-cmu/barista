@@ -13,7 +13,7 @@ code_kappa_framework_barista:
 code_classifier_barista:
   stage: code
   extends:
-    - .base_classifier
+    - .base_classifier_coffea4bees
   script:
     - source src/scripts/code-classifier.sh
   allow_failure: true

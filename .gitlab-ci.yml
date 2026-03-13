@@ -69,23 +69,13 @@ stages:
   - validation
   - pages
 
-setup_workspace:
+setup_coffea4bees:
   stage: setup
   image: alpine/git:latest
   needs:
     - voms_proxy
   script:
-    # --- bbreww ---
-    - BBREWW_DEFAULT_BRANCH="master"
-    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
-    # Check if the feature branch exists. If not, use the default branch.
-    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
-    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
-    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
-    - ls bbreww/
-
-    # --- coffea4bees ---
-    - COFFEA4BEES_DEFAULT_BRANCH="master" 
+    - COFFEA4BEES_DEFAULT_BRANCH="master"
     - echo "Checking for branch '$COFFEA4BEES_BRANCH' in coffea4bees..."
     - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/coffea4bees.git "$COFFEA4BEES_BRANCH" || COFFEA4BEES_BRANCH="$COFFEA4BEES_DEFAULT_BRANCH"
     - echo "Cloning coffea4bees from branch '$COFFEA4BEES_BRANCH'"
@@ -93,14 +83,31 @@ setup_workspace:
     - ls coffea4bees/
   artifacts:
     paths:
-      - bbreww/
       - coffea4bees/
       - proxy/
     expire_in: 4 hours
 
-.base_analysis:
+setup_bbreww:
+  stage: setup
+  image: alpine/git:latest
   needs:
-    - setup_workspace
+    - voms_proxy
+  script:
+    - BBREWW_DEFAULT_BRANCH="master"
+    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
+    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
+    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
+    - ls bbreww/
+  artifacts:
+    paths:
+      - bbreww/
+      - proxy/
+    expire_in: 4 hours
+
+.base_analysis_coffea4bees:
+  needs:
+    - setup_coffea4bees
   image: ${CI_REGISTRY_IMAGE}:test
   before_script:
     - echo "Checking output directory"
@@ -111,10 +118,34 @@ setup_workspace:
     - k8s-cvmfs
   retry: 2
 
-.base_combine:
+.base_analysis_bbreww:
+  needs:
+    - setup_bbreww
+  image: ${CI_REGISTRY_IMAGE}:test
+  before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
+
+.base_analysis_barista:
+  image: ${CI_REGISTRY_IMAGE}:test
+  before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
+
+.base_combine_coffea4bees:
   image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
   needs:
-    - setup_workspace
+    - setup_coffea4bees
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_DIR/output/ || true
@@ -129,10 +160,10 @@ setup_workspace:
     - k8s-cvmfs
   retry: 2
 
-.base_classifier:
+.base_classifier_coffea4bees:
   needs:
     - voms_proxy
-    - setup_workspace
+    - setup_coffea4bees
   image: ${CI_REGISTRY_IMAGE}:classifier_cpu_test
   before_script:
     - source /entrypoint.sh
@@ -167,4 +198,3 @@ pages:
     - if: '$RUN_PAGES == "true"'
       when: always
     - when: never
-

@@ -1,10 +1,10 @@
 classifier_friendtree_barista:   
   stage: friendtree   
   extends:
-    - .base_analysis
-  needs: 
+    - .base_analysis_coffea4bees
+  needs:
     - voms_proxy
-    - setup_workspace
+    - setup_coffea4bees
   script:
     - source src/scripts/classifier-friendtree.sh
   artifacts: 
