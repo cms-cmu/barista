@@ -51,8 +51,7 @@ deploy_container:
   stage: deploy
   image: quay.io/buildah/stable
   needs:
-    - job: build_container
-      optional: true
+    - build_container
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
@@ -101,6 +100,25 @@ build_classifier_gpu_container:
       - software/dockerfiles/ml/Dockerfile_ml_gpu
       - software/dockerfiles/ml/env_ml_gpu.yml
 
+deploy_classifier_gpu_container:
+  stage: deploy
+  image: quay.io/buildah/stable
+  needs:
+    - build_classifier_gpu_container
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
+    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_latest
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - software/dockerfiles/ml/Dockerfile_ml_gpu
+        - software/dockerfiles/ml/env_ml_gpu.yml
+
 build_classifier_cpu_container:
   extends:
     - .buildah
@@ -118,7 +136,8 @@ build_classifier_cpu_container:
       dotenv: build_classifier.env
   rules:
     - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
       - software/dockerfiles/ml/Dockerfile_ml_cpu
       - software/dockerfiles/ml/env_ml_cpu.yml
@@ -128,8 +147,7 @@ deploy_classifier_cpu_container:
   stage: deploy
   image: quay.io/buildah/stable
   needs:
-    - job: build_classifier_cpu_container
-      optional: true
+    - build_classifier_cpu_container
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
