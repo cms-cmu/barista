@@ -51,7 +51,8 @@ deploy_container:
   stage: deploy
   image: quay.io/buildah/stable
   needs:
-    - build_container
+    - job: build_container
+      optional: true
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
@@ -127,7 +128,8 @@ deploy_classifier_cpu_container:
   stage: deploy
   image: quay.io/buildah/stable
   needs:
-    - build_classifier_cpu_container
+    - job: build_classifier_cpu_container
+      optional: true
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
