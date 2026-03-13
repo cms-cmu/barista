@@ -27,6 +27,8 @@ workflow:
 variables:
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
+  ANALYSIS_IMAGE_TAG: "latest"
+  CLASSIFIER_IMAGE_TAG: "classifier_cpu_latest"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
@@ -108,7 +110,10 @@ setup_bbreww:
 .base_analysis_coffea4bees:
   needs:
     - setup_coffea4bees
-  image: ${CI_REGISTRY_IMAGE}:test
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -121,7 +126,10 @@ setup_bbreww:
 .base_analysis_bbreww:
   needs:
     - setup_bbreww
-  image: ${CI_REGISTRY_IMAGE}:test
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -132,7 +140,11 @@ setup_bbreww:
   retry: 2
 
 .base_analysis_barista:
-  image: ${CI_REGISTRY_IMAGE}:test
+  needs:
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -164,7 +176,10 @@ setup_bbreww:
   needs:
     - voms_proxy
     - setup_coffea4bees
-  image: ${CI_REGISTRY_IMAGE}:classifier_cpu_test
+    - job: build_classifier_cpu_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${CLASSIFIER_IMAGE_TAG}
   before_script:
     - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/
