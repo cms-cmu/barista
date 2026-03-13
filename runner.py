@@ -61,7 +61,7 @@ def create_code_tarball(condor_transfer_input_files):
         condor_transfer_input_files: List of paths to include in tarball
 
     Returns:
-        Tuple of (tarball_path, temp_dir_path) for cleanup later
+        Tuple of  (tarball_path, temp_dir_path) for cleanup later
     """
     import tarfile
     import os
@@ -1085,7 +1085,7 @@ if __name__ == '__main__':
             elif dataset_type == 'mixed_data':
                 process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
             elif dataset_type == 'mixeddata_all':
-                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixeddata_4b':
                 process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type in ['mixeddata_4b_noTT']:

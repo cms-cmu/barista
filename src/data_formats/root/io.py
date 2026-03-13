@@ -454,6 +454,12 @@ class TreeReader(_Reader):
                 )
                 if library == "pd":
                     data.reset_index(drop=True, inplace=True)
+                if library == "pd" and len(data) == 0 and (source.entry_start or 0) > 0:
+                    logging.warning(
+                        f"TreeReader: read 0 rows from {source.path}"
+                        f" [{source.entry_start}, {source.entry_stop})"
+                        f" (file has {file[source.name].num_entries} entries)"
+                    )
                 if self._transform is not None:
                     data = self._transform(data)
                 return data

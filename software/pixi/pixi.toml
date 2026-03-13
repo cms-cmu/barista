@@ -18,12 +18,16 @@ snakemake = "*"
 git = "*"
 graphviz = "*"
 
+# libopenblas 0.3.30 crashes with SIGBUS on AMD EPYC (AVX-512 compiled, no AVX-512 CPU)
+# Pin to avoid the broken build until upstream fixes it
+libopenblas = "<0.3.30"
+
 # Additional analysis dependencies (add as needed)
 # numpy = "*"
 
 [pypi-dependencies]
 # Pip-only packages from Dockerfile
-panoptes-ui = "*"
+# panoptes-ui removed: pulls in pandas→numpy→libopenblas which crashes on AMD EPYC (no AVX-512)
 snakemake-logger-plugin-snkmt = "*"
 
 [tasks]

@@ -13,7 +13,7 @@ Repository: `gitlab.cern.ch/cms-cmu/barista` (CERN GitLab)
 ### Data-Taking Periods
 
 - **Run 2**: years `UL16` (has `preVFP` and `postVFP` eras), `UL17`, `UL18`
-- **Run 3**: years `2022`, `2023`
+- **Run 3**: years `2022` (has `EE` and `preEE`)  , `2023` (has `BPix` and `preBPix`)
 
 These are passed to `runner.py` via the `-y`/`--years` flag (e.g., `--years 2022 2023`).
 

@@ -143,8 +143,15 @@ def merge_record(data: list, library: Backends = ...):
             depth_limit=1,
         )
     elif library == "pd":
+        import logging
         import pandas as pd
 
+        lengths = [len(d) for d in data]
+        if len(set(lengths)) > 1:
+            logging.warning(
+                f"merge_record: DataFrames have mismatched lengths {lengths};"
+                f" columns: {[list(d.columns) for d in data]}"
+            )
         df = pd.concat(data, ignore_index=False, sort=False, axis=1)
         return df.loc[:, ~df.columns.duplicated(keep="last")]
     elif library == "np" or library.startswith("dict"):

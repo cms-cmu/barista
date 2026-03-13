@@ -169,20 +169,16 @@ def _mixeddata(self: Data, metadata: str):
 
 
 def _mixeddata_all(self: Data, metadata: str):
-    files = []
+    filelists = []
     if "mixed_all" in self.data_sources:
-        for year in CollisionData.eras:
-            file_list: list[str] = parse.mapping(
-                metadata + f".mixeddata_all.{year}.picoAOD.files", default="file"
+        for year, eras in CollisionData.eras.items():
+            filelists.append(
+                [
+                    f"label:data,year:{year},source:mixed_all",
+                    *(metadata + f".mixeddata_all.{year}.picoAOD.{e}.files" for e in eras),
+                ]
             )
-            if file_list:
-                files.append(
-                    [
-                        f"label:data,year:{year},source:mixed_all",  # year is e.g. 2022_EE
-                        *file_list,
-                    ]
-                )
-    return files
+    return filelists
 
 
 def _synthetic(self: Data, metadata: str):
@@ -211,7 +207,7 @@ def _synthetic(self: Data, metadata: str):
 
 
 class Data(_PicoAOD):
-    pico_filelists = (_data,)
+    pico_filelists = (_data, _mixeddata_all)
     pico_files = (_mixeddata, _synthetic)
 
     argparser = ArgParser()
@@ -281,7 +277,6 @@ class Background(Data, MC):
 
 
 class MixedAllBackground(Data, MC):
-    pico_files = (_mixeddata_all,)
     pico_filelists = (_ttbar,)
 
 
