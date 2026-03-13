@@ -139,6 +139,7 @@ setup_bbreww:
 
 .base_analysis_barista:
   needs:
+    - voms_proxy
     - job: build_container
       optional: true
       artifacts: true
