@@ -6,12 +6,11 @@ import numpy as np
 from src.storage.eos import PathLike
 
 from src.skimmer.picoaod import PicoAOD, _branch_filter
-from coffea4bees.analysis.helpers.cutflow import cutflow_4b
+from src.skimmer.cutflow import cutflow
 
 warnings.filterwarnings(
     "ignore", category=RuntimeWarning, message="Missing cross-reference .*"
 )
-
 
 class TestSkimmer(PicoAOD):
     def __init__(self, base_path: PathLike, step: int, **_):
@@ -22,7 +21,7 @@ class TestSkimmer(PicoAOD):
                 _branch_filter(("Jet",), ("event",)),
             ),  # hacked, skip skip == keep
         )
-        self._cutFlow = cutflow_4b()
+        self._cutFlow = cutflow()
 
     def select(self, events: ak.Array):
         selection = events.event % 11 == 0
