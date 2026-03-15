@@ -154,9 +154,11 @@ def _build_stack_legend_patches(stack_dict: Dict) -> List:
     return patches
 
 
-def _draw_hists(hists_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool,
-                plot_data: Dict, **kwargs) -> None:
+def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
     """Draw individual histograms onto the current axes."""
+    uniform_bins = kwargs.get("uniform_bins", False)
+    norm = kwargs.get("norm", False)
+    add_flow = kwargs.get("add_flow", False)
     ax = plt.gca()
     for _, hist_data in hists_dict.items():
         vals = np.array(hist_data["values"], dtype=float)
@@ -211,8 +213,9 @@ def _draw_hists(hists_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool
             hist_obj.plot(**plot_opts)
 
 
-def _configure_main_axes(stack_patches: List, norm: bool, **kwargs) -> None:
+def _configure_main_axes(stack_patches: List, **kwargs) -> None:
     """Set axis labels, scales, legend, limits, and text annotations on the current axes."""
+    norm = kwargs.get("norm", False)
     # Labels
     if kwargs.get("xlabel"):
         plt.xlabel(kwargs["xlabel"])
@@ -291,8 +294,8 @@ def _draw_plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> None:
     stack_dict = plot_data.get("stack", {})
     _draw_stack(stack_dict, uniform_bins, norm, add_flow, plot_data, ax)
     stack_patches = _build_stack_legend_patches(stack_dict)
-    _draw_hists(plot_data.get("hists", {}), uniform_bins, norm, add_flow, plot_data, **kwargs)
-    _configure_main_axes(stack_patches, norm, **kwargs)
+    _draw_hists(plot_data.get("hists", {}), plot_data, **kwargs)
+    _configure_main_axes(stack_patches, **kwargs)
 
 
 def _setup_figure(do_ratio: bool, **kwargs) -> Tuple[plt.Figure, plt.Axes, Any]:
