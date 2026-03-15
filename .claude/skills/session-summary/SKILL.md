@@ -16,15 +16,16 @@ anything left open.
 - Use the current working directory as the project root
 - Target directory: `<project-root>/.claude/session-summaries/`
 - Create it if it doesn't exist: `mkdir -p <project-root>/.claude/session-summaries/`
-- Filename: `YYYY-MM-DD.md` using today's date
-- If the file already exists, use `YYYY-MM-DD-2.md`, then `-3`, etc.
+- Filename: `<slug>-YYYY-MM-DD.md` where `<slug>` is a 2-3 word kebab-case summary of the session (e.g. `fix-background-model-2026-03-12.md`, `issue-bot-testing-2026-03-12.md`)
+- Choose the slug from the dominant topic of the session — concrete and specific, not generic ("misc" or "work" are not acceptable)
+- If the file already exists (unlikely with slug), append `-2`, `-3`, etc.
 
 ### Step 2: Generate the summary
 
 Review the full conversation and produce a summary in this format:
 
 ```markdown
-# Session — YYYY-MM-DD
+# Session — <slug> (YYYY-MM-DD)
 
 ## What we did
 - <action taken> (be specific — what was built, fixed, changed, tested)
