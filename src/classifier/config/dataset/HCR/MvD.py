@@ -95,6 +95,7 @@ class Train(CommonTrain):
                                 apply_JCM_from_list,
                                 path=opts[1],
                                 selected_col="fourTag",
+                                n_jets_offset=0,
                             )
                         ],
                     )
