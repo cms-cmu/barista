@@ -33,6 +33,11 @@ build_container:
   variables:
     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis"
     EXTRA_TAGS: "test"
+  after_script:
+    - echo "ANALYSIS_IMAGE_TAG=test" > build.env
+  artifacts:
+    reports:
+      dotenv: build.env
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     # - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -44,15 +49,18 @@ build_container:
 
 deploy_container:
   stage: deploy
-  extends:
-    - .buildah
-  before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:latest"
-    - echo $REGISTRY_IMAGE_PATH
-  variables:
-    DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis"
+  image: quay.io/buildah/stable
+  needs:
+    - build_container
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:test
+    - buildah tag ${CI_REGISTRY_IMAGE}:test ${CI_REGISTRY_IMAGE}:latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
   rules:
-    # - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - software/dockerfiles/Dockerfile_analysis
@@ -92,6 +100,25 @@ build_classifier_gpu_container:
       - software/dockerfiles/ml/Dockerfile_ml_gpu
       - software/dockerfiles/ml/env_ml_gpu.yml
 
+deploy_classifier_gpu_container:
+  stage: deploy
+  image: quay.io/buildah/stable
+  needs:
+    - build_classifier_gpu_container
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
+    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_latest
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - software/dockerfiles/ml/Dockerfile_ml_gpu
+        - software/dockerfiles/ml/env_ml_gpu.yml
+
 build_classifier_cpu_container:
   extends:
     - .buildah
@@ -102,9 +129,15 @@ build_classifier_cpu_container:
   variables:
     DOCKER_FILE_NAME: "Dockerfile_ml_cpu"
     EXTRA_TAGS: "classifier_cpu_test"
+  after_script:
+    - echo "CLASSIFIER_IMAGE_TAG=classifier_cpu_test" > build_classifier.env
+  artifacts:
+    reports:
+      dotenv: build_classifier.env
   rules:
     - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/ || $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
       - software/dockerfiles/ml/Dockerfile_ml_cpu
       - software/dockerfiles/ml/env_ml_cpu.yml
@@ -112,15 +145,18 @@ build_classifier_cpu_container:
 
 deploy_classifier_cpu_container:
   stage: deploy
-  extends:
-    - .buildah
-  before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_cpu_latest"
-    - echo $REGISTRY_IMAGE_PATH
-    - cd software/dockerfiles/ml/
-  variables:
-    DOCKER_FILE_NAME: "Dockerfile_ml_cpu"
+  image: quay.io/buildah/stable
+  needs:
+    - build_classifier_cpu_container
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_cpu_test
+    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_cpu_test ${CI_REGISTRY_IMAGE}:classifier_cpu_latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_cpu_latest
   rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - software/dockerfiles/ml/Dockerfile_ml_cpu
