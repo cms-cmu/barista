@@ -605,7 +605,6 @@ def setup_config_defaults(config_runner, args):
         'dashboard_address': 10200,
         'friend_base': None,
         'friend_base_argname': "make_classifier_input",
-        'friend_metafile': 'friends',
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 45]
