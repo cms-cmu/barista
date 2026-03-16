@@ -73,18 +73,19 @@ class _JsonPogJERSF:
     ``jer_smear`` can index it as ``jersf[:, variation]``.
     """
 
-    signature = ("JetEta",)
+    signature = ("JetEta", "JetPt")
 
     def __init__(self, corr):
         self._corr = corr
 
-    def getScaleFactor(self, JetEta, form, lazy_cache):
+    def getScaleFactor(self, JetEta, JetPt, form, lazy_cache):
         eta = numpy.asarray(JetEta, dtype=numpy.float32)
+        pt = numpy.asarray(JetPt, dtype=numpy.float32)
         stacked = numpy.stack(
             [
-                self._corr.evaluate(eta, "nom").astype(numpy.float32),
-                self._corr.evaluate(eta, "up").astype(numpy.float32),
-                self._corr.evaluate(eta, "down").astype(numpy.float32),
+                self._corr.evaluate(eta, pt, "nom").astype(numpy.float32),
+                self._corr.evaluate(eta, pt, "up").astype(numpy.float32),
+                self._corr.evaluate(eta, pt, "down").astype(numpy.float32),
             ],
             axis=1,
         )
