@@ -1,5 +1,14 @@
 import argparse
 import logging
+import sys
+from pathlib import Path
+
+# Ensure 'src' parent directory is on the path so cloudpickle can resolve
+# modules pickled with 'src.*' references
+_src_parent = str(Path(__file__).resolve().parent.parent.parent)
+if _src_parent not in sys.path:
+    sys.path.insert(0, _src_parent)
+
 from coffea.util import load, save
 
 def merge_coffea_files( files_to_merge, output_file ):

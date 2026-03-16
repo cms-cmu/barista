@@ -449,6 +449,10 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
         _handle_cut_list(**opts_dict, cut_list=cut, hist_key_list=hist_key_list, var_to_plot=var_to_plot)
         opts_dict["cut"] = cut
 
+    elif len(cfg.hists) > 1 and not cfg.combine_input_files and isinstance(process, list):
+        if debug: print(f"process is a list with multiple input files {process}")
+        _handle_process_list_multi_file(**opts_dict, var=var, var_over_ride=var_over_ride, file_labels=file_labels)
+
     elif len(cfg.hists) > 1 and not cfg.combine_input_files:
         if debug: print(f"hist is a list {process}")
         _handle_input_files(**opts_dict, var_to_plot=var_to_plot, file_labels=file_labels)
@@ -763,6 +767,41 @@ def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: An
         add_hist_data(cfg=cfg, config=_process_config,
                      var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
                      do2d=do2d, debug=debug)
+
+        plot_data["hists"][f"{_proc_id}{iP}"] = _process_config
+
+def _handle_process_list_multi_file(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
+                         axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
+                         var_over_ride: Dict, label_override: Optional[List[str]] = None,
+                         file_labels: Optional[List[str]] = None, debug: bool = False) -> None:
+    """Handle plotting multiple processes from multiple input files.
+
+    Each process is paired with its corresponding input file by index.
+    """
+    file_labels = file_labels or []
+    for iP, _proc_conf in enumerate(process_config):
+        file_index = min(iP, len(cfg.hists) - 1)
+
+        if debug:
+            print(f"In _handle_process_list_multi_file process={_proc_conf['process']} file_index={file_index}")
+            print_list_debug_info(_proc_conf["process"], cut, axis_opts)
+
+        _process_config = copy.deepcopy(_proc_conf)
+        _process_config["fillcolor"] = _proc_conf.get("fillcolor", None)
+        _process_config["histtype"] = "errorbar"
+
+        _proc_id = _proc_conf["label"] if isinstance(_proc_conf["process"], list) else _proc_conf["process"]
+
+        if label_override and iP < len(label_override):
+            _process_config["label"] = label_override[iP]
+        elif iP < len(file_labels):
+            _process_config["label"] = f"{_process_config['label']} {file_labels[iP]}"
+
+        var_to_plot = get_var_to_plot(var, var_over_ride, _proc_id, iP, debug)
+
+        add_hist_data(cfg=cfg, config=_process_config,
+                     var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
+                     do2d=do2d, file_index=file_index, debug=debug)
 
         plot_data["hists"][f"{_proc_id}{iP}"] = _process_config
 

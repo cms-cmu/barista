@@ -61,4 +61,37 @@ python -i plots/iPlot.py  output/hists.coffea  -o testPlotsNew
 >>> plot("canJet0.pt",region="SR",cut="passPreSel",process="data")
 ```
 
+### To plot different processes from different input files
 
+When you have two input files with histograms that have different axes (e.g. different tags), you can define each process in the metadata YAML and plot them together. Each process is matched to its corresponding input file by order.
+
+```
+> python -i plots/iPlot.py hists/histNominal.coffea hists/histLowpt.coffea -l Nominal Lowpt -m plots/metadata/plotsAll_lowpt_TMP.yml
+```
+
+The metadata YAML defines processes with different tags pointing to the same underlying data:
+
+```yaml
+hists:
+  data_nominal:
+    process: data
+    tag: fourTag
+    label: Four-tag data
+    edgecolor: k
+    fillcolor: k
+
+  data_lowpt:
+    process: data
+    tag: lowpt_fourTag
+    label: Low-pt four-tag data
+    edgecolor: r
+    fillcolor: r
+```
+
+Then plot them together by passing a list of process names:
+
+```
+>>> plot("v4j.mass", process=["data_nominal", "data_lowpt"], region="SB", doRatio=True)
+```
+
+The first process (`data_nominal`) is looked up in the first input file, and the second (`data_lowpt`) in the second input file.
