@@ -63,7 +63,7 @@ class Main(main.Main):
         cfg.Monitor.enable = False
 
     def run(self, parser: EntryPoint):
-        from storage.eos import EOS
+        from src.storage.eos import EOS
 
         output = EOS(self.opts.path)
         workflow = defaultdict(list)

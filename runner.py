@@ -605,7 +605,6 @@ def setup_config_defaults(config_runner, args):
         'dashboard_address': 10200,
         'friend_base': None,
         'friend_base_argname': "make_classifier_input",
-        'friend_metafile': 'friends',
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 45]
@@ -902,7 +901,7 @@ if __name__ == '__main__':
         '-e', '--eras',
         nargs='+',
         dest='era',
-        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2' ],
+        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2', 'I2', 'I3' ],
         help='Data era(s) to process (data only). Examples: --eras A B C.'
     )
 

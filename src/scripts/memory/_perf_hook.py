@@ -8,6 +8,11 @@ is needed.
 
 The hook is activated when PERF_PROFILE_OUTPUT is set in the environment.
 Results are written at exit via atexit.
+
+Note: Coffea's executor (including iterative_executor) serializes the
+processor with cloudpickle. The deserialized tracker is a *copy*, so we
+use a shared list object that both the original and deserialized trackers
+append to, ensuring the atexit handler sees all recorded stages.
 """
 
 from __future__ import annotations
@@ -33,6 +38,13 @@ class StageRecord:
     rss_after_mb: float = 0.0
     delta_mb: float = 0.0
     elapsed_sec: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Shared records list — survives pickle round-trips because the deserialized
+# PerfTracker.stage() resolves _shared_records via module globals.
+# ---------------------------------------------------------------------------
+_shared_records: list[StageRecord] = []
 
 
 @dataclass
@@ -69,6 +81,7 @@ class PerfTracker:
             elapsed_sec=elapsed,
         )
         self.records.append(rec)
+        _shared_records.append(rec)
         print(
             f"  [PERF] {name:<50s} "
             f"{elapsed:>7.2f}s | "
@@ -173,8 +186,11 @@ def install_hook():
 
     tracker = get_tracker()
 
-    # Register atexit to write results
+    # Register atexit to write results (use _shared_records which survives
+    # pickle round-trips within the same process)
     def _write_results():
+        # Sync shared records back into the tracker for report writing
+        tracker.records = list(_shared_records)
         if tracker.records:
             tracker.write_report(f"{output_path}.txt")
             tracker.write_csv(f"{output_path}.csv")
