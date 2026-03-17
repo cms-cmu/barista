@@ -65,6 +65,13 @@ triggers:
 """ > ${OUTPUT_DIR}/triggers_HH4b.yml
 cat ${OUTPUT_DIR}/triggers_HH4b.yml; echo
 
+echo """
+friends:
+  UL18:
+    trigWeight: "coffea4bees/metadata/datasets_HH4b_Run2/trigweights_2024_v1p2.json@@trigWeight"
+""" > ${OUTPUT_DIR}/friends_HH4b.yml
+cat ${OUTPUT_DIR}/friends_HH4b.yml; echo
+
 display_section_header "Skimming"
 cmd=(python runner.py -s \
     -p src/skimmer/tests/modify_branches.py \
@@ -73,6 +80,7 @@ cmd=(python runner.py -s \
     -op ${OUTPUT_DIR} \
     --luminosities ${OUTPUT_DIR}/luminosities_HH4b.yml \
     --triggers ${OUTPUT_DIR}/triggers_HH4b.yml \
+    --friends ${OUTPUT_DIR}/friends_HH4b.yml \
     -o picoAOD_modify_branches.yml \
     -m ${OUTPUT_DIR}/datasets_HH4b.yml \
     -t --debug)
