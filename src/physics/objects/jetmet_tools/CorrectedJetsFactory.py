@@ -71,21 +71,34 @@ class _JsonPogJERSF:
 
     Returns a ``(n_jets, 3)`` array [nom, up, down] so that
     ``jer_smear`` can index it as ``jersf[:, variation]``.
+
+    The signature is derived dynamically from the correction's inputs,
+    excluding the ``systematic`` string input (always last).  This lets
+    the same adapter work for corrections that take only ``(eta, syst)``
+    as well as those that take ``(eta, pt, syst)``.
     """
 
-    signature = ("JetEta", "JetPt")
+    _pogname_to_namemap = {
+        "JetEta": "JetEta",
+        "JetPt":  "JetPt",
+    }
 
     def __init__(self, corr):
         self._corr = corr
+        # Last input is the systematic string; the rest are physics variables.
+        self._input_names = [inp.name for inp in corr.inputs if inp.name != "systematic"]
+        self.signature = tuple(
+            self._pogname_to_namemap[n] for n in self._input_names
+            if n in self._pogname_to_namemap
+        )
 
-    def getScaleFactor(self, JetEta, JetPt, form, lazy_cache):
-        eta = numpy.asarray(JetEta, dtype=numpy.float32)
-        pt = numpy.asarray(JetPt, dtype=numpy.float32)
+    def getScaleFactor(self, form, lazy_cache, **kwargs):
+        arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self.signature]
         stacked = numpy.stack(
             [
-                self._corr.evaluate(eta, pt, "nom").astype(numpy.float32),
-                self._corr.evaluate(eta, pt, "up").astype(numpy.float32),
-                self._corr.evaluate(eta, pt, "down").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "nom").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "up").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "down").astype(numpy.float32),
             ],
             axis=1,
         )
