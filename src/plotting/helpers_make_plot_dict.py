@@ -29,6 +29,7 @@ def print_list_debug_info(process, cut, axis_opts):
 #
 #  Get hist values — private helpers
 #
+<<<<<<< HEAD
 
 # Config keys that control styling, not histogram indexing
 _STYLE_KEYS = frozenset([
@@ -182,6 +183,9 @@ def _squeeze_hist(selected_hist: hist.Hist, do2d: bool) -> hist.Hist:
 #  Get hist values — public entry point
 #
 def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts: Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
+=======
+def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts : Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
+>>>>>>> 8cff4df6 (feat(plotting): make cut argument optional (default None))
     """
     Extract histogram data for a given process and configuration.
 
@@ -704,7 +708,11 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
             ))
 
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
+<<<<<<< HEAD
                               cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> PlotData:
+=======
+                              cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> Dict:
+>>>>>>> 8cff4df6 (feat(plotting): make cut argument optional (default None))
     """
     Create a plot dictionary from configuration.
 
