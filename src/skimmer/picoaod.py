@@ -326,8 +326,8 @@ def integrity_check(
             miss_dict["file_missing"] = file_missing
         if chunk_missing:
             miss_dict["chunk_missing"] = chunk_missing
-    output[dataset].pop("source")
-    output[dataset]["missing"] = miss_dict
+        output[dataset].pop("source")
+        output[dataset]["missing"] = miss_dict
     return output, complete
 
 
