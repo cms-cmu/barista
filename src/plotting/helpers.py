@@ -243,15 +243,34 @@ def get_cut_dict(cut: str, cut_list: List[str]) -> Dict[str, Any]:
     """Create a dictionary of cuts with sum as default value.
 
     Args:
-        cut: The main cut to set as True
+        cut: The main cut to set as True (prefix with ~ to set as False)
         cut_list: List of all cuts
 
     Returns:
         Dictionary with cuts as keys and sum as default value
     """
+    if cut.startswith("~"):
+        actual_cut = cut[1:]
+        cut_value = False
+    else:
+        actual_cut = cut
+        cut_value = True
     cut_dict = {c: sum for c in cut_list}
-    cut_dict[cut] = True
+    cut_dict[actual_cut] = cut_value
     return cut_dict
+
+def cut_to_label(cut: str) -> str:
+    """Convert a cut name (possibly with ~ prefix) to a readable label.
+
+    Args:
+        cut: Cut name, optionally prefixed with ~ for negation
+
+    Returns:
+        Human-readable label string
+    """
+    if cut.startswith("~"):
+        return f"fail {cut[1:]}"
+    return f"pass {cut}"
 
 def get_label(default_str: str, override_list: Optional[List[str]], i: int) -> str:
     """Get a label from override list or use default.

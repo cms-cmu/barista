@@ -509,8 +509,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                     output_path = [
                         kwargs.get("outputFolder"),
                         kwargs.get("year", "RunII"),
-                        plot_data["cut"],
                     ]
+                    if plot_data.get("cut") is not None:
+                        output_path.append(plot_data["cut"])
 
                     for k in sorted(plot_data["axis_opts"].keys()):
                         if k in ["name"]:

@@ -77,7 +77,7 @@ def parse_args():
 
 
 def makePlot(cfg, var='selJets.pt',
-             cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
+             cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
@@ -122,7 +122,7 @@ def makePlot(cfg, var='selJets.pt',
 
 
 def make2DPlot(cfg, process, var='selJets.pt',
-               cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
+               cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
