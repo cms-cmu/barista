@@ -3,7 +3,7 @@ name: test-barista
 description: |
   Push the current branch, open or reuse a GitLab MR to master,
   monitor the CI pipeline, and find and fix any failures.
-version: 1.1.0
+version: 1.2.0
 argument-hint: "[branch-name] [--no-push]"
 ---
 
@@ -31,6 +31,16 @@ source ~/.aliases_local; curl -H "PRIVATE-TOKEN: $GITLAB_TOKEN" ...
 ```
 
 This applies to every `curl` call in this skill.
+
+**GitLab API responses may contain ANSI escape codes** that break `json.load()`. Always
+strip them before parsing JSON:
+
+```python
+import re
+raw = sys.stdin.read()
+clean = re.sub(r'\x1b\[[0-9;]*[mK]', '', raw)
+data = json.loads(clean)
+```
 
 ## Arguments
 
@@ -83,6 +93,19 @@ MR title: `WIP: CI test — <slug>`
 ---
 
 ## Step 3: Push (unless --no-push)
+
+First, check for uncommitted changes to tracked files:
+
+```bash
+git status --short
+```
+
+If any tracked files show as modified (`M`) or staged, stop and report:
+> "There are uncommitted changes to tracked files. Commit or stash them before pushing so
+> the CI tests the right code."
+> List the dirty files and ask the user whether to commit them or abort.
+
+If the working tree is clean (only untracked `??` files are fine), proceed:
 
 ```bash
 git push origin $BRANCH
