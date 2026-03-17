@@ -611,7 +611,7 @@
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jet_jerc.json.gz'
     jec_campaign: Summer24Prompt24
     jec_version: V2
-    jer_campaign: Summer24Prompt24
+    jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1 ### DUMMY, TO BE UPDATED
     #run_tags: not needed in 2024
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetid.json.gz'
