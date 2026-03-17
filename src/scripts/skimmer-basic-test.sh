@@ -102,6 +102,7 @@ cmd=(python runner.py \
     -op ${OUTPUT_DIR} \
     --luminosities ${OUTPUT_DIR}/luminosities_HH4b.yml \
     --triggers ${OUTPUT_DIR}/triggers_HH4b.yml \
+    --friends ${OUTPUT_DIR}/friends_HH4b.yml \
     -o modify_branches.coffea \
     -m ${OUTPUT_DIR}/picoAOD_modify_branches.yml \
     -t --debug)
