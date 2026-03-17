@@ -25,7 +25,7 @@ def print_list_debug_info(process, cut, axis_opts):
 #
 #  Get hist values
 #
-def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, rebin: int, year: str, axis_opts : Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
+def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts : Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
     """
     Extract histogram data for a given process and configuration.
 
@@ -55,8 +55,8 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         raise TypeError(f"get_hist_data::process must be a string, got {type(process)}")
     if not isinstance(var, str):
         raise TypeError(f"get_hist_data::var must be a string, got {type(var)} = {var}")
-    if not isinstance(cut, str):
-        raise TypeError(f"get_hist_data::cut must be a string, got {type(cut)}")
+    if cut is not None and not isinstance(cut, str):
+        raise TypeError(f"get_hist_data::cut must be a string or None, got {type(cut)}")
     if not isinstance(rebin, int):
         raise TypeError(f"get_hist_data::rebin must be an integer, got {type(rebin)}")
     if rebin < 1:
@@ -83,12 +83,13 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     hist_opts = hist_opts | axis_opts
 
 
-    try:
-        cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
-    except (AttributeError, KeyError) as e:
-        raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
-
-    hist_opts = hist_opts | cut_dict
+    cut_dict = {}
+    if cut is not None:
+        try:
+            cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
+        except (AttributeError, KeyError) as e:
+            raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
+        hist_opts = hist_opts | cut_dict
 
     hist_key     = cfg.hist_key if hasattr(cfg, 'hist_key') else 'hists'
     category_key = cfg.category_key if hasattr(cfg, 'category_key') else 'categories'
@@ -149,13 +150,13 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
 
 
-    # Handle cuts from differnt hist_keys
-    for cut_key in cut_dict.keys():
-        if debug: print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
-        #breakpoint()
-        if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
-            if debug: print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
-            hist_opts.pop(cut_key)
+    # Handle cuts from different hist_keys
+    if cut is not None:
+        for cut_key in cut_dict.keys():
+            if debug: print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
+            if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
+                if debug: print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
+                hist_opts.pop(cut_key)
 
 
     # Add rebin options
@@ -192,7 +193,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
 
 
 #
-def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str, cut: str, rebin: int, year: str, axis_opts: Dict, do2d: bool, file_index: Optional[int], debug) -> hist.Hist:
+def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts: Dict, do2d: bool, file_index: Optional[int], debug) -> hist.Hist:
     """
     Extract and combine histogram data for a list of processes.
 
@@ -623,7 +624,7 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
             plot_data["ratio"][f"band_{r_name}"] = band_config
 
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
-                              cut: str = "passPreSel", axis_opts: Dict, **kwargs) -> Dict:
+                              cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> Dict:
     """
     Create a plot dictionary from configuration.
 
