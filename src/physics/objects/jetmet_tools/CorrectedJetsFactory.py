@@ -75,18 +75,27 @@ class _JsonPogJERSF:
     ``jer_smear`` can index it as ``jersf[:, variation]``.
     """
 
-    signature = ("JetEta",)
-
     def __init__(self, corr):
         self._corr = corr
+        # Derive signature from the correction's input names (excluding "systematic")
+        _pogname_to_namemap = {
+            "JetEta": "JetEta",
+            "JetPt":  "JetPt",
+        }
+        self.signature = tuple(
+            _pogname_to_namemap[inp.name]
+            for inp in corr.inputs
+            if inp.name in _pogname_to_namemap
+        )
 
-    def getScaleFactor(self, JetEta, form, lazy_cache):
-        eta = numpy.asarray(JetEta, dtype=numpy.float32)
+    def getScaleFactor(self, form=None, lazy_cache=None, **kwargs):
+        # kwargs keys correspond to self.signature (e.g. JetEta, or JetEta+JetPt)
+        arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self.signature]
         stacked = numpy.stack(
             [
-                self._corr.evaluate(eta, "nom").astype(numpy.float32),
-                self._corr.evaluate(eta, "up").astype(numpy.float32),
-                self._corr.evaluate(eta, "down").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "nom").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "up").astype(numpy.float32),
+                self._corr.evaluate(*arrays, "down").astype(numpy.float32),
             ],
             axis=1,
         )
@@ -226,24 +235,26 @@ class FixedCorrectedJetsFactory(CorrectedJetsFactory):
             )
 
             # Deterministic random Gaussian for JER smearing
-            out_dict["jet_resolution_rand_gauss"] = _rand_gauss(
-                event,
-                awkward.to_numpy(awkward.num(jets, axis=1)),
-                out_dict["phi"],
-                out_dict[self.name_map["JetEta"]],
-                Squares(seeds),
+            out_dict["jet_resolution_rand_gauss"] = awkward.flatten(
+                _rand_gauss(
+                    event,
+                    awkward.to_numpy(awkward.num(jets, axis=1)),
+                    out_dict["phi"],
+                    out_dict[self.name_map["JetEta"]],
+                    Squares(seeds),
+                )
             )
 
             # Nominal JER correction
             out_dict["jet_energy_resolution_correction"] = jer_smear(
-                0,
-                self.forceStochastic,
                 out_dict[jer_name_map["ptGenJet"]],
                 out_dict[jer_name_map["JetPt"]],
                 out_dict[jer_name_map["JetEta"]],
                 out_dict["jet_energy_resolution"],
                 out_dict["jet_resolution_rand_gauss"],
                 out_dict["jet_energy_resolution_scale_factor"],
+                0,
+                self.forceStochastic,
             )
 
             out_dict[self.name_map["JetPt"]] = (
@@ -263,14 +274,14 @@ class FixedCorrectedJetsFactory(CorrectedJetsFactory):
             # JER systematics - up
             up = awkward.flatten(jets)
             up["jet_energy_resolution_correction"] = jer_smear(
-                1,
-                self.forceStochastic,
                 out_dict[jer_name_map["ptGenJet"]],
                 out_dict[jer_name_map["JetPt"]],
                 out_dict[jer_name_map["JetEta"]],
                 out_dict["jet_energy_resolution"],
                 out_dict["jet_resolution_rand_gauss"],
                 out_dict["jet_energy_resolution_scale_factor"],
+                1,
+                self.forceStochastic,
             )
             up[self.name_map["JetPt"]] = (
                 up["jet_energy_resolution_correction"]
@@ -284,14 +295,14 @@ class FixedCorrectedJetsFactory(CorrectedJetsFactory):
             # JER systematics - down
             down = awkward.flatten(jets)
             down["jet_energy_resolution_correction"] = jer_smear(
-                2,
-                self.forceStochastic,
                 out_dict[jer_name_map["ptGenJet"]],
                 out_dict[jer_name_map["JetPt"]],
                 out_dict[jer_name_map["JetEta"]],
                 out_dict["jet_energy_resolution"],
                 out_dict["jet_resolution_rand_gauss"],
                 out_dict["jet_energy_resolution_scale_factor"],
+                2,
+                self.forceStochastic,
             )
             down[self.name_map["JetPt"]] = (
                 down["jet_energy_resolution_correction"]
