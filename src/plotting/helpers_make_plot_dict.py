@@ -332,7 +332,8 @@ def _handle_cut_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_
             print_list_debug_info(process_config["process"], _cut, axis_opts)
         if hist_key_list is not None:
             cfg.set_hist_key(hist_key_list[ic])
-        _process_config = _setup_overlay_config(process_config, _cut, ic, label_override)
+        _cut_label = plot_helpers.cut_to_label(_cut)
+        _process_config = _setup_overlay_config(process_config, _cut_label, ic, label_override)
         add_hist_data(cfg=cfg, config=_process_config,
                       var=var_to_plot, axis_opts=axis_opts, cut=_cut, rebin=rebin, year=year,
                       do2d=do2d, debug=debug)
@@ -657,8 +658,10 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
 
     var_over_ride = kwargs.get("var_over_ride", {})
 
-    if cut and cut not in cfg.cutList:
-        raise AttributeError(f"{cut} not in cutList {cfg.cutList}")
+    if cut:
+        _bare_cut = cut.lstrip("~")
+        if _bare_cut not in cfg.cutList:
+            raise AttributeError(f"{cut} not in cutList {cfg.cutList}")
 
     # Initialize plot data structure
     plot_data = {
