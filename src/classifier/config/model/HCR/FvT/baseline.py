@@ -55,6 +55,7 @@ class Train(HCRTrain):
             c_score[is_SR][:, no_d4_idx], no_d4_y, reduction="none"
         )
         loss = (cross_entropy * weight).sum() / weight.sum()
+
         return loss
 
     @property
