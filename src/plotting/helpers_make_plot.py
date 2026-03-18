@@ -531,7 +531,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                     file_name += "_logy"
 
                 # Save plot
-                plot_helpers.savefig(fig, file_name, *output_path)
+                plot_helpers.savefig(fig, file_name, *output_path,
+                                     fmt=kwargs.get("fmt", "pdf"),
+                                     dpi=kwargs.get("dpi", None))
 
                 # Save YAML if requested
                 if kwargs.get("write_yaml", False):
