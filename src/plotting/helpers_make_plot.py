@@ -177,7 +177,7 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
     norm = kwargs.get("norm", False)
     add_flow = kwargs.get("add_flow", False)
     ax = plt.gca()
-    logger.info(f"_draw_hists called: norm={norm!r}, uniform_bins={uniform_bins}, n_hists={len(hists_dict)}")
+    logger.debug(f"_draw_hists called: norm={norm!r}, uniform_bins={uniform_bins}, n_hists={len(hists_dict)}")
     for _, hist_data in hists_dict.items():
         vals = np.array(hist_data["values"], dtype=float)
         varis = np.array(hist_data["variances"], dtype=float)
@@ -218,11 +218,11 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
             if norm:
                 bin_widths = np.diff(edges)
                 integral = np.dot(vals, bin_widths)   # vals includes flow if add_flow
-                logger.info(f"  norm branch: label={label!r}, integral={integral:.4g}, max_vals={vals.max():.4g}, max_varis={varis.max():.4g}")
+                logger.debug(f"  norm branch: label={label!r}, integral={integral:.4g}, max_vals={vals.max():.4g}, max_varis={varis.max():.4g}")
                 if integral > 0:
                     vals  = vals  / integral
                     varis = varis / (integral ** 2)
-                logger.info(f"  after norm: max_vals={vals.max():.4g}, max_yerr={np.sqrt(varis.max()):.4g}")
+                logger.debug(f"  after norm: max_vals={vals.max():.4g}, max_yerr={np.sqrt(varis.max()):.4g}")
                 hist_obj = plot_helpers.make_hist(
                     edges=hist_data["edges"], values=vals.tolist(),
                     variances=varis.tolist(), x_label=hist_data["x_label"],

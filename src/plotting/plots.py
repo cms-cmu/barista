@@ -76,6 +76,17 @@ def parse_args():
 #    return cfg
 
 
+_DO_RATIO_ALIASES = {'ratio', 'do_ratio', 'doratio', 'doRatio',
+                     'Ratio', 'do_Ratio', 'doRatio'}
+
+def _normalize_kwargs(kwargs):
+    """Fold all doRatio aliases into the canonical 'doRatio' key."""
+    for alias in _DO_RATIO_ALIASES - {'doRatio'}:
+        if alias in kwargs:
+            kwargs.setdefault('doRatio', kwargs.pop(alias))
+    return kwargs
+
+
 def makePlot(cfg, var='selJets.pt',
              cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
@@ -91,6 +102,7 @@ def makePlot(cfg, var='selJets.pt',
         'rebin'    : int (1),
     """
 
+    _normalize_kwargs(kwargs)
     process = kwargs.get("process", None)
     year    = kwargs.get("year", "RunII")
     debug   = kwargs.get("debug", False)
@@ -137,6 +149,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
         'rebin'    : int (1),
     """
 
+    _normalize_kwargs(kwargs)
     year    = kwargs.get("year", "RunII")
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
