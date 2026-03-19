@@ -10,10 +10,13 @@ This module provides functions to:
 
 from typing import Dict, List, Optional, Union, Any, Tuple
 import copy
+import logging
 import src.plotting.helpers as plot_helpers
 import hist
 import numpy as np
 from rich.pretty import pretty_repr
+
+logger = logging.getLogger(__name__)
 
 
 def print_list_debug_info(process, cut, axis_opts):
@@ -481,7 +484,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
         raise ValueError("Error: At least one parameter must be a list!")
 
     # Handle ratio plots if requested
-    if kwargs.get("doRatio", kwargs.get("doratio", False)):
+    if kwargs.get("doRatio", False):
         _add_ratio_plots(plot_data, **kwargs)
 
     return plot_data
@@ -526,7 +529,7 @@ def load_stack_config(*, cfg: Any, stack_config: Dict, var: str, cut: str, axis_
             stack_dict[_proc_name] = proc_config
         else:
             raise ValueError("Error: Stack component must have either 'process' or 'sum' configuration")
-
+    logger.debug(f"stack_dict {stack_dict}")
     return stack_dict
 
 def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
@@ -610,7 +613,9 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
             r_config["norm"] = True
 
         # Add ratio plot
+        logger.debug(f"make_ratio (add_ratio_plots): norm={r_config.get('norm')}, num_values[:30]={num_values[:30]}, den_values[:30]={den_values[:30]}, kwargs_keys={list(r_config.keys())}")
         ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **r_config)
+        logger.debug(f"make_ratio (add_ratio_plots): ratios[:30]={ratios[:30]}, ratio_uncert[:30]={ratio_uncert[:30]}")
         r_config["ratio"] = ratios.tolist()
         r_config["error"] = ratio_uncert.tolist()
         r_config["centers"] = num_centers
@@ -706,7 +711,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
                                            var=var, cut=cut, axis_opts=axis_opts,  **kwargs)
 
     # Add ratio plots if requested
-    if kwargs.get("doRatio", kwargs.get("doratio", False)) and not do2d:
+    if kwargs.get("doRatio", False) and not do2d:
         ratio_config = cfg.plotConfig["ratios"]
         add_ratio_plots(ratio_config, plot_data, **kwargs)
 
@@ -864,6 +869,7 @@ def _add_2d_ratio_plots(plot_data: Dict, **kwargs) -> None:
         num_vars = plot_data["hists"][num_key]["variances"]
 
         ratio_config = {}
+        logger.debug(f"make_ratio (_add_2d_ratio_plots): norm={kwargs.get('norm')}, num_values shape={np.array(num_values).shape}")
         ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **kwargs)
         ratio_config["ratio"] = ratios.tolist()
         ratio_config["error"] = ratio_uncert.tolist()
@@ -917,6 +923,7 @@ def _add_1d_ratio_plots(plot_data: Dict, **kwargs) -> None:
                 "color": plot_data["hists"][_num_key].get("edgecolor",plot_helpers.COLORS[iH]),
                 "marker": "o"
             }
+            logger.debug(f"make_ratio (_add_1d_ratio_plots): norm={kwargs.get('norm')}, num_values[:3]={num_values[:3]}, den_values[:3]={den_values[:3]}")
             ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **kwargs)
             ratio_config["ratio"] = ratios.tolist()
             ratio_config["error"] = ratio_uncert.tolist()

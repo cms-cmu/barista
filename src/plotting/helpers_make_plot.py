@@ -124,10 +124,27 @@ def _draw_stack(stack_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool
         plot_data["_uniform_bin_edges"] = stack_edges
         plot_data["_uniform_n_bins"] = n
     else:
+        # Pre-normalize by total combined integral when norm=True, so we can
+        # pass density=False to mplhep and avoid its per-component normalization
+        # which produces incorrectly scaled error bars for multi-component stacks.
+        total_integral = 1.0
+        if norm:
+            first_edges = np.array(next(iter(stack_dict.values()))["edges"])
+            bin_widths = np.diff(first_edges)
+            total_vals = sum(np.array(v["values"]) for v in stack_dict.values())
+            total_integral = np.dot(total_vals, bin_widths)
+            if total_integral <= 0:
+                total_integral = 1.0
+
         stack_dict_for_hist = {}
         for k, v in stack_dict.items():
+            vals = np.array(v["values"], dtype=float)
+            varis = np.array(v["variances"], dtype=float)
+            if norm and total_integral > 0:
+                vals = vals / total_integral
+                varis = varis / (total_integral ** 2)
             stack_dict_for_hist[k] = plot_helpers.make_hist(
-                edges=v["edges"], values=v["values"], variances=v["variances"],
+                edges=v["edges"], values=vals, variances=varis,
                 x_label=v["x_label"], under_flow=v["under_flow"], over_flow=v["over_flow"],
                 add_flow=add_flow
             )
@@ -135,8 +152,8 @@ def _draw_stack(stack_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool
         edge_colors = [v.get("edgecolor") for _, v in stack_dict.items()]
         if stack_dict_for_hist:
             s = hist.Stack.from_dict(stack_dict_for_hist)
-            s.plot(stack=True, histtype="fill", color=fill_colors, label=None, density=norm)
-            s.plot(stack=True, histtype="step", color=edge_colors, label=None, density=norm)
+            s.plot(stack=True, histtype="fill", color=fill_colors, label=None, density=False)
+            s.plot(stack=True, histtype="step", color=edge_colors, label=None, density=False)
 
 
 def _build_stack_legend_patches(stack_dict: Dict) -> List:
@@ -160,6 +177,7 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
     norm = kwargs.get("norm", False)
     add_flow = kwargs.get("add_flow", False)
     ax = plt.gca()
+    logger.debug(f"_draw_hists called: norm={norm!r}, uniform_bins={uniform_bins}, n_hists={len(hists_dict)}")
     for _, hist_data in hists_dict.items():
         vals = np.array(hist_data["values"], dtype=float)
         varis = np.array(hist_data["variances"], dtype=float)
@@ -194,14 +212,32 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
             plot_data["_uniform_bin_edges"] = edges
             plot_data["_uniform_n_bins"] = n
         else:
-            hist_obj = plot_helpers.make_hist(
-                edges=hist_data["edges"], values=hist_data["values"],
-                variances=hist_data["variances"], x_label=hist_data["x_label"],
-                under_flow=hist_data["under_flow"], over_flow=hist_data["over_flow"],
-                add_flow=add_flow,
-            )
+            # Normalize manually so error bars are correctly scaled along with
+            # the values (mplhep's density=True scales values but not errors in
+            # some versions, producing enormous error bars on normalized plots).
+            if norm:
+                bin_widths = np.diff(edges)
+                integral = np.dot(vals, bin_widths)   # vals includes flow if add_flow
+                logger.debug(f"  norm branch: label={label!r}, integral={integral:.4g}, max_vals={vals.max():.4g}, max_varis={varis.max():.4g}")
+                if integral > 0:
+                    vals  = vals  / integral
+                    varis = varis / (integral ** 2)
+                logger.debug(f"  after norm: max_vals={vals.max():.4g}, max_yerr={np.sqrt(varis.max()):.4g}")
+                hist_obj = plot_helpers.make_hist(
+                    edges=hist_data["edges"], values=vals.tolist(),
+                    variances=varis.tolist(), x_label=hist_data["x_label"],
+                    under_flow=hist_data["under_flow"], over_flow=hist_data["over_flow"],
+                    add_flow=False,   # flow already folded into vals above
+                )
+            else:
+                hist_obj = plot_helpers.make_hist(
+                    edges=hist_data["edges"], values=hist_data["values"],
+                    variances=hist_data["variances"], x_label=hist_data["x_label"],
+                    under_flow=hist_data["under_flow"], over_flow=hist_data["over_flow"],
+                    add_flow=add_flow,
+                )
             plot_opts = {
-                "density": norm,
+                "density": False,
                 "label": label,
                 "color": color,
                 "histtype": histtype,
@@ -531,7 +567,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                     file_name += "_logy"
 
                 # Save plot
-                plot_helpers.savefig(fig, file_name, *output_path)
+                plot_helpers.savefig(fig, file_name, *output_path,
+                                     fmt=kwargs.get("fmt", "pdf"),
+                                     dpi=kwargs.get("dpi", None))
 
                 # Save YAML if requested
                 if kwargs.get("write_yaml", False):
