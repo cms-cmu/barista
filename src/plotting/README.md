@@ -126,7 +126,7 @@ These keyword arguments are accepted by `makePlot`, `make2DPlot`, and flow throu
 | `year` | `str\|list` | `"RunII"` | Year selection; `"RunII"` → sum over all years. Pass list to overlay. |
 | `rebin` | `int` | `1` | Rebin factor applied to the last axis |
 | `norm` | `bool` | `False` | Normalize each histogram to unit area |
-| `doRatio` / `doratio` | `bool` | `False` | Add a ratio subplot |
+| `doRatio` | `bool` | `False` | Add a ratio subplot. Aliases: `ratio`, `do_ratio`, `doratio`, `Ratio`, `do_Ratio` |
 | `yscale` | `str` | None | `"log"` for log y-axis |
 | `xscale` | `str` | None | `"log"` for log x-axis |
 | `xlim` | `[lo, hi]` | None | x-axis range |
