@@ -13,7 +13,7 @@ import pytest
 import hist as Hist
 from unittest.mock import MagicMock
 
-from src.plotting.plots import _normalize_kwargs, _KWARG_ALIASES
+from src.plotting.plots import _normalize_kwargs, _KWARG_ALIASES, _AUTO_NORMALIZE_MAP, _RENDER_FIELDS
 from src.plotting.helpers_make_plot_dict import (
     _normalize_year,
     _build_hist_opts,
@@ -27,23 +27,21 @@ from src.plotting.helpers_make_plot_dict import (
 # ---------------------------------------------------------------------------
 
 class TestNormalizeKwargs:
+
+    # --- canonical keys and unrelated keys pass through unchanged ---
+
     def test_canonical_key_passes_through_unchanged(self):
         kwargs = {'doRatio': False, 'norm': True, 'yscale': 'log'}
         _normalize_kwargs(kwargs)
         assert kwargs == {'doRatio': False, 'norm': True, 'yscale': 'log'}
 
     def test_unrelated_key_passes_through_unchanged(self):
+        # DATA_ONLY keys like rebin/year must not be touched
         kwargs = {'rebin': 2, 'year': 'UL18'}
         _normalize_kwargs(kwargs)
         assert kwargs == {'rebin': 2, 'year': 'UL18'}
 
-    @pytest.mark.parametrize("alias", ['ratio', 'do_ratio', 'doratio', 'Ratio', 'do_Ratio'])
-    def test_doRatio_aliases(self, alias):
-        kwargs = {alias: False}
-        _normalize_kwargs(kwargs)
-        assert 'doRatio' in kwargs
-        assert kwargs['doRatio'] is False
-        assert alias not in kwargs
+    # --- explicit alias table (abbreviations / genuinely different names) ---
 
     @pytest.mark.parametrize("alias", ['normalize', 'normalise', 'normalized', 'normalised'])
     def test_norm_aliases(self, alias):
@@ -52,21 +50,59 @@ class TestNormalizeKwargs:
         assert kwargs.get('norm') is True
         assert alias not in kwargs
 
-    @pytest.mark.parametrize("alias", ['addFlow', 'addflow', 'flow'])
+    @pytest.mark.parametrize("alias", ['flow'])
     def test_add_flow_aliases(self, alias):
         kwargs = {alias: True}
         _normalize_kwargs(kwargs)
         assert kwargs.get('add_flow') is True
         assert alias not in kwargs
 
-    @pytest.mark.parametrize("alias", ['uniformBins', 'uniformbins', 'uniform'])
-    def test_uniform_bins_aliases(self, alias):
+    @pytest.mark.parametrize("alias", ['uniform'])
+    def test_uniform_bins_explicit_alias(self, alias):
         kwargs = {alias: True}
         _normalize_kwargs(kwargs)
         assert kwargs.get('uniform_bins') is True
         assert alias not in kwargs
 
     @pytest.mark.parametrize("alias,canonical", [
+        ('ratio_lim',      'rlim'),
+        ('ratio_limits',   'rlim'),
+        ('ratio_label',    'rlabel'),
+        ('doLegend',       'legend'),
+        ('do_legend',      'legend'),
+        ('legend_location','legend_loc'),
+        ('outdir',         'outputFolder'),
+        ('output_dir',     'outputFolder'),
+        ('Ratio',          'doRatio'),   # 'ratio' ≠ 'doratio' after strip
+        ('saveYaml',       'write_yaml'),  # 'save' ≠ 'write' after strip
+        ('save_yaml',      'write_yaml'),
+        ('format',         'fmt'),
+        ('output_format',  'fmt'),
+    ])
+    def test_explicit_aliases(self, alias, canonical):
+        sentinel = object()
+        kwargs = {alias: sentinel}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get(canonical) is sentinel
+        assert alias not in kwargs
+
+    # --- auto-normalization (camelCase / snake_case / mixed-case) ---
+
+    @pytest.mark.parametrize("alias,canonical", [
+        # doRatio variants (auto: do_ratio/doratio/do_Ratio strip to 'doratio')
+        ('do_ratio',      'doRatio'),
+        ('doratio',       'doRatio'),
+        ('do_Ratio',      'doRatio'),
+        # camelCase for snake_case fields
+        ('addFlow',       'add_flow'),
+        ('uniformBins',   'uniform_bins'),
+        ('writeYaml',     'write_yaml'),
+        ('saveYaml',      'write_yaml'),
+        ('output_folder', 'outputFolder'),
+        ('cmsText',       'CMSText'),
+        ('cms_text',      'CMSText'),
+        ('doTitle',       'do_title'),
+        # axis options
         ('y_scale',       'yscale'),
         ('yScale',        'yscale'),
         ('x_scale',       'xscale'),
@@ -75,43 +111,53 @@ class TestNormalizeKwargs:
         ('yLim',          'ylim'),
         ('x_lim',         'xlim'),
         ('xLim',          'xlim'),
-        ('ratio_lim',     'rlim'),
-        ('ratioLim',      'rlim'),
-        ('ratio_label',   'rlabel'),
-        ('ratioLabel',    'rlabel'),
-        ('doLegend',      'legend'),
-        ('do_legend',     'legend'),
         ('legendLoc',     'legend_loc'),
-        ('legend_location','legend_loc'),
-        ('doTitle',       'do_title'),
-        ('cmsText',       'CMSText'),
-        ('cms_text',      'CMSText'),
-        ('output_folder', 'outputFolder'),
-        ('outdir',        'outputFolder'),
-        ('writeYaml',     'write_yaml'),
-        ('saveYaml',      'write_yaml'),
-        ('format',        'fmt'),
     ])
-    def test_individual_aliases(self, alias, canonical):
+    def test_auto_normalization(self, alias, canonical):
         sentinel = object()
         kwargs = {alias: sentinel}
         _normalize_kwargs(kwargs)
-        assert kwargs.get(canonical) is sentinel
+        assert kwargs.get(canonical) is sentinel, \
+            f"Expected '{alias}' to normalize to '{canonical}'"
         assert alias not in kwargs
 
-    def test_alias_does_not_overwrite_existing_canonical(self):
-        # If user passes both the alias and the canonical, canonical wins.
-        kwargs = {'doRatio': True, 'ratio': False}
-        _normalize_kwargs(kwargs)
-        assert kwargs['doRatio'] is True  # setdefault preserves the original
+    def test_auto_normalize_map_covers_all_render_fields(self):
+        # Every RenderOptions field name must round-trip through the map.
+        for field in _RENDER_FIELDS:
+            normalized = field.lower().replace('_', '')
+            assert _AUTO_NORMALIZE_MAP.get(normalized) == field, \
+                f"Field '{field}' missing from _AUTO_NORMALIZE_MAP"
 
-    def test_all_aliases_map_to_known_canonical(self):
-        # Every alias in _KWARG_ALIASES should be distinct from its canonical.
+    def test_auto_normalize_map_has_no_collisions(self):
+        # Two different fields must not share the same normalized form.
+        seen = {}
+        for field in _RENDER_FIELDS:
+            key = field.lower().replace('_', '')
+            assert key not in seen, \
+                f"Collision: '{field}' and '{seen[key]}' both normalize to '{key}'"
+            seen[key] = field
+
+    # --- precedence and identity ---
+
+    def test_canonical_wins_over_alias(self):
+        # If user passes both the alias and the canonical, canonical wins.
+        kwargs = {'doRatio': True, 'do_ratio': False}
+        _normalize_kwargs(kwargs)
+        assert kwargs['doRatio'] is True
+
+    def test_explicit_alias_wins_over_auto_when_both_present(self):
+        # Explicit pass runs first; auto pass won't touch already-canonical keys.
+        kwargs = {'normalize': True}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get('norm') is True
+
+    def test_all_explicit_aliases_distinct_from_canonical(self):
         for alias, canonical in _KWARG_ALIASES.items():
-            assert alias != canonical, f"Alias '{alias}' is the same as its canonical"
+            assert alias != canonical, \
+                f"Alias '{alias}' is identical to its canonical — remove it"
 
     def test_returns_same_dict(self):
-        kwargs = {'ratio': True}
+        kwargs = {'do_ratio': True}
         result = _normalize_kwargs(kwargs)
         assert result is kwargs
 
