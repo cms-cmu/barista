@@ -484,7 +484,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
         raise ValueError("Error: At least one parameter must be a list!")
 
     # Handle ratio plots if requested
-    if kwargs.get("doRatio", False):
+    if kwargs.get("doRatio", True):
         _add_ratio_plots(plot_data, **kwargs)
 
     return plot_data
@@ -711,9 +711,10 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
                                            var=var, cut=cut, axis_opts=axis_opts,  **kwargs)
 
     # Add ratio plots if requested
-    if kwargs.get("doRatio", False) and not do2d:
-        ratio_config = cfg.plotConfig["ratios"]
-        add_ratio_plots(ratio_config, plot_data, **kwargs)
+    if kwargs.get("doRatio", True) and not do2d:
+        ratio_config = cfg.plotConfig.get("ratios", {})
+        if ratio_config:
+            add_ratio_plots(ratio_config, plot_data, **kwargs)
 
     return plot_data
 
@@ -890,8 +891,9 @@ def _add_1d_ratio_plots(plot_data: Dict, **kwargs) -> None:
         KeyError: If required histogram data is missing
     """
     hist_keys = list(plot_data["hists"].keys())
-    if len(hist_keys) < 1:
-        raise ValueError("Need at least one histogram for 1D ratio plot")
+    if len(hist_keys) < 2:
+        logger.debug("_add_1d_ratio_plots: only one histogram, no denominator/numerator pair — skipping ratio")
+        return
 
     try:
         den_key = hist_keys.pop(0)

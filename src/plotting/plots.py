@@ -94,11 +94,11 @@ def makePlot(cfg, var='selJets.pt',
 
        debug    : False,
        var      : 'selJets.pt',
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
-        'doRatio'  : bool (False)
+        'doRatio'  : bool (True)
         'rebin'    : int (1),
     """
 
@@ -142,7 +142,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
        debug    : False,
        var      : 'selJets.pt',
        year     : "2017",
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
