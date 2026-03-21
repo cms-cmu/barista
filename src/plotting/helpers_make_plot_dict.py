@@ -566,6 +566,33 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
     proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
 
 
+def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, List[float]]:
+    """Extract values, variances and centers from a histogram source config.
+
+    Args:
+        hist_config: Dict with keys ``type`` ("hists" or "stack") and
+            optionally ``key`` (histogram name within the source).
+        plot_data: PlotData dict containing "hists" and "stack".
+
+    Returns:
+        Tuple of (values, variances, centers) as numpy arrays / list.
+
+    Raises:
+        ValueError: If ``hist_config["type"]`` is not "hists" or "stack".
+    """
+    if hist_config["type"] == "hists":
+        num_data = plot_data["hists"][hist_config["key"]]
+        return np.array(num_data["values"]), np.array(num_data["variances"]), num_data["centers"]
+
+    if hist_config["type"] == "stack":
+        return_values = np.sum([v["values"] for _, v in plot_data["stack"].items()], axis=0)
+        return_variances = np.sum([v["variances"] for _, v in plot_data["stack"].items()], axis=0)
+        centers = next(iter(plot_data["stack"].values()))["centers"]
+        return return_values, return_variances, centers
+
+    raise ValueError("ERROR: ratio needs to be of type 'hists' or 'stack'")
+
+
 def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
     """Populate plot_data["ratio_specs"] from an explicit YAML ratio config.
 

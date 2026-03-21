@@ -1,3 +1,4 @@
+import dataclasses
 import hist
 import numpy as np
 import os
@@ -219,6 +220,9 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         """Recursively clean object for safe YAML serialization."""
         if obj == sum:  # Functions, classes, etc.
             return "sum"  # Convert to string representation
+        elif dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return {f.name: clean_for_yaml(getattr(obj, f.name))
+                    for f in dataclasses.fields(obj)}
         elif isinstance(obj, list):
             return [clean_for_yaml(item) for item in obj]
         elif isinstance(obj, dict):
