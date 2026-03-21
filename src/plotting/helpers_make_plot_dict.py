@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Union, Any, Tuple
 import copy
 import logging
 import src.plotting.helpers as plot_helpers
-from src.plotting.plot_types import PlotData
+from src.plotting.plot_types import PlotData, RatioSpec, HistSource
 import hist
 import numpy as np
 from rich.pretty import pretty_repr
@@ -565,74 +565,40 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
     stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
     proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
 
-def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, List[float]]:
-    """
-    Extract values, variances and centers from histogram configuration.
-
-    Args:
-        hist_config: Histogram configuration dictionary
-        plot_data: Plot data dictionary
-
-    Returns:
-        Tuple containing values, variances and centers arrays
-
-    Raises:
-        ValueError: If histogram type is invalid
-    """
-    if hist_config["type"] == "hists":
-        num_data = plot_data["hists"][hist_config["key"]]
-        return np.array(num_data["values"]), np.array(num_data["variances"]), num_data["centers"]
-
-    if hist_config["type"] == "stack":
-        return_values = [v["values"] for _, v in plot_data["stack"].items()]
-        return_values = np.sum(return_values, axis=0)
-
-        return_variances = [v["variances"] for _, v in plot_data["stack"].items()]
-        return_variances = np.sum(return_variances, axis=0)
-
-        centers = next(iter(plot_data["stack"].values()))["centers"]
-        return return_values, return_variances, centers
-
-    raise ValueError("ERROR: ratio needs to be of type 'hists' or 'stack'")
 
 def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
-    """
-    Add ratio plots to the plot configuration.
+    """Populate plot_data["ratio_specs"] from an explicit YAML ratio config.
 
-    Args:
-        ratio_config: Ratio plot configuration
-        plot_data: Plot data dictionary
-        **kwargs: Additional plotting options
+    Actual computation is deferred to _resolve_ratio_specs at render time.
     """
     for r_name, _r_config in ratio_config.items():
         r_config = copy.deepcopy(_r_config)
+        num_cfg = r_config.get("numerator", {})
+        den_cfg = r_config.get("denominator", {})
 
-        num_values, num_vars, num_centers = get_values_variances_centers_from_dict(r_config.get("numerator"), plot_data)
-        den_values, den_vars, _ = get_values_variances_centers_from_dict(r_config.get("denominator"), plot_data)
+        # Everything except source-pointer and band config is render style.
+        skip = {"numerator", "denominator", "bkg_err_band", "norm"}
+        style = {k: v for k, v in r_config.items() if k not in skip}
 
-        if kwargs.get("norm", False):
-            r_config["norm"] = True
+        plot_data.setdefault("ratio_specs", []).append(RatioSpec(
+            name=f"ratio_{r_name}",
+            numerator=HistSource(source=num_cfg.get("type", "hists"), key=num_cfg.get("key")),
+            denominator=HistSource(source=den_cfg.get("type", "hists"), key=den_cfg.get("key")),
+            norm=kwargs.get("norm", r_config.get("norm", False)),
+            style=style,
+        ))
 
-        # Add ratio plot
-        logger.debug(f"make_ratio (add_ratio_plots): norm={r_config.get('norm')}, num_values[:30]={num_values[:30]}, den_values[:30]={den_values[:30]}, kwargs_keys={list(r_config.keys())}")
-        ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **r_config)
-        logger.debug(f"make_ratio (add_ratio_plots): ratios[:30]={ratios[:30]}, ratio_uncert[:30]={ratio_uncert[:30]}")
-        r_config["ratio"] = ratios.tolist()
-        r_config["error"] = ratio_uncert.tolist()
-        r_config["centers"] = num_centers
-        plot_data["ratio"][f"ratio_{r_name}"] = r_config
-
-        # Add background error band
         default_band_config = {"color": "k", "type": "band", "hatch": "\\\\\\"}
         _band_config = r_config.get("bkg_err_band", default_band_config)
-
         if _band_config:
-            band_config = copy.deepcopy(_band_config)
-            band_config["ratio"] = np.ones(len(num_centers)).tolist()
-            den_values[den_values == 0] = plot_helpers.EPSILON
-            band_config["error"] = np.sqrt(den_vars * np.power(den_values, -2.0)).tolist()
-            band_config["centers"] = list(num_centers)
-            plot_data["ratio"][f"band_{r_name}"] = band_config
+            band_style = copy.deepcopy(_band_config)
+            band_style.setdefault("type", "band")
+            plot_data["ratio_specs"].append(RatioSpec(
+                name=f"band_{r_name}",
+                numerator=None,
+                denominator=HistSource(source=den_cfg.get("type", "hists"), key=den_cfg.get("key")),
+                style=band_style,
+            ))
 
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
                               cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> PlotData:
@@ -843,93 +809,55 @@ def _handle_year_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var: s
         plot_data["hists"][f"{proc_id}{_year}{iy}"] = _process_config
 
 def _add_2d_ratio_plots(plot_data: Dict, **kwargs) -> None:
-    """
-    Add 2D ratio plots to the plot configuration.
+    """Populate plot_data["ratio_specs"] for a 2-D ratio plot.
 
-    Args:
-        plot_data: Plot data dictionary containing histogram data
-        **kwargs: Additional plotting options
-
-    Raises:
-        ValueError: If insufficient histograms for ratio calculation
-        KeyError: If required histogram data is missing
+    Convention: first histogram is denominator, second is numerator.
+    Actual computation is deferred to _resolve_ratio_specs at render time.
     """
     hist_keys = list(plot_data["hists"].keys())
     if len(hist_keys) < 2:
         raise ValueError("Need at least two histograms for 2D ratio plot")
 
-    try:
-        den_key = hist_keys.pop(0)
-        den_values = np.array(plot_data["hists"][den_key]["values"])
-        den_vars = plot_data["hists"][den_key]["variances"]
-        den_values[den_values == 0] = plot_helpers.EPSILON
+    den_key = hist_keys[0]
+    num_key = hist_keys[1]
 
-        num_key = hist_keys.pop(0)
-        num_values = np.array(plot_data["hists"][num_key]["values"])
-        num_vars = plot_data["hists"][num_key]["variances"]
-
-        ratio_config = {}
-        logger.debug(f"make_ratio (_add_2d_ratio_plots): norm={kwargs.get('norm')}, num_values shape={np.array(num_values).shape}")
-        ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **kwargs)
-        ratio_config["ratio"] = ratios.tolist()
-        ratio_config["error"] = ratio_uncert.tolist()
-        plot_data["ratio"][f"ratio_{num_key}_to_{den_key}"] = ratio_config
-    except (KeyError, IndexError) as e:
-        raise ValueError(f"Failed to create 2D ratio plot: {str(e)}")
+    plot_data.setdefault("ratio_specs", []).append(RatioSpec(
+        name=f"ratio_{num_key}_to_{den_key}",
+        denominator=HistSource(source="hists", key=den_key),
+        numerator=HistSource(source="hists", key=num_key),
+        norm=kwargs.get("norm", False),
+        is_2d=True,
+        style={},
+    ))
 
 def _add_1d_ratio_plots(plot_data: Dict, **kwargs) -> None:
-    """
-    Add 1D ratio plots to the plot configuration.
+    """Populate plot_data["ratio_specs"] for a 1-D ratio panel.
 
-    Args:
-        plot_data: Plot data dictionary containing histogram data
-        **kwargs: Additional plotting options
-
-    Raises:
-        ValueError: If insufficient histograms for ratio calculation
-        KeyError: If required histogram data is missing
+    Convention: the first histogram is the denominator; all others are
+    numerators.  A band-at-1 entry (denominator uncertainty) is always added.
+    Actual computation is deferred to _resolve_ratio_specs at render time.
     """
     hist_keys = list(plot_data["hists"].keys())
     if len(hist_keys) < 2:
-        logger.debug("_add_1d_ratio_plots: only one histogram, no denominator/numerator pair — skipping ratio")
+        logger.debug("_add_1d_ratio_plots: only one histogram — skipping ratio")
         return
 
-    try:
-        den_key = hist_keys.pop(0)
-        den_values = np.array(plot_data["hists"][den_key]["values"])
-        den_vars = plot_data["hists"][den_key]["variances"]
-        den_centers = plot_data["hists"][den_key]["centers"]
+    den_key = hist_keys[0]
+    den_source = HistSource(source="hists", key=den_key)
 
-        den_values[den_values == 0] = plot_helpers.EPSILON
+    plot_data.setdefault("ratio_specs", []).append(RatioSpec(
+        name="bkg_band",
+        denominator=den_source,
+        numerator=None,
+        style={"color": "k", "type": "band", "hatch": "\\\\"},
+    ))
 
-        # Add background error band
-        band_ratios = np.ones(len(den_centers))
-        band_uncert = np.sqrt(den_vars * np.power(den_values, -2.0))
-        band_config = {
-            "color": "k",
-            "type": "band",
-            "hatch": "\\\\",
-            "ratio": band_ratios.tolist(),
-            "error": band_uncert.tolist(),
-            "centers": list(den_centers)
-        }
-        plot_data["ratio"]["bkg_band"] = band_config
-
-        # Add ratio plots for each histogram
-        for iH, _num_key in enumerate(hist_keys):
-            num_values = np.array(plot_data["hists"][_num_key]["values"])
-            num_vars = plot_data["hists"][_num_key]["variances"]
-
-            ratio_config = {
-                "color": plot_data["hists"][_num_key].get("edgecolor",plot_helpers.COLORS[iH]),
-                "marker": "o"
-            }
-            logger.debug(f"make_ratio (_add_1d_ratio_plots): norm={kwargs.get('norm')}, num_values[:3]={num_values[:3]}, den_values[:3]={den_values[:3]}")
-            ratios, ratio_uncert = plot_helpers.make_ratio(num_values, num_vars, den_values, den_vars, **kwargs)
-            ratio_config["ratio"] = ratios.tolist()
-            ratio_config["error"] = ratio_uncert.tolist()
-            ratio_config["centers"] = den_centers
-
-            plot_data["ratio"][f"ratio_{_num_key}_to_{den_key}_{iH}"] = ratio_config
-    except (KeyError, IndexError) as e:
-        raise ValueError(f"Failed to create 1D ratio plot: {str(e)}")
+    for iH, num_key in enumerate(hist_keys[1:]):
+        color = plot_data["hists"][num_key].get("edgecolor", plot_helpers.COLORS[iH])
+        plot_data["ratio_specs"].append(RatioSpec(
+            name=f"ratio_{num_key}_to_{den_key}_{iH}",
+            denominator=den_source,
+            numerator=HistSource(source="hists", key=num_key),
+            norm=kwargs.get("norm", False),
+            style={"color": color, "marker": "o"},
+        ))
