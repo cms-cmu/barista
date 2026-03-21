@@ -757,6 +757,15 @@ def get_var_to_plot(var, var_over_ride: Dict, proc_id: str, iP: int, debug: bool
         return var_over_ride.get(proc_id, this_var)
 
 
+def _prepare_process_config(proc_conf: Dict):
+    """Deepcopy proc_conf, set histtype to errorbar, and return (config, proc_id)."""
+    _process_config = copy.deepcopy(proc_conf)
+    _process_config["fillcolor"] = proc_conf.get("fillcolor", None)
+    _process_config["histtype"] = "errorbar"
+    _proc_id = proc_conf["label"] if isinstance(proc_conf["process"], list) else proc_conf["process"]
+    return _process_config, _proc_id
+
+
 def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
                          axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
                          var_over_ride: Dict, label_override: Optional[List[str]] = None, debug: bool = False) -> None:
@@ -766,18 +775,11 @@ def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: An
             print("In _handle_process_list")
             print_list_debug_info(_proc_conf["process"],  cut, axis_opts)
 
-        _process_config = copy.deepcopy(_proc_conf)
-        _process_config["fillcolor"] = _proc_conf.get("fillcolor", None)
-        _process_config["histtype"] = "errorbar"
-
-        _proc_id = _proc_conf["label"] if isinstance(_proc_conf["process"], list) else _proc_conf["process"]
-
+        _process_config, _proc_id = _prepare_process_config(_proc_conf)
         var_to_plot = get_var_to_plot(var, var_over_ride, _proc_id, iP, debug)
-
         add_hist_data(cfg=cfg, config=_process_config,
                      var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
                      do2d=do2d, debug=debug)
-
         plot_data["hists"][f"{_proc_id}{iP}"] = _process_config
 
 def _handle_process_list_multi_file(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
@@ -796,11 +798,7 @@ def _handle_process_list_multi_file(*, plot_data: Dict, process_config: List[Dic
             print(f"In _handle_process_list_multi_file process={_proc_conf['process']} file_index={file_index}")
             print_list_debug_info(_proc_conf["process"], cut, axis_opts)
 
-        _process_config = copy.deepcopy(_proc_conf)
-        _process_config["fillcolor"] = _proc_conf.get("fillcolor", None)
-        _process_config["histtype"] = "errorbar"
-
-        _proc_id = _proc_conf["label"] if isinstance(_proc_conf["process"], list) else _proc_conf["process"]
+        _process_config, _proc_id = _prepare_process_config(_proc_conf)
 
         if label_override and iP < len(label_override):
             _process_config["label"] = label_override[iP]

@@ -179,6 +179,13 @@ def make_klambda_hist(kl_value: str, plot_data: Dict[str, Any]) -> Dict[str, np.
     return plot_data_kl
 
 # File Operations
+def _ensure_output_path(*args: Any) -> str:
+    args_str = ["_vs_".join(a) if isinstance(a, list) else a for a in args]
+    output_path = "/".join(args_str)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    return output_path
+
 def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: str = "pdf", dpi: Any = None) -> None:
     """Save a figure to a file.
 
@@ -189,15 +196,7 @@ def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: str = "
         fmt: Output format (default: "pdf"). Use "png" for web-friendly output.
         dpi: Resolution in dots per inch (default: None, uses matplotlib default)
     """
-    args_str = []
-    for arg in args:
-        args_str.append("_vs_".join(arg) if isinstance(arg, list) else arg)
-
-    output_path = "/".join(args_str)
-
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
+    output_path = _ensure_output_path(*args)
     file_name = file_name if isinstance(file_name, str) else "_vs_".join(file_name)
     file_path = f"{output_path}/{file_name.replace('.', '_').replace('/', '_')}.{fmt}"
     print(f"wrote {fmt}: {file_path}")
@@ -211,15 +210,7 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         var: Variable name (string or list of strings)
         *args: Additional path components
     """
-    args_str = []
-    for arg in args:
-        args_str.append("_vs_".join(arg) if isinstance(arg, list) else arg)
-
-    output_path = "/".join(args_str)
-
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
+    output_path = _ensure_output_path(*args)
     var_str = var if isinstance(var, str) else "_vs_".join(var)
     file_name = f"{output_path}/{var_str.replace('.', '_').replace('/', '_')}.yaml"
     print(f"wrote yaml: {file_name}")
