@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Union, Any, Tuple
 import copy
 import logging
 import src.plotting.helpers as plot_helpers
+from src.plotting.plot_types import PlotData
 import hist
 import numpy as np
 from rich.pretty import pretty_repr
@@ -373,7 +374,7 @@ def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
     else:
         _add_1d_ratio_plots(plot_data, **kwargs)
 
-def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, process: Any, **kwargs) -> Dict:
+def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, process: Any, **kwargs) -> PlotData:
     """
     Create a plot dictionary from lists of processes, cuts, axis_opts, etc.
 
@@ -634,7 +635,7 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
             plot_data["ratio"][f"band_{r_name}"] = band_config
 
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
-                              cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> Dict:
+                              cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> PlotData:
     """
     Create a plot dictionary from configuration.
 
