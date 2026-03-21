@@ -8,7 +8,7 @@ This module provides functions to:
 - Manage plot metadata and styling
 """
 
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, List, NamedTuple, Optional, Union, Any, Tuple
 import copy
 import logging
 import src.plotting.helpers as plot_helpers
@@ -295,9 +295,9 @@ def add_hist_data(*, cfg, config, var, cut, rebin, year, axis_opts, do2d=False, 
 
 
 
-def _create_base_plot_dict(var: str, cut: str, axis_opts: Dict, process: Any, **kwargs) -> Dict:
+def _create_base_plot_dict(var: str, cut: Any, axis_opts: Dict, **kwargs) -> Dict:
     """Create the base plot dictionary structure."""
-    plot_data = {
+    return {
         "hists": {},
         "stack": {},
         "ratio": {},
@@ -305,9 +305,7 @@ def _create_base_plot_dict(var: str, cut: str, axis_opts: Dict, process: Any, **
         "cut": cut,
         "axis_opts": axis_opts,
         "kwargs": kwargs,
-        "process": process
     }
-    return plot_data
 
 def _get_proc_id(process_config: Dict) -> str:
     """Return a unique string identifier for a process config."""
@@ -324,41 +322,73 @@ def _setup_overlay_config(process_config: Dict, item: Any, index: int,
     config["histtype"] = "errorbar"
     return config
 
-def _handle_cut_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_plot: str,
-                     axis_opts: Dict, cut_list: List[str], rebin: int, year: str, do2d: bool,
-                     label_override: Optional[List[str]] = None, hist_key_list: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple cuts."""
-    if debug:
-        print(f"in _handle_cut_list cut_list={cut_list}")
+class LoadSpec(NamedTuple):
+    """Everything needed to load one histogram entry.
+
+    Produced by _entries_* functions and consumed by _load_hists.
+    """
+    config: Dict                   # per-item process config (deep-copied, styled)
+    var: str                       # variable to fetch
+    cut: Optional[str]             # cut to apply
+    year: Any                      # str | builtins.sum
+    axis_opts: Dict                # axis opts for this entry
+    file_index: Optional[int]      # which input file (None = auto)
+    key: str                       # key for plot_data["hists"]
+    hist_key_override: Optional[str] = None  # if set, calls cfg.set_hist_key first
+
+
+def _load_hists(plot_data: Dict, cfg: Any, entries: List[LoadSpec], *,
+                rebin: int, do2d: bool, debug: bool) -> None:
+    """Load a list of LoadSpec entries into plot_data["hists"].
+
+    Single location that calls add_hist_data and stores each result, replacing
+    the per-handler add_hist_data + dict-insertion pattern.
+    """
+    for entry in entries:
+        if entry.hist_key_override is not None:
+            cfg.set_hist_key(entry.hist_key_override)
+        add_hist_data(cfg=cfg, config=entry.config, var=entry.var, cut=entry.cut,
+                      rebin=rebin, year=entry.year, axis_opts=entry.axis_opts,
+                      do2d=do2d, file_index=entry.file_index, debug=debug)
+        plot_data["hists"][entry.key] = entry.config
+
+
+def _entries_cut_list(*, process_config: Dict, var_to_plot: str, axis_opts: Dict,
+                      cut_list: List[str], year: str,
+                      label_override: Optional[List[str]] = None,
+                      hist_key_list: Optional[List[str]] = None,
+                      debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for a list of cuts (one hist per cut)."""
     proc_id = _get_proc_id(process_config)
+    entries = []
     for ic, _cut in enumerate(cut_list):
-        if debug:
-            print_list_debug_info(process_config["process"], _cut, axis_opts)
-        if hist_key_list is not None:
-            cfg.set_hist_key(hist_key_list[ic])
         _cut_label = plot_helpers.cut_to_label(_cut)
         _process_config = _setup_overlay_config(process_config, _cut_label, ic, label_override)
-        add_hist_data(cfg=cfg, config=_process_config,
-                      var=var_to_plot, axis_opts=axis_opts, cut=_cut, rebin=rebin, year=year,
-                      do2d=do2d, debug=debug)
-        plot_data["hists"][f"{proc_id}{_cut}{ic}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=var_to_plot, cut=_cut, year=year,
+            axis_opts=axis_opts, file_index=None,
+            key=f"{proc_id}{_cut}{ic}",
+            hist_key_override=hist_key_list[ic] if hist_key_list is not None else None,
+        ))
+    return entries
 
-def _handle_axis_opts_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_to_plot: str,
-                           cut: str, axis_list_name: str, axis_list_values: List[str],
-                           axis_opts: Dict, rebin: int, year: str, do2d: bool,
-                           label_override: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple axis opt values."""
+def _entries_axis_opts_list(*, process_config: Dict, var_to_plot: str, cut: Any,
+                            axis_list_name: str, axis_list_values: List, axis_opts: Dict,
+                            year: str, label_override: Optional[List[str]] = None,
+                            debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for a list of axis_opts values (one hist per value)."""
     proc_id = _get_proc_id(process_config)
+    entries = []
     for ia, _axis_val in enumerate(axis_list_values):
         _axis_opts = copy.deepcopy(axis_opts)
         _axis_opts[axis_list_name] = _axis_val
-        if debug:
-            print_list_debug_info(process_config["process"], cut, _axis_opts)
         _process_config = _setup_overlay_config(process_config, _axis_val, ia, label_override)
-        add_hist_data(cfg=cfg, config=_process_config,
-                     var=var_to_plot, axis_opts=_axis_opts, cut=cut, rebin=rebin, year=year,
-                     do2d=do2d, debug=debug)
-        plot_data["hists"][f"{proc_id}{_axis_val}{ia}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=var_to_plot, cut=cut, year=year,
+            axis_opts=_axis_opts, file_index=None,
+            key=f"{proc_id}{_axis_val}{ia}",
+        ))
+    return entries
 
 def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """
@@ -375,24 +405,8 @@ def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
         _add_1d_ratio_plots(plot_data, **kwargs)
 
 def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, process: Any, **kwargs) -> PlotData:
-    """
-    Create a plot dictionary from lists of processes, cuts, axis_opts, etc.
-
-    Args:
-        cfg: Configuration object
-        var: Variable to plot
-        cut: Selection cut
-        axis_opts: Axis options for histogram selection
-        process: Process or list of processes
-        **kwargs: Additional plotting options
-
-    Returns:
-        Dict: Plot configuration dictionary
-    """
+    """Create a plot dictionary from lists of processes, cuts, axis_opts, etc."""
     debug = kwargs.get("debug", False)
-    if debug:
-        print(f"in get_plot_dict_from_list hist process={process}, cut={cut}")
-
     rebin = kwargs.get("rebin", 1)
     do2d = kwargs.get("do2d", False)
     var_over_ride = kwargs.get("var_over_ride", {})
@@ -400,91 +414,81 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
     year = kwargs.get("year", "RunII")
     file_labels = kwargs.get("fileLabels", [])
     hist_key_list = kwargs.get("hist_key_list", None)
-    plot_data = _create_base_plot_dict(var, cut, axis_opts, process, **kwargs)
 
-    # Parse process configuration
+    plot_data = _create_base_plot_dict(var, cut, axis_opts, **kwargs)
+    plot_data["process"] = process
+
+    # Resolve process config(s) from plotConfig
     if isinstance(process, list):
-        if debug: print(f"process is a list {process}... parsing each process config")
         var_to_plot = var
         process_config = []
         for p in process:
             try:
-                _p_config = plot_helpers.get_value_nested_dict(cfg.plotConfig, p)
-                process_config.append( _p_config )
-                if debug: print(f" added process config for {p} {pretty_repr(process_config[-1])}")
+                process_config.append(plot_helpers.get_value_nested_dict(cfg.plotConfig, p))
             except ValueError:
-                if not p.find("HH4b") == -1:
-                    print(f"Trying HH4b {p}")
-                    _p_config = plot_helpers.make_klambda_hist(p, cfg.plotConfig)
-                    process_config.append(_p_config)
-
+                if "HH4b" in p:
+                    process_config.append(plot_helpers.make_klambda_hist(p, cfg.plotConfig))
     else:
         try:
             process_config = plot_helpers.get_value_nested_dict(cfg.plotConfig, process)
-            proc_id = process_config["label"] if isinstance(process_config["process"], list) else process_config["process"]
         except ValueError:
             raise ValueError(f"\t ERROR process = {process} not in plotConfig! \n")
-
         var_to_plot = var_over_ride.get(process, var)
 
+    # Detect active list dimension and build entries
+    axis_opts_list = next(((k, v) for k, v in axis_opts.items() if isinstance(v, list)), None)
 
-    axis_opts_list = False
-    axis_list_name = None
-    for k, v in axis_opts.items():
-        if isinstance(v, list):
-            axis_opts_list = True
-            axis_list_name = k
-            break
-
-    opts_dict = {"plot_data":plot_data,
-                 "process_config":process_config,
-                 "cfg":cfg,
-                 "axis_opts":axis_opts,
-                 "cut":cut,
-                 "rebin":rebin,
-                 "year":year,
-                 "do2d":do2d,
-                 "label_override":label_override,
-                 "debug":debug}
-
-
-    # Handle different types of lists
     if isinstance(cut, list):
-        if debug: print(f"cut is a list {cut}")
-        opts_dict.pop("cut")
-        _handle_cut_list(**opts_dict, cut_list=cut, hist_key_list=hist_key_list, var_to_plot=var_to_plot)
-        opts_dict["cut"] = cut
-
+        entries = _entries_cut_list(
+            process_config=process_config, var_to_plot=var_to_plot,
+            axis_opts=axis_opts, cut_list=cut, year=year,
+            label_override=label_override, hist_key_list=hist_key_list, debug=debug,
+        )
     elif len(cfg.hists) > 1 and not cfg.combine_input_files and isinstance(process, list):
-        if debug: print(f"process is a list with multiple input files {process}")
-        _handle_process_list_multi_file(**opts_dict, var=var, var_over_ride=var_over_ride, file_labels=file_labels)
-
+        entries = _entries_process_list_multi_file(
+            process_config=process_config, cfg=cfg, var=var,
+            axis_opts=axis_opts, cut=cut, year=year,
+            var_over_ride=var_over_ride, label_override=label_override,
+            file_labels=file_labels, debug=debug,
+        )
     elif len(cfg.hists) > 1 and not cfg.combine_input_files:
-        if debug: print(f"hist is a list {process}")
-        _handle_input_files(**opts_dict, var_to_plot=var_to_plot, file_labels=file_labels)
-
+        entries = _entries_input_files(
+            process_config=process_config, cfg=cfg, var_to_plot=var_to_plot,
+            axis_opts=axis_opts, cut=cut, year=year,
+            label_override=label_override, file_labels=file_labels, debug=debug,
+        )
     elif isinstance(process, list):
-        if debug: print(f"process is a list {process}")
-        _handle_process_list(**opts_dict, var=var, var_over_ride=var_over_ride)
-
+        entries = _entries_process_list(
+            process_config=process_config, var=var,
+            axis_opts=axis_opts, cut=cut, year=year,
+            var_over_ride=var_over_ride, label_override=label_override, debug=debug,
+        )
     elif isinstance(var, list):
-        if debug: print(f"var is a list {var}")
-        _handle_var_list(**opts_dict, var_list=var)
-
+        entries = _entries_var_list(
+            process_config=process_config, var_list=var,
+            axis_opts=axis_opts, cut=cut, year=year,
+            label_override=label_override, debug=debug,
+        )
     elif isinstance(year, list):
-        if debug: print(f"year is a list {year}")
-        opts_dict.pop("year")
-        _handle_year_list(**opts_dict, var=var_to_plot, year_list=year)
-
+        entries = _entries_year_list(
+            process_config=process_config, var=var_to_plot,
+            axis_opts=axis_opts, cut=cut, year_list=year,
+            label_override=label_override, debug=debug,
+        )
     elif axis_opts_list:
-        if debug: print(f"One of the axis_opts is a list: {axis_list_name} {axis_opts[axis_list_name]}")
-        axis_list_values = opts_dict["axis_opts"].pop(axis_list_name)
-        _handle_axis_opts_list(**opts_dict, axis_list_name=axis_list_name, axis_list_values=axis_list_values, var_to_plot=var_to_plot)
-        opts_dict["axis_opts"][axis_list_name] = axis_list_values
+        axis_list_name, _ = axis_opts_list
+        axis_list_values = axis_opts[axis_list_name]
+        entries = _entries_axis_opts_list(
+            process_config=process_config, var_to_plot=var_to_plot,
+            axis_opts=axis_opts, cut=cut, year=year,
+            axis_list_name=axis_list_name, axis_list_values=axis_list_values,
+            label_override=label_override, debug=debug,
+        )
     else:
         raise ValueError("Error: At least one parameter must be a list!")
 
-    # Handle ratio plots if requested
+    _load_hists(plot_data, cfg, entries, rebin=rebin, do2d=do2d, debug=debug)
+
     if kwargs.get("doRatio", True):
         _add_ratio_plots(plot_data, **kwargs)
 
@@ -666,16 +670,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
         if _bare_cut not in cfg.cutList:
             raise AttributeError(f"{cut} not in cutList {cfg.cutList}")
 
-    # Initialize plot data structure
-    plot_data = {
-        "hists": {},
-        "stack": {},
-        "ratio": {},
-        "var": var,
-        "cut": cut,
-        "axis_opts": axis_opts,
-        "kwargs": kwargs
-    }
+    plot_data = _create_base_plot_dict(var, cut, axis_opts, **kwargs)
     if do2d:
         plot_data["process"] = process[0]
         plot_data["is_2d_hist"] = True
@@ -712,35 +707,30 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
 
     return plot_data
 
-def _handle_input_files(plot_data: Dict, process_config: Dict, cfg: Any, var_to_plot: str,
-                        axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
-                        label_override: Optional[List[str]] = None, debug: bool = False,
-                        file_labels: Optional[List[str]] = None) -> None:
-    """Handle plotting from multiple input files."""
-    if debug:
-        print_list_debug_info(process_config["process"], cut, axis_opts)
-
+def _entries_input_files(*, process_config: Dict, cfg: Any, var_to_plot: str,
+                         axis_opts: Dict, cut: Any, year: str,
+                         label_override: Optional[List[str]] = None,
+                         file_labels: Optional[List[str]] = None,
+                         debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for multiple input files (one hist per file)."""
     file_labels = file_labels or []
     proc_id = process_config["label"] if isinstance(process_config["process"], list) else process_config["process"]
-
-    for iF, _input_file in enumerate(cfg.hists):
+    entries = []
+    for iF in range(len(cfg.hists)):
         _process_config = copy.deepcopy(process_config)
         _process_config["fillcolor"] = plot_helpers.COLORS[iF]
-
+        _process_config["histtype"] = "errorbar"
         if label_override:
             _process_config["label"] = label_override[iF]
         elif iF < len(file_labels):
             _process_config["label"] = f"{_process_config['label']} {file_labels[iF]}"
         else:
             _process_config["label"] = f"{_process_config['label']} file{iF + 1}"
-
-        _process_config["histtype"] = "errorbar"
-
-        add_hist_data(cfg=cfg, config=_process_config,
-                     var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
-                     do2d=do2d, file_index=iF, debug=debug)
-
-        plot_data["hists"][f"{proc_id}file{iF}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=var_to_plot, cut=cut, year=year,
+            axis_opts=axis_opts, file_index=iF, key=f"{proc_id}file{iF}",
+        ))
+    return entries
 
 def get_var_to_plot(var, var_over_ride: Dict, proc_id: str, iP: int, debug: bool) -> str:
         """Get the variable to plot, considering overrides."""
@@ -760,80 +750,71 @@ def _prepare_process_config(proc_conf: Dict):
     return _process_config, _proc_id
 
 
-def _handle_process_list(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
-                         axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
-                         var_over_ride: Dict, label_override: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple processes."""
+def _entries_process_list(*, process_config: List[Dict], var: str, axis_opts: Dict,
+                          cut: Any, year: str, var_over_ride: Dict,
+                          label_override: Optional[List[str]] = None,
+                          debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for a list of processes (one hist per process)."""
+    entries = []
     for iP, _proc_conf in enumerate(process_config):
-        if debug:
-            print("In _handle_process_list")
-            print_list_debug_info(_proc_conf["process"],  cut, axis_opts)
-
         _process_config, _proc_id = _prepare_process_config(_proc_conf)
         var_to_plot = get_var_to_plot(var, var_over_ride, _proc_id, iP, debug)
-        add_hist_data(cfg=cfg, config=_process_config,
-                     var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
-                     do2d=do2d, debug=debug)
-        plot_data["hists"][f"{_proc_id}{iP}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=var_to_plot, cut=cut, year=year,
+            axis_opts=axis_opts, file_index=None, key=f"{_proc_id}{iP}",
+        ))
+    return entries
 
-def _handle_process_list_multi_file(*, plot_data: Dict, process_config: List[Dict], cfg: Any, var: str,
-                         axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
-                         var_over_ride: Dict, label_override: Optional[List[str]] = None,
-                         file_labels: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple processes from multiple input files.
-
-    Each process is paired with its corresponding input file by index.
-    """
+def _entries_process_list_multi_file(*, process_config: List[Dict], cfg: Any, var: str,
+                                     axis_opts: Dict, cut: Any, year: str, var_over_ride: Dict,
+                                     label_override: Optional[List[str]] = None,
+                                     file_labels: Optional[List[str]] = None,
+                                     debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries pairing each process with its corresponding input file."""
     file_labels = file_labels or []
+    entries = []
     for iP, _proc_conf in enumerate(process_config):
-        file_index = min(iP, len(cfg.hists) - 1)
-
-        if debug:
-            print(f"In _handle_process_list_multi_file process={_proc_conf['process']} file_index={file_index}")
-            print_list_debug_info(_proc_conf["process"], cut, axis_opts)
-
         _process_config, _proc_id = _prepare_process_config(_proc_conf)
-
         if label_override and iP < len(label_override):
             _process_config["label"] = label_override[iP]
         elif iP < len(file_labels):
             _process_config["label"] = f"{_process_config['label']} {file_labels[iP]}"
-
         var_to_plot = get_var_to_plot(var, var_over_ride, _proc_id, iP, debug)
+        entries.append(LoadSpec(
+            config=_process_config, var=var_to_plot, cut=cut, year=year,
+            axis_opts=axis_opts, file_index=min(iP, len(cfg.hists) - 1),
+            key=f"{_proc_id}{iP}",
+        ))
+    return entries
 
-        add_hist_data(cfg=cfg, config=_process_config,
-                     var=var_to_plot, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
-                     do2d=do2d, file_index=file_index, debug=debug)
-
-        plot_data["hists"][f"{_proc_id}{iP}"] = _process_config
-
-def _handle_var_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var_list: List[str],
-                     axis_opts: Dict, cut: str, rebin: int, year: str, do2d: bool,
-                     label_override: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple variables."""
+def _entries_var_list(*, process_config: Dict, var_list: List[str], axis_opts: Dict,
+                      cut: Any, year: str, label_override: Optional[List[str]] = None,
+                      debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for a list of variables (one hist per variable)."""
     proc_id = _get_proc_id(process_config)
+    entries = []
     for iv, _var in enumerate(var_list):
-        if debug:
-            print_list_debug_info(process_config["process"], cut, axis_opts)
         _process_config = _setup_overlay_config(process_config, _var, iv, label_override, set_edge_color=True)
-        add_hist_data(cfg=cfg, config=_process_config,
-                     var=_var, axis_opts=axis_opts, cut=cut, rebin=rebin, year=year,
-                     do2d=do2d, debug=debug)
-        plot_data["hists"][f"{proc_id}{_var}{iv}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=_var, cut=cut, year=year,
+            axis_opts=axis_opts, file_index=None, key=f"{proc_id}{_var}{iv}",
+        ))
+    return entries
 
-def _handle_year_list(*, plot_data: Dict, process_config: Dict, cfg: Any, var: str,
-                     axis_opts: Dict, cut: str, rebin: int, year_list: List[str], do2d: bool,
-                     label_override: Optional[List[str]] = None, debug: bool = False) -> None:
-    """Handle plotting multiple years."""
+def _entries_year_list(*, process_config: Dict, var: str, axis_opts: Dict,
+                       cut: Any, year_list: List[str],
+                       label_override: Optional[List[str]] = None,
+                       debug: bool = False) -> List[LoadSpec]:
+    """Build LoadSpec entries for a list of years (one hist per year)."""
     proc_id = _get_proc_id(process_config)
+    entries = []
     for iy, _year in enumerate(year_list):
-        if debug:
-            print_list_debug_info(process_config["process"], cut, axis_opts)
         _process_config = _setup_overlay_config(process_config, _year, iy, label_override, set_edge_color=True)
-        add_hist_data(cfg=cfg, config=_process_config,
-                      var=var, axis_opts=axis_opts, cut=cut, rebin=rebin, year=_year,
-                      do2d=do2d, debug=debug)
-        plot_data["hists"][f"{proc_id}{_year}{iy}"] = _process_config
+        entries.append(LoadSpec(
+            config=_process_config, var=var, cut=cut, year=_year,
+            axis_opts=axis_opts, file_index=None, key=f"{proc_id}{_year}{iy}",
+        ))
+    return entries
 
 def _add_2d_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """Populate plot_data["ratio_specs"] for a 2-D ratio plot.
