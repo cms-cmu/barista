@@ -87,6 +87,10 @@ def _normalize_kwargs(kwargs):
     return kwargs
 
 
+def _is_axis_opts_list(axis_opts):
+    return any(isinstance(v, list) for v in axis_opts.values())
+
+
 def makePlot(cfg, var='selJets.pt',
              cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
@@ -94,11 +98,11 @@ def makePlot(cfg, var='selJets.pt',
 
        debug    : False,
        var      : 'selJets.pt',
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
-        'doRatio'  : bool (False)
+        'doRatio'  : bool (True)
         'rebin'    : int (1),
     """
 
@@ -108,13 +112,7 @@ def makePlot(cfg, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In makePlot kwargs={kwargs}")
 
-    axis_opts_list = False
-    for _, v in axis_opts.items():
-        if type(v) is list:
-            axis_opts_list = True
-            break
-
-    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
             if debug: print(f"makePlot: getting plot data from list")
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, **kwargs)
@@ -142,7 +140,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
        debug    : False,
        var      : 'selJets.pt',
        year     : "2017",
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
@@ -154,14 +152,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
 
-    axis_opts_list = False
-    for _, v in axis_opts.items():
-        if type(v) is list:
-            axis_opts_list = True
-            break
-
-
-    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
             return plot_helpers_make_plot.make_plot_from_dict(plot_data, do2d=True)

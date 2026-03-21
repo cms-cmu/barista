@@ -284,7 +284,6 @@ def _configure_main_axes(stack_patches: List, **kwargs) -> None:
             legend_reverse = False
             ordered_handles, ordered_labels = [], []
             for item in kwargs["legend_order"]:
-                print(item)
                 ordered_handles.append(handles[labels.index(item)])
                 ordered_labels.append(item)
             handles, labels = ordered_handles, ordered_labels
@@ -373,8 +372,7 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
                                      edgecolor=ratio_data.get("color", "black"),
                                      facecolor=ratio_data.get("facecolor", "none"),
                                      linewidth=0.0, zorder=1)
-            from matplotlib.patches import Rectangle
-            legend_handles[label] = Rectangle(
+            legend_handles[label] = mpatches.Rectangle(
                 (0, 0), 1, 1,
                 hatch=ratio_data.get("hatch", "/"),
                 edgecolor=ratio_data.get("color", "black"),
@@ -442,7 +440,6 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
             if rl in legend_handles:
                 ordered_labels.append(rl)
                 ordered_handles.append(legend_handles[rl])
-        print(ordered_handles, ordered_labels)
         ratio_ax.legend(ordered_handles, ordered_labels, ncol=2,
                         loc=kwargs.get("ratio_legend_loc", "upper left"))
 
@@ -586,6 +583,20 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
         raise ValueError(f"Failed to create plot: {str(e)}")
 
 
+def _make_masked_2d_hist(hist_data: Dict, values: np.ndarray = None):
+    """Mask near-zero values and create a 2D hist object from hist_data."""
+    hd = np.array(hist_data["values"] if values is None else values)
+    hd[hd < 0.001] = np.nan
+    return plot_helpers.make_2d_hist(
+        x_edges=hist_data["x_edges"],
+        y_edges=hist_data["y_edges"],
+        values=hd,
+        variances=hist_data["variances"],
+        x_label=hist_data["x_label"],
+        y_label=hist_data["y_label"],
+    )
+
+
 def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, plt.Axes]:
     """
     Create a 2D plot from a dictionary of plot data.
@@ -628,18 +639,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
 
             ratio_key = next(iter(plot_data["ratio"]))
 
-            # Mask 0s
-            hd = np.array(plot_data["ratio"][ratio_key]["ratio"])
-            hd[hd < 0.001] = np.nan
-
-            hist_obj_2d = plot_helpers.make_2d_hist(
-                x_edges=num_hist_data["x_edges"],
-                y_edges=num_hist_data["y_edges"],
-                values=hd,
-                variances=num_hist_data["variances"],
-                x_label=num_hist_data["x_label"],
-                y_label=num_hist_data["y_label"]
-            )
+            hist_obj_2d = _make_masked_2d_hist(num_hist_data, values=plot_data["ratio"][ratio_key]["ratio"])
 
             scale = 2
             fig = plt.figure(figsize=(10*scale, 6*scale))
@@ -654,34 +654,14 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
 
             ax_top_right = fig.add_subplot(gs[0, 1])
 
-            num_hd = np.array(num_hist_data["values"])
-            num_hd[num_hd < 0.001] = np.nan
-
-            num_hist_obj_2d = plot_helpers.make_2d_hist(
-                x_edges=num_hist_data["x_edges"],
-                y_edges=num_hist_data["y_edges"],
-                values=num_hd,
-                variances=num_hist_data["variances"],
-                x_label=num_hist_data["x_label"],
-                y_label=num_hist_data["y_label"]
-            )
+            num_hist_obj_2d = _make_masked_2d_hist(num_hist_data)
 
             num_hist_obj_2d.plot2d(cmap="turbo",
                                    cmin=kwargs.get("zlim", [None, None])[0],
                                    cmax=kwargs.get("zlim", [None, None])[1])
 
             ax_bottom_right = fig.add_subplot(gs[1, 1])
-            den_hd = np.array(den_hist_data["values"])
-            den_hd[den_hd < 0.001] = np.nan
-
-            den_hist_obj_2d = plot_helpers.make_2d_hist(
-                x_edges=den_hist_data["x_edges"],
-                y_edges=den_hist_data["y_edges"],
-                values=den_hd,
-                variances=den_hist_data["variances"],
-                x_label=den_hist_data["x_label"],
-                y_label=den_hist_data["y_label"]
-            )
+            den_hist_obj_2d = _make_masked_2d_hist(den_hist_data)
 
             den_hist_obj_2d.plot2d(cmap="turbo",
                                    cmin=kwargs.get("zlim", [None, None])[0],
@@ -719,7 +699,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
                 )
 
                 fig = plt.figure()
-                val = hist_obj_2d.plot2d_full(
+                hist_obj_2d.plot2d_full(
                     main_cmap="jet",
                     top_color="k",
                     top_lw=2,
@@ -727,18 +707,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
                     side_color="k",
                 )
             else:
-                # Mask 0s
-                hd = np.array(hist_data["values"])
-                hd[hd < 0.001] = np.nan
-
-                hist_obj_2d = plot_helpers.make_2d_hist(
-                    x_edges=hist_data["x_edges"],
-                    y_edges=hist_data["y_edges"],
-                    values=hd,
-                    variances=hist_data["variances"],
-                    x_label=hist_data["x_label"],
-                    y_label=hist_data["y_label"]
-                )
+                hist_obj_2d = _make_masked_2d_hist(hist_data)
 
                 fig = plt.figure()
                 fig.add_axes((0.1, 0.15, 0.85, 0.8))
