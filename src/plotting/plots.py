@@ -79,80 +79,63 @@ def parse_args():
 
 
 # ---------------------------------------------------------------------------
-# Auto-normalization map: built once from RenderOptions field names.
-# Maps lowercased+underscore-stripped form → canonical field name.
-# Handles any camelCase / snake_case / mixed-case variant for free.
+# Single normalization map: strip underscores + lowercase every input key,
+# look up here to get the canonical RenderOptions field name.
+#
+# Auto-populated from RenderOptions fields so camelCase / snake_case /
+# mixed-case variants (addFlow, do_ratio, yScale, …) are covered for free.
+# Explicit entries handle abbreviations and genuinely different root words
+# where stripping alone isn't enough (ratio→doRatio, normalize→norm, …).
+# Keys are already stripped+lowercased; values are canonical field names.
 # ---------------------------------------------------------------------------
 _RENDER_FIELDS: frozenset = frozenset(f.name for f in _dataclass_fields(RenderOptions))
-_AUTO_NORMALIZE_MAP: dict = {
+_NORMALIZE_MAP: dict = {
     name.lower().replace('_', ''): name
     for name in _RENDER_FIELDS
 }
-
-# ---------------------------------------------------------------------------
-# Explicit alias table — only for cases auto-normalization cannot handle:
-#   • Abbreviations (normalize → norm, flow → add_flow, uniform → uniform_bins)
-#   • Genuinely different names (outdir → outputFolder)
-#   • Short-prefix fields where the long form doesn't collapse to the short
-#     (ratio_lim → rlim, ratio_label → rlabel, do_legend → legend)
-# ---------------------------------------------------------------------------
-_KWARG_ALIASES: dict = {
+_NORMALIZE_MAP.update({
     # norm
-    'normalize':        'norm',
-    'normalise':        'norm',
-    'normalized':       'norm',
-    'normalised':       'norm',
+    'normalize':       'norm',
+    'normalise':       'norm',
+    'normalized':      'norm',
+    'normalised':      'norm',
     # add_flow
-    'flow':             'add_flow',
+    'flow':            'add_flow',
     # uniform_bins
-    'uniform':          'uniform_bins',
+    'uniform':         'uniform_bins',
     # outputFolder
-    'outdir':           'outputFolder',
-    'output_dir':       'outputFolder',
-    # doRatio  ('Ratio' → 'ratio' ≠ 'doratio')
-    'Ratio':            'doRatio',
-    # rlim  (ratiolim ≠ rlim after stripping)
-    'ratio_lim':        'rlim',
-    'ratio_limits':     'rlim',
+    'outdir':          'outputFolder',
+    'outputdir':       'outputFolder',
+    # doRatio  ('ratio' ≠ 'doratio' after stripping)
+    'ratio':           'doRatio',
+    # rlim
+    'ratiolim':        'rlim',
+    'ratiolimits':     'rlim',
     # rlabel
-    'ratio_label':      'rlabel',
-    # legend  (dolegend ≠ legend after stripping)
-    'doLegend':         'legend',
-    'do_legend':        'legend',
+    'ratiolabel':      'rlabel',
+    # legend  ('dolegend' ≠ 'legend' after stripping)
+    'dolegend':        'legend',
     # legend_loc
-    'legend_location':  'legend_loc',
-    # write_yaml  ('save' ≠ 'write')
-    'saveYaml':         'write_yaml',
-    'save_yaml':        'write_yaml',
-    # fmt
-    'format':           'fmt',
-    'output_format':    'fmt',
-}
+    'legendlocation':  'legend_loc',
+    # write_yaml  ('save' ≠ 'write' after stripping)
+    'saveyaml':        'write_yaml',
+    # fmt  ('format'/'output' ≠ 'fmt' after stripping)
+    'format':          'fmt',
+    'outputformat':    'fmt',
+})
 
 
 def _normalize_kwargs(kwargs: dict) -> dict:
     """Fold kwarg aliases into canonical RenderOptions names (in-place).
 
-    Two passes:
-      1. Explicit alias table — abbreviations and genuinely different names.
-      2. Auto-normalization — resolves any camelCase / snake_case / mixed-case
-         variant by stripping underscores and lowercasing, then matching against
-         the known RenderOptions field set.  Covers e.g. ``addFlow``, ``doRatio``,
-         ``uniformBins``, ``writeYaml``, ``cmsText``, ``yScale``, etc. without
-         needing an explicit entry per variant.
+    Strips underscores and lowercases each key, then looks it up in
+    _NORMALIZE_MAP.  Covers camelCase, snake_case, mixed-case, and explicit
+    abbreviations (ratio→doRatio, normalize→norm, …) in a single pass.
     """
-    # Pass 1: explicit aliases
-    for alias, canonical in _KWARG_ALIASES.items():
-        if alias in kwargs:
-            kwargs.setdefault(canonical, kwargs.pop(alias))
-
-    # Pass 2: auto camelCase / snake_case normalization
     for key in list(kwargs):
-        if key not in _RENDER_FIELDS:
-            canonical = _AUTO_NORMALIZE_MAP.get(key.lower().replace('_', ''))
-            if canonical is not None:
-                kwargs.setdefault(canonical, kwargs.pop(key))
-
+        canonical = _NORMALIZE_MAP.get(key.lower().replace('_', ''))
+        if canonical is not None and key != canonical:
+            kwargs.setdefault(canonical, kwargs.pop(key))
     return kwargs
 
 

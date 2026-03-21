@@ -98,13 +98,24 @@ def _find_hist_obj(
             raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
         for _key in unique_to_dict:
             hist_opts.pop(_key)
-        if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
+        if var not in _input_data[hist_key]:
+            continue
+        try:
+            available_processes = list(_input_data[hist_key][var].axes["process"])
+        except (KeyError, StopIteration):
+            available_processes = None
+        if available_processes is not None and process in available_processes:
             if "variation" in _input_data[category_key]:
                 hist_opts["variation"] = "nominal"
             hist_obj = _input_data[hist_key][var]
 
     if hist_obj is None:
-        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
+        try:
+            avail = list(_input_data[hist_key][var].axes["process"]) if var in _input_data[hist_key] else None
+        except Exception:
+            avail = None
+        avail_str = f" (available processes: {avail})" if avail is not None else f" (var '{var}' not found in {hist_key})"
+        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs{avail_str}")
     return hist_obj
 
 
