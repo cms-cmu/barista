@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import mplhep as hep  # HEP (CMS) extensions/styling on top of mpl
 import matplotlib.patches as mpatches
 import src.plotting.helpers as plot_helpers
+from src.plotting.plot_types import RenderOptions, PlotData
 import hist
 import numpy as np
 from typing import Dict, Any, Optional, Tuple, List, Union
@@ -171,11 +172,11 @@ def _build_stack_legend_patches(stack_dict: Dict) -> List:
     return patches
 
 
-def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
+def _draw_hists(hists_dict: Dict, plot_data: Dict, opts: RenderOptions) -> None:
     """Draw individual histograms onto the current axes."""
-    uniform_bins = kwargs.get("uniform_bins", False)
-    norm = kwargs.get("norm", False)
-    add_flow = kwargs.get("add_flow", False)
+    uniform_bins = opts.uniform_bins
+    norm = opts.norm
+    add_flow = opts.add_flow
     ax = plt.gca()
     logger.debug(f"_draw_hists called: norm={norm!r}, uniform_bins={uniform_bins}, n_hists={len(hists_dict)}")
     for _, hist_data in hists_dict.items():
@@ -184,8 +185,8 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
         edges = np.array(hist_data["edges"])
         label = hist_data.get("label", "")
         color = hist_data.get("fillcolor", "k")
-        histtype = kwargs.get("histtype", hist_data.get("histtype", "errorbar"))
-        lw = kwargs.get("linewidth", hist_data.get("linewidth", DEFAULT_LINEWIDTH))
+        histtype = opts.histtype or hist_data.get("histtype", "errorbar")
+        lw = opts.linewidth if opts.linewidth is not None else hist_data.get("linewidth", DEFAULT_LINEWIDTH)
 
         if add_flow:
             vals = vals.copy()
@@ -249,30 +250,29 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, **kwargs) -> None:
             hist_obj.plot(**plot_opts)
 
 
-def _configure_main_axes(stack_patches: List, **kwargs) -> None:
+def _configure_main_axes(stack_patches: List, opts: RenderOptions) -> None:
     """Set axis labels, scales, legend, limits, and text annotations on the current axes."""
-    norm = kwargs.get("norm", False)
     # Labels
-    if kwargs.get("xlabel"):
-        plt.xlabel(kwargs["xlabel"])
-    plt.xlabel(plt.gca().get_xlabel(), loc="right", fontsize=kwargs.get("xlabel_fontsize", 30))
+    if opts.xlabel:
+        plt.xlabel(opts.xlabel)
+    plt.xlabel(plt.gca().get_xlabel(), loc="right", fontsize=opts.xlabel_fontsize)
 
-    if kwargs.get("ylabel"):
-        plt.ylabel(kwargs["ylabel"])
-    if norm:
+    if opts.ylabel:
+        plt.ylabel(opts.ylabel)
+    if opts.norm:
         plt.ylabel(plt.gca().get_ylabel() + " (normalized)")
     plt.ylabel(plt.gca().get_ylabel(), loc="top",
-               fontsize=kwargs.get("ylabel_fontsize", 30),
-               labelpad=kwargs.get("ylabel_labelpad", -4))
+               fontsize=opts.ylabel_fontsize,
+               labelpad=opts.ylabel_labelpad)
 
     # Scales
-    if kwargs.get("yscale"):
-        plt.yscale(kwargs["yscale"])
-    if kwargs.get("xscale"):
-        plt.xscale(kwargs["xscale"])
+    if opts.yscale:
+        plt.yscale(opts.yscale)
+    if opts.xscale:
+        plt.xscale(opts.xscale)
 
     # Legend
-    if kwargs.get("legend", True):
+    if opts.legend:
         handles = list(stack_patches)
         labels = [p.get_label() for p in stack_patches]
         data_handles, data_labels = plt.gca().get_legend_handles_labels()
@@ -280,27 +280,27 @@ def _configure_main_axes(stack_patches: List, **kwargs) -> None:
         labels.extend(data_labels)
 
         legend_reverse = True
-        if kwargs.get("legend_order"):
+        if opts.legend_order:
             legend_reverse = False
             ordered_handles, ordered_labels = [], []
-            for item in kwargs["legend_order"]:
+            for item in opts.legend_order:
                 ordered_handles.append(handles[labels.index(item)])
                 ordered_labels.append(item)
             handles, labels = ordered_handles, ordered_labels
 
         plt.legend(handles=handles, labels=labels,
-                   loc=kwargs.get("legend_loc", "best"),
+                   loc=opts.legend_loc,
                    frameon=False, reverse=legend_reverse,
-                   fontsize=kwargs.get("legend_fontsize", 22))
+                   fontsize=opts.legend_fontsize)
 
     # Limits
-    if kwargs.get("ylim"):
-        plt.ylim(*kwargs["ylim"])
-    if kwargs.get("xlim"):
-        plt.xlim(*kwargs["xlim"])
+    if opts.ylim:
+        plt.ylim(*opts.ylim)
+    if opts.xlim:
+        plt.xlim(*opts.xlim)
 
     # Text annotations
-    for _, t in kwargs.get("text", {}).items():
+    for _, t in opts.text.items():
         plt.text(t["xpos"], t["ypos"], t["text"],
                  horizontalalignment=t.get("horizontalalignment", "center"),
                  verticalalignment="top",
@@ -309,35 +309,24 @@ def _configure_main_axes(stack_patches: List, **kwargs) -> None:
                  weight=t.get("weight", "normal"))
 
 
-def _draw_plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> None:
-    """
-    Draw stack, individual histograms, and configure axes from a plot data dictionary.
+def _draw_plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> None:
+    """Draw stack, individual histograms, and configure axes from a plot data dictionary."""
+    if opts.debug:
+        logger.info(f'\t in _draw_plot ... opts = {opts}')
 
-    Args:
-        plot_data: Dictionary with 'stack', 'hists', and display metadata.
-        **kwargs: norm, uniform_bins, add_flow, xlabel, ylabel, yscale, xscale,
-                  legend, ylim, xlim, text, debug, and forwarded hist/stack options.
-    """
-    if kwargs.get("debug"):
-        logger.info(f'\t in _draw_plot ... kwargs = {kwargs}')
-
-    norm = kwargs.get("norm", False)
-    uniform_bins = kwargs.get("uniform_bins", False)
-    add_flow = kwargs.get("add_flow", False)
     ax = plt.gca()
-
     stack_dict = plot_data.get("stack", {})
-    _draw_stack(stack_dict, uniform_bins, norm, add_flow, plot_data, ax)
+    _draw_stack(stack_dict, opts.uniform_bins, opts.norm, opts.add_flow, plot_data, ax)
     stack_patches = _build_stack_legend_patches(stack_dict)
-    _draw_hists(plot_data.get("hists", {}), plot_data, **kwargs)
-    _configure_main_axes(stack_patches, **kwargs)
+    _draw_hists(plot_data.get("hists", {}), plot_data, opts)
+    _configure_main_axes(stack_patches, opts)
 
 
-def _setup_figure(do_ratio: bool, **kwargs) -> Tuple[plt.Figure, plt.Axes, Any]:
+def _setup_figure(do_ratio: bool, opts: RenderOptions) -> Tuple[plt.Figure, plt.Axes, Any]:
     """Create figure and main axes. Returns (fig, main_ax, gridspec_or_None)."""
     fig = plt.figure()
     if do_ratio:
-        grid = fig.add_gridspec(2, 1, **kwargs.get("ratio_grid_config", RATIO_GRID_CONFIG))
+        grid = fig.add_gridspec(2, 1, **(opts.ratio_grid_config or RATIO_GRID_CONFIG))
         main_ax = fig.add_subplot(grid[0])
         return fig, main_ax, grid
     else:
@@ -346,10 +335,9 @@ def _setup_figure(do_ratio: bool, **kwargs) -> Tuple[plt.Figure, plt.Axes, Any]:
 
 
 def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
-                      uniform_bins: bool, **kwargs) -> None:
+                      opts: RenderOptions) -> None:
     """Draw the ratio subplot content and set its labels/limits/legend."""
-    ratio_ax.axhline(kwargs.get("ratio_line_value", 1.0),
-                     color="black", linestyle="dashed", linewidth=2.0)
+    ratio_ax.axhline(opts.ratio_line_value, color="black", linestyle="dashed", linewidth=2.0)
     legend_handles = {}
 
     for ratio_name, ratio_data in plot_data["ratio"].items():
@@ -357,7 +345,7 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
         label = ratio_data.get("label", ratio_name)
 
         if error_bar_type == "band":
-            if uniform_bins:
+            if opts.uniform_bins:
                 for i, (yi, err) in enumerate(zip(ratio_data["ratio"], ratio_data["error"])):
                     plt.fill_between([i - 0.5, i + 0.5], yi - err, yi + err,
                                      hatch=ratio_data.get("hatch", "/"),
@@ -380,8 +368,8 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
                 linewidth=0.0)
 
         elif error_bar_type in ["step", "fill"]:
-            lw = kwargs.get("linewidth", ratio_data.get("linewidth", DEFAULT_LINEWIDTH))
-            if uniform_bins:
+            lw = opts.linewidth if opts.linewidth is not None else ratio_data.get("linewidth", DEFAULT_LINEWIDTH)
+            if opts.uniform_bins:
                 vals = np.array(ratio_data["ratio"], dtype=float)
                 n = len(vals)
                 uniform_edges = np.arange(n + 1) - 0.5
@@ -402,7 +390,7 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
                     variances=ratio_data["variances"], x_label=ratio_data.get("x_label", ""),
                     under_flow=ratio_data.get("under_flow", 0),
                     over_flow=ratio_data.get("over_flow", 0),
-                    add_flow=kwargs.get("add_flow", False)
+                    add_flow=opts.add_flow
                 )
                 plot_opts = {"density": False, "label": ratio_data.get("label", ""),
                              "color": ratio_data.get("fillcolor", "k"),
@@ -419,7 +407,7 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
                                     "histtype": "step"})
 
         else:
-            positions = np.arange(len(ratio_data["ratio"])) if uniform_bins else ratio_data["centers"]
+            positions = np.arange(len(ratio_data["ratio"])) if opts.uniform_bins else ratio_data["centers"]
             handle = ratio_ax.errorbar(
                 positions, ratio_data["ratio"], yerr=ratio_data["error"],
                 color=ratio_data.get("color", "black"),
@@ -429,59 +417,56 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
             )
             legend_handles[label] = handle
 
-    plt.ylabel(kwargs.get("rlabel", "Ratio"))
-    plt.ylabel(plt.gca().get_ylabel(), loc="center", fontsize=kwargs.get("rlabel_fontsize", 30))
-    plt.xlabel(kwargs.get("xlabel", top_xlabel), loc="right", fontsize=kwargs.get("xlabel_fontsize", 30))
-    plt.ylim(*kwargs.get("rlim", [0, 2]))
+    plt.ylabel(opts.rlabel)
+    plt.ylabel(plt.gca().get_ylabel(), loc="center", fontsize=opts.rlabel_fontsize)
+    plt.xlabel(opts.xlabel or top_xlabel, loc="right", fontsize=opts.xlabel_fontsize)
+    plt.ylim(*opts.rlim)
 
-    if kwargs.get("ratio_legend_order"):
+    if opts.ratio_legend_order:
         ordered_handles, ordered_labels = [], []
-        for rl in kwargs["ratio_legend_order"]:
+        for rl in opts.ratio_legend_order:
             if rl in legend_handles:
                 ordered_labels.append(rl)
                 ordered_handles.append(legend_handles[rl])
         ratio_ax.legend(ordered_handles, ordered_labels, ncol=2,
-                        loc=kwargs.get("ratio_legend_loc", "upper left"))
+                        loc=opts.ratio_legend_loc)
 
 
-def _apply_uniform_bin_ticks(bottom_ax, plot_data: Dict, **kwargs) -> None:
+def _apply_uniform_bin_ticks(bottom_ax, plot_data: Dict, opts: RenderOptions) -> None:
     """Set integer tick labels on bottom_ax when uniform_bins mode is active."""
     n = plot_data["_uniform_n_bins"]
-    tick_step = kwargs.get("uniform_bins_tick_step", max(1, n // 10))
+    tick_step = opts.uniform_bins_tick_step if opts.uniform_bins_tick_step is not None else max(1, n // 10)
     tick_positions = list(range(0, n, tick_step))
     bottom_ax.set_xticks(tick_positions)
     bottom_ax.set_xticklabels([str(i) for i in tick_positions],
-                               fontsize=kwargs.get("uniform_bins_fontsize", 14))
+                               fontsize=opts.uniform_bins_fontsize)
     bottom_ax.set_xlim(-0.5, n - 0.5)
-    if not kwargs.get("xlabel"):
-        bottom_ax.set_xlabel("Bin index", loc="right",
-                              fontsize=kwargs.get("xlabel_fontsize", 30))
+    if not opts.xlabel:
+        bottom_ax.set_xlabel("Bin index", loc="right", fontsize=opts.xlabel_fontsize)
     del plot_data["_uniform_bin_edges"]
     del plot_data["_uniform_n_bins"]
 
 
-def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, plt.Axes, Optional[plt.Axes]]:
+def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt.Figure, plt.Axes, Optional[plt.Axes]]:
     """
     Create a 1D plot (with optional ratio panel) from a plot data dictionary.
 
     Returns (fig, main_ax, ratio_ax). ratio_ax is None when no ratio is drawn.
     """
-    if kwargs.get("debug"):
-        logger.info(f'\t in plot ... kwargs = {kwargs}')
+    if opts.debug:
+        logger.info(f'\t in plot ... opts = {opts}')
 
     do_ratio = len(plot_data.get("ratio", {}))
-    fig, main_ax, grid = _setup_figure(do_ratio, **kwargs)
+    fig, main_ax, grid = _setup_figure(do_ratio, opts)
 
-    year_str = plot_helpers.get_year_str(year=kwargs.get("year_str", kwargs.get("year", "RunII")))
-    hep.cms.label(kwargs.get("CMSText", "Internal"), data=True,
-                  year=year_str, loc=0, ax=main_ax)
+    year_str = plot_helpers.get_year_str(year=opts.year_str if opts.year_str is not None else opts.year)
+    hep.cms.label(opts.CMSText, data=True, year=year_str, loc=0, ax=main_ax)
 
-    if kwargs.get("do_title", True) and "region" in plot_data["axis_opts"]:
+    if opts.do_title and "region" in plot_data["axis_opts"]:
         main_ax.set_title(plot_helpers.get_axis_str(plot_data["axis_opts"]["region"]))
 
-    _draw_plot_from_dict(plot_data, **kwargs)
+    _draw_plot_from_dict(plot_data, opts)
 
-    uniform_bins = kwargs.get("uniform_bins", False)
     ratio_ax = None
 
     if do_ratio:
@@ -489,11 +474,11 @@ def _plot_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, pl
         plt.xlabel("")
         ratio_ax = fig.add_subplot(grid[1], sharex=main_ax)
         plt.setp(main_ax.get_xticklabels(), visible=False)
-        _draw_ratio_panel(ratio_ax, plot_data, top_xlabel, uniform_bins, **kwargs)
+        _draw_ratio_panel(ratio_ax, plot_data, top_xlabel, opts)
 
-    if uniform_bins and "_uniform_bin_edges" in plot_data:
+    if opts.uniform_bins and "_uniform_bin_edges" in plot_data:
         bottom_ax = ratio_ax if do_ratio else main_ax
-        _apply_uniform_bin_ticks(bottom_ax, plot_data, **kwargs)
+        _apply_uniform_bin_ticks(bottom_ax, plot_data, opts)
 
     return fig, main_ax, ratio_ax
 
@@ -516,14 +501,14 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
         KeyError: If required data is missing from plot_data
     """
     try:
-        kwargs = plot_data.get("kwargs", {})
+        opts = RenderOptions.from_kwargs(plot_data.get("kwargs", {}))
         if do2d:
-            fig, ax = _plot2d_from_dict(plot_data, **kwargs)
+            fig, ax = _plot2d_from_dict(plot_data, opts)
         else:
-            fig, main_ax, ratio_ax = _plot_from_dict(plot_data, **kwargs)
+            fig, main_ax, ratio_ax = _plot_from_dict(plot_data, opts)
             ax = (main_ax, ratio_ax)
 
-        if kwargs.get("outputFolder", None):
+        if opts.outputFolder:
             try:
                 # Determine tag name
                 if isinstance(plot_data.get("process", ""), list):
@@ -538,11 +523,7 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
 
                 # Construct output path
                 try:
-
-                    output_path = [
-                        kwargs.get("outputFolder"),
-                        kwargs.get("year", "RunII"),
-                    ]
+                    output_path = [opts.outputFolder, opts.year]
                     if plot_data.get("cut") is not None:
                         output_path.append(plot_data["cut"])
 
@@ -556,20 +537,19 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
 
                 except (NameError, KeyError):
                     print("Setting output path to outputFolder only")
-                    output_path = [kwargs.get("outputFolder")]
+                    output_path = [opts.outputFolder]
 
                 # Determine file name
                 file_name = plot_data.get("file_name", plot_data["var"])
-                if kwargs.get("yscale", None) == "log":
+                if opts.yscale == "log":
                     file_name += "_logy"
 
                 # Save plot
                 plot_helpers.savefig(fig, file_name, *output_path,
-                                     fmt=kwargs.get("fmt", "pdf"),
-                                     dpi=kwargs.get("dpi", None))
+                                     fmt=opts.fmt, dpi=opts.dpi)
 
                 # Save YAML if requested
-                if kwargs.get("write_yaml", False):
+                if opts.write_yaml:
                     plot_helpers.save_yaml(plot_data, file_name, *output_path)
 
             except Exception as e:
@@ -597,46 +577,21 @@ def _make_masked_2d_hist(hist_data: Dict, values: np.ndarray = None):
     )
 
 
-def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, plt.Axes]:
-    """
-    Create a 2D plot from a dictionary of plot data.
-
-    Args:
-        plot_data: Dictionary containing plot data and configuration
-        **kwargs: Additional plotting options:
-            - debug: bool - Whether to print debug information
-            - year: str - Year for CMS label
-            - rlim: List[float] - Limits for ratio plot
-            - full: bool - Whether to create full plot
-            - plot_contour: bool - Whether to plot contour
-            - plot_leadst_lines: bool - Whether to plot leading lines
-            - plot_sublst_lines: bool - Whether to plot subleading lines
-
-    Returns:
-        Tuple containing:
-            - Figure object
-            - Axes object
-
-    Raises:
-        ValueError: If the plotting operation fails
-        KeyError: If required data is missing from plot_data
-    """
+def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt.Figure, plt.Axes]:
+    """Create a 2D plot from a dictionary of plot data."""
     try:
-        if kwargs.get("debug", False):
-            logger.info(f'\t in _plot2d_from_dict ... kwargs = {kwargs}')
+        if opts.debug:
+            logger.info(f'\t in _plot2d_from_dict ... opts = {opts}')
 
         if len(plot_data.get("ratio", {})):
-            if kwargs.get("debug", False):
+            if opts.debug:
                 logger.info(f'\t doing ratio')
 
-            # Plot ratios
             key_iter = iter(plot_data["hists"])
             num_key = next(key_iter)
             num_hist_data = plot_data["hists"][num_key]
-
             den_key = next(key_iter)
             den_hist_data = plot_data["hists"][den_key]
-
             ratio_key = next(iter(plot_data["ratio"]))
 
             hist_obj_2d = _make_masked_2d_hist(num_hist_data, values=plot_data["ratio"][ratio_key]["ratio"])
@@ -645,50 +600,33 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
             fig = plt.figure(figsize=(10*scale, 6*scale))
             gs = fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[1, 1], wspace=0.3, hspace=0.4)
             ax_big = fig.add_subplot(gs[:, 0])
-
-            hist_obj_2d.plot2d(
-                cmap="turbo",
-                cmin=kwargs.get("rlim", [None, None])[0],
-                cmax=kwargs.get("rlim", [None, None])[1]
-            )
+            hist_obj_2d.plot2d(cmap="turbo", cmin=opts.rlim[0], cmax=opts.rlim[1])
 
             ax_top_right = fig.add_subplot(gs[0, 1])
-
-            num_hist_obj_2d = _make_masked_2d_hist(num_hist_data)
-
-            num_hist_obj_2d.plot2d(cmap="turbo",
-                                   cmin=kwargs.get("zlim", [None, None])[0],
-                                   cmax=kwargs.get("zlim", [None, None])[1])
+            _make_masked_2d_hist(num_hist_data).plot2d(
+                cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
 
             ax_bottom_right = fig.add_subplot(gs[1, 1])
-            den_hist_obj_2d = _make_masked_2d_hist(den_hist_data)
-
-            den_hist_obj_2d.plot2d(cmap="turbo",
-                                   cmin=kwargs.get("zlim", [None, None])[0],
-                                   cmax=kwargs.get("zlim", [None, None])[1])
-
+            _make_masked_2d_hist(den_hist_data).plot2d(
+                cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
 
             axis_list = [ax_big, ax_top_right, ax_bottom_right]
-            if kwargs.get('xlim', False):
+            if opts.xlim:
                 for ax in axis_list:
-                    ax.set_xlim(*kwargs.get('xlim'))
-
-            if kwargs.get('ylim', False):
+                    ax.set_xlim(*opts.xlim)
+            if opts.ylim:
                 for ax in axis_list:
-                    ax.set_ylim(*kwargs.get('ylim'))
-
+                    ax.set_ylim(*opts.ylim)
 
         else:
             if len(plot_data.get("hists", {})):
-                key = next(iter(plot_data["hists"]))
-                hist_data = plot_data["hists"][key]
+                hist_data = plot_data["hists"][next(iter(plot_data["hists"]))]
             elif len(plot_data.get("stack", {})):
-                key = next(iter(plot_data["stack"]))
-                hist_data = plot_data["stack"][key]
+                hist_data = plot_data["stack"][next(iter(plot_data["stack"]))]
             else:
                 raise ValueError("No valid data found in plot_data")
 
-            if kwargs.get("full", False):
+            if opts.full:
                 hist_obj_2d = plot_helpers.make_2d_hist(
                     x_edges=hist_data["x_edges"],
                     y_edges=hist_data["y_edges"],
@@ -697,51 +635,37 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
                     x_label=hist_data["x_label"],
                     y_label=hist_data["y_label"]
                 )
-
                 fig = plt.figure()
                 hist_obj_2d.plot2d_full(
-                    main_cmap="jet",
-                    top_color="k",
-                    top_lw=2,
-                    side_lw=2,
-                    side_color="k",
+                    main_cmap="jet", top_color="k", top_lw=2, side_lw=2, side_color="k",
                 )
             else:
                 hist_obj_2d = _make_masked_2d_hist(hist_data)
-
                 fig = plt.figure()
                 fig.add_axes((0.1, 0.15, 0.85, 0.8))
-                hist_obj_2d.plot2d(cmap="turbo",
-                                   cmin=kwargs.get("zlim", [None, None])[0],
-                                   cmax=kwargs.get("zlim", [None, None])[1])
+                hist_obj_2d.plot2d(cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
 
             ax = fig.gca()
-            if kwargs.get('xlim', False):
-                ax.set_xlim(*kwargs.get('xlim'))
+            if opts.xlim:
+                ax.set_xlim(*opts.xlim)
+            if opts.ylim:
+                ax.set_ylim(*opts.ylim)
 
-            if kwargs.get('ylim', False):
-                ax.set_ylim(*kwargs.get('ylim'))
-
-
-            # Add additional plot elements if requested
-            if kwargs.get("plot_contour", False):
+            if opts.plot_contour:
                 plot_border_SR()
-            if kwargs.get("plot_leadst_lines", False):
+            if opts.plot_leadst_lines:
                 plot_leadst_lines()
-            if kwargs.get("plot_sublst_lines", False):
+            if opts.plot_sublst_lines:
                 plot_sublst_lines()
 
         ax = fig.gca()
-
-
-        hep.cms.label(kwargs.get('CMSText', "Internal"), data=True,
-                      year=kwargs.get('year', "RunII").replace("UL", "20"), loc=0, ax=ax)
+        hep.cms.label(opts.CMSText, data=True,
+                      year=opts.year.replace("UL", "20"), loc=0, ax=ax)
 
         if 'region' in plot_data["axis_opts"]:
             ax.set_title(f"{plot_data['axis_opts']['region']}  ({plot_data['cut']})", fontsize=16)
         else:
             ax.set_title(f"                       ({plot_data['cut']})", fontsize=16)
-
 
         return fig, ax
 
