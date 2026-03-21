@@ -27,9 +27,150 @@ def print_list_debug_info(process, cut, axis_opts):
 
 
 #
-#  Get hist values
+#  Get hist values — private helpers
 #
-def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts : Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
+
+# Config keys that control styling, not histogram indexing
+_STYLE_KEYS = frozenset([
+    "process", "scalefactor", "label", "fillcolor", "edgecolor",
+    "histtype", "alpha", "linewidth", "linestyle", "zorder", "year",
+])
+
+
+def _normalize_year(year: str):
+    """Convert multi-year aliases (RunII, Run2, …) to the hist sum sentinel."""
+    return sum if year in ("RunII", "Run2", "Run3", "RunIII") else year
+
+
+def _build_hist_opts(
+    process: str, year, config: Dict, axis_opts: Dict,
+    cut: Optional[str], cfg: Any, debug: bool
+) -> Tuple[Dict, Dict]:
+    """Assemble the hist indexing dict from config, axis_opts, and cut; return (hist_opts, cut_dict)."""
+    opts: Dict = {"process": process, "year": year}
+    for c_key, c_val in config.items():
+        if c_key not in _STYLE_KEYS:
+            if debug:
+                print(f"Adding to hist_opts: {c_key} = {c_val}")
+            opts[c_key] = c_val
+    opts = opts | axis_opts
+
+    cut_dict: Dict = {}
+    if cut is not None:
+        try:
+            cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
+        except (AttributeError, KeyError) as e:
+            raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
+        opts = opts | cut_dict
+
+    return opts, cut_dict
+
+
+def _find_hist_obj(
+    cfg: Any, var: str, process: str, hist_opts: Dict, file_index: Optional[int]
+) -> hist.Hist:
+    """Locate the hist.Hist object and prune hist_opts of keys unknown to that file."""
+    hist_key     = cfg.hist_key     if hasattr(cfg, 'hist_key')     else 'hists'
+    category_key = cfg.category_key if hasattr(cfg, 'category_key') else 'categories'
+
+    if len(cfg.hists) > 1 and not cfg.combine_input_files:
+        if file_index is None:
+            raise ValueError("Must provide file_index when using multiple input files without combine_input_files")
+        try:
+            _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index][category_key])
+        except (KeyError, IndexError) as e:
+            raise ValueError(f"Failed to compare dictionary keys (multiple hists): {str(e)}")
+        for _key in unique_to_dict:
+            hist_opts.pop(_key)
+        try:
+            hist_obj = cfg.hists[file_index][hist_key][var]
+        except (KeyError, IndexError) as e:
+            raise ValueError(f"Failed to get histogram for var {var}: {str(e)}")
+        if "variation" in cfg.hists[file_index][category_key]:
+            hist_opts["variation"] = "nominal"
+        return hist_obj
+
+    hist_obj = None
+    for _input_data in cfg.hists:
+        try:
+            _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+        except (KeyError, AttributeError) as e:
+            raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
+        for _key in unique_to_dict:
+            hist_opts.pop(_key)
+        if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
+            if "variation" in _input_data[category_key]:
+                hist_opts["variation"] = "nominal"
+            hist_obj = _input_data[hist_key][var]
+
+    if hist_obj is None:
+        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
+    return hist_obj
+
+
+def _apply_intcategory_compat(
+    hist_obj: hist.Hist, hist_opts: Dict, axis_opts: Dict, cfg: Any, config: Dict
+) -> None:
+    """Translate string tag/region values to IntCategory hist.loc() lookups (in-place)."""
+    try:
+        for axis in hist_obj.axes:
+            if axis.name == "tag" and isinstance(axis, hist.axis.IntCategory):
+                hist_opts['tag'] = hist.loc(cfg.plotConfig["codes"]["tag"][config["tag"]])
+            if axis.name == "region" and isinstance(axis, hist.axis.IntCategory):
+                region_val = axis_opts.get('region', None)
+                if isinstance(region_val, list):
+                    hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
+                elif region_val and region_val not in ("sum", sum):
+                    hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region_val])
+    except (KeyError, AttributeError) as e:
+        raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
+
+
+def _remove_missing_cut_keys(
+    hist_obj: hist.Hist, hist_opts: Dict, cut_dict: Dict, debug: bool
+) -> None:
+    """Drop cut axes from hist_opts that are absent from this histogram (in-place)."""
+    for cut_key in cut_dict:
+        if debug:
+            print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
+        if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
+            if debug:
+                print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
+            hist_opts.pop(cut_key)
+
+
+def _select_hist(
+    hist_obj: hist.Hist, hist_opts: Dict, rebin: int, do2d: bool, debug: bool
+) -> hist.Hist:
+    """Apply rebin + index to produce the selected histogram slice."""
+    if not do2d:
+        var_name = hist_obj.axes[-1].name
+        hist_opts = hist_opts | {var_name: hist.rebin(rebin)}
+    try:
+        if debug:
+            print(f"hist_opts are {hist_opts}")
+        return hist_obj[hist_opts]
+    except Exception as e:
+        raise ValueError(
+            f"helpers_make_plot_dict::Failed to select histogram: {str(e)} hist_opts was {hist_opts}"
+        )
+
+
+def _squeeze_hist(selected_hist: hist.Hist, do2d: bool) -> hist.Hist:
+    """Collapse any extra leading dimension left after process/year selection."""
+    if do2d:
+        if len(selected_hist.shape) == 3:
+            return selected_hist[sum, :, :]
+    else:
+        if len(selected_hist.shape) == 2:
+            return selected_hist[sum, :]
+    return selected_hist
+
+
+#
+#  Get hist values — public entry point
+#
+def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts: Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
     """
     Extract histogram data for a given process and configuration.
 
@@ -54,7 +195,6 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Option
         TypeError: If input parameters are of incorrect type
         AttributeError: If required configuration attributes are missing
     """
-    # Input validation
     if not isinstance(process, str):
         raise TypeError(f"get_hist_data::process must be a string, got {type(process)}")
     if not isinstance(var, str):
@@ -66,132 +206,20 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Option
     if rebin < 1:
         raise ValueError(f"rebin must be positive, got {rebin}")
 
-    if year in ["RunII", "Run2", "Run3", "RunIII"]:
-        year = sum
+    year = _normalize_year(year)
+    if debug:
+        print(f" in get_hist_data: hist process={process}, axis_opts={axis_opts}, year={year}, var={var}")
+
+    hist_opts, cut_dict = _build_hist_opts(process, year, config, axis_opts, cut, cfg, debug)
+    hist_obj             = _find_hist_obj(cfg, var, process, hist_opts, file_index)
+    _apply_intcategory_compat(hist_obj, hist_opts, axis_opts, cfg, config)
+    _remove_missing_cut_keys(hist_obj, hist_opts, cut_dict, debug)
+    selected_hist        = _select_hist(hist_obj, hist_opts, rebin, do2d, debug)
+    selected_hist        = _squeeze_hist(selected_hist, do2d)
+    selected_hist       *= config.get("scalefactor", 1.0)
 
     if debug:
-        print(f" in get_hist_data: hist process={process}, "
-              f"axis_opts={axis_opts}, year={year}, var={var}")
-
-    hist_opts = {
-        "process": process,
-        "year": year,
-    }
-
-    for c_key, c_val in config.items():
-        if c_key in ["process", "scalefactor", "label", "fillcolor", "edgecolor", "histtype", "alpha", "linewidth", "linestyle", "zorder", "year"]:
-            continue
-        if debug: print(f"Adding to hist_opts: {c_key} = {c_val}")
-        hist_opts[c_key] = c_val
-
-    hist_opts = hist_opts | axis_opts
-
-
-    cut_dict = {}
-    if cut is not None:
-        try:
-            cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
-        except (AttributeError, KeyError) as e:
-            raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
-        hist_opts = hist_opts | cut_dict
-
-    hist_key     = cfg.hist_key if hasattr(cfg, 'hist_key') else 'hists'
-    category_key = cfg.category_key if hasattr(cfg, 'category_key') else 'categories'
-
-    hist_obj = None
-    if len(cfg.hists) > 1 and not cfg.combine_input_files:
-        if file_index is None:
-            raise ValueError("Must provide file_index when using multiple input files without combine_input_files")
-
-        try:
-            common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, cfg.hists[file_index][category_key])
-        except (KeyError, IndexError) as e:
-            raise ValueError(f"Failed to compare dictionary keys (multiple hists): {str(e)}")
-
-        if len(unique_to_dict) > 0:
-            for _key in unique_to_dict:
-                hist_opts.pop(_key)
-
-        try:
-            hist_obj = cfg.hists[file_index][hist_key][var]
-        except (KeyError, IndexError) as e:
-            raise ValueError(f"Failed to get histogram for var {var}: {str(e)}")
-
-        if "variation" in cfg.hists[file_index][category_key]:
-            hist_opts = hist_opts | {"variation": "nominal"}
-
-    else:
-        for _input_data in cfg.hists:
-            try:
-                common, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
-            except (KeyError, AttributeError) as e:
-                raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
-
-            if len(unique_to_dict) > 0:
-                for _key in unique_to_dict:
-                    hist_opts.pop(_key)
-
-            if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
-                if "variation" in _input_data[category_key]:
-                    hist_opts = hist_opts | {"variation": "nominal"}
-                hist_obj = _input_data[hist_key][var]
-
-    if hist_obj is None:
-        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
-
-
-    # Handle backwards compatibility
-    try:
-        for axis in hist_obj.axes:
-            if (axis.name == "tag") and isinstance(axis, hist.axis.IntCategory):
-                hist_opts['tag'] = hist.loc(cfg.plotConfig["codes"]["tag"][config["tag"]])
-            if (axis.name == "region") and isinstance(axis, hist.axis.IntCategory):
-                 if isinstance(axis_opts.get('region',None), list):
-                     hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
-                 elif axis_opts.get('region',None) and  axis_opts.get('region',None) not in ["sum", sum]:
-                     hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region])
-    except (KeyError, AttributeError) as e:
-        raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
-
-
-    # Handle cuts from different hist_keys
-    if cut is not None:
-        for cut_key in cut_dict.keys():
-            if debug: print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
-            if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
-                if debug: print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
-                hist_opts.pop(cut_key)
-
-
-    # Add rebin options
-    varName = hist_obj.axes[-1].name
-    if not do2d:
-        var_dict = {varName: hist.rebin(rebin)}
-        hist_opts = hist_opts | var_dict
-
-
-    # Do the hist selection/binning
-    try:
-        if debug: print(f"hist_opts are {hist_opts}")
-        selected_hist = hist_obj[hist_opts]
-    except Exception as e:
-        raise ValueError(f"helpers_make_plot_dict::Failed to select histogram: {str(e)} hist_opts was {hist_opts}")
-
-    # Handle shape differences
-    if do2d:
-        if len(selected_hist.shape) == 3:  # for 2D plots
-            selected_hist = selected_hist[sum, :, :]
-    else:
-        if len(selected_hist.shape) == 2:
-            selected_hist = selected_hist[sum, :]
-
-    # Apply scale factor
-    try:
-        selected_hist *= config.get("scalefactor", 1.0)
-    except Exception as e:
-        raise ValueError(f"Failed to apply scale factor: {str(e)}")
-
-    if debug: print(f"helpers_make_plot_dict::get_hist_data Leaving")
+        print(f"helpers_make_plot_dict::get_hist_data Leaving")
     return selected_hist
 
 
