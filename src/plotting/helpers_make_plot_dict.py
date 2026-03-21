@@ -381,42 +381,75 @@ def _load_hists(plot_data: Dict, cfg: Any, entries: List[LoadSpec], *,
         plot_data["hists"][entry.key] = entry.config
 
 
+def _entries_overlay(
+    *,
+    process_config: Dict,
+    items: List,
+    base_var: str,
+    base_cut,
+    base_year,
+    base_axis_opts: Dict,
+    label_fn=str,
+    item_is_var: bool = False,
+    item_is_cut: bool = False,
+    item_is_year: bool = False,
+    axis_opt_key: Optional[str] = None,
+    set_edge_color: bool = False,
+    label_override: Optional[List[str]] = None,
+    hist_key_list: Optional[List[str]] = None,
+) -> List[LoadSpec]:
+    """Core loop shared by all single-process, iterate-one-dimension overlay builders.
+
+    Exactly one of item_is_var / item_is_cut / item_is_year / axis_opt_key should be
+    set to describe which dimension varies across items. All other dimensions are fixed
+    at their base_* values.
+    """
+    proc_id = _get_proc_id(process_config)
+    entries = []
+    for i, item in enumerate(items):
+        _config     = _setup_overlay_config(process_config, label_fn(item), i, label_override, set_edge_color)
+        _var        = item if item_is_var  else base_var
+        _cut        = item if item_is_cut  else base_cut
+        _year       = item if item_is_year else base_year
+        if axis_opt_key is not None:
+            _axis_opts = copy.deepcopy(base_axis_opts)
+            _axis_opts[axis_opt_key] = item
+        else:
+            _axis_opts = base_axis_opts
+        entries.append(LoadSpec(
+            config=_config, var=_var, cut=_cut, year=_year,
+            axis_opts=_axis_opts, file_index=None,
+            key=f"{proc_id}{item}{i}",
+            hist_key_override=hist_key_list[i] if hist_key_list else None,
+        ))
+    return entries
+
+
 def _entries_cut_list(*, process_config: Dict, var_to_plot: str, axis_opts: Dict,
                       cut_list: List[str], year: str,
                       label_override: Optional[List[str]] = None,
                       hist_key_list: Optional[List[str]] = None,
                       debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of cuts (one hist per cut)."""
-    proc_id = _get_proc_id(process_config)
-    entries = []
-    for ic, _cut in enumerate(cut_list):
-        _cut_label = plot_helpers.cut_to_label(_cut)
-        _process_config = _setup_overlay_config(process_config, _cut_label, ic, label_override)
-        entries.append(LoadSpec(
-            config=_process_config, var=var_to_plot, cut=_cut, year=year,
-            axis_opts=axis_opts, file_index=None,
-            key=f"{proc_id}{_cut}{ic}",
-            hist_key_override=hist_key_list[ic] if hist_key_list is not None else None,
-        ))
-    return entries
+    return _entries_overlay(
+        process_config=process_config, items=cut_list,
+        base_var=var_to_plot, base_cut=None, base_year=year, base_axis_opts=axis_opts,
+        label_fn=plot_helpers.cut_to_label, item_is_cut=True,
+        label_override=label_override, hist_key_list=hist_key_list,
+    )
+
 
 def _entries_axis_opts_list(*, process_config: Dict, var_to_plot: str, cut: Any,
                             axis_list_name: str, axis_list_values: List, axis_opts: Dict,
                             year: str, label_override: Optional[List[str]] = None,
                             debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of axis_opts values (one hist per value)."""
-    proc_id = _get_proc_id(process_config)
-    entries = []
-    for ia, _axis_val in enumerate(axis_list_values):
-        _axis_opts = copy.deepcopy(axis_opts)
-        _axis_opts[axis_list_name] = _axis_val
-        _process_config = _setup_overlay_config(process_config, _axis_val, ia, label_override)
-        entries.append(LoadSpec(
-            config=_process_config, var=var_to_plot, cut=cut, year=year,
-            axis_opts=_axis_opts, file_index=None,
-            key=f"{proc_id}{_axis_val}{ia}",
-        ))
-    return entries
+    return _entries_overlay(
+        process_config=process_config, items=axis_list_values,
+        base_var=var_to_plot, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+        axis_opt_key=axis_list_name,
+        label_override=label_override,
+    )
 
 def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """
@@ -819,30 +852,25 @@ def _entries_var_list(*, process_config: Dict, var_list: List[str], axis_opts: D
                       cut: Any, year: str, label_override: Optional[List[str]] = None,
                       debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of variables (one hist per variable)."""
-    proc_id = _get_proc_id(process_config)
-    entries = []
-    for iv, _var in enumerate(var_list):
-        _process_config = _setup_overlay_config(process_config, _var, iv, label_override, set_edge_color=True)
-        entries.append(LoadSpec(
-            config=_process_config, var=_var, cut=cut, year=year,
-            axis_opts=axis_opts, file_index=None, key=f"{proc_id}{_var}{iv}",
-        ))
-    return entries
+    return _entries_overlay(
+        process_config=process_config, items=var_list,
+        base_var=None, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+        item_is_var=True, set_edge_color=True,
+        label_override=label_override,
+    )
+
 
 def _entries_year_list(*, process_config: Dict, var: str, axis_opts: Dict,
                        cut: Any, year_list: List[str],
                        label_override: Optional[List[str]] = None,
                        debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of years (one hist per year)."""
-    proc_id = _get_proc_id(process_config)
-    entries = []
-    for iy, _year in enumerate(year_list):
-        _process_config = _setup_overlay_config(process_config, _year, iy, label_override, set_edge_color=True)
-        entries.append(LoadSpec(
-            config=_process_config, var=var, cut=cut, year=_year,
-            axis_opts=axis_opts, file_index=None, key=f"{proc_id}{_year}{iy}",
-        ))
-    return entries
+    return _entries_overlay(
+        process_config=process_config, items=year_list,
+        base_var=var, base_cut=cut, base_year=None, base_axis_opts=axis_opts,
+        item_is_year=True, set_edge_color=True,
+        label_override=label_override,
+    )
 
 def _add_2d_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """Populate plot_data["ratio_specs"] for a 2-D ratio plot.
