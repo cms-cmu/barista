@@ -76,14 +76,78 @@ def parse_args():
 #    return cfg
 
 
-_DO_RATIO_ALIASES = {'ratio', 'do_ratio', 'doratio', 'doRatio',
-                     'Ratio', 'do_Ratio', 'doRatio'}
+# Maps every accepted alias → its canonical RenderOptions field name.
+# When a user passes an alias, _normalize_kwargs rewrites it in-place so the
+# rest of the pipeline only ever sees the canonical key.
+_KWARG_ALIASES: dict = {
+    # --- doRatio --------------------------------------------------------------
+    'ratio':              'doRatio',
+    'do_ratio':           'doRatio',
+    'doratio':            'doRatio',
+    'Ratio':              'doRatio',
+    'do_Ratio':           'doRatio',
+    # --- norm -----------------------------------------------------------------
+    'normalize':          'norm',
+    'normalise':          'norm',
+    'normalized':         'norm',
+    'normalised':         'norm',
+    # --- add_flow -------------------------------------------------------------
+    'addFlow':            'add_flow',
+    'addflow':            'add_flow',
+    'flow':               'add_flow',
+    # --- uniform_bins ---------------------------------------------------------
+    'uniformBins':        'uniform_bins',
+    'uniformbins':        'uniform_bins',
+    'uniform':            'uniform_bins',
+    # --- write_yaml -----------------------------------------------------------
+    'writeYaml':          'write_yaml',
+    'write_Yaml':         'write_yaml',
+    'saveYaml':           'write_yaml',
+    'save_yaml':          'write_yaml',
+    # --- outputFolder ---------------------------------------------------------
+    'output_folder':      'outputFolder',
+    'outdir':             'outputFolder',
+    'output_dir':         'outputFolder',
+    # --- CMSText --------------------------------------------------------------
+    'cmsText':            'CMSText',
+    'cms_text':           'CMSText',
+    'cmstext':            'CMSText',
+    # --- do_title -------------------------------------------------------------
+    'doTitle':            'do_title',
+    # --- yscale / xscale ------------------------------------------------------
+    'y_scale':            'yscale',
+    'yScale':             'yscale',
+    'x_scale':            'xscale',
+    'xScale':             'xscale',
+    # --- ylim / xlim ----------------------------------------------------------
+    'y_lim':              'ylim',
+    'yLim':               'ylim',
+    'x_lim':              'xlim',
+    'xLim':               'xlim',
+    # --- rlim -----------------------------------------------------------------
+    'ratio_lim':          'rlim',
+    'ratioLim':           'rlim',
+    'ratio_limits':       'rlim',
+    # --- rlabel ---------------------------------------------------------------
+    'ratio_label':        'rlabel',
+    'ratioLabel':         'rlabel',
+    # --- legend ---------------------------------------------------------------
+    'doLegend':           'legend',
+    'do_legend':          'legend',
+    # --- legend_loc -----------------------------------------------------------
+    'legendLoc':          'legend_loc',
+    'legend_location':    'legend_loc',
+    # --- fmt ------------------------------------------------------------------
+    'format':             'fmt',
+    'output_format':      'fmt',
+}
 
-def _normalize_kwargs(kwargs):
-    """Fold all doRatio aliases into the canonical 'doRatio' key."""
-    for alias in _DO_RATIO_ALIASES - {'doRatio'}:
+
+def _normalize_kwargs(kwargs: dict) -> dict:
+    """Fold all kwarg aliases into their canonical RenderOptions names (in-place)."""
+    for alias, canonical in _KWARG_ALIASES.items():
         if alias in kwargs:
-            kwargs.setdefault('doRatio', kwargs.pop(alias))
+            kwargs.setdefault(canonical, kwargs.pop(alias))
     return kwargs
 
 

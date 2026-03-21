@@ -1,6 +1,7 @@
-"""Unit tests for helpers_make_plot_dict private functions.
+"""Unit tests for plotting pipeline pure functions.
 
-These tests cover the pure functions that don't require histogram files:
+Covers:
+  - _normalize_kwargs : kwarg alias folding (plots.py)
   - _normalize_year   : multi-year alias → sum sentinel
   - _build_hist_opts  : assembles the hist indexing dict
   - _entries_overlay  : shared loop core for all overlay builders
@@ -12,12 +13,107 @@ import pytest
 import hist as Hist
 from unittest.mock import MagicMock
 
+from src.plotting.plots import _normalize_kwargs, _KWARG_ALIASES
 from src.plotting.helpers_make_plot_dict import (
     _normalize_year,
     _build_hist_opts,
     _entries_overlay,
     _squeeze_hist,
 )
+
+
+# ---------------------------------------------------------------------------
+# _normalize_kwargs
+# ---------------------------------------------------------------------------
+
+class TestNormalizeKwargs:
+    def test_canonical_key_passes_through_unchanged(self):
+        kwargs = {'doRatio': False, 'norm': True, 'yscale': 'log'}
+        _normalize_kwargs(kwargs)
+        assert kwargs == {'doRatio': False, 'norm': True, 'yscale': 'log'}
+
+    def test_unrelated_key_passes_through_unchanged(self):
+        kwargs = {'rebin': 2, 'year': 'UL18'}
+        _normalize_kwargs(kwargs)
+        assert kwargs == {'rebin': 2, 'year': 'UL18'}
+
+    @pytest.mark.parametrize("alias", ['ratio', 'do_ratio', 'doratio', 'Ratio', 'do_Ratio'])
+    def test_doRatio_aliases(self, alias):
+        kwargs = {alias: False}
+        _normalize_kwargs(kwargs)
+        assert 'doRatio' in kwargs
+        assert kwargs['doRatio'] is False
+        assert alias not in kwargs
+
+    @pytest.mark.parametrize("alias", ['normalize', 'normalise', 'normalized', 'normalised'])
+    def test_norm_aliases(self, alias):
+        kwargs = {alias: True}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get('norm') is True
+        assert alias not in kwargs
+
+    @pytest.mark.parametrize("alias", ['addFlow', 'addflow', 'flow'])
+    def test_add_flow_aliases(self, alias):
+        kwargs = {alias: True}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get('add_flow') is True
+        assert alias not in kwargs
+
+    @pytest.mark.parametrize("alias", ['uniformBins', 'uniformbins', 'uniform'])
+    def test_uniform_bins_aliases(self, alias):
+        kwargs = {alias: True}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get('uniform_bins') is True
+        assert alias not in kwargs
+
+    @pytest.mark.parametrize("alias,canonical", [
+        ('y_scale',       'yscale'),
+        ('yScale',        'yscale'),
+        ('x_scale',       'xscale'),
+        ('xScale',        'xscale'),
+        ('y_lim',         'ylim'),
+        ('yLim',          'ylim'),
+        ('x_lim',         'xlim'),
+        ('xLim',          'xlim'),
+        ('ratio_lim',     'rlim'),
+        ('ratioLim',      'rlim'),
+        ('ratio_label',   'rlabel'),
+        ('ratioLabel',    'rlabel'),
+        ('doLegend',      'legend'),
+        ('do_legend',     'legend'),
+        ('legendLoc',     'legend_loc'),
+        ('legend_location','legend_loc'),
+        ('doTitle',       'do_title'),
+        ('cmsText',       'CMSText'),
+        ('cms_text',      'CMSText'),
+        ('output_folder', 'outputFolder'),
+        ('outdir',        'outputFolder'),
+        ('writeYaml',     'write_yaml'),
+        ('saveYaml',      'write_yaml'),
+        ('format',        'fmt'),
+    ])
+    def test_individual_aliases(self, alias, canonical):
+        sentinel = object()
+        kwargs = {alias: sentinel}
+        _normalize_kwargs(kwargs)
+        assert kwargs.get(canonical) is sentinel
+        assert alias not in kwargs
+
+    def test_alias_does_not_overwrite_existing_canonical(self):
+        # If user passes both the alias and the canonical, canonical wins.
+        kwargs = {'doRatio': True, 'ratio': False}
+        _normalize_kwargs(kwargs)
+        assert kwargs['doRatio'] is True  # setdefault preserves the original
+
+    def test_all_aliases_map_to_known_canonical(self):
+        # Every alias in _KWARG_ALIASES should be distinct from its canonical.
+        for alias, canonical in _KWARG_ALIASES.items():
+            assert alias != canonical, f"Alias '{alias}' is the same as its canonical"
+
+    def test_returns_same_dict(self):
+        kwargs = {'ratio': True}
+        result = _normalize_kwargs(kwargs)
+        assert result is kwargs
 
 
 # ---------------------------------------------------------------------------
