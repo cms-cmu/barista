@@ -41,25 +41,21 @@ render-side was the pressing problem.
 
 ---
 
-## 6. Ratio computation coupled to dict construction  ← **DO NEXT**
+## ✅ 6. Ratio computation coupled to dict construction
 
-Ratio values are computed and embedded in `plot_data["ratio"]` during dict
+Ratio values were computed and embedded in `plot_data["ratio"]` during dict
 building. Any change to ratio behavior (normalization, uncertainty treatment)
-touches both the builder and the renderer. Three separate compute sites:
+touched both the builder and the renderer. Three separate compute sites:
 `_add_1d_ratio_plots`, `_add_2d_ratio_plots`, `add_ratio_plots`.
 
-**Fix:** Store the ratio *specification* (numerator key, denominator key, type)
-in the dict. Compute values in a single pure function called at render time —
-not scattered across three builder-side functions.
-
-**Plan:**
-- Define a `RatioSpec` dataclass in `plot_types.py` (numerator, denominator,
-  type, color, band config, etc.)
-- Builder functions populate `plot_data["ratio_specs"]` with `RatioSpec` objects
-  instead of computing values
-- `_plot_from_dict` / `_plot2d_from_dict` call a single `_compute_ratio(spec,
-  plot_data)` function to get values just before drawing
-- Consolidates the three compute sites into one
+**Done (branch `plot_types`, MR #77):**
+- `HistSource` + `RatioSpec` dataclasses added to `plot_types.py`.
+- All three builder functions now populate `plot_data["ratio_specs"]` with
+  `RatioSpec` objects instead of computing values.
+- `_resolve_hist_source`, `_compute_ratio_entry`, `_resolve_ratio_specs` added
+  to `helpers_make_plot.py`; called at the start of `_plot_from_dict` and
+  `_plot2d_from_dict`, consolidating computation into one place.
+- Dead helper `get_values_variances_centers_from_dict` removed from builder.
 
 ---
 
@@ -111,6 +107,6 @@ touching — do last.
 | Step | Items | Status |
 |------|-------|--------|
 | 1 | Typed `PlotData` + `RenderOptions` | ✅ done (MR #77) |
-| 2 | Decouple ratio spec from computation | ⬜ next |
+| 2 | Decouple ratio spec from computation | ✅ done (MR #77) |
 | 3 | Unify builder paths + list dispatch | ⬜ after step 2 |
 | 4 | `cfg` → `AnalysisConfig` dataclass | ⬜ last |

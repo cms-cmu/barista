@@ -134,6 +134,45 @@ class RenderOptions:
 
 
 # ---------------------------------------------------------------------------
+# HistSource / RatioSpec
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class HistSource:
+    """Pointer to a histogram dataset within PlotData."""
+    source: str = "hists"      # "hists" | "stack"
+    key: Optional[str] = None  # key into plot_data[source]; None = sum all (stack)
+
+
+@dataclass
+class RatioSpec:
+    """Specification for one entry in the ratio panel.
+
+    Builder functions populate plot_data["ratio_specs"] with RatioSpec objects
+    instead of computing ratio values directly.  The renderer resolves them via
+    _resolve_ratio_specs just before drawing, consolidating what were previously
+    three scattered compute sites into one pure function.
+
+    Attributes:
+        name: Key used in the resolved ratio dict.
+        denominator: Source histogram to use as denominator.
+        numerator: Source histogram for the numerator.  None means "band-at-1"
+            — draw denominator uncertainty at y=1, no actual ratio computed.
+        norm: Pass norm=True to make_ratio (scale num/den to unit area first).
+        is_2d: True for 2-D ratio plots.
+        style: Remaining render keys forwarded to _draw_ratio_panel
+            (type, color, marker, hatch, label, ...).
+    """
+    name: str
+    denominator: HistSource
+    numerator: Optional[HistSource] = None
+    norm: bool = False
+    is_2d: bool = False
+    style: Dict[str, Any] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
 # PlotData / HistEntry TypedDicts
 # ---------------------------------------------------------------------------
 
@@ -168,6 +207,7 @@ class PlotData(TypedDict, total=False):
     hists: Dict[str, HistEntry]
     stack: Dict[str, HistEntry]
     ratio: Dict[str, Any]
+    ratio_specs: List  # List[RatioSpec]
     var: Any          # str or list[str]
     cut: Optional[str]
     axis_opts: Dict[str, Any]

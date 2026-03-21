@@ -1,3 +1,4 @@
+import dataclasses
 import hist
 import numpy as np
 import os
@@ -219,6 +220,9 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         """Recursively clean object for safe YAML serialization."""
         if obj == sum:  # Functions, classes, etc.
             return "sum"  # Convert to string representation
+        elif dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return {f.name: clean_for_yaml(getattr(obj, f.name))
+                    for f in dataclasses.fields(obj)}
         elif isinstance(obj, list):
             return [clean_for_yaml(item) for item in obj]
         elif isinstance(obj, dict):
@@ -226,7 +230,11 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         else:
             return obj
 
-    cleaned_data = clean_for_yaml(plot_data)
+    # ratio_specs contains RatioSpec objects (resolved before this point into
+    # plot_data["ratio"]).  Exclude them — the YAML round-trip only needs the
+    # already-computed "ratio" values, not the specs.
+    data_to_save = {k: v for k, v in plot_data.items() if k != 'ratio_specs'}
+    cleaned_data = clean_for_yaml(data_to_save)
 
     with open(file_name, "w") as yfile:
         yaml.safe_dump(cleaned_data, yfile, default_flow_style=False, sort_keys=False)

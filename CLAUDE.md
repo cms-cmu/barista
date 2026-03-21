@@ -2,6 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+
 ## Project Overview
 
 **Barista** is a base class library for CMS physics analysis, built on the [Coffea](https://coffeateam.github.io/coffea/) framework. Python 3.10+ with Snakemake workflow orchestration.
@@ -10,9 +11,18 @@ Analysis packages built on barista include **coffea4bees** (`cms-cmu/coffea4bees
 
 Repository: `gitlab.cern.ch/cms-cmu/barista` (CERN GitLab)
 
+## Skills 
+
+Do not call /done or /start — these are top-level skills that write to ~/ClaudeBrain/ and are reserved for the home directory Claude instance.
+Use the /session-summary skill to document progress or save state.
+
+
 ## Running Commands
 
 All Python analysis code runs inside Apptainer/Singularity containers via the `run_container` script. Do not run analysis code directly on the host.
+
+When testing changes use the skills /test-barista and /test-coffea4bees
+
 
 ```bash
 # Interactive analysis shell
@@ -29,16 +39,6 @@ All Python analysis code runs inside Apptainer/Singularity containers via the `r
 ./run_container snakemake --snakefile <workflow.smk> --cores 4
 ```
 
-### Tests
-
-Barista base class tests are shell scripts in `src/scripts/`, run inside the analysis container:
-- `code-hist-collection.sh` - Histogram collection tests
-- `code-kappa-framework.sh` - Framework tests
-- `skimmer-basic-test.sh` - Skimming tests
-
-CI validation uses `src/tests/check_yaml.py` for YAML comparison with tolerance.
-
-Analysis packages have their own test scripts (e.g., `coffea4bees/scripts/`).
 
 ## Architecture
 
@@ -107,4 +107,4 @@ For issues filed against **barista**, edit in `src/`. Do not add analysis-specif
 
 ## Validating a Fix
 
-After making changes, run `/test-local-CI`. A successful fix means all previously passing tests still pass with no new failures. Report which tests passed and which (if any) failed.
+After making changes, run `/test-barista`. A successful fix means all previously passing tests still pass with no new failures. Report which tests passed and which (if any) failed.

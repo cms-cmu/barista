@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import mplhep as hep  # HEP (CMS) extensions/styling on top of mpl
 import matplotlib.patches as mpatches
 import src.plotting.helpers as plot_helpers
-from src.plotting.plot_types import RenderOptions, PlotData
+from src.plotting.plot_types import RenderOptions, PlotData, RatioSpec, HistSource
 import hist
 import numpy as np
 from typing import Dict, Any, Optional, Tuple, List, Union
@@ -447,6 +447,79 @@ def _apply_uniform_bin_ticks(bottom_ax, plot_data: Dict, opts: RenderOptions) ->
     del plot_data["_uniform_n_bins"]
 
 
+def _resolve_hist_source(source: HistSource, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, list, Dict]:
+    """Resolve a HistSource to (values, variances, centers, hist_entry).
+
+    hist_entry is the raw HistEntry dict for a single histogram, used to copy
+    metadata fields (edges, x_label, under_flow, over_flow) needed by
+    step/fill ratio rendering.  For stack sources it returns the first entry.
+    """
+    if source.source == "hists":
+        h = plot_data["hists"][source.key]
+        return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
+    # source == "stack"
+    stack = plot_data["stack"]
+    values = np.sum([np.array(v["values"]) for v in stack.values()], axis=0)
+    variances = np.sum([np.array(v["variances"]) for v in stack.values()], axis=0)
+    first = next(iter(stack.values()))
+    return values, variances, first["centers"], first
+
+
+def _compute_ratio_entry(spec: RatioSpec, plot_data: Dict) -> Dict:
+    """Convert one RatioSpec into a rendered ratio dict.
+
+    The returned dict has the shape expected by _draw_ratio_panel:
+    keys ratio, error, centers, type, plus any forwarded style keys.
+    """
+    den_values, den_vars, den_centers, _ = _resolve_hist_source(spec.denominator, plot_data)
+
+    if spec.numerator is None:
+        # Band-at-1: show denominator uncertainty at y=1.
+        safe_den = den_values.copy()
+        safe_den[safe_den == 0] = plot_helpers.EPSILON
+        band_ratios = np.ones(len(den_centers))
+        band_uncert = np.sqrt(den_vars * np.power(safe_den, -2.0))
+        return {
+            **spec.style,
+            "type": spec.style.get("type", "band"),
+            "ratio": band_ratios.tolist(),
+            "error": band_uncert.tolist(),
+            "centers": list(den_centers),
+        }
+
+    num_values, num_vars, num_centers, num_hist = _resolve_hist_source(spec.numerator, plot_data)
+    safe_den = den_values.copy()
+    safe_den[safe_den == 0] = plot_helpers.EPSILON
+    ratios, ratio_uncert = plot_helpers.make_ratio(
+        num_values, num_vars, safe_den, den_vars, norm=spec.norm
+    )
+    entry: Dict[str, Any] = {
+        **spec.style,
+        "ratio": ratios.tolist(),
+        "error": ratio_uncert.tolist(),
+        "centers": list(num_centers),
+    }
+    # Copy histogram metadata so step/fill rendering has what it needs.
+    for field in ("edges", "x_label", "under_flow", "over_flow", "variances"):
+        if field in num_hist:
+            entry.setdefault(field, num_hist[field])
+    return entry
+
+
+def _resolve_ratio_specs(plot_data: Dict) -> None:
+    """Compute all RatioSpec entries and populate plot_data["ratio"].
+
+    Called once at render time, immediately before the ratio panel is drawn.
+    No-op when ratio_specs is absent or empty.
+    """
+    specs = plot_data.get("ratio_specs", [])
+    if not specs:
+        return
+    plot_data.setdefault("ratio", {})
+    for spec in specs:
+        plot_data["ratio"][spec.name] = _compute_ratio_entry(spec, plot_data)
+
+
 def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt.Figure, plt.Axes, Optional[plt.Axes]]:
     """
     Create a 1D plot (with optional ratio panel) from a plot data dictionary.
@@ -456,6 +529,7 @@ def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt
     if opts.debug:
         logger.info(f'\t in plot ... opts = {opts}')
 
+    _resolve_ratio_specs(plot_data)
     do_ratio = len(plot_data.get("ratio", {}))
     fig, main_ax, grid = _setup_figure(do_ratio, opts)
 
@@ -583,6 +657,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
         if opts.debug:
             logger.info(f'\t in _plot2d_from_dict ... opts = {opts}')
 
+        _resolve_ratio_specs(plot_data)
         if len(plot_data.get("ratio", {})):
             if opts.debug:
                 logger.info(f'\t doing ratio')
