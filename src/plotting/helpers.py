@@ -230,7 +230,11 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         else:
             return obj
 
-    cleaned_data = clean_for_yaml(plot_data)
+    # ratio_specs contains RatioSpec objects (resolved before this point into
+    # plot_data["ratio"]).  Exclude them — the YAML round-trip only needs the
+    # already-computed "ratio" values, not the specs.
+    data_to_save = {k: v for k, v in plot_data.items() if k != 'ratio_specs'}
+    cleaned_data = clean_for_yaml(data_to_save)
 
     with open(file_name, "w") as yfile:
         yaml.safe_dump(cleaned_data, yfile, default_flow_style=False, sort_keys=False)
