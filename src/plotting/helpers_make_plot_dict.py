@@ -30,6 +30,9 @@ def print_list_debug_info(process, cut, axis_opts):
 #  Get hist values — private helpers
 #
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 558851e3 (Refactor histogram data extraction into helper functions)
 
 # Config keys that control styling, not histogram indexing
 _STYLE_KEYS = frozenset([
@@ -99,6 +102,7 @@ def _find_hist_obj(
             raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
         for _key in unique_to_dict:
             hist_opts.pop(_key)
+<<<<<<< HEAD
         if var not in _input_data[hist_key]:
             continue
         try:
@@ -106,17 +110,24 @@ def _find_hist_obj(
         except (KeyError, StopIteration):
             available_processes = None
         if available_processes is not None and process in available_processes:
+=======
+        if var in _input_data[hist_key] and process in _input_data[hist_key][var].axes["process"]:
+>>>>>>> 558851e3 (Refactor histogram data extraction into helper functions)
             if "variation" in _input_data[category_key]:
                 hist_opts["variation"] = "nominal"
             hist_obj = _input_data[hist_key][var]
 
     if hist_obj is None:
+<<<<<<< HEAD
         try:
             avail = list(_input_data[hist_key][var].axes["process"]) if var in _input_data[hist_key] else None
         except Exception:
             avail = None
         avail_str = f" (available processes: {avail})" if avail is not None else f" (var '{var}' not found in {hist_key})"
         raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs{avail_str}")
+=======
+        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs")
+>>>>>>> 558851e3 (Refactor histogram data extraction into helper functions)
     return hist_obj
 
 
@@ -183,9 +194,12 @@ def _squeeze_hist(selected_hist: hist.Hist, do2d: bool) -> hist.Hist:
 #  Get hist values — public entry point
 #
 def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts: Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
+<<<<<<< HEAD
 =======
 def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Optional[str], rebin: int, year: str, axis_opts : Dict, do2d: bool = False, file_index: Optional[int] = None, debug: bool = False) -> hist.Hist:
 >>>>>>> 8cff4df6 (feat(plotting): make cut argument optional (default None))
+=======
+>>>>>>> 558851e3 (Refactor histogram data extraction into helper functions)
     """
     Extract histogram data for a given process and configuration.
 
@@ -708,11 +722,7 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
             ))
 
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
-<<<<<<< HEAD
                               cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> PlotData:
-=======
-                              cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> Dict:
->>>>>>> 8cff4df6 (feat(plotting): make cut argument optional (default None))
     """
     Create a plot dictionary from configuration.
 
