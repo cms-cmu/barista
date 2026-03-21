@@ -284,7 +284,6 @@ def _configure_main_axes(stack_patches: List, **kwargs) -> None:
             legend_reverse = False
             ordered_handles, ordered_labels = [], []
             for item in kwargs["legend_order"]:
-                print(item)
                 ordered_handles.append(handles[labels.index(item)])
                 ordered_labels.append(item)
             handles, labels = ordered_handles, ordered_labels
@@ -373,8 +372,7 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
                                      edgecolor=ratio_data.get("color", "black"),
                                      facecolor=ratio_data.get("facecolor", "none"),
                                      linewidth=0.0, zorder=1)
-            from matplotlib.patches import Rectangle
-            legend_handles[label] = Rectangle(
+            legend_handles[label] = mpatches.Rectangle(
                 (0, 0), 1, 1,
                 hatch=ratio_data.get("hatch", "/"),
                 edgecolor=ratio_data.get("color", "black"),
@@ -442,7 +440,6 @@ def _draw_ratio_panel(ratio_ax, plot_data: Dict, top_xlabel: str,
             if rl in legend_handles:
                 ordered_labels.append(rl)
                 ordered_handles.append(legend_handles[rl])
-        print(ordered_handles, ordered_labels)
         ratio_ax.legend(ordered_handles, ordered_labels, ncol=2,
                         loc=kwargs.get("ratio_legend_loc", "upper left"))
 
@@ -719,7 +716,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], **kwargs) -> Tuple[plt.Figure, 
                 )
 
                 fig = plt.figure()
-                val = hist_obj_2d.plot2d_full(
+                hist_obj_2d.plot2d_full(
                     main_cmap="jet",
                     top_color="k",
                     top_lw=2,

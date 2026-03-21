@@ -226,7 +226,7 @@ def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str
         if debug:
             print(f" \t  process {_proc} \n")
 
-        if type(_proc) is list:
+        if isinstance(_proc, list):
             _selected_hist =  get_hist_data_list(proc_list=_proc, cfg=cfg, config=config, var=var,
                                                  cut=cut, rebin=rebin, year=year, do2d=do2d, axis_opts=axis_opts, file_index=file_index, debug=debug)
         else:
@@ -252,7 +252,7 @@ def add_hist_data(*, cfg, config, var, cut, rebin, year, axis_opts, do2d=False, 
     if debug:
         print(f"In add_hist_data {config['process']} \n")
 
-    proc_list = config['process'] if type(config['process']) is list else [config['process']]
+    proc_list = config['process'] if isinstance(config['process'], list) else [config['process']]
 
     selected_hist = get_hist_data_list(proc_list=proc_list, cfg=cfg, config=config, var=var,
                                        cut=cut, rebin=rebin, year=year, do2d=do2d, axis_opts=axis_opts, file_index=file_index, debug=debug)
@@ -430,7 +430,7 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
     axis_opts_list = False
     axis_list_name = None
     for k, v in axis_opts.items():
-        if type(v) is list:
+        if isinstance(v, list):
             axis_opts_list = True
             axis_list_name = k
             break
