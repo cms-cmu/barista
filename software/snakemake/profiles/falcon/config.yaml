@@ -1,4 +1,15 @@
 # Snakemake profile for CMU Falcon cluster
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/"
+executor: slurm
+software-deployment-method:
+  - apptainer
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/ --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv"
+slurm-logdir: "slurm_logs"
+slurm-status-command: "squeue"
 default-resources:
+  slurm_partition: "work"
+  runtime: 240
+  mem_mb: 16000
+  cpus_per_task: 4
   tmpdir: "/tmp"
+  mpi: "none"
+  tasks: 2

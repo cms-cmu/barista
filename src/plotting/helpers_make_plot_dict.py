@@ -55,8 +55,8 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
         raise TypeError(f"get_hist_data::process must be a string, got {type(process)}")
     if not isinstance(var, str):
         raise TypeError(f"get_hist_data::var must be a string, got {type(var)} = {var}")
-    if not isinstance(cut, str):
-        raise TypeError(f"get_hist_data::cut must be a string, got {type(cut)}")
+    if cut is not None and not isinstance(cut, str):
+        raise TypeError(f"get_hist_data::cut must be a string or None, got {type(cut)}")
     if not isinstance(rebin, int):
         raise TypeError(f"get_hist_data::rebin must be an integer, got {type(rebin)}")
     if rebin < 1:
@@ -83,12 +83,15 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: str, r
     hist_opts = hist_opts | axis_opts
 
 
-    try:
-        cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
-    except (AttributeError, KeyError) as e:
-        raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
+    if cut is not None:
+        try:
+            cut_dict = plot_helpers.get_cut_dict(cut, cfg.cutList)
+        except (AttributeError, KeyError) as e:
+            raise AttributeError(f"Failed to get cut dictionary: {str(e)}")
 
-    hist_opts = hist_opts | cut_dict
+        hist_opts = hist_opts | cut_dict
+    else:
+        cut_dict = {}
 
     hist_key     = cfg.hist_key if hasattr(cfg, 'hist_key') else 'hists'
     category_key = cfg.category_key if hasattr(cfg, 'category_key') else 'categories'
