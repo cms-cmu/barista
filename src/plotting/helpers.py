@@ -1,3 +1,4 @@
+import dataclasses
 import hist
 import numpy as np
 import os
@@ -179,27 +180,28 @@ def make_klambda_hist(kl_value: str, plot_data: Dict[str, Any]) -> Dict[str, np.
     return plot_data_kl
 
 # File Operations
-def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any) -> None:
-    """Save a figure to a PDF file.
+def _ensure_output_path(*args: Any) -> str:
+    args_str = ["_vs_".join(a) if isinstance(a, list) else a for a in args]
+    output_path = "/".join(args_str)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    return output_path
+
+def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: str = "pdf", dpi: Any = None) -> None:
+    """Save a figure to a file.
 
     Args:
         fig: The figure object to save
         file_name: Name of the output file (string or list of strings)
         *args: Additional path components
+        fmt: Output format (default: "pdf"). Use "png" for web-friendly output.
+        dpi: Resolution in dots per inch (default: None, uses matplotlib default)
     """
-    args_str = []
-    for arg in args:
-        args_str.append("_vs_".join(arg) if isinstance(arg, list) else arg)
-
-    output_path = "/".join(args_str)
-
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
+    output_path = _ensure_output_path(*args)
     file_name = file_name if isinstance(file_name, str) else "_vs_".join(file_name)
-    file_path = f"{output_path}/{file_name.replace('.', '_').replace('/', '_')}.pdf"
-    print(f"wrote pdf: {file_path}")
-    fig.savefig(file_path)
+    file_path = f"{output_path}/{file_name.replace('.', '_').replace('/', '_')}.{fmt}"
+    print(f"wrote {fmt}: {file_path}")
+    fig.savefig(file_path, dpi=dpi)
 
 def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any) -> None:
     """Save plot data to a YAML file.
@@ -209,15 +211,7 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         var: Variable name (string or list of strings)
         *args: Additional path components
     """
-    args_str = []
-    for arg in args:
-        args_str.append("_vs_".join(arg) if isinstance(arg, list) else arg)
-
-    output_path = "/".join(args_str)
-
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
+    output_path = _ensure_output_path(*args)
     var_str = var if isinstance(var, str) else "_vs_".join(var)
     file_name = f"{output_path}/{var_str.replace('.', '_').replace('/', '_')}.yaml"
     print(f"wrote yaml: {file_name}")
@@ -226,6 +220,9 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         """Recursively clean object for safe YAML serialization."""
         if obj == sum:  # Functions, classes, etc.
             return "sum"  # Convert to string representation
+        elif dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return {f.name: clean_for_yaml(getattr(obj, f.name))
+                    for f in dataclasses.fields(obj)}
         elif isinstance(obj, list):
             return [clean_for_yaml(item) for item in obj]
         elif isinstance(obj, dict):
@@ -233,7 +230,11 @@ def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any)
         else:
             return obj
 
-    cleaned_data = clean_for_yaml(plot_data)
+    # ratio_specs contains RatioSpec objects (resolved before this point into
+    # plot_data["ratio"]).  Exclude them — the YAML round-trip only needs the
+    # already-computed "ratio" values, not the specs.
+    data_to_save = {k: v for k, v in plot_data.items() if k != 'ratio_specs'}
+    cleaned_data = clean_for_yaml(data_to_save)
 
     with open(file_name, "w") as yfile:
         yaml.safe_dump(cleaned_data, yfile, default_flow_style=False, sort_keys=False)
@@ -243,15 +244,34 @@ def get_cut_dict(cut: str, cut_list: List[str]) -> Dict[str, Any]:
     """Create a dictionary of cuts with sum as default value.
 
     Args:
-        cut: The main cut to set as True
+        cut: The main cut to set as True (prefix with ~ to set as False)
         cut_list: List of all cuts
 
     Returns:
         Dictionary with cuts as keys and sum as default value
     """
+    if cut.startswith("~"):
+        actual_cut = cut[1:]
+        cut_value = False
+    else:
+        actual_cut = cut
+        cut_value = True
     cut_dict = {c: sum for c in cut_list}
-    cut_dict[cut] = True
+    cut_dict[actual_cut] = cut_value
     return cut_dict
+
+def cut_to_label(cut: str) -> str:
+    """Convert a cut name (possibly with ~ prefix) to a readable label.
+
+    Args:
+        cut: Cut name, optionally prefixed with ~ for negation
+
+    Returns:
+        Human-readable label string
+    """
+    if cut.startswith("~"):
+        return f"fail {cut[1:]}"
+    return f"pass {cut}"
 
 def get_label(default_str: str, override_list: Optional[List[str]], i: int) -> str:
     """Get a label from override list or use default.

@@ -9,6 +9,8 @@ import src.plotting.iPlot_config as cfg
 import src.plotting.helpers as plot_helpers
 import src.plotting.helpers_make_plot_dict as plot_helpers_make_plot_dict
 import src.plotting.helpers_make_plot as plot_helpers_make_plot
+from src.plotting.plot_types import RenderOptions
+from dataclasses import fields as _dataclass_fields
 
 def init_arg_parser():
 
@@ -76,33 +78,93 @@ def parse_args():
 #    return cfg
 
 
+# ---------------------------------------------------------------------------
+# Single normalization map: strip underscores + lowercase every input key,
+# look up here to get the canonical RenderOptions field name.
+#
+# Auto-populated from RenderOptions fields so camelCase / snake_case /
+# mixed-case variants (addFlow, do_ratio, yScale, …) are covered for free.
+# Explicit entries handle abbreviations and genuinely different root words
+# where stripping alone isn't enough (ratio→doRatio, normalize→norm, …).
+# Keys are already stripped+lowercased; values are canonical field names.
+# ---------------------------------------------------------------------------
+_RENDER_FIELDS: frozenset = frozenset(f.name for f in _dataclass_fields(RenderOptions))
+_NORMALIZE_MAP: dict = {
+    name.lower().replace('_', ''): name
+    for name in _RENDER_FIELDS
+}
+_NORMALIZE_MAP.update({
+    # norm
+    'normalize':       'norm',
+    'normalise':       'norm',
+    'normalized':      'norm',
+    'normalised':      'norm',
+    # add_flow
+    'flow':            'add_flow',
+    # uniform_bins
+    'uniform':         'uniform_bins',
+    # outputFolder
+    'outdir':          'outputFolder',
+    'outputdir':       'outputFolder',
+    # doRatio  ('ratio' ≠ 'doratio' after stripping)
+    'ratio':           'doRatio',
+    # rlim
+    'ratiolim':        'rlim',
+    'ratiolimits':     'rlim',
+    # rlabel
+    'ratiolabel':      'rlabel',
+    # legend  ('dolegend' ≠ 'legend' after stripping)
+    'dolegend':        'legend',
+    # legend_loc
+    'legendlocation':  'legend_loc',
+    # write_yaml  ('save' ≠ 'write' after stripping)
+    'saveyaml':        'write_yaml',
+    # fmt  ('format'/'output' ≠ 'fmt' after stripping)
+    'format':          'fmt',
+    'outputformat':    'fmt',
+})
+
+
+def _normalize_kwargs(kwargs: dict) -> dict:
+    """Fold kwarg aliases into canonical RenderOptions names (in-place).
+
+    Strips underscores and lowercases each key, then looks it up in
+    _NORMALIZE_MAP.  Covers camelCase, snake_case, mixed-case, and explicit
+    abbreviations (ratio→doRatio, normalize→norm, …) in a single pass.
+    """
+    for key in list(kwargs):
+        canonical = _NORMALIZE_MAP.get(key.lower().replace('_', ''))
+        if canonical is not None and key != canonical:
+            kwargs.setdefault(canonical, kwargs.pop(key))
+    return kwargs
+
+
+def _is_axis_opts_list(axis_opts):
+    return any(isinstance(v, list) for v in axis_opts.values())
+
+
 def makePlot(cfg, var='selJets.pt',
-             cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
+             cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
        debug    : False,
        var      : 'selJets.pt',
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
-        'doRatio'  : bool (False)
+        'doRatio'  : bool (True)
         'rebin'    : int (1),
     """
 
+    _normalize_kwargs(kwargs)
     process = kwargs.get("process", None)
     year    = kwargs.get("year", "RunII")
     debug   = kwargs.get("debug", False)
     if debug: print(f"In makePlot kwargs={kwargs}")
 
-    axis_opts_list = False
-    for _, v in axis_opts.items():
-        if type(v) is list:
-            axis_opts_list = True
-            break
-
-    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
             if debug: print(f"makePlot: getting plot data from list")
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, **kwargs)
@@ -122,7 +184,7 @@ def makePlot(cfg, var='selJets.pt',
 
 
 def make2DPlot(cfg, process, var='selJets.pt',
-               cut="passPreSel", axis_opts={"region":"SR"}, **kwargs):
+               cut=None, axis_opts={"region":"SR"}, **kwargs):
     r"""
     Takes Options:
 
@@ -130,25 +192,19 @@ def make2DPlot(cfg, process, var='selJets.pt',
        debug    : False,
        var      : 'selJets.pt',
        year     : "2017",
-       cut      : "passPreSel",
+       cut      : None,
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
         'rebin'    : int (1),
     """
 
+    _normalize_kwargs(kwargs)
     year    = kwargs.get("year", "RunII")
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
 
-    axis_opts_list = False
-    for _, v in axis_opts.items():
-        if type(v) is list:
-            axis_opts_list = True
-            break
-
-
-    if (type(cut) is list) or axis_opts_list or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (type(var) is list) or (type(process) is list) or (type(year) is list):
+    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
             return plot_helpers_make_plot.make_plot_from_dict(plot_data, do2d=True)
