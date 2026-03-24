@@ -35,11 +35,12 @@ add_x509_proxy_flags() {
     case "$HOST" in
         *cmslpc*|*lxplus*|*falcon*|*rogue*)
             local PROXY="${PWD}/proxy/x509_proxy"
+	    
+	    # make proxy file in the local running directory
+	    mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy
+
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
-            else
-                warning "Proxy file not found at ${PROXY}. Run manually to create it if needed:"
-                warning "mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy"
             fi
             ;;
     esac
@@ -194,7 +195,13 @@ run_coffea() {
     HOST=$(hostname)
 
     # 1. Base Flags
-    local FLAGS=( -B "$PWD":/srv --pwd /srv/ )
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/
+        --env XRD_CONNECTIONRETRY=3
+        --env XRD_REQUESTTIMEOUT=600
+        --env XRD_STREAMTIMEOUT=300
+        --env XRD_TIMEOUTRESOLUTION=15
+        --env XRD_CONNECTIONWINDOW=30
+    )
     
     # LPC-Specific Environment Variable
     if [[ $HOST == *"cmslpc"* ]]; then

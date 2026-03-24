@@ -19,7 +19,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 
     .. code-block:: python
 
-        timeout = 180
+        timeout = 600
 
 .. warning::
     Writers will always overwrite the output file if it exists.
@@ -32,6 +32,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 from __future__ import annotations
 
 import logging
+import time
 from numbers import Number
 from typing import TYPE_CHECKING, Callable, Generator, Literal, TypedDict, overload
 
@@ -91,7 +92,7 @@ class _Reader:
         "open_files": False,
     }
     _default_options = {
-        "timeout": 180,
+        "timeout": 600,
     }
 
     def __init__(self, **options):
@@ -391,6 +392,44 @@ class TreeReader(_Reader):
         super().__init__(**options)
         self._filter = branch_filter
         self._transform = transform
+        self._file_cache: dict[str, uproot.ReadOnlyDirectory] = {}
+
+    def _open_with_retry(self, path, retries=3, delay=5):
+        """Open a ROOT file with retries for transient XRootD/EOS errors."""
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                return uproot.open(path, **self._open_options)
+            except (FileNotFoundError, OSError) as e:
+                last_exc = e
+                if attempt < retries - 1:
+                    logging.warning(
+                        f"Failed to open {path} (attempt {attempt + 1}/{retries}), "
+                        f"retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    delay *= 2
+        raise last_exc
+
+    def _get_file(self, path):
+        """Get a file handle, using cache if available."""
+        key = str(path)
+        if key in self._file_cache:
+            return self._file_cache[key]
+        return self._open_with_retry(path)
+
+    def _open_cache(self, *sources: Chunk):
+        """Open and cache file handles for the given sources."""
+        for source in sources:
+            key = str(source.path)
+            if key not in self._file_cache:
+                self._file_cache[key] = self._open_with_retry(source.path)
+
+    def _close_cache(self):
+        """Close all cached file handles."""
+        for file in self._file_cache.values():
+            file.close()
+        self._file_cache.clear()
 
     @overload
     def arrays(
@@ -445,7 +484,9 @@ class TreeReader(_Reader):
         if self._filter is not None:
             branches = self._filter(branches)
         try:
-            with uproot.open(source.path, **self._open_options) as file:
+            cached = str(source.path) in self._file_cache
+            file = self._get_file(source.path)
+            try:
                 data = file[source.name].arrays(
                     expressions=branches,
                     entry_start=source.entry_start,
@@ -463,6 +504,9 @@ class TreeReader(_Reader):
                 if self._transform is not None:
                     data = self._transform(data)
                 return data
+            finally:
+                if not cached:
+                    file.close()
         except Exception as e:
             logging.error(f"Failed to read {source.path}", exc_info=e)
             raise
@@ -593,10 +637,14 @@ class TreeReader(_Reader):
             chunks = Chunk.balance(step, *sources, common_branches=True)
         else:
             raise ValueError(f'Unknown mode "{mode}".')
-        for chunk in chunks:
-            if not isinstance(chunk, list):
-                chunk = (chunk,)
-            yield self.concat(*chunk, **options)
+        self._open_cache(*sources)
+        try:
+            for chunk in chunks:
+                if not isinstance(chunk, list):
+                    chunk = (chunk,)
+                yield self.concat(*chunk, **options)
+        finally:
+            self._close_cache()
 
     @overload
     def dask(

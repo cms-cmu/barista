@@ -333,14 +333,19 @@ def apply_jerc_corrections_jsonpog(
     return jet_factory.build(nominal_jet, event.event, seeds=seeds)
 
 
-def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):
+def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False):
     '''
     taken from https://github.com/PocketCoffea/PocketCoffea/blob/main/pocket_coffea/lib/cut_functions.py#L65
     modified to veto jets not events
     '''
 
+    if 'jetId' in jets.fields:
+        passes_tight_id = ((jets.jetId & 2)==2)
+    else:
+        passes_tight_id = jets.passJetId
+
     mask_for_VetoMap = (
-        ((jets.jetId & 2)==2) # Must fulfill tight jetId
+        passes_tight_id # Must fulfill tight jetId
         & (abs(jets.eta) < 5.19) # Must be within HCal acceptance
         & ((jets.neEmEF + jets.chEmEF) < 0.9) # Energy fraction not dominated by ECal
     )

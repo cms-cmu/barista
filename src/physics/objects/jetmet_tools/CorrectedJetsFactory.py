@@ -78,21 +78,21 @@ class _JsonPogJERSF:
     as well as those that take ``(eta, pt, syst)``.
     """
 
-    _pogname_to_namemap = {
-        "JetEta": "JetEta",
-        "JetPt":  "JetPt",
-    }
-
     def __init__(self, corr):
         self._corr = corr
-        # Last input is the systematic string; the rest are physics variables.
-        self._input_names = [inp.name for inp in corr.inputs if inp.name != "systematic"]
+        # Derive signature from the correction's input names (excluding "systematic")
+        _pogname_to_namemap = {
+            "JetEta": "JetEta",
+            "JetPt":  "JetPt",
+        }
         self.signature = tuple(
-            self._pogname_to_namemap[n] for n in self._input_names
-            if n in self._pogname_to_namemap
+            _pogname_to_namemap[inp.name]
+            for inp in corr.inputs
+            if inp.name in _pogname_to_namemap
         )
 
-    def getScaleFactor(self, form, lazy_cache, **kwargs):
+    def getScaleFactor(self, form=None, lazy_cache=None, **kwargs):
+        # kwargs keys correspond to self.signature (e.g. JetEta, or JetEta+JetPt)
         arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self.signature]
         stacked = numpy.stack(
             [
