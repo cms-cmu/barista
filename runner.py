@@ -535,7 +535,7 @@ def create_reproducible_info(args):
 def compute_with_client(client, func, *args, **kwargs):
     """Helper to compute with or without dask client."""
     if client is not None:
-        return client.compute(func(*args, dask=True, **kwargs), sync=True)
+        return client.compute(func(*args, dask=True, **kwargs), sync=True, retries=3)
     else:
         return func(*args, dask=False, **kwargs)
 
@@ -607,7 +607,7 @@ def setup_config_defaults(config_runner, args):
         'friend_base_argname': "make_classifier_input",
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
-        'uproot_xrootd_retry_delays': [5, 15, 45]
+        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120]
     }
 
     for key, default_value in defaults.items():
@@ -620,7 +620,7 @@ def setup_executor(config_runner, args, client, pool):
         'schema': config_runner['schema'],
         'savemetrics': True,
         'skipbadfiles': config_runner['skipbadfiles'],
-        'xrootdtimeout': 600
+        'xrootdtimeout': 900
     }
 
     if args.debug:
@@ -741,6 +741,7 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
                 {k: friends[k].merge(**merge_kw, clean=False, dask=True)
                  for k in friends},
                 sync=True,
+                retries=3,
             )
             for v in friends.values():
                 v.reset(confirm=False)
@@ -851,7 +852,7 @@ if __name__ == '__main__':
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default= None,
+        default= "coffea4bees/metadata/friends_HH4b.yml",
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
     io_group.add_argument(
