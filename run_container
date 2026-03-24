@@ -35,18 +35,10 @@ add_x509_proxy_flags() {
     case "$HOST" in
         *cmslpc*|*lxplus*|*falcon*|*rogue*)
             local PROXY="${PWD}/proxy/x509_proxy"
-            mkdir -p "${PWD}/proxy"
-            # Auto-copy from system proxy if local copy is missing or expired
-            if [ ! -f "$PROXY" ] || ! voms-proxy-info -file "$PROXY" -exists -hours 1 2>/dev/null; then
-                local SYS_PROXY="${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"
-                if [ -f "$SYS_PROXY" ] && voms-proxy-info -file "$SYS_PROXY" -exists -hours 1 2>/dev/null; then
-                    cp "$SYS_PROXY" "$PROXY"
-                    info "Copied valid proxy from $SYS_PROXY to $PROXY"
-                else
-                    warning "No valid proxy found. Run:"
-                    warning "voms-proxy-init -voms cms -rfc --valid 192:00 -out $PROXY"
-                fi
-            fi
+	    
+	    # make proxy file in the local running directory
+	    mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy
+
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
             fi
