@@ -35,8 +35,8 @@ class TestNormalizeKwargs:
         _normalize_kwargs(kwargs)
         assert kwargs == {'doRatio': False, 'norm': True, 'yscale': 'log'}
 
-    def test_unrelated_key_passes_through_unchanged(self):
-        # DATA_ONLY keys like rebin/year must not be touched
+    def test_canonical_data_only_key_passes_through_unchanged(self):
+        # Already-canonical DATA_ONLY keys pass through unchanged
         kwargs = {'rebin': 2, 'year': 'UL18'}
         _normalize_kwargs(kwargs)
         assert kwargs == {'rebin': 2, 'year': 'UL18'}
@@ -96,6 +96,10 @@ class TestNormalizeKwargs:
         ('yLim',           'ylim'),
         ('x_lim',          'xlim'),
         ('xLim',           'xlim'),
+        # _DATA_ONLY_KEYS camelCase variants
+        ('Rebin',          'rebin'),
+        ('reBin',          'rebin'),
+        ('Do2d',           'do2d'),
     ])
     def test_aliases(self, alias, canonical):
         sentinel = object()
