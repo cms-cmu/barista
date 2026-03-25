@@ -36,8 +36,11 @@ add_x509_proxy_flags() {
         *cmslpc*|*lxplus*|*falcon*|*rogue*)
             local PROXY="${PWD}/proxy/x509_proxy"
 	    
-	    # make proxy file in the local running directory
-	    mkdir -p proxy && voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy
+	    # make proxy file in the local running directory if no valid proxy exists
+	    mkdir -p proxy
+	    if ! voms-proxy-info --file ./proxy/x509_proxy --exists -valid 6:00 &>/dev/null; then
+	        voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy
+	    fi
 
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
