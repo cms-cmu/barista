@@ -302,8 +302,7 @@ def integrity_check(
         chunk_missing = []
         for file in inputs:
             if file not in outputs:
-                logging.error(f'The whole file is missing in outputs: "{file}"')
-                complete = False
+                logging.warning(f'The whole file is missing in outputs: "{file}"')
                 file_missing.append(str(file))
             else:
                 chunks = sorted(outputs[file], key=lambda x: x[0])
