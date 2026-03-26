@@ -73,3 +73,19 @@ python src/tools/replicate_to_cmsdata.py --era Run2 --submit --proxy proxy/x509_
 ## compute_combine_limits.py
 
 Helper functions for combining expected limits from multiple sources.
+
+## condor_monitor.py
+
+Monitors HTCondor jobs in the terminal, showing the last line of stdout for each running job (via `condor_tail`). Re-queries the queue every 10 seconds and exits when all jobs are done.
+
+```bash
+python src/tools/condor_monitor.py              # monitor all your jobs
+python src/tools/condor_monitor.py HH4b         # filter by batch name / args
+python src/tools/condor_monitor.py 2294883      # filter by cluster ID
+```
+
+**Display columns:** `<cluster.proc>  <status>  <batch name>  <last stdout line>`
+
+Status codes: `I`dle, `R`unning, `C`omplete, `H`eld, `X` Removed, `T` Transferring, `S` Suspended.
+
+The optional grep argument is matched against the job's `JobBatchName`, `Arguments`, and `ClusterId`. Up to 16 `condor_tail` fetches run concurrently. No external dependencies — runs directly on the host (does not require the analysis container).
