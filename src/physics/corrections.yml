@@ -487,9 +487,9 @@
     jec_campaign: Summer23Prompt23
     jec_version: V2
     jer_campaign: Summer23Prompt23
-    jer_version: RunCv1_JRV1
-    #run_tags: not needed 
-  jes_unc:  
+    jer_version: RunCv1234_JRV1
+    #run_tags: not needed
+  jes_unc:
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23/#ak4-b-tagging
