@@ -51,7 +51,7 @@ warnings.filterwarnings("ignore")
 # Global variable to track temp directory for cleanup
 _temp_condor_dir = None
 
-def create_code_tarball(condor_transfer_input_files):
+def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     """Create a tarball of code in a temporary directory.
 
     Each job gets a unique temporary directory to avoid conflicts
@@ -59,6 +59,9 @@ def create_code_tarball(condor_transfer_input_files):
 
     Args:
         condor_transfer_input_files: List of paths to include in tarball
+        tmpdir: Parent directory for the temp dir. Defaults to the system
+                temp directory (/tmp). Override when /tmp is on a small
+                filesystem (e.g. inside a container overlay).
 
     Returns:
         Tuple of  (tarball_path, temp_dir_path) for cleanup later
@@ -67,10 +70,10 @@ def create_code_tarball(condor_transfer_input_files):
     import os
 
     # Create unique temporary directory with descriptive prefix
-    # Format: /tmp/barista_condor_USERID_TIMESTAMP_RANDOMID/
+    # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
     import getpass
     username = getpass.getuser()
-    temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_')
+    temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
     tarball_path = os.path.join(temp_dir, 'code_barista.tar.gz')
 
     logging.info(f"Creating tarball in temporary directory: {temp_dir}")
@@ -430,6 +433,10 @@ def setup_condor_cluster(config_runner, tarball_path):
             f"--nanny-port 10100:10200",
         ]
     }
+    if config_runner.get('worker_log_directory'):
+        log_dir = config_runner['worker_log_directory']
+        os.makedirs(log_dir, exist_ok=True)
+        cluster_args['log_directory'] = log_dir
     logging.info("Cluster arguments: ")
     logging.info(pretty_repr(cluster_args))
 
@@ -868,6 +875,21 @@ if __name__ == '__main__':
         help='Directory path where output files will be saved'
     )
     io_group.add_argument(
+        '--tmpdir',
+        dest="tmpdir",
+        default=None,
+        metavar='DIR',
+        help='Directory for temporary files (e.g. condor code tarball). Defaults to the system temp directory.'
+    )
+    io_group.add_argument(
+        '--dashboard-address',
+        dest="dashboard_address",
+        default=None,
+        type=int,
+        metavar='PORT',
+        help='Port for the Dask dashboard (default: 10200). Use 0 to let the OS pick a free port, e.g. when running many parallel jobs.'
+    )
+    io_group.add_argument(
         '--storage-remap',
         dest="storage_remap",
         default=None,
@@ -1043,6 +1065,8 @@ if __name__ == '__main__':
     logging.info("Setting up configuration defaults...")
     config_runner = configs['runner'] if 'runner' in configs.keys() else {}
     setup_config_defaults(config_runner, args)
+    if args.dashboard_address is not None:
+        config_runner['dashboard_address'] = args.dashboard_address
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 
@@ -1130,7 +1154,7 @@ if __name__ == '__main__':
     if args.condor:
         logging.info("Configuring HTCondor cluster execution...")
         args.run_dask = True
-        tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'])
+        tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
         client, cluster = setup_condor_cluster(config_runner, tarball_path)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
