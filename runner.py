@@ -427,7 +427,10 @@ def setup_condor_cluster(config_runner, tarball_path):
         'cores': config_runner['condor_cores'],
         'memory': config_runner['worker_memory'],
         'ship_env': False,
-        'scheduler_options': {'dashboard_address': config_runner['dashboard_address']},
+        'scheduler_options': {
+            'dashboard_address': config_runner['dashboard_address'],
+            'port': 0 if config_runner['dashboard_address'] == 0 else 8786,
+        },
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",

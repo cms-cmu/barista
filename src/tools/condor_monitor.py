@@ -129,7 +129,7 @@ class CondorJob:
         self.schedd = schedd(job_dict)
         self.status = job_dict.get("JobStatus", 0)
         self.batch = job_dict.get("JobBatchName", "")
-        self.out = job_dict.get("Out", "")
+        self.out = job_dict.get("Err", "") or job_dict.get("Out", "")
         self.start_time = job_dict.get("JobStartDate")
         self.mem_mb = job_dict.get("MemoryProvisioned")
         self.cpu_s = job_dict.get("CumulativeRemoteUserCpu", 0.0)
@@ -162,14 +162,18 @@ class CondorJob:
         return "  ".join(parts)
 
     def fetch_tail(self):
-        """Kick off an async condor_tail for running jobs with real stdout."""
-        if self.done or self.fetching or self._proc is not None:
+        """Kick off an async tail for running jobs with real stdout."""
+        if self.done or self.fetching:
             return
         if self.status != 2:
             return
         if self._null_output:
             return
-        cmd = f"condor_tail -maxbytes 256 -name {self.schedd} {self.id}"
+        if os.path.isfile(self.out):
+            # Read directly from filesystem — faster and more reliable than condor_tail
+            cmd = f"tail -1 {self.out}"
+        else:
+            cmd = f"condor_tail -maxbytes 256 -name {self.schedd} {self.id}"
         self._proc = subprocess.Popen(
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             executable="/bin/bash", universal_newlines=True,
