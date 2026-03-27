@@ -2,7 +2,7 @@
 executor: slurm
 software-deployment-method:
   - apptainer
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/ --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv"
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/ -B /tmp:/tmp --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv"
 slurm-logdir: "slurm_logs"
 slurm-status-command: "squeue"
 default-resources:
