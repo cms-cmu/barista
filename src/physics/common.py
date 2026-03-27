@@ -57,6 +57,18 @@ def apply_btag_sf( jets,
 
     def get_sf(jets, sys):
         flat_jets = ak.flatten(jets)
+        bad = ak.to_numpy(flat_jets.btagScore) < 0
+        if bad.any():
+            logging.warning(f"correction_file={correction_file} correction_type={correction_type}")
+            for pt, eta, phi, score, jetId, pnetb in zip(
+                ak.to_numpy(flat_jets.pt)[bad],
+                ak.to_numpy(flat_jets.eta)[bad],
+                ak.to_numpy(flat_jets.phi)[bad],
+                ak.to_numpy(flat_jets.btagScore)[bad],
+                ak.to_numpy(flat_jets.jetId)[bad],
+                ak.to_numpy(flat_jets.btagPNetB)[bad],
+            ):
+                logging.warning(f"Jet with btagScore<0: pt={pt:.2f} eta={eta:.3f} phi={phi:.3f} btagScore={score} jetId={jetId} btagPNetB={pnetb}")
         return np.prod(
             ak.unflatten(
                 btagSF.evaluate(
@@ -64,7 +76,7 @@ def apply_btag_sf( jets,
                     ak.to_numpy(flat_jets.hadronFlavour),
                     ak.to_numpy(np.abs(flat_jets.eta)),
                     ak.to_numpy(flat_jets.pt),
-                    ak.to_numpy(flat_jets.btagScore)
+                    np.clip(ak.to_numpy(flat_jets.btagScore), 0, 1)
                 ),
                 ak.num(jets)
             ), axis=1
