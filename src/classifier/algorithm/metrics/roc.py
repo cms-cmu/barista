@@ -148,8 +148,15 @@ class FixedThresholdROC:
     def to_json(self):
         P = self.__P
         N = self.__N
+        if self.__TP is None or self.__FP is None:
+            return {
+                "FPR": None, "TPR": None, "AUC": None,
+                "P": to_num(P) if P is not None else None,
+                "N": to_num(N) if N is not None else None,
+                "TP": None, "FP": None,
+            }
         tp, _ = self.__TP.hist()
-        fp, _ = self.__FP.hist() 
+        fp, _ = self.__FP.hist()
         fpr, tpr, auc = self.roc()
         result = {
             "FPR": npext.to.base64(to_arr(fpr)), # false positive rate: FP/N
@@ -160,5 +167,5 @@ class FixedThresholdROC:
             "TP": npext.to.base64(to_arr(tp)), # true positives
             "FP": npext.to.base64(to_arr(fp)), # false positives
         }
-        
+
         return result
