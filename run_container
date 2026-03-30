@@ -548,5 +548,6 @@ case "$1" in
     "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
     "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
+    "pourover")            run_coffea "python coffea4bees/plots/pourOver.py ${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac
