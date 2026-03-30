@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 import argparse
+import getpass
 import inspect
 import sys
 from pathlib import Path
@@ -59,9 +60,8 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
 
     Args:
         condor_transfer_input_files: List of paths to include in tarball
-        tmpdir: Parent directory for the temp dir. Defaults to the system
-                temp directory (/tmp). Override when /tmp is on a small
-                filesystem (e.g. inside a container overlay).
+        tmpdir: Parent directory for the temp dir. Defaults to the LPC
+                3DayLifetime scratch area. Override if running elsewhere.
 
     Returns:
         Tuple of  (tarball_path, temp_dir_path) for cleanup later
@@ -73,6 +73,8 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
     import getpass
     username = getpass.getuser()
+    if tmpdir:
+        os.makedirs(tmpdir, exist_ok=True)
     temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
     tarball_path = os.path.join(temp_dir, 'code_barista.tar.gz')
 
@@ -877,9 +879,9 @@ if __name__ == '__main__':
     io_group.add_argument(
         '--tmpdir',
         dest="tmpdir",
-        default=None,
+        default=f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}',
         metavar='DIR',
-        help='Directory for temporary files (e.g. condor code tarball). Defaults to the system temp directory.'
+        help='Directory for temporary files (e.g. condor code tarball). Defaults to the LPC 3DayLifetime scratch area.'
     )
     io_group.add_argument(
         '--dashboard-address',
