@@ -197,4 +197,7 @@ slurm_logs/
 logs/
 notes/
 .bashrc
-.cmslpc-local.conf
+.cmslpc-local-conf
+/test.*
+.claude/session-summaries/
+mutagen.*

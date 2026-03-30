@@ -198,12 +198,14 @@ run_coffea() {
     HOST=$(hostname)
 
     # 1. Base Flags
-    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/
+    touch "$PWD/.python_history"
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
+        --env PYTHONHISTFILE=/srv/.python_history
     )
     ulimit -n 65536
     
@@ -257,7 +259,10 @@ run_combine() {
     check_apptainer
     info "Running Combine container..."
     local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
-    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
+        --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
+    )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
@@ -269,7 +274,11 @@ run_combine() {
 run_brilcalc() {
     check_apptainer
     info "Running Brilcalc container..."
-    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ -B /tmp:/tmp
+        --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages
+        --env PYTHONHISTFILE=/srv/.python_history
+    )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
@@ -286,7 +295,10 @@ run_classifier() {
     local USE_SLURM=false
     local IS_CPU=false
     local IMAGE="$CLASSIFIER_IMAGE"  # Default to GPU
-    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv -B /tmp:/tmp
+        --env PYTHONHISTFILE=/srv/.python_history
+    )
     ulimit -n 65536
 
     # Detect if on FALCON (auto-enable SLURM)
@@ -385,11 +397,8 @@ run_snakemake() {
     # FALCON: Launch interactive Slurm session if on login node
     local HOST
     HOST=$(hostname)
-    if [[ $HOST == *falcon* ]] && [ -z "$SLURM_JOB_ID" ]; then
-        info "Not in a job. Launching interactive Slurm session for Snakemake..."
-        srun --pty --partition=work --time=04:00:00 --mem=4G "$0" snakemake "$@"
-        return
-    fi
+    # Note: on falcon, Snakemake runs directly on the login node (lightweight scheduler).
+    # Heavy work is submitted to Slurm via the snakemake-executor-plugin-slurm.
 
     info "Running Snakemake with Pixi environment..."
     set -eo pipefail
@@ -441,6 +450,27 @@ run_snakemake() {
         if [ -d "$AUTO_PROFILE" ]; then
             info "Auto-injecting Snakemake profile: $AUTO_PROFILE"
             ARGS=("--profile" "$AUTO_PROFILE" "${ARGS[@]}")
+        fi
+    fi
+
+    # Auto-inject Slurm account from $USER if the profile uses the slurm executor
+    local ACTIVE_PROFILE_DIR=""
+    local i=0
+    while [ $i -lt ${#ARGS[@]} ]; do
+        if [[ "${ARGS[$i]}" == "--profile" ]] && [ $((i+1)) -lt ${#ARGS[@]} ]; then
+            ACTIVE_PROFILE_DIR="${ARGS[$((i+1))]}"
+            break
+        fi
+        i=$((i+1))
+    done
+    if [ -n "$ACTIVE_PROFILE_DIR" ] && [ -f "$ACTIVE_PROFILE_DIR/config.yaml" ] && grep -q 'executor:.*slurm' "$ACTIVE_PROFILE_DIR/config.yaml"; then
+        # Only inject slurm_account on clusters that require it (e.g., lxplus)
+        # Falcon uses a default account with no partition association, so skip it
+        local PROFILE_NAME
+        PROFILE_NAME=$(basename "$ACTIVE_PROFILE_DIR")
+        if [[ "$PROFILE_NAME" != "falcon" ]]; then
+            info "Auto-injecting Slurm account: $USER"
+            ARGS+=("--default-resources" "slurm_account=$USER")
         fi
     fi
 

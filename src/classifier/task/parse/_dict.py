@@ -37,7 +37,7 @@ def _mapping_nested_keys(arg: str):
     if len(arg) == 1:
         return arg[0], None
     else:
-        return arg[0], arg[1].split(".")
+        return arg[0], [k for k in arg[1].split(".") if k]
 
 
 def _deserialize(data: str, protocol: str):
@@ -67,9 +67,39 @@ def _deserialize(data: str, protocol: str):
             raise DeserializationError(f'Unsupported protocol "{protocol}"')
 
 
+def _deserialize_dir(dirpath: Path, suffix: str, formatter: str):
+    """Load and merge all files with the given suffix from a directory."""
+    extensions = {".yml": (".yml", ".yaml"), ".yaml": (".yml", ".yaml")}
+    exts = extensions.get(suffix, (suffix,))
+    files = sorted(f for f in dirpath.iterdir() if f.suffix in exts)
+    if not files:
+        raise DeserializationError(
+            f'No {suffix} files found in directory "{dirpath}"'
+        )
+    merged = {}
+    for f in files:
+        result = _deserialize_file(str(f), formatter)
+        if isinstance(result, dict):
+            merged.update(result)
+        else:
+            raise DeserializationError(
+                f'Cannot merge non-dict file "{f}" from directory "{dirpath}"'
+            )
+    return merged
+
+
 @cache
 def _deserialize_file(path: str, formatter: str):
-    suffix = Path(path).suffix
+    p = Path(path)
+    suffix = p.suffix
+    # Handle directory paths: e.g. "dir/.yml" (stem is empty) or "dir/" with no suffix
+    # This supports passing a directory instead of a single file as metadata
+    if not p.stem and suffix:
+        dirpath = p.parent
+        if dirpath.is_dir():
+            return _deserialize_dir(dirpath, suffix, formatter)
+    if p.is_dir():
+        return _deserialize_dir(p, ".yml", formatter)
     match suffix:
         case ".yml":
             protocol = "yaml"

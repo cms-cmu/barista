@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from functools import cached_property
 from inspect import getmro
 from typing import Callable, Iterable
@@ -23,6 +24,22 @@ class _PicoAOD(Dataset):
         help="names of the metadata files.",
     )
 
+    @staticmethod
+    def _metadata_arg(metadata: str) -> str:
+        """Build the metadata argument for parse.mapping().
+
+        If metadata is a directory path (ends with /), all YAML files in the
+        directory are merged. The '@@' separator is placed right after the
+        directory so that downstream key paths (e.g. '.data.UL17...') are
+        correctly parsed as key selectors.
+        If metadata is a file basename (legacy), append '.yml@@datasets'.
+        """
+        if metadata.endswith("/") or os.path.isdir(metadata):
+            # Ensure trailing slash so _deserialize_file sees a dir path
+            metadata = metadata.rstrip("/") + "/"
+            return f"{metadata}@@"
+        return f"{metadata}.yml@@datasets"
+
     def __init__(self):
         super().__init__()
         if not hasattr(self.opts, "filelists"):
@@ -30,11 +47,11 @@ class _PicoAOD(Dataset):
         if not hasattr(self.opts, "files"):
             self.opts.files = []
         for metadata in self.opts.metadata:
-            self.opts.filelists.extend(
-                self._filelists(f"{metadata}.yml@@datasets")
-            )
+            arg = self._metadata_arg(metadata)
+            self.opts.filelists.extend(self._filelists(arg))
         for metadata in self.opts.metadata:
-            self.opts.files.extend(self._files(f"{metadata}.yml@@datasets"))
+            arg = self._metadata_arg(metadata)
+            self.opts.files.extend(self._files(arg))
 
     def _iter(self, name: str):
         for base in getmro(self.__class__):

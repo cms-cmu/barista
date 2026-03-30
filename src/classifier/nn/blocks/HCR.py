@@ -416,8 +416,13 @@ class GhostBatchNorm1d(
 
     @torch.no_grad()
     def initMeanStd(self):
-        self.m = self._mean_var.mean.to(self.device)
-        self.s = self._mean_var.variance_unbiased.sqrt().to(self.device)
+        m = self._mean_var.mean.to(self.device)
+        s = self._mean_var.variance_unbiased.sqrt().to(self.device)
+        # Replace non-finite values to avoid NaN propagation in forward pass
+        m = torch.where(torch.isfinite(m), m, torch.zeros_like(m))
+        s = torch.where(torch.isfinite(s) & (s > 0), s, torch.ones_like(s))
+        self.m = m
+        self.s = s
         self.initialized = True
         self.runningStats = False
         self.print()
@@ -1705,9 +1710,21 @@ class InputEmbed(nn.Module):
         o = o.view(n, 5, -1)
         a = a.view(n, self.dA, 1)
 
-        a[:, 1, :] = torch.log(
-            a[:, 1, :] - 3
-        )  # TODO: find index based on the feature name, check if relevant
+        # Apply log transform to nSelJets feature: log(nSelJets - offset)
+        # offset depends on the minimum expected value of the feature
+        if not hasattr(self, '_nSelJets_idx'):
+            self._nSelJets_idx = None
+            self._nSelJets_offset = 3  # default for nSelJets (minimum is 4)
+            for idx, name in enumerate(self.ancillaryFeatures):
+                if "nSelJets" in name:
+                    self._nSelJets_idx = idx
+                    if "lowpt" in name:
+                        self._nSelJets_offset = 0  # nSelJets_lowpt starts at 1, use log(n)
+                    break
+        if self._nSelJets_idx is not None:
+            a[:, self._nSelJets_idx, :] = torch.log(
+                a[:, self._nSelJets_idx, :] - self._nSelJets_offset
+            )
 
         if self.store:
             self.storeData["canJets"] = j.detach().to("cpu").numpy()
