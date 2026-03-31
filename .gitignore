@@ -201,3 +201,4 @@ notes/
 /test.*
 .claude/session-summaries/
 mutagen.*
+.pourover_archives/
