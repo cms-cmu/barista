@@ -200,4 +200,7 @@ notes/
 .cmslpc-local-conf
 /test.*
 .claude/session-summaries/
+.claude/plans/
 mutagen.*
+.pourover_archives/
+.pytest*
