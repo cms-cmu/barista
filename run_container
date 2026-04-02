@@ -198,12 +198,14 @@ run_coffea() {
     HOST=$(hostname)
 
     # 1. Base Flags
-    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/
+    touch "$PWD/.python_history"
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
+        --env PYTHONHISTFILE=/srv/.python_history
     )
     ulimit -n 65536
     
@@ -257,7 +259,10 @@ run_combine() {
     check_apptainer
     info "Running Combine container..."
     local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
-    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
+        --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
+    )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
@@ -269,7 +274,11 @@ run_combine() {
 run_brilcalc() {
     check_apptainer
     info "Running Brilcalc container..."
-    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "${PWD}:/srv" --pwd /srv/ -B /tmp:/tmp
+        --env PYTHONPATH=/home/bril/.local/lib/python3.10/site-packages
+        --env PYTHONHISTFILE=/srv/.python_history
+    )
 
     if [ -z "$*" ]; then
         APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
@@ -286,7 +295,10 @@ run_classifier() {
     local USE_SLURM=false
     local IS_CPU=false
     local IMAGE="$CLASSIFIER_IMAGE"  # Default to GPU
-    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv )
+    touch "$PWD/.python_history"
+    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv -B /tmp:/tmp
+        --env PYTHONHISTFILE=/srv/.python_history
+    )
     ulimit -n 65536
 
     # Detect if on FALCON (auto-enable SLURM)
@@ -567,5 +579,6 @@ case "$1" in
     "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
     "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
+    "pourover")            run_coffea "python coffea4bees/plots/pourOver.py --foreground ${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac
