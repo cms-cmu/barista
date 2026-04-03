@@ -121,7 +121,7 @@ class PicoAOD(ProcessorABC):
                 metadata = reader.load_metadata(
                     self._campaign, cached, builtin_types=True
                 )
-                return {dataset: metadata | {"files": [cached], "source": source_chunk}}
+                return {dataset: metadata | {"files": [cached], "source": source_chunk, "attempted": {str(chunk.path): True}}}
             except Exception:
                 pass
 
