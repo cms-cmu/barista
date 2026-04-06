@@ -1,1 +1,0 @@
-python -m src.classifier.test.check_configs
