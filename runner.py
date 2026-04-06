@@ -425,6 +425,7 @@ def add_fvt_metadata(meta, config, v):
 
 def setup_condor_cluster(config_runner, tarball_path):
     """Setup Condor cluster configuration."""
+    import getpass
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
     import getpass
