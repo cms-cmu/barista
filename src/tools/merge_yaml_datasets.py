@@ -1,6 +1,7 @@
 import yaml
 import argparse
 import re
+import os
 
 
 def _parse_dataset_and_year(key):
@@ -58,7 +59,21 @@ if __name__ == '__main__':
         'sumw_raw', 'sumw2_raw',
     }
 
-    for ifile in args.files_to_add:
+    # Expand any directories in files_to_add to their contained YAML files
+    expanded_files = []
+    for entry in args.files_to_add:
+        if os.path.isdir(entry):
+            expanded_files.extend(
+                sorted(
+                    os.path.join(entry, f)
+                    for f in os.listdir(entry)
+                    if f.endswith(('.yml', '.yaml'))
+                )
+            )
+        else:
+            expanded_files.append(entry)
+
+    for ifile in expanded_files:
 
         tmp_file = yaml.full_load(open(ifile, 'r'))
 
