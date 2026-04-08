@@ -430,23 +430,30 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     logging.info("Initializing HTCondor cluster configuration...")
 
+    import uuid
+    # Each runner.py invocation needs a unique log_directory: dask_jobqueue calls
+    # os.makedirs() without exist_ok=True, so it crashes if the directory already
+    # exists (e.g. from a previous run or a simultaneous parallel Snakemake job).
+    _log_base = f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}/condor_logs'
+    _default_log_dir = f'{_log_base}_{uuid.uuid4().hex[:8]}'
+
     cluster_args = {
         'transfer_input_files': [tarball_path],
         'shared_temp_directory': '/tmp',
         'cores': config_runner['condor_cores'],
         'memory': config_runner['worker_memory'],
         'ship_env': False,
-        'log_directory': config_runner.get('log_directory', f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}/condor_logs'),
-        'scheduler_options': {'dashboard_address': config_runner['dashboard_address']},
+        'log_directory': config_runner.get('log_directory', _default_log_dir),
+        'scheduler_options': {'dashboard_address': config_runner['dashboard_address'], 'port': 0},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
-        ]
+        ],
+        'env_extra': ['export PYTHONUNBUFFERED=1'],
     }
     if config_runner.get('worker_log_directory'):
-        log_dir = config_runner['worker_log_directory']
-        os.makedirs(log_dir, exist_ok=True)
-        cluster_args['log_directory'] = log_dir
+        # Do not pre-create — dask_jobqueue must create it fresh.
+        cluster_args['log_directory'] = config_runner['worker_log_directory']
     logging.info("Cluster arguments: ")
     logging.info(pretty_repr(cluster_args))
 
@@ -458,6 +465,7 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     logging.info("Creating Dask client...")
     client = Client(cluster)
+    logging.info(f"Dask dashboard: {client.dashboard_link}")
 
     log_dir = cluster_args['log_directory']
 
