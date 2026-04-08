@@ -73,6 +73,7 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
     import getpass
     username = getpass.getuser()
+    tmpdir = f"/uscmst1b_scratch/lpc1/3DayLifetime/{username}/"
     if tmpdir:
         os.makedirs(tmpdir, exist_ok=True)
     temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
@@ -861,7 +862,8 @@ if __name__ == '__main__':
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default= "coffea4bees/metadata/friends_HH4b.yml",
+        default="coffea4bees/metadata/friends_HH4b.yml",
+        type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
     io_group.add_argument(
@@ -875,13 +877,6 @@ if __name__ == '__main__':
         dest="output_path",
         default="hists/",
         help='Directory path where output files will be saved'
-    )
-    io_group.add_argument(
-        '--tmpdir',
-        dest="tmpdir",
-        default=f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}',
-        metavar='DIR',
-        help='Directory for temporary files (e.g. condor code tarball). Defaults to the LPC 3DayLifetime scratch area.'
     )
     io_group.add_argument(
         '--dashboard-address',
