@@ -14,7 +14,7 @@ from ..setting import IO as IOSetting
 
 if TYPE_CHECKING:
     import pandas as pd
-    from mats.root import Chunk, Friend
+    from src.data_formats.root import Chunk, Friend
     from src.classifier.df.io import FromRoot, ToTensor
     from src.classifier.df.tools import DFProcessor
 

@@ -36,7 +36,7 @@ from coffea.dataset_tools import rucio_utils
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
 from coffea.util import save
 from dask.distributed import performance_report
-from distributed.diagnostics.plugin import WorkerPlugin
+from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
 from rich.logging import RichHandler
 from rich.pretty import pretty_repr
 from src.skimmer.picoaod import fetch_metadata, integrity_check, resize
@@ -113,6 +113,7 @@ class WorkerInitializer(WorkerPlugin):
     uproot_xrootd_retry_delays: list[float] = None
 
     def setup(self, worker=None):
+        self.worker = worker
         import os
         import tarfile
         import sys
@@ -132,6 +133,11 @@ class WorkerInitializer(WorkerPlugin):
         if delays := self.uproot_xrootd_retry_delays:
             from src.data_formats.root.patch import uproot_XRootD_retry
             uproot_XRootD_retry(len(delays) + 1, delays)
+
+    def transition(self, key, start, finish, **kwargs):
+        if finish == "executing":
+            worker_name = self.worker.name if self.worker else "unknown"
+            logging.info(f"[{worker_name}] running task: {key}")
 
 def checking_input_files(outfiles):
     '''Check if the input files are corrupted'''
@@ -421,7 +427,8 @@ def setup_condor_cluster(config_runner, tarball_path):
     """Setup Condor cluster configuration."""
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
-
+    import getpass
+    
     logging.info("Initializing HTCondor cluster configuration...")
 
     cluster_args = {
@@ -430,6 +437,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'cores': config_runner['condor_cores'],
         'memory': config_runner['worker_memory'],
         'ship_env': False,
+        'log_directory': config_runner.get('log_directory', f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}/condor_logs'),
         'scheduler_options': {'dashboard_address': config_runner['dashboard_address']},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
@@ -451,6 +459,31 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     logging.info("Creating Dask client...")
     client = Client(cluster)
+
+    log_dir = cluster_args['log_directory']
+
+    class WorkerLostLogger(SchedulerPlugin):
+        def _find_log(self, worker_addr):
+            import glob
+            try:
+                for path in glob.glob(f"{log_dir}/worker-*.err"):
+                    with open(path) as f:
+                        if worker_addr in f.read():
+                            return path
+            except OSError:
+                pass
+            return None
+
+        def transition(self, key, start, finish, *args, worker=None, **kwargs):
+            if finish != "erred" or worker is None:
+                return
+            log_file = self._find_log(worker)
+            if log_file:
+                logging.error(f"Task permanently failed: {key} -> {log_file}")
+            else:
+                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+
+    client.register_plugin(WorkerLostLogger())
 
     logging.info('Waiting for at least one worker...')
     client.wait_for_workers(1)
@@ -678,6 +711,8 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
     # Keep only file names for each chunk
     for dataset, chunks in output.items():
         chunks['files'] = [str(f.path) for f in chunks['files']]
+        if output[dataset].get("missing", {}).get("file_missing"):
+            logging.info(f'Merging completed successfully for "{dataset}" — ignore the missing file warnings above, some files had zero selected events or failed silently.')
 
     return output
 

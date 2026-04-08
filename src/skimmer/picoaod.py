@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import psutil
 import re
 import uuid
 from abc import abstractmethod
@@ -120,7 +121,7 @@ class PicoAOD(ProcessorABC):
                 metadata = reader.load_metadata(
                     self._campaign, cached, builtin_types=True
                 )
-                return {dataset: metadata | {"files": [cached], "source": source_chunk}}
+                return {dataset: metadata | {"files": [cached], "source": source_chunk, "attempted": {str(chunk.path): True}}}
             except Exception:
                 pass
 
@@ -175,6 +176,7 @@ class PicoAOD(ProcessorABC):
             | {
                 "files": [],
                 "source": source_chunk,
+                "attempted": {str(chunk.path): True},
             }
         }
         self._cutFlow.addOutputSkim(result, dataset)
@@ -281,7 +283,13 @@ def integrity_check(
     num_entries: dict[str, dict[str, int]] = None,
 ):
     complete = True
-    logging.info("Checking integrity of the picoAOD...")
+    proc = psutil.Process()
+    mem_before = proc.memory_info().rss / 1024**3
+    vmem = psutil.virtual_memory()
+    logging.info(
+        f"Checking integrity of the picoAOD... "
+        f"[process RSS: {mem_before:.2f} GB, system available: {vmem.available/1024**3:.2f} GB]"
+    )
     diff = set(fileset) - set(output)
     miss_dict = {}
     if diff:
@@ -293,6 +301,7 @@ def integrity_check(
             logging.warning(f'No file is saved for "{dataset}"')
         inputs = map(EOS, fileset[dataset]["files"])
         outputs = {EOS(k): v for k, v in output[dataset]["source"].items()}
+        attempted = {EOS(k) for k in output[dataset].get("attempted", {}).keys()}
         ns = (
             None
             if num_entries is None
@@ -302,8 +311,11 @@ def integrity_check(
         chunk_missing = []
         for file in inputs:
             if file not in outputs:
-                logging.warning(f'The whole file is missing in outputs: "{file}"')
-                file_missing.append(str(file))
+                if file in attempted:
+                    logging.warning(f'File was processed but has zero selected events: "{file}"')
+                else:
+                    logging.warning(f'The whole file is missing in outputs: "{file}"')
+                    file_missing.append(str(file))
             else:
                 chunks = sorted(outputs[file], key=lambda x: x[0])
                 if ns is not None:
@@ -326,7 +338,10 @@ def integrity_check(
         if chunk_missing:
             miss_dict["chunk_missing"] = chunk_missing
     output[dataset].pop("source")
+    output[dataset].pop("attempted", None)
     output[dataset]["missing"] = miss_dict
+    mem_after = proc.memory_info().rss / 1024**3
+    logging.info(f"Integrity check complete [process RSS: {mem_after:.2f} GB (was {mem_before:.2f} GB), complete: {complete}]")
     return output, complete
 
 

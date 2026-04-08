@@ -1,8 +1,13 @@
 FROM docker.io/condaforge/mambaforge:22.11.1-4
 
 # python
-COPY env_ml_gpu.yml /tmp/env.yml
+COPY env_ml_cpu.yml /tmp/env.yml
 RUN mamba env create -f /tmp/env.yml && mamba clean --all --yes && rm -f /tmp/env.yml
+ENV CONDA_DEFAULT_ENV=hep
+ENV CONDA_PREFIX=/opt/conda/envs/hep
+ENV PATH=$CONDA_PREFIX/bin:$PATH
+ENV LD_PRELOAD=$CONDA_PREFIX/lib/libstdc++.so.6
+
 # environment
 RUN touch /root/.rnd
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,15 +30,12 @@ RUN mkdir -p /opt/rucio/etc/
 RUN wget -O /opt/rucio/etc/rucio.cfg https://raw.githubusercontent.com/dmwm/CMSRucio/820e1ab3235e9ef0d97671b7da14c8c489d08fb5/docker/rucio_client/rucio-prod.cfg
 # entrypoint
 RUN printf '%s\n' \
-    'eval "$(/opt/conda/bin/conda shell.bash hook)"'\
+    "$(/opt/conda/bin/conda shell.bash hook)" \
     'conda activate hep' \
-    'if ! shopt -oq posix; then' \
-    '  if [ -f /usr/share/bash-completion/bash_completion ]; then' \
-    '    . /usr/share/bash-completion/bash_completion' \
-    '  elif [ -f /etc/bash_completion ]; then' \
-    '    . /etc/bash_completion' \
-    '  fi' \
-    'fi' \
     > entrypoint.sh
+# CI environment
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+
 ENTRYPOINT ["tini", "-g", "--"]
 CMD ["bash", "--init-file", "/entrypoint.sh"]
