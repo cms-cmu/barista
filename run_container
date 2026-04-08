@@ -525,6 +525,37 @@ run_reana() {
     export PYTHONNOUSERSITE=1
     if [ "${ARGS[0]}" = "source" ]; then
         pixi run -e reana bash -c "${ARGS[*]}"
+    elif [ "${ARGS[0]}" = "run" ]; then
+        # Split `run` into create+upload+start so upload failures don't abort the workflow.
+        # reana-client run exits non-zero if any file fails to upload, which kills the pipeline.
+        local RUN_ARGS=("${ARGS[@]:1}")  # everything after "run"
+        local CREATE_ARGS=() UPLOAD_ARGS=() START_ARGS=() FOLLOW=false
+        local i=0
+        while [ $i -lt ${#RUN_ARGS[@]} ]; do
+            case "${RUN_ARGS[$i]}" in
+                -f|--file)        CREATE_ARGS+=("${RUN_ARGS[$i]}" "${RUN_ARGS[$((i+1))]}"); i=$((i+2)) ;;
+                -n|-w|--name|--workflow) CREATE_ARGS+=("${RUN_ARGS[$i]}" "${RUN_ARGS[$((i+1))]}"); i=$((i+2)) ;;
+                --skip-validation) CREATE_ARGS+=("${RUN_ARGS[$i]}"); i=$((i+1)) ;;
+                -p|--parameter)   START_ARGS+=("${RUN_ARGS[$i]}" "${RUN_ARGS[$((i+1))]}"); i=$((i+2)) ;;
+                -o|--option)      START_ARGS+=("${RUN_ARGS[$i]}" "${RUN_ARGS[$((i+1))]}"); i=$((i+2)) ;;
+                --follow)         FOLLOW=true; i=$((i+1)) ;;
+                *)                CREATE_ARGS+=("${RUN_ARGS[$i]}"); i=$((i+1)) ;;
+            esac
+        done
+
+        info "Creating workflow..."
+        WORKFLOW_NAME=$(pixi run -e reana reana-client create "${CREATE_ARGS[@]}" | tail -1)
+        info "Workflow created: $WORKFLOW_NAME"
+
+        info "Uploading files (failures are non-fatal)..."
+        pixi run -e reana reana-client upload -w "$WORKFLOW_NAME" || true
+
+        info "Starting workflow..."
+        if [ "$FOLLOW" = true ]; then
+            pixi run -e reana reana-client start -w "$WORKFLOW_NAME" "${START_ARGS[@]}" --follow
+        else
+            pixi run -e reana reana-client start -w "$WORKFLOW_NAME" "${START_ARGS[@]}"
+        fi
     else
         pixi run -e reana reana-client "${ARGS[@]}"
     fi
