@@ -139,7 +139,11 @@ class TrainingStage(BenchmarkStage):
                 loss = self.model.train(batch)
                 loss.backward()
                 opt.step()
-                p_batch.update(i + 1, ("batch", "training", f"loss={loss.item():.4g}"))
+                if isinstance(loss, torch.Tensor):
+                    loss_val = loss.item()
+                    p_batch.update(i + 1, ("batch", "training", f"loss={loss_val:.4g}"))
+                else:
+                    p_batch.update(i + 1, ("batch", "training", "skim"))
             benchmark = {
                 "hyperparameters": {
                     "epoch": epoch,

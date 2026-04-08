@@ -100,17 +100,27 @@ class _collect_loss_roc:
                 datasets.update(benchmark)
                 for k, v in benchmark.items():
                     # roc
-                    aucs = {f"AUC: {r['name']}": r["AUC"] for r in v["roc"]}
+                    aucs = {f"AUC: {r['name']}": r["AUC"] for r in v["roc"] if r["AUC"] is not None}
                     plot.update(aucs)
                     for r in v["roc"]:
-                        _rocs[f"ROC: {r['name']}"][k].append(
-                            pd.DataFrame(
-                                {
-                                    "FPR": npext.from_.base64(r["FPR"]),
-                                    "TPR": npext.from_.base64(r["TPR"]),
-                                }
+                        if r["FPR"] is None or r["TPR"] is None:
+                            _rocs[f"ROC: {r['name']}"][k].append(
+                                pd.DataFrame(
+                                    {
+                                        "FPR": pd.array([], dtype="float64"),
+                                        "TPR": pd.array([], dtype="float64"),
+                                    }
+                                )
                             )
-                        )
+                        else:
+                            _rocs[f"ROC: {r['name']}"][k].append(
+                                pd.DataFrame(
+                                    {
+                                        "FPR": npext.from_.base64(r["FPR"]),
+                                        "TPR": npext.from_.base64(r["TPR"]),
+                                    }
+                                )
+                            )
                     # scalars
                     scalars = v["scalars"]
                     plot.update(scalars)

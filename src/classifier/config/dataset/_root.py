@@ -14,7 +14,7 @@ from ..setting import IO as IOSetting
 
 if TYPE_CHECKING:
     import pandas as pd
-    from mats.root import Chunk, Friend
+    from src.data_formats.root import Chunk, Friend
     from src.classifier.df.io import FromRoot, ToTensor
     from src.classifier.df.tools import DFProcessor
 
@@ -55,6 +55,12 @@ class LoadRoot(ABC, Dataset):
         "--tree",
         default="Events",
         help="the name of the TTree",
+    )
+    argparser.add_argument(
+        "--test-files",
+        type=converter.int_pos,
+        default=None,
+        help="limit to N files per group for quick testing",
     )
     argparser.add_argument(
         "--train-chunksize",
@@ -110,7 +116,12 @@ class LoadRoot(ABC, Dataset):
         return [Friend.from_json(parse.mapping(f, "file")) for f in friends]
 
     def _from_root(self):
-        yield self.from_root(), self.files
+        files = self.files
+        if self.opts.test_files is not None:
+            n = self.opts.test_files
+            files = files[:n]
+            logging.info(f"--test-files: limited to {len(files)} files (from {len(self.files)})")
+        yield self.from_root(), files
 
     def train(self):
         if not self.trainable:
@@ -214,8 +225,13 @@ class LoadGroupedRoot(LoadRoot):
 
     def _from_root(self):
         files = self.files
+        n = self.opts.test_files
         for k in files:
-            yield self.from_root(k), files[k]
+            group_files = files[k]
+            if n is not None:
+                logging.info(f"--test-files: group {k}: limited to {min(n, len(group_files))} files (from {len(group_files)})")
+                group_files = group_files[:n]
+            yield self.from_root(k), group_files
 
     @cached_property
     def files(self):

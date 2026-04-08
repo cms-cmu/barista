@@ -12,6 +12,7 @@ pip = "*"
 
 # Snakemake and workflow tools
 snakemake = "*"
+snakemake-executor-plugin-slurm = "*"
 
 # System tools
 # Commenting out since they're typically available on target systems

@@ -51,16 +51,16 @@ When testing changes use the skills /test-barista and /test-coffea4bees
 
 Code here is analysis-agnostic and should not depend on any specific analysis package.
 
-Dependency flow: `utils → (storage, data_formats, math) → (hist, physics, dask) → (plotting, skimmer) → scripts`
+Dependency flow: `utils → (storage, data_formats, math) → (hist_tools, physics, dask_tools) → (plotting, skimmer) → scripts`
 
 | Module                 | Purpose                                                                 |
 |------------------------|-------------------------------------------------------------------------|
 | `data_formats/`        | Conversions between Awkward Array, NumPy, ROOT formats; friend tree I/O |
 | `config/`              | YAML/OmegaConf config loading, parsing, patching                        |
-| `dask/`, `dask_tools/` | Distributed computing with Dask; delayed histogram ops                  |
+| `dask_tools/`          | Distributed computing with Dask; delayed histogram ops                  |
 | `storage/`             | EOS/XRootD file system abstraction                                      |
-| `math/`                | Numba JIT-compiled math, statistics, partitioning                       |
-| `hist/`, `hist_tools/` | Histogram creation, merging, templates                                  |
+| `math_tools/`          | Numba JIT-compiled math, statistics, partitioning                       |
+| `hist_tools/`          | Histogram creation, merging, templates                                  |
 | `physics/`             | Jet corrections (JES/JER), event selection, kinematic calculations      |
 | `skimmer/`             | NanoAOD→PicoAOD event filtering (integrity checks, metadata)            |
 | `friendtrees/`         | Friend tree creation and management                                     |
@@ -70,11 +70,16 @@ Dependency flow: `utils → (storage, data_formats, math) → (hist, physics, da
 
 ### Container Architecture
 
-Five containers for different tasks:
+Three containers for different tasks:
 - **Coffea** (`barista:latest`) - Main analysis (default)
 - **Combine** (`combine-container:CMSSW_11_3_4-combine_v9.1.0`) - Statistical analysis
-- **Classifier** (`chuyuanliu/heptools:ml`) - ML training/inference
-- **Snakemake** (`barista:reana_latest`) - Workflow execution
+- **Classifier** (`barista:classifier_latest`) - ML training/inference
+
+Different pixi environments:
+
+- **Snakemake** (`snakemake`) - Workflow execution
+- **Brilcalc** (`brilcalc`) - Luminosity calculations
+- **Reana** (`reana`) - Reana workflow execution)
 
 ## CI/CD
 
@@ -90,6 +95,7 @@ Pipeline rules:
 - `master` branch is protected; work on feature branches and create merge requests
 - Grid proxy required for remote file access: `voms-proxy-init -rfc -voms cms --valid 168:00`
 - Pixi (`pixi.toml` / `software/pixi/`) manages the Snakemake environment; container manages the analysis environment
+- `coffea4bees/` is a **separate git repository** cloned into the workspace. Changes there won't appear in `git diff` for barista — commit and push from within `coffea4bees/` separately.
 
 ## Automated Issue Bot
 
