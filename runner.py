@@ -468,6 +468,7 @@ def setup_condor_cluster(config_runner, tarball_path):
     logging.info(f"Dask dashboard: {client.dashboard_link}")
 
     log_dir = cluster_args['log_directory']
+    logging.info(f"Condor worker log directory: {log_dir}")
 
     class WorkerLostLogger(SchedulerPlugin):
         def _find_log(self, worker_addr):
