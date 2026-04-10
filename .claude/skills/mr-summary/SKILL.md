@@ -27,25 +27,31 @@ Start from the barista root (the directory containing this `.claude/` folder).
 
 ## Step 2: Gather Diff Information
 
-Run both commands in the resolved directory:
+Run these commands in the resolved directory:
 
 ```bash
 git log origin/master..HEAD --oneline
 git diff origin/master...HEAD --stat
+git diff origin/master...HEAD
 ```
 
 If `git log` returns no commits, abort:
 > "No commits ahead of origin/master on this branch. Nothing to summarize."
 
+Read the full diff output carefully — it is the primary source of truth for what changed.
+
 ## Step 3: Generate the Summary
 
-From the commit messages and diff stat, produce a markdown block with:
+From the commit messages, diff stat, and **full diff content**, produce a markdown block with:
 
 1. **A short title** (≤ 70 characters) — imperative mood, describes the main change.
 2. **A summary section** — 3–6 bullet points grouped by theme (e.g., new features,
-   refactors, config/metadata changes). Each bullet should be concrete and specific,
-   referencing file or module names where helpful. Avoid generic phrases like
-   "various improvements".
+   refactors, config/metadata changes). Each bullet must be **concrete and specific**:
+   - Reference actual function names, class names, config keys, or CLI flags that changed.
+   - Describe *what* changed and *why* (if inferable), not just *which file*.
+   - Example: "Add `--dry-run` flag to `runner.py` to skip output writing during testing"
+     not "Update runner.py".
+   - Avoid generic phrases like "various improvements", "minor fixes", "update X".
 
 Do **not** include a test plan — the user will add one if needed.
 
