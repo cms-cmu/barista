@@ -1,0 +1,11 @@
+FROM docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12
+
+RUN dnf install -y poppler-utils && \
+    dnf clean all && rm -rf /var/cache/dnf && \
+    # VERIFY: nodejs may already be bundled in coffea-dask base
+    mamba install -y conda-forge::nodejs && \
+    pip install pycodestyle memory-profiler omegaconf dbs3-client flask mplhep
+
+# 1. Create the specific directory Slurm expects for plugins (for falcon)
+RUN mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm
+RUN mkdir -p /host
