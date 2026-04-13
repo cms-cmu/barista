@@ -11,11 +11,3 @@ code_kappa_framework_barista:
     - .base_analysis_barista
   script:
     - source src/scripts/code-kappa-framework.sh
-
-code_classifier_barista:
-  stage: code
-  extends:
-    - .base_classifier_coffea4bees
-  script:
-    - source src/scripts/code-classifier.sh
-  allow_failure: true

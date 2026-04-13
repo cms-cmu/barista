@@ -5,10 +5,9 @@ import logging
 import os
 import sys
 import uuid
-import importlib
 from collections import deque
 from dataclasses import dataclass
-from itertools import chain
+from itertools import chain, product
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
@@ -24,9 +23,9 @@ from .task import _DASH, Task
 
 if TYPE_CHECKING:
     from types import ModuleType
+
     from src.classifier.config.state import Flags
 
-_SRC = "src"
 _CLASSIFIER = "classifier"
 _TEST = "test"
 _CONFIG = "config"
@@ -43,6 +42,14 @@ _FLAG = "flag"
 @dataclass
 class _ModCtx:
     test: bool = False
+    ext: str = ...
+    path: str = None
+
+    def __post_init__(self):
+        if self.ext is ...:
+            from src.classifier.config.state import Extensions
+
+            self.ext = Extensions.src
 
 
 class _Opts:
@@ -71,15 +78,7 @@ class TaskOptions(_Opts):
 
 
 class EntryPoint:
-    _mains = list(
-        map(
-            lambda x: x.removesuffix(".py"),
-            filter(
-                lambda x: x.endswith(".py") and not _is_private(x),
-                os.listdir(Path(__file__).parent / f"../{_CONFIG}/{_MAIN}"),
-            ),
-        )
-    )
+    _mains: list[str] = ...
     _tasks = TaskOptions.opts
     _reserved = [
         *(f"{_DASH}{k}" for k in chain(_tasks, (_FROM, _TEMPLATE, _FLAG))),
@@ -93,19 +92,42 @@ class EntryPoint:
         return subargs
 
     @classmethod
-    def _fetch_config(cls, cat: str,base: str,  ctx: _ModCtx):
-        parts = [base, _CLASSIFIER, _CONFIG, cat]
+    def _fetch_config(cls, cat: str, ctx: _ModCtx):
+        yield ctx.ext
+        yield _CLASSIFIER
         if ctx.test:
-            parts.insert(1, _TEST)
-        return parts
-
-
+            yield _TEST
+        yield _CONFIG
+        yield cat
 
     @classmethod
-    def __fetch_module_name(cls, module: str, cat: str, base:str, ctx: _ModCtx):
-        mods = cls._fetch_config(cat, base, ctx) + module.split(".")
+    def __fetch_module_name(cls, module: str, cat: str, ctx: _ModCtx):
+        mods = [*cls._fetch_config(cat, ctx)] + module.split(".")
         return ".".join(mods[:-1]), mods[-1]
 
+    @classmethod
+    def _fetch_main(cls):
+        if cls._mains is ...:
+            cls._mains = []
+            for ctx in cls._iter_context():
+                for file in os.listdir(
+                    os.path.join(ctx.path, *cls._fetch_config(_MAIN, ctx))
+                ):
+                    if file.endswith(".py") and not _is_private(file):
+                        cls._mains.append(file.removesuffix(".py"))
+        return cls._mains
+
+    @classmethod
+    def _iter_context(cls, test: bool = ...):
+        from src.classifier.config.state import Extensions, Flags
+
+        if test is ...:
+            test = Flags.test
+
+        for (ext, path), test in product(
+            Extensions.get_extensions(), range(test, -1, -1)
+        ):
+            yield _ModCtx(test=bool(test), ext=ext, path=path)
 
     @classmethod
     def _fetch_module(
@@ -117,36 +139,31 @@ class EntryPoint:
         force_ctx: list[_ModCtx] = None,
     ) -> tuple[ModuleType, type[Task], tuple[str, str]]:
         from src.classifier.config.state import Flags
-        config = os.environ.get("CLASSIFIER_CONFIG_PATHS", "")
-        basedir = [_SRC, config]
 
         if mock_flags is None:
             mock_flags = Flags
 
-        if force_ctx is not None:
+        if force_ctx:
             ctxs = force_ctx
         else:
-            ctxs = [_ModCtx()]
-            if mock_flags.test:
-                ctxs.insert(0, _ModCtx(test=True))
+            ctxs = [*cls._iter_context(mock_flags.test)]
 
-        last_error = None
-        for base in basedir: # loop through given config path and src/ to look for all modules
-            for i, ctx in enumerate(ctxs):
-                try:
-                    modname, clsname = cls.__fetch_module_name(module, cat, base, ctx)
-                    mods = import_(modname, clsname, True)
-                except ModuleNotFoundError as e:
-                    last_error = e
-                    continue # Try the next context/base directory
-                else:
-                    return *mods, (modname, clsname)
-        if raise_error and last_error:
-            raise last_error
+        errors = []
+        for i, ctx in enumerate(ctxs):
+            modname, clsname = cls.__fetch_module_name(module, cat, ctx)
+            try:
+                mods = import_(modname, clsname, True)
+            except Exception as e:
+                errors.append(e)
+                if i < len(ctxs) - 1:
+                    continue
+                break
+            else:
+                return *mods, (modname, clsname)
+        if raise_error and errors:
+            raise ExceptionGroup("The following errors occurred", errors)
 
         return None, None, (modname, clsname)
-
-
 
     def _fetch_all(self, *cats: str):
         from src.classifier.config.state import Flags
@@ -231,11 +248,6 @@ class EntryPoint:
                 formatter=self.args[_MAIN][1][0],
             )
         main: str = self.args[_MAIN][0]
-        if main not in self._mains:
-            raise ValueError(
-                f'The first argument must be one of {self._mains}, got "{main}"'
-            )
-        System._init(main_task=main)
 
         # fetch args for other tasks
         while len(args) > 0:
@@ -250,6 +262,12 @@ class EntryPoint:
                 Flags.set(mod, *opts)
             else:
                 self.args[cat].append((mod, opts))
+
+        if main not in self._fetch_main():
+            raise ValueError(
+                f'The first argument must be one of {self._fetch_main()}, got "{main}"'
+            )
+        System._init(main_task=main)
 
         # fetch modules
         cls: type[Main] = self._fetch_module(
@@ -316,8 +334,8 @@ class EntryPoint:
         Recorder.dump()
         # dump result
         if (result is not None) and (not cfg.IO.result.is_null):
-            from src.utils.json import DefaultEncoder
             from src.classifier.config.setting import ResultKey
+            from src.utils.json import DefaultEncoder
 
             result[ResultKey.uuid] = str(uuid.uuid1())
             result[ResultKey.command] = self.cmd

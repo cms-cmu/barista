@@ -120,7 +120,9 @@ class LoadRoot(ABC, Dataset):
         if self.opts.test_files is not None:
             n = self.opts.test_files
             files = files[:n]
-            logging.info(f"--test-files: limited to {len(files)} files (from {len(self.files)})")
+            logging.info(
+                f"--test-files: limited to {len(files)} files (from {len(self.files)})"
+            )
         yield self.from_root(), files
 
     def train(self):
@@ -229,7 +231,9 @@ class LoadGroupedRoot(LoadRoot):
         for k in files:
             group_files = files[k]
             if n is not None:
-                logging.info(f"--test-files: group {k}: limited to {min(n, len(group_files))} files (from {len(group_files)})")
+                logging.info(
+                    f"--test-files: group {k}: limited to {min(n, len(group_files))} files (from {len(group_files)})"
+                )
                 group_files = group_files[:n]
             yield self.from_root(k), group_files
 
@@ -350,7 +354,7 @@ class _load_root:
             df = pd.DataFrame()
             logging.info("Loaded <DataFrame>: empty (all chunks filtered or empty)")
             return df
-            
+
         df = pd.concat(objs, ignore_index=True)
         logging.info(
             "Loaded <DataFrame>:",

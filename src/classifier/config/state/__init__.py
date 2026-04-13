@@ -1,6 +1,8 @@
 import getpass
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from src.classifier.task import GlobalState
 from src.classifier.task.state import _SET
@@ -53,3 +55,29 @@ class Flags(GlobalState):
         from ..setting.monitor import Log
 
         Log.level = 10
+
+
+class Extensions(GlobalState):
+    src: str = "src"
+    env: str = "CLASSIFIER_CONFIG_PATHS"
+    custom: list[tuple[str, str]] = ...
+
+    @classmethod
+    def get_extensions(cls):
+        if cls.custom is ...:
+            extension_env = os.environ.get(cls.env, None)
+            cls.custom = [(cls.src, "")]
+            if extension_env is not None:
+                for source in extension_env.split(":"):
+                    try:
+                        source = Path(source).resolve(strict=True)
+                    except FileNotFoundError:
+                        continue
+                    base = str(source.parent)
+                    try:
+                        sys.path.remove(base)
+                    except ValueError:
+                        pass
+                    sys.path.insert(0, base)
+                    cls.custom.insert(0, (source.name, base))
+        return cls.custom

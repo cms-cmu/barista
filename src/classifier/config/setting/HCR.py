@@ -11,6 +11,7 @@ class InputBranch(GlobalSetting):
     feature_ancillary: list[str] = ["year", "nSelJets", "xW", "xbW"]
     n_CanJet: int = 4
     n_NotCanJet: int = 8
+    pad_value: float = -1
 
     @classmethod
     def get__feature_CanJet(cls, var: list[str]):

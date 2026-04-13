@@ -40,4 +40,4 @@ _pyml_task_autocomplete() {
     return 0
 }
 
-complete -F _pyml_task_autocomplete "./pyml.py"
+complete -F _pyml_task_autocomplete "./src/pyml.py"

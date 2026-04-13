@@ -1,0 +1,25 @@
+main:
+  module: analyze
+
+analysis:
+  - module: HCR_dataset.RandomDataset
+    option:
+      - --name spread
+      - --nevents 1024
+      - --seed 100
+      - --phi 1.0
+
+  - module: HCR_dataset.RandomDataset
+    option:
+      - --name dense
+      - --nevents 1024
+      - --seed 200
+      - --phi 0.3
+
+setting:
+  - module: IO
+    option:
+      - output: output/dataset
+  - module: Analysis
+    option:
+      - max_workers: 2

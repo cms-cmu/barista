@@ -1,0 +1,24 @@
+config_dependencies:
+  stage: classifier
+  extends: .base_classifier_barista
+  script:
+    - python -m src.classifier.test.check_configs
+
+generate_dataset:
+  stage: classifier
+  extends: .base_classifier_barista
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/test_dataset.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/dataset/spread.root
+      - output/dataset/dense.root
+
+cache_dataset:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - generate_dataset
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/cache_dataset.yml ${CLASSIFIER_WFS}/common.yml
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/cache_dataset_compare.yml ${CLASSIFIER_WFS}/common.yml

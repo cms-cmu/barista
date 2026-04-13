@@ -1,6 +1,5 @@
 import importlib
 import logging
-from pathlib import Path
 
 from rich.logging import RichHandler
 
@@ -17,10 +16,7 @@ def walk_configs():
             "src/classifier/test/config",  # Test config path
         ]
         for config_path in config_paths:
-            for module in walk_packages(
-                config_path,
-                str(Path(__file__).resolve().parents[2]),
-            ):
+            for module in walk_packages(config_path):
                 logging.info(f'Checking "{module}"')
                 for checker in checkers:
                     failed |= checker(module)
@@ -43,13 +39,17 @@ class import_checker:
 
     def __enter__(self):
         self._tracker.__enter__()
+        self._safe = set()
         return self
 
     def __exit__(self, *_):
+        self._safe = None
         self._tracker.__exit__()
 
     def __call__(self, module: str):
         failed = False
+        if module in self._safe:
+            return False
         try:
             importlib.import_module(module)
         except Exception as e:
@@ -58,6 +58,8 @@ class import_checker:
         if not failed:
             if len(self._tracker.tracked) > 0:
                 logging.error(f'Module "{module}" imports {self._tracker.tracked}')
+            else:
+                self._safe.update(self._tracker.imported)
         self._tracker.reset()
         return failed
 

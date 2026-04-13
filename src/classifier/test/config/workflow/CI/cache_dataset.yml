@@ -1,0 +1,17 @@
+main:
+  module: cache
+  option:
+    - --compression lz4
+    - --states label.MultiClass.labels label.MultiClass.trainable_labels
+
+dataset:
+  - module: HCR.SimplifiedTrain
+    option:
+      - --max-workers 1
+      - --files label:spread output/dataset/spread.root
+      - --files label:dense output/dataset/dense.root
+
+setting:
+  - module: IO
+    option:
+      - output: output/cache

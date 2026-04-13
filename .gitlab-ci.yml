@@ -39,6 +39,7 @@ variables:
   RUN_PAGES: "false"  # Control whether to run the pages job
   DATASET: coffea4bees/metadata/datasets_HH4b_Run2/
   DATASET_RUN3: coffea4bees/metadata/datasets_HH4b_Run3/
+  CLASSIFIER_WFS: src/classifier/test/config/workflow/CI/
 
 include:
   - local: 'software/dockerfiles/stages_build.yml'
@@ -46,6 +47,7 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
+  - local: "src/workflows/gitlab-CI/stages_classifier.yml"
   - project: 'cms-cmu/bbreww'
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
@@ -68,6 +70,7 @@ stages:
   - deploy
   - validation
   - pages
+  - classifier
 
 setup_coffea4bees:
   stage: setup
@@ -171,10 +174,9 @@ setup_bbreww:
     - k8s-cvmfs
   retry: 2
 
-.base_classifier_coffea4bees:
+.base_classifier_barista:
   needs:
     - voms_proxy
-    - setup_coffea4bees
     - job: build_classifier_cpu_container
       optional: true
       artifacts: true
@@ -183,7 +185,6 @@ setup_bbreww:
     - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
-    - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
   artifacts:
