@@ -14,7 +14,7 @@ dataset:
       - --files label:dense output/dataset/dense.root
 
 model:
-  - module: HCR.SparseDense
+  - module: HCR.SparseDenseTrain
     option:
       - --kfolds 2
       - --kfold-seed kfold test
@@ -34,7 +34,3 @@ setting:
   - module: IO
     option:
       - output: output/main_train
-
-  - module: ml.DataLoader
-    option:
-      - num_workers: 0

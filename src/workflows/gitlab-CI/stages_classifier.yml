@@ -41,6 +41,17 @@ main_train:
       - output/main_train/diagnostics/logs.html
       - output/main_train/report/
 
+main_evaluate:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - main_train
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/main_evaluate/diagnostics/logs.html
+
 collect_logs:
   stage: classifier
   extends: .base_classifier_barista
@@ -49,10 +60,10 @@ collect_logs:
     - main_train
   script:
     - mkdir -p preview/
-    - cp output/main_cache/diagnostics/logs.html preview/classifier/logs/main_cache.html
-    - cp output/main_train/diagnostics/logs.html preview/classifier/logs/main_train.html
-    - cp output/main_train/report/* preview/classifier/report/main_train/
+    - cp --parents output/main_cache/diagnostics/logs.html preview/classifier/logs/main_cache.html
+    - cp --parents output/main_train/diagnostics/logs.html preview/classifier/logs/main_train.html
+    - cp --parents output/main_evaluate/diagnostics/logs.html preview/classifier/logs/main_evaluate.html
+    - cp --parents output/main_train/report/* preview/classifier/report/main_train/
   artifacts:
-    expose_as: "HTML Preview"
     paths:
       - preview/

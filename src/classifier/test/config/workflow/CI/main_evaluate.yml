@@ -1,0 +1,33 @@
+main:
+  module: evaluate
+  option:
+    - --device cpu
+    - --max-evaluators 1
+
+dataset:
+  - module: HCR.SimplifiedEval
+    option:
+      - --max-workers 1
+      - --preserve-order
+      - --files label:sparse output/dataset/sparse.root
+      - --files label:dense output/dataset/dense.root
+
+model:
+  - module: HCR.SparseDenseEval
+    option:
+      - --models
+      - Final
+      - output/main_train/result.json
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name SvD
+      - --step 100000
+      - --workers 1
+      - --clean
+
+setting:
+  - module: IO
+    option:
+      - output: output/main_evaluate

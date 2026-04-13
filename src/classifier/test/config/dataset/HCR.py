@@ -10,7 +10,6 @@ from src.classifier.task import ArgParser
 
 class SimplifiedTrain(LoadGroupedRoot):
     trainable = True
-    evaluable = True
 
     argparser = ArgParser()
 
@@ -55,3 +54,18 @@ class SimplifiedTrain(LoadGroupedRoot):
             branches=self._branches.intersection,
             preprocessors=pres,
         )
+
+
+class SimplifiedEval(SimplifiedTrain):
+    trainable = False
+    evaluable = True
+
+    def __init__(self):
+        super().__init__()
+
+        self.preprocessors.clear()
+        self.to_tensor.remove(Input.label).remove(Input.weight)
+
+    @cached_property
+    def _branches(self):
+        return super()._branches - {Columns.weight}

@@ -16,3 +16,7 @@ setting:
       - seed: 0
         n_threads: 1
         deterministic_algorithm: true
+
+  - module: ml.DataLoader
+    option:
+      - num_workers: 0
