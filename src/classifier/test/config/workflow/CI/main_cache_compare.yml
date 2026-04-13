@@ -5,15 +5,16 @@ main:
     - --target-groups 0-1
 
 dataset:
-  - module: HCR.SimplifiedTrain
-    option:
-      - --max-workers 1
-      - --files label:sparse output/dataset/sparse.root
-      - --files label:dense output/dataset/dense.root
-
   - module: cache
     option:
       - --input output/main_cache/result.json
+
+  - module: HCR.SimplifiedTrain
+    option:
+      - --max-workers 1
+      - --preserve-order
+      - --files label:sparse output/dataset/sparse.root
+      - --files label:dense output/dataset/dense.root
 
 setting:
   - module: IO
