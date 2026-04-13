@@ -22,7 +22,7 @@ class Randomness(GlobalSetting):
         np.random.seed(value)
         if DefaultSetting.seed is ...:
             DefaultSetting.seed = torch.initial_seed()
-        cpu = DefaultSetting.seed if value is None else (value, value)
+        cpu = DefaultSetting.seed if value is None else value
         torch.manual_seed(cpu)
         return value
 
