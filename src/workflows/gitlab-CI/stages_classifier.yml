@@ -30,9 +30,9 @@ training:
     - generate_dataset
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/training.yml ${CLASSIFIER_WFS}/common.yml
-artifacts:
-  paths:
-    - output/training/result.json
-    - output/training/states.pkl
-    - output/training/model_SvB__*.pkl
+  artifacts:
+    paths:
+      - output/training/result.json
+      - output/training/states.pkl
+      - output/training/model_SvB__*.pkl
 
