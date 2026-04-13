@@ -8,11 +8,11 @@ setting:
 
   - module: monitor.Log
     option:
-      - forward_exception: False
-      - exit_on_exception: True
+      - forward_exception: false
+      - exit_on_exception: true
 
   - module: test.Randomness
     option:
       - seed: 0
         n_threads: 1
-        deterministic_algorithm: True
+        deterministic_algorithm: true

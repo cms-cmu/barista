@@ -11,7 +11,7 @@ generate_dataset:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
-      - output/dataset/spread.root
+      - output/dataset/sparse.root
       - output/dataset/dense.root
 
 cache_dataset:

@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from src.classifier.config.model.HCR._HCR import (
+    ROC_BIN,
+    HCRTrain,
+    roc_nominal_selection,
+)
+from src.classifier.config.setting.HCR import Input, Output
+
+if TYPE_CHECKING:
+    from src.classifier.ml import BatchType
+
+
+class SparseDense(HCRTrain):
+    model = "SvD"
+
+    @staticmethod
+    def loss(batch: BatchType):
+        import torch.nn.functional as F
+
+        c_score = batch[Output.class_raw]
+        weight = batch[Input.weight]
+        label = batch[Input.label]
+
+        # calculate loss
+        cross_entropy = F.cross_entropy(c_score, label, reduction="none")
+        loss = (cross_entropy * weight).sum() / weight.sum()
+        return loss
+
+    @property
+    def rocs(self):
+        from src.classifier.ml.benchmarks.multiclass import ROC
+
+        rocs = [
+            ROC(
+                name="background vs signal",
+                selection=roc_nominal_selection,
+                bins=ROC_BIN,
+                pos=["dense"],
+            )
+        ]
+
+        return rocs

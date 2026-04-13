@@ -4,15 +4,15 @@ main:
 analysis:
   - module: HCR_dataset.RandomDataset
     option:
-      - --name spread
-      - --nevents 1024
+      - --name sparse
+      - --nevents 8192
       - --seed 100
       - --phi 1.0
 
   - module: HCR_dataset.RandomDataset
     option:
       - --name dense
-      - --nevents 1024
+      - --nevents 8192
       - --seed 200
       - --phi 0.3
 

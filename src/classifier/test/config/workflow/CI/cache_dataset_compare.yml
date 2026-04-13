@@ -2,13 +2,13 @@ main:
   module: compare_datasets
   option:
     - --max-workers 2
-    - --groups 0-1
+    - --target-groups 0-1
 
 dataset:
   - module: HCR.SimplifiedTrain
     option:
       - --max-workers 1
-      - --files label:spread output/dataset/spread.root
+      - --files label:sparse output/dataset/sparse.root
       - --files label:dense output/dataset/dense.root
 
   - module: cache
@@ -18,4 +18,4 @@ dataset:
 setting:
   - module: IO
     option:
-      - output: null
+      - output: output/cache_compare/

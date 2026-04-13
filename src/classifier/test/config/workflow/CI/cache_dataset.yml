@@ -8,7 +8,7 @@ dataset:
   - module: HCR.SimplifiedTrain
     option:
       - --max-workers 1
-      - --files label:spread output/dataset/spread.root
+      - --files label:sparse output/dataset/sparse.root
       - --files label:dense output/dataset/dense.root
 
 setting:

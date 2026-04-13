@@ -43,10 +43,16 @@ class Main(Main):
         help="the groups of datasets to compare",
     )
     argparser.add_argument(
-        "--tolerance",
+        "--atol",
         type=converter.float_pos,
-        default=1e-13,
-        help="tolerance for comparing datasets",
+        default=1e-8,
+        help="absolute tolerance for comparing datasets.",
+    )
+    argparser.add_argument(
+        "--rtol",
+        type=converter.float_pos,
+        default=1e-10,
+        help="relative tolerance for comparing datasets.",
     )
 
     def run(self, parser: EntryPoint):
@@ -57,7 +63,7 @@ class Main(Main):
         from src.classifier.monitor.progress import Progress
         from src.classifier.process import pool, status
 
-        target_groups = [parse.intervals(g) for g in self.opts.groups or ()]
+        target_groups = [parse.intervals(g) for g in self.opts.target_groups or ()]
 
         # load datasets in parallel
         tasks: list[Dataset] = parser.tasks[TaskOptions.dataset.name]
@@ -92,7 +98,12 @@ class Main(Main):
             dataset = datasets[i]
             matched = False
             for group in groups:
-                if _compare(dataset, datasets[group[0]], tolerance=self.opts.tolerance):
+                if _compare(
+                    dataset,
+                    datasets[group[0]],
+                    atol=self.opts.atol,
+                    rtol=self.opts.rtol,
+                ):
                     group.append(i)
                     matched = True
                     break
@@ -109,15 +120,13 @@ class Main(Main):
         }
 
 
-def _compare(
-    a: dict[str, torch.Tensor], b: dict[str, torch.Tensor], tolerance: float = 1e-6
-):
+def _compare(a: dict[str, torch.Tensor], b: dict[str, torch.Tensor], **tolerance):
     import torch
 
     if not set(a.keys()) == set(b.keys()):
         return False
     for k in a.keys():
-        if not torch.allclose(a[k], b[k], atol=tolerance):
+        if not torch.allclose(a[k], b[k], **tolerance):
             return False
     return True
 
