@@ -8,7 +8,7 @@ generate_dataset:
   stage: classifier
   extends: .base_classifier_barista
   script:
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/test_dataset.yml ${CLASSIFIER_WFS}/common.yml
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
       - output/dataset/spread.root
