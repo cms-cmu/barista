@@ -231,16 +231,25 @@ class HCRTraining(MultiStageTraining):
         self._HCR.ghost_batch = self._ghost_batch
         self._HCR.to(self.device)
         if self._pretrained_weights is not None:
-            import glob as _glob
-            offset = self.metadata.get("offset", 0)
-            pattern = f"{self._pretrained_weights}/*_offset{offset}_*.pkl"
-            matches = _glob.glob(pattern)
-            if not matches:
-                raise FileNotFoundError(
-                    f"No pretrained weights found for offset {offset} in "
-                    f"{self._pretrained_weights}. Pattern: {pattern}"
-                )
-            path = matches[0]
+            if self._pretrained_weights.endswith(".pkl"):
+                path = self._pretrained_weights
+            else:
+                import glob as _glob
+                offset = self.metadata.get("offset", 0)
+                pattern = f"{self._pretrained_weights}/*_offset{offset}_*.pkl"
+                matches = _glob.glob(pattern)
+                if not matches:
+                    raise FileNotFoundError(
+                        f"No pretrained weights found for offset {offset} in "
+                        f"{self._pretrained_weights}. Pattern: {pattern}"
+                    )
+                if len(matches) > 1:
+                    raise FileNotFoundError(
+                        f"Ambiguous pretrained weights for offset {offset} in "
+                        f"{self._pretrained_weights}: {matches}. "
+                        f"Use a more specific directory or pass a direct .pkl path."
+                    )
+                path = matches[0]
             logging.info(f"Warm-starting from {path}")
             with fsspec.open(path, "rb") as f:
                 saved = torch.load(f, map_location=self.device, weights_only=False)
