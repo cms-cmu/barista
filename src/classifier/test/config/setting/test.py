@@ -20,11 +20,10 @@ class Randomness(GlobalSetting):
 
         random.seed(value)
         np.random.seed(value)
-        if DefaultSetting.seed is None:
-            DefaultSetting.seed = (torch.initial_seed(), torch.cuda.initial_seed())
-        (cpu, cuda) = DefaultSetting.seed if value is None else (value, value)
+        if DefaultSetting.seed is ...:
+            DefaultSetting.seed = torch.initial_seed()
+        cpu = DefaultSetting.seed if value is None else (value, value)
         torch.manual_seed(cpu)
-        torch.cuda.manual_seed_all(cuda)
         return value
 
     @classmethod
@@ -34,7 +33,7 @@ class Randomness(GlobalSetting):
 
         import torch
 
-        if DefaultSetting.n_threads is None:
+        if DefaultSetting.n_threads is ...:
             DefaultSetting.n_threads = (
                 torch.get_num_threads(),
                 torch.get_num_interop_threads(),
