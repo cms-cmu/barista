@@ -22,3 +22,17 @@ cache_dataset:
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/cache_dataset.yml ${CLASSIFIER_WFS}/common.yml
     - ./src/pyml.py from ${CLASSIFIER_WFS}/cache_dataset_compare.yml ${CLASSIFIER_WFS}/common.yml
+
+training:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - generate_dataset
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/training.yml ${CLASSIFIER_WFS}/common.yml
+artifacts:
+  paths:
+    - output/training/result.json
+    - output/training/states.pkl
+    - output/training/model_SvB__*.pkl
+
