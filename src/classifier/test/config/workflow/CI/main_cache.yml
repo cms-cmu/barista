@@ -1,8 +1,8 @@
 main:
-  module: compare_datasets
+  module: cache
   option:
-    - --max-workers 2
-    - --target-groups 0-1
+    - --compression lz4
+    - --states label.MultiClass.labels label.MultiClass.trainable_labels
 
 dataset:
   - module: HCR.SimplifiedTrain
@@ -11,11 +11,7 @@ dataset:
       - --files label:sparse output/dataset/sparse.root
       - --files label:dense output/dataset/dense.root
 
-  - module: cache
-    option:
-      - --input output/cache/result.json
-
 setting:
   - module: IO
     option:
-      - output: output/cache_compare/
+      - output: output/main_cache

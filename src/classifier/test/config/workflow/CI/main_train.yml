@@ -32,7 +32,7 @@ analysis:
 setting:
   - module: IO
     option:
-      - output: output/training
+      - output: output/main_train
 
   - module: ml.DataLoader
     option:

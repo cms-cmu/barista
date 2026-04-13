@@ -8,12 +8,18 @@ if TYPE_CHECKING:
 
 class GitRepo:
     user: str = "cms-cmu"
-    repo: str = "coffea4bees"
+    repo: str = "barista"
     branch: str = "master"
     url: str = f"https://gitlab.cern.ch/{user}/{repo}/-/tree/{branch}/"
 
     _local: EOS = None
-    _file: tuple[str, ...] = ("python", "classifier", "config", "state", "__init__.py")
+    _file: tuple[str, ...] = (
+        "src",
+        "classifier",
+        "config",
+        "state",
+        "static.py",
+    )
 
     @classmethod
     def get_url(cls, path: PathLike) -> str:
