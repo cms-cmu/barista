@@ -3,6 +3,7 @@
 # --- Configuration ---
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
+DEV_COFFEA2025_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:dev_coffea2025_latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
@@ -12,6 +13,7 @@ BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 # Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
+    DEV_COFFEA2025_IMAGE="/cvmfs/unpacked.cern.ch/${DEV_COFFEA2025_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
     CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
@@ -56,6 +58,7 @@ Usage: $0 [command] [options]
 Commands:
   [command...]          Run commands inside the coffea container.
                         (Interactive shell is the only option to run on LPC HTCondor).
+  dev [cmd...]          Run commands inside the dev coffea2025 container (coffea 2025, Python 3.12).
   combine [cmd...]      Run commands inside the combine container.
   classifier [cmd...]   Run commands inside the classifier with GPU container.
   classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
@@ -251,6 +254,71 @@ run_coffea() {
         else
             info "Running command..."
             APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
+        fi
+    fi
+}
+
+run_coffea_dev() {
+    check_apptainer
+    info "Running Dev Coffea2025 container..."
+    setup_lpc_jobqueue
+    local HOST
+    HOST=$(hostname)
+
+    # 1. Base Flags
+    touch "$PWD/.python_history"
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
+        --env XRD_CONNECTIONRETRY=3
+        --env XRD_REQUESTTIMEOUT=600
+        --env XRD_STREAMTIMEOUT=300
+        --env XRD_TIMEOUTRESOLUTION=15
+        --env XRD_CONNECTIONWINDOW=30
+        --env PYTHONHISTFILE=/srv/.python_history
+    )
+    ulimit -n 65536
+
+    # LPC-Specific Environment Variable
+    if [[ $HOST == *"cmslpc"* ]]; then
+        FLAGS+=( --env COFFEA_IMAGE_FULL="$DEV_COFFEA2025_IMAGE" )
+    fi
+
+    # 2. FALCON / ROGUE Logic
+    if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
+        # Critical: Mirror Bind for Dask
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+
+        if [ -n "$SLURM_JOB_ID" ]; then
+            # CASE A: Inside a job -> Run locally
+            info "Inside Slurm Job ($SLURM_JOB_ID). Running Dev Coffea2025 container directly..."
+        else
+            # CASE B: Login Node -> Submit Interactive Job
+            info "Not in a job. Launching interactive Slurm session (Dev Coffea2025)..."
+            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
+            return # Stop execution on login node
+        fi
+    fi
+
+    add_x509_proxy_flags "$HOST" FLAGS
+
+    # 3. EXECUTION LOGIC
+    if [ -z "$*" ]; then
+        # --- INTERACTIVE SHELL ---
+        if [[ $HOST == *"cmslpc"* ]]; then
+            info "Opening interactive shell (LPC mode, Dev Coffea2025)..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash --rcfile /srv/.bashrc
+        else
+            info "Opening interactive shell (Dev Coffea2025)..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash
+        fi
+    else
+        # --- COMMAND EXECUTION ---
+        local CMD="$*"
+        if [[ $HOST == *"cmslpc"* ]]; then
+            info "Running command (LPC mode, Dev Coffea2025)..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+        else
+            info "Running command (Dev Coffea2025)..."
+            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash -c "$CMD"
         fi
     fi
 }
@@ -580,5 +648,6 @@ case "$1" in
     "classifier")          run_classifier "${@:2}" ;;
     "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     "pourover")            run_coffea "python coffea4bees/plots/pourOver.py --foreground ${@:2}" ;;
+    "dev")                 run_coffea_dev "${@:2}" ;;
     *)                     run_coffea "$@" ;;
 esac
