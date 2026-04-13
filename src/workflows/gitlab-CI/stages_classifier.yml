@@ -45,6 +45,7 @@ main_evaluate:
   stage: classifier
   extends: .base_classifier_barista
   needs:
+    - generate_dataset
     - main_train
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
@@ -58,6 +59,7 @@ collect_logs:
   needs:
     - main_cache
     - main_train
+    - main_evaluate
   script:
     - mkdir -p preview/
     - cp --parents output/main_cache/diagnostics/logs.html preview/classifier/logs/main_cache.html
