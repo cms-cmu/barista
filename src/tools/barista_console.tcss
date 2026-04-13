@@ -1,0 +1,161 @@
+/* Barista console — forked from snkmt.tcss, Dask panel replaces WorkflowDetailOverview */
+
+AppHeader {
+    color: $text-primary;
+    padding: 1 3;
+    height: auto;
+
+    & > #app-db-path {
+        dock: right;
+        color: $text-muted;
+    }
+}
+
+OverviewContainer, BaristaOverviewContainer {
+    layout: horizontal;
+    height: 1fr;
+}
+
+/* Left panel */
+#workflows {
+    width: 1fr;
+    max-width: 80;
+    padding: 0 1;
+}
+
+#workflows > * {
+    width: 100%;
+    max-width: 80;
+    align: left top;
+}
+
+#workflows-filters {
+    height: auto;
+    layout: vertical;
+    align: center middle;
+}
+
+#filter-layout {
+    height: auto;
+    layout: grid;
+    grid-size: 3;
+    grid-columns: 2fr 1fr 1fr;
+    grid-gutter: 1;
+}
+
+#status-filter {
+    width: 1fr;
+    max-height: 8;
+}
+
+#workflow-counts {
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
+    dock: bottom;
+}
+
+WorkflowTable {
+    height: 8fr;
+}
+
+/* Right panel */
+#selected-workflow-detail {
+    width: 1fr;
+    padding: 0 1;
+}
+
+/* Dask panel: replaces WorkflowDetailOverview, taller to show multiple jobs */
+DaskJobPanel {
+    height: 2fr;
+    padding: 0 1;
+}
+
+#dask-content {
+    height: auto;
+    padding: 0 1;
+}
+
+/* Section & subsection borders — identical to snkmt */
+.section {
+    border: round $accent 40%;
+    border-title-color: $text-accent 50%;
+    border-title-align: right;
+    height: 1fr;
+
+    &:focus-within {
+        border: round $accent 100%;
+    }
+}
+
+.subsection {
+    border: round $accent 20%;
+    border-title-color: $text-accent 50%;
+    border-title-align: center;
+
+    &:focus-within {
+        border: round $accent 80%;
+        border-title-color: $foreground;
+        border-title-style: b;
+    }
+}
+
+/* Errors */
+#error-container {
+    height: 1fr;
+}
+
+.error-text {
+    color: $text-error;
+}
+
+#workflow-errors {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+/* Modals */
+LogFileModal {
+    align: center middle;
+}
+
+#modal-container {
+    width: 95%;
+    height: 95%;
+    border: round $accent 80%;
+    border-title-color: $accent 100%;
+    border-title-style: b;
+    border-title-align: center;
+    border-subtitle-align: center;
+    border-subtitle-color: $accent 100%;
+    content-align: center middle;
+    padding: 1 1;
+}
+
+ConfirmDeleteModal {
+    align: center middle;
+}
+
+#confirm-delete-container {
+    width: 65;
+    height: auto;
+    max-height: 16;
+    border: round $error 80%;
+    border-title-color: $error 100%;
+    border-title-style: b;
+    border-title-align: center;
+    background: $surface;
+    padding: 1 2;
+}
+
+#confirm-delete-message {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#confirm-delete-hint {
+    width: 100%;
+    content-align: center middle;
+    text-align: center;
+    color: $text-muted;
+}
