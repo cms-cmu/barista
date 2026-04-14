@@ -123,6 +123,9 @@ _NORMALIZE_MAP.update({
     # fmt  ('format'/'output' ≠ 'fmt' after stripping)
     'format':          'fmt',
     'outputformat':    'fmt',
+    # year
+    'yr':              'year',
+    'years':           'year',
 })
 
 
