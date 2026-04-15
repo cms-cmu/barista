@@ -428,7 +428,6 @@ def setup_condor_cluster(config_runner, tarball_path):
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
     import getpass
-
     logging.info("Initializing HTCondor cluster configuration...")
 
     import uuid
@@ -470,6 +469,31 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     log_dir = cluster_args['log_directory']
     logging.info(f"Condor worker log directory: {log_dir}")
+
+    class WorkerLostLogger(SchedulerPlugin):
+        def _find_log(self, worker_addr):
+            import glob
+            try:
+                for path in glob.glob(f"{log_dir}/worker-*.err"):
+                    with open(path) as f:
+                        if worker_addr in f.read():
+                            return path
+            except OSError:
+                pass
+            return None
+
+        def transition(self, key, start, finish, *args, worker=None, **kwargs):
+            if finish != "erred" or worker is None:
+                return
+            log_file = self._find_log(worker)
+            if log_file:
+                logging.error(f"Task permanently failed: {key} -> {log_file}")
+            else:
+                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+
+    client.register_plugin(WorkerLostLogger())
+
+    log_dir = cluster_args['log_directory']
 
     class WorkerLostLogger(SchedulerPlugin):
         def _find_log(self, worker_addr):

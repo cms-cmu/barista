@@ -29,7 +29,6 @@ def print_list_debug_info(process, cut, axis_opts):
 #
 #  Get hist values — private helpers
 #
-
 # Config keys that control styling, not histogram indexing
 _STYLE_KEYS = frozenset([
     "process", "scalefactor", "label", "fillcolor", "edgecolor",

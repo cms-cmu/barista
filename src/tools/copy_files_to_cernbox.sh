@@ -162,5 +162,3 @@ else
   echo "Found $(grep -z -c . "$command_file" | awk '{print $1/2}') files to transfer sequentially..."
   xargs -0 -n 2 -P 1 bash -c 'echo "Transferring: $0"; gfal-copy -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"'
 fi
-
-echo "Done."
