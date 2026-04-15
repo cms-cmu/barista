@@ -76,11 +76,7 @@ if [[ $use_tar -eq 1 ]]; then
   echo "Packing $source_folder into a tarball for transfer..."
   if [[ ! $source_folder =~ ^root:// ]]; then
       # Need a robust temp dir
-<<<<<<< HEAD
       tmp_dir="$(mktemp -d -p /tmp)"
-=======
-      tmp_dir="$(mktemp -d)"
->>>>>>> eb3e6837 (Update imports to use src directory structure and enhance .gitignore for new files)
       trap 'rm -rf "$tmp_dir"' EXIT
       archive_name="transfer_$(date +%s).tar.gz"
       tar -C "$source_folder" -czf "$tmp_dir/$archive_name" .
@@ -166,5 +162,3 @@ else
   echo "Found $(grep -z -c . "$command_file" | awk '{print $1/2}') files to transfer sequentially..."
   xargs -0 -n 2 -P 1 bash -c 'echo "Transferring: $0"; gfal-copy -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"'
 fi
-
-echo "Done."
