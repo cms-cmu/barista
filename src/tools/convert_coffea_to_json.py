@@ -135,7 +135,13 @@ def convert_histogram(hist_obj, fixed_axes, sum_axes=None, category_maps=None):
     if category_maps is None:
         category_maps = {}
 
-    from hist import Boolean, Regular, Variable
+    def _is_variable_axis(axis):
+        """True for Regular/Variable axes (the one to histogram over)."""
+        return type(axis).__name__ in ('Regular', 'Variable')
+
+    def _is_boolean_axis(axis):
+        """True for Boolean axes (created with ... in Collection)."""
+        return type(axis).__name__ == 'Boolean'
 
     # Classify each axis
     iter_axes  = []  # (axis_name, [(raw_val, json_key), ...]) — become nested keys
@@ -144,12 +150,12 @@ def convert_histogram(hist_obj, fixed_axes, sum_axes=None, category_maps=None):
 
     for axis in hist_obj.axes:
         name = axis.name
-        if isinstance(axis, (Regular, Variable)):
+        if _is_variable_axis(axis):
             # Variable axis — leave for hist_to_json
             continue
         if name in fixed_axes:
             slice_axes[name] = fixed_axes[name]
-        elif name in sum_axes or isinstance(axis, Boolean):
+        elif name in sum_axes or _is_boolean_axis(axis):
             axes_to_sum.append(name)
         else:
             mapping = category_maps.get(name, {})
@@ -191,6 +197,9 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-i', '--input_file', dest='input_file', required=True,
                         help='Input .coffea file')
+    parser.add_argument('--collection', dest='collection', default='hists',
+                        help='Top-level key in the coffea file to read histograms from '
+                             '(default: hists). Use e.g. hists_4j2b for the 4j2b collection.')
     parser.add_argument('-o', '--output', dest='output',
                         default='./histos/histAll.json',
                         help='Output JSON file path')
@@ -252,7 +261,13 @@ if __name__ == '__main__':
 
     logging.info(f"Loading {args.input_file}")
     coffea_data = load(args.input_file)
-    coffea_hists = coffea_data.get('hists', coffea_data)
+    if args.collection in coffea_data:
+        coffea_hists = coffea_data[args.collection]
+    else:
+        available = [k for k in coffea_data.keys() if 'hists' in k]
+        logging.warning(f"Collection '{args.collection}' not found. "
+                        f"Available hist collections: {available}. Falling back to raw file.")
+        coffea_hists = coffea_data
 
     hist_list = args.histos if args.histos else list(coffea_hists.keys())
     logging.info(f"Converting: {hist_list}")
