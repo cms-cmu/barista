@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import socket
+
 import dask
 import uproot
 import fsspec
@@ -737,6 +739,16 @@ def setup_schema(config_runner):
         config_runner['schema'] = schema_mapping[config_runner['schema']]
 
 
+def find_free_port(preferred: int) -> int:
+    """Return preferred port if free, otherwise let the OS pick one."""
+    with socket.socket() as s:
+        try:
+            s.bind(('', preferred))
+        except OSError:
+            s.bind(('', 0))
+        return s.getsockname()[1]
+
+
 def setup_config_defaults(config_runner, args):
     """Set up all configuration defaults in one place."""
     defaults = {
@@ -1158,6 +1170,12 @@ if __name__ == '__main__':
         default=False,
         help='Check input files for corruption before processing'
     )
+    debug_group.add_argument(
+        '--tmpdir',
+        dest="tmpdir",
+        default=None,
+        help='Parent directory for temporary condor tarball directory (default: LPC scratch)'
+    )
 
     # Reproducibility options
     repro_group = parser.add_argument_group('Reproducibility')
@@ -1242,10 +1260,18 @@ if __name__ == '__main__':
     setup_config_defaults(config_runner, args)
     if args.dashboard_address is not None:
         config_runner['dashboard_address'] = args.dashboard_address
+
     if args.worker_memory is not None:
         config_runner['worker_memory'] = args.worker_memory
     if args.slurm_qos is not None:
         config_runner['slurm_qos'] = args.slurm_qos
+
+    if config_runner['dashboard_address'] != 0:
+        requested = config_runner['dashboard_address']
+        config_runner['dashboard_address'] = find_free_port(requested)
+        if config_runner['dashboard_address'] != requested:
+            logging.info(f"Dashboard port {requested} in use, using {config_runner['dashboard_address']} instead.")
+
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 
