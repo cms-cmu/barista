@@ -177,7 +177,7 @@ setup_bbreww:
 .base_classifier_barista:
   needs:
     - voms_proxy
-    - job: build_classifier_cpu_container
+    - job: deploy_classifier_cpu_container
       optional: true
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${CLASSIFIER_IMAGE_TAG}
