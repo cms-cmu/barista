@@ -52,6 +52,7 @@ main_evaluate:
   artifacts:
     paths:
       - output/main_evaluate/diagnostics/logs.html
+      - output/main_evaluate/chunks/*.root
 
 collect_logs:
   stage: classifier

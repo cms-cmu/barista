@@ -7,6 +7,8 @@ from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import yaml
+
 from src.classifier.config.analysis.HCR._loss_roc import _collect_loss_roc
 from src.classifier.task import Analysis, ArgParser, parse
 
@@ -95,6 +97,7 @@ class CompareRecursiveJSON(CompareFloat, CompareResults):
         return True
 
     def _job(self, result, reference):
+        logging.info("result", yaml.safe_dump(result))
         if not self._compare(result, reference):
             from rich.pretty import pretty_repr
 
