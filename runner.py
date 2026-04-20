@@ -73,6 +73,7 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
     import getpass
     username = getpass.getuser()
+    tmpdir = f"/uscmst1b_scratch/lpc1/3DayLifetime/{username}/"
     if tmpdir:
         os.makedirs(tmpdir, exist_ok=True)
     temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
@@ -427,7 +428,6 @@ def setup_condor_cluster(config_runner, tarball_path):
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
     import getpass
-
     logging.info("Initializing HTCondor cluster configuration...")
 
     import uuid
@@ -468,6 +468,31 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     log_dir = cluster_args['log_directory']
     logging.info(f"Condor worker log directory: {log_dir}")
+
+    class WorkerLostLogger(SchedulerPlugin):
+        def _find_log(self, worker_addr):
+            import glob
+            try:
+                for path in glob.glob(f"{log_dir}/worker-*.err"):
+                    with open(path) as f:
+                        if worker_addr in f.read():
+                            return path
+            except OSError:
+                pass
+            return None
+
+        def transition(self, key, start, finish, *args, worker=None, **kwargs):
+            if finish != "erred" or worker is None:
+                return
+            log_file = self._find_log(worker)
+            if log_file:
+                logging.error(f"Task permanently failed: {key} -> {log_file}")
+            else:
+                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+
+    client.register_plugin(WorkerLostLogger())
+
+    log_dir = cluster_args['log_directory']
 
     class WorkerLostLogger(SchedulerPlugin):
         def _find_log(self, worker_addr):
@@ -919,13 +944,6 @@ if __name__ == '__main__':
         dest="output_path",
         default="hists/",
         help='Directory path where output files will be saved'
-    )
-    io_group.add_argument(
-        '--tmpdir',
-        dest="tmpdir",
-        default=f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}',
-        metavar='DIR',
-        help='Directory for temporary files (e.g. condor code tarball). Defaults to the LPC 3DayLifetime scratch area.'
     )
     io_group.add_argument(
         '--dashboard-address',

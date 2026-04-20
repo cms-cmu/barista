@@ -47,6 +47,23 @@ build_container:
         - software/dockerfiles/Dockerfile_analysis
 
 
+build_container_coffea2025:
+  extends:
+    - .buildah
+  before_script:
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:dev_coffea2025_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
+    - echo $REGISTRY_IMAGE_PATH
+  variables:
+    DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis_dev"
+    EXTRA_TAGS: "dev_coffea2025_latest"
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis_dev
+
+
 deploy_container:
   stage: deploy
   image: quay.io/buildah/stable

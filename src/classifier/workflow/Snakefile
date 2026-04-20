@@ -1,0 +1,227 @@
+# src/classifier/workflow/Snakefile
+#
+# Generic single-model classifier training workflow.
+#
+# Usage:
+#   snakemake --snakefile src/classifier/workflow/Snakefile \
+#             --configfile <path/to/workflow_config.yml> \
+#             [--cores N]
+#
+# The configfile defines one model to train/evaluate. To run a separate job
+# without overwriting outputs, use a different config with a different output_dir.
+# See coffea4bees/classifier/config/workflows/ for example configs.
+
+from datetime import datetime
+
+DATE = datetime.now().strftime("%Y%m%d")
+
+# ── Resolve {lpc_user} and {eos_base} placeholders ────────────────────────────
+
+_lpc_user = config["lpc_user"]
+_eos_base = config["eos_base"].format(lpc_user=_lpc_user)
+
+
+def _r(val):
+    """Resolve {lpc_user} and {eos_base} in a string value."""
+    if isinstance(val, str):
+        return val.format(lpc_user=_lpc_user, eos_base=_eos_base)
+    return val
+
+
+CERNUSER                = config["cern_user"]
+CLASSIFIER_CONFIG_PATHS = config["classifier_config_paths"]
+WFS_BASE                = _r(config["wfs_base"])
+OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
+PLOT_INPUTS             = bool(config.get("plot_inputs", False))
+
+MODEL          = _r(config["model"])
+TRAIN_TEMPLATE = _r(config["train_template"])
+EVAL_TEMPLATE  = _r(config["eval_template"])
+METADATA       = _r(config.get("metadata", ""))
+
+# ── Container images ──────────────────────────────────────────────────────────
+
+CLASSIFIER_GPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+CLASSIFIER_CPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
+
+INIT = "set -e && set +u && source /entrypoint.sh && set -u && export PYTHONUNBUFFERED=1"
+
+# ── Rules ─────────────────────────────────────────────────────────────────────
+
+
+def _all_targets():
+    targets = [
+        f"{OUTPUT_DIR}/evaluate.done",
+        f"{OUTPUT_DIR}/analyze.done",
+    ]
+    if PLOT_INPUTS:
+        targets += [
+            f"{OUTPUT_DIR}/plot_inputs_raw.done",
+            f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
+        ]
+    return targets
+
+
+rule all:
+    input: _all_targets()
+
+
+rule train:
+    output:
+        flag = f"{OUTPUT_DIR}/train.done",
+    log:
+        f"{OUTPUT_DIR}/train.log",
+    container: CLASSIFIER_GPU
+    resources:
+        runtime = 240,
+        mem_mb  = 32000,
+        gres    = "mps:25",
+    threads: 4
+    params:
+        init                    = INIT,
+        classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+        wfs_base                = WFS_BASE,
+        template_str            = TRAIN_TEMPLATE,
+    shell:
+        """
+        {params.init} && \
+        PORT=$(shuf -i 10000-60000 -n 1) && \
+        CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
+        ./src/pyml.py \
+            template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
+            -from {params.wfs_base}/../common.yml \
+            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            -flag debug \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+
+
+rule analyze:
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/analyze.done",
+    log:
+        f"{OUTPUT_DIR}/analyze.log",
+    container: CLASSIFIER_CPU
+    resources:
+        runtime = 60,
+        mem_mb  = 8000,
+    threads: 1
+    params:
+        init                    = INIT,
+        classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+        model                   = MODEL,
+        plot                    = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_analyze",
+    shell:
+        """
+        {params.init} && \
+        PORT=$(shuf -i 10000-60000 -n 1) && \
+        CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
+        ./src/pyml.py analyze \
+            --results {params.model}/result.json \
+            -analysis HCR.LossROC \
+            -setting IO "output: {params.plot}" \
+            -setting IO "report: $(basename {params.model})" \
+            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+
+
+rule evaluate:
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/evaluate.done",
+    log:
+        f"{OUTPUT_DIR}/evaluate.log",
+    container: CLASSIFIER_GPU
+    resources:
+        runtime = 240,
+        mem_mb  = 32000,
+        gres    = "mps:25",
+    threads: 4
+    params:
+        init                    = INIT,
+        classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+        wfs_base                = WFS_BASE,
+        template_str            = EVAL_TEMPLATE,
+    shell:
+        """
+        {params.init} && \
+        PORT=$(shuf -i 10000-60000 -n 1) && \
+        CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
+        ./src/pyml.py \
+            template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
+            -from {params.wfs_base}/../common.yml \
+            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            -flag debug \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+
+
+rule plot_inputs_raw:
+    # Only targeted by rule all when plot_inputs: true in workflow_config.yml.
+    # Requires metadata to be set. Running directly with metadata: "" will fail.
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/plot_inputs_raw.done",
+    log:
+        f"{OUTPUT_DIR}/plot_inputs_raw.log",
+    container: CLASSIFIER_CPU
+    resources:
+        runtime = 60,
+        mem_mb  = 8000,
+    threads: 1
+    params:
+        init     = INIT,
+        model    = MODEL,
+        metadata = METADATA,
+        plot     = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_inputs",
+    shell:
+        """
+        {params.init} && \
+        python src/classifier/plot_inputs.py \
+            --mode raw \
+            --checkpoint {params.model} \
+            --metadata {params.metadata} \
+            --output-dir {params.plot} \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+
+
+rule plot_inputs_dataprep:
+    # Only targeted by rule all when plot_inputs: true in workflow_config.yml.
+    # Requires metadata to be set. Running directly with metadata: "" will fail.
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
+    log:
+        f"{OUTPUT_DIR}/plot_inputs_dataprep.log",
+    container: CLASSIFIER_CPU
+    resources:
+        runtime = 60,
+        mem_mb  = 8000,
+    threads: 1
+    params:
+        init     = INIT,
+        model    = MODEL,
+        metadata = METADATA,
+        plot     = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_inputs",
+    shell:
+        """
+        {params.init} && \
+        python src/classifier/plot_inputs.py \
+            --mode dataprep \
+            --checkpoint {params.model} \
+            --metadata {params.metadata} \
+            --output-dir {params.plot} \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
