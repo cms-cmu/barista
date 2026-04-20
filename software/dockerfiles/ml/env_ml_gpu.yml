@@ -35,6 +35,7 @@ dependencies:
   - particle=0.26.1
   - correctionlib=2.8.0
   # machine learning
+  - pytorch=2.10.0
   - scikit-learn=1.8.0
   # grid certificate
   - ca-policy-lcg=1.139
@@ -51,5 +52,3 @@ dependencies:
       - pyvis==0.3.2
       - dbs3-client==4.0.19
       - rucio-clients==39.4.1
-      - --extra-index-url https://download.pytorch.org/whl/cu126
-      - torch==2.11.0

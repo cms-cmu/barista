@@ -109,6 +109,8 @@ class CompareRecursiveJSON(CompareFloat, CompareResults):
                 pretty_repr(reference),
             )
             raise ValueError("Result does not match reference")
+        else:
+            logging.info("Result matches reference")
 
     def analyze(self, result=None):
         result = self._get_result(result)
@@ -205,6 +207,10 @@ class CompareRootFile(CompareFloat):
                 exc_info=e,
             )
             raise e
+        else:
+            logging.info(
+                f"Result {str(self.opts.result)} matches reference {str(self.opts.reference)}"
+            )
 
     def analyze(self, _=None):
         return [partial(self._job, self.opts.result, self.opts.reference)]

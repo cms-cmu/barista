@@ -3,10 +3,6 @@ FROM docker.io/condaforge/mambaforge:22.11.1-4
 # python
 COPY env_ml_cpu.yml /tmp/env.yml
 RUN mamba env create -f /tmp/env.yml && mamba clean --all --yes && rm -f /tmp/env.yml
-ENV CONDA_DEFAULT_ENV=hep
-ENV CONDA_PREFIX=/opt/conda/envs/hep
-ENV PATH=$CONDA_PREFIX/bin:$PATH
-ENV LD_PRELOAD=$CONDA_PREFIX/lib/libstdc++.so.6
 
 # environment
 RUN touch /root/.rnd
@@ -36,6 +32,7 @@ RUN printf '%s\n' \
 # CI environment
 ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
+ENV MKL_CBWR=COMPATIBLE
 
 ENTRYPOINT ["tini", "-g", "--"]
 CMD ["bash", "--init-file", "/entrypoint.sh"]
