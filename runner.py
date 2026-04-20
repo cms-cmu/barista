@@ -449,7 +449,6 @@ def setup_condor_cluster(config_runner, tarball_path):
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
         ],
-        'env_extra': ['export PYTHONUNBUFFERED=1'],
     }
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
