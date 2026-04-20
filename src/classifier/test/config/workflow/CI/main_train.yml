@@ -36,36 +36,36 @@ analysis:
       - --reference
       - - model:test-SvD,kfolds:2,offset:0:
             training:
-              "AUC: sparse vs dense": 0.9944939017295837
+              "AUC: sparse vs dense": 0.9944992661476135
               batch size: 1024
               epoch: 2
               learning rate: 0.01
-              loss: 0.3903515040874481
+              loss: 0.3903055489063263
               n ghost batch: 16
               stage: Training
             validation:
-              "AUC: sparse vs dense": 0.9947445392608643
+              "AUC: sparse vs dense": 0.9947476983070374
               batch size: 1024
               epoch: 2
               learning rate: 0.01
-              loss: 0.3979649543762207
+              loss: 0.39790141582489014
               n ghost batch: 16
               stage: Training
           model:test-SvD,kfolds:2,offset:1:
             training:
-              "AUC: sparse vs dense": 0.9877798557281494
+              "AUC: sparse vs dense": 0.9877803921699524
               batch size: 1024
               epoch: 2
               learning rate: 0.01
-              loss: 0.31161433458328247
+              loss: 0.31161218881607056
               n ghost batch: 16
               stage: Training
             validation:
-              "AUC: sparse vs dense": 0.9847384095191956
+              "AUC: sparse vs dense": 0.9847390055656433
               batch size: 1024
               epoch: 2
               learning rate: 0.01
-              loss: 0.3151714503765106
+              loss: 0.3151690363883972
               n ghost batch: 16
               stage: Training
 
