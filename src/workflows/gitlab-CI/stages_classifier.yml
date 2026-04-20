@@ -37,7 +37,7 @@ main_train:
     paths:
       - output/main_train/result.json
       - output/main_train/states.pkl
-      - output/main_train/model_SvD__*.pkl
+      - output/main_train/model_test-SvD__*.pkl
       - output/main_train/diagnostics/logs.html
       - output/main_train/report/
 
