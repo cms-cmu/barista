@@ -29,6 +29,45 @@ model:
 
 analysis:
   - module: HCR.LossROC
+  - module: compare.CompareTrainingHCR
+    option:
+      - --atol 1e-4
+      - --rtol 1e-3
+      - --reference
+      - - model:test-SvD,kfolds:2,offset:0:
+            training:
+              "AUC: sparse vs dense": 0.9944935441017151
+              batch size: 1024
+              epoch: 2
+              learning rate: 0.01
+              loss: 0.3903595209121704
+              n ghost batch: 16
+              stage: Training
+            validation:
+              "AUC: sparse vs dense": 0.9947455525398254
+              batch size: 1024
+              epoch: 2
+              learning rate: 0.01
+              loss: 0.3979724645614624
+              n ghost batch: 16
+              stage: Training
+          model:test-SvD,kfolds:2,offset:1:
+            training:
+              "AUC: sparse vs dense": 0.9877876043319702
+              batch size: 1024
+              epoch: 2
+              learning rate: 0.01
+              loss: 0.31160736083984375
+              n ghost batch: 16
+              stage: Training
+            validation:
+              "AUC: sparse vs dense": 0.9847446084022522
+              batch size: 1024
+              epoch: 2
+              learning rate: 0.01
+              loss: 0.31516483426094055
+              n ghost batch: 16
+              stage: Training
 
 setting:
   - module: IO

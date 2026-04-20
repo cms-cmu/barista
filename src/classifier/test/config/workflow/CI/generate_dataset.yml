@@ -2,14 +2,14 @@ main:
   module: analyze
 
 analysis:
-  - module: HCR_dataset.RandomDataset
+  - module: random_dataset.JetsHCR
     option:
       - --name sparse
       - --nevents 8192
       - --seed 100
       - --phi 1.0
 
-  - module: HCR_dataset.RandomDataset
+  - module: random_dataset.JetsHCR
     option:
       - --name dense
       - --nevents 8192

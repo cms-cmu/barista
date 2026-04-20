@@ -19,7 +19,7 @@ def _merge_fields(
     return data
 
 
-class RandomDataset(Analysis):
+class JetsHCR(Analysis):
     argparser = ArgParser()
     argparser.add_argument(
         "--seed", type=int, default=0, help="Random seed to generate dataset."

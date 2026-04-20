@@ -52,5 +52,6 @@ class Randomness(GlobalSetting):
 
         import torch
 
+        torch.backends.mkldnn.enabled = not value
         torch.use_deterministic_algorithms(value)
         return value

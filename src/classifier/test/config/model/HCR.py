@@ -36,7 +36,7 @@ class SparseDenseTrain(HCRTrain):
 
         rocs = [
             ROC(
-                name="background vs signal",
+                name="sparse vs dense",
                 selection=roc_nominal_selection,
                 bins=ROC_BIN,
                 pos=["dense"],
