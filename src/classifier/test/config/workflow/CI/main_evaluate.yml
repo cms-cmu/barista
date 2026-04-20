@@ -1,0 +1,49 @@
+main:
+  module: evaluate
+  option:
+    - --device cpu
+    - --max-evaluators 1
+
+dataset:
+  - module: HCR.SimplifiedEval
+    option:
+      - --max-workers 1
+      - --preserve-order
+      - --files label:sparse output/dataset/sparse.root
+      - --files label:dense output/dataset/dense.root
+
+model:
+  - module: HCR.SparseDenseEval
+    option:
+      - --models
+      - Final
+      - output/main_train/result.json
+
+analysis:
+  - module: kfold.Merge
+    option:
+      - --name SvD
+      - --naming {name}_{start}_{stop}_{path0}
+      - --step 100000
+      - --workers 1
+      - --clean
+  - module: compare.CompareRootFile
+    option:
+      - --atol 1e-4
+      - --rtol 1e-3
+      - --result output/main_evaluate/chunks/SvD_0_8192_sparse.root
+      - --reference src/classifier/test/data/CI__classifier__main_evaluate__friend_tree_sparse.root
+  - module: compare.CompareRootFile
+    option:
+      - --atol 1e-4
+      - --rtol 1e-3
+      - --result output/main_evaluate/chunks/SvD_0_8192_dense.root
+      - --reference src/classifier/test/data/CI__classifier__main_evaluate__friend_tree_dense.root
+
+setting:
+  - module: IO
+    option:
+      - output: output/main_evaluate
+  - module: Analysis
+    option:
+      - max_workers: 1

@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 from collections import defaultdict
+from dataclasses import dataclass, field
 from itertools import chain, cycle
+from typing import TYPE_CHECKING
 
 import fsspec
+
 from src.classifier.config.setting import IO, ResultKey
 from src.classifier.task import Analysis, ArgParser
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class LossROC(Analysis):
@@ -32,6 +40,14 @@ def _dict_list():
 
 def _dict_dict():
     return defaultdict(dict)
+
+
+@dataclass
+class GroupData:
+    phase: pd.DataFrame
+    classifiers: list = field(default_factory=list)
+    data: dict = field(default_factory=dict)
+    rocs: dict = field(default_factory=_dict_dict)
 
 
 class _collect_loss_roc:
@@ -70,21 +86,18 @@ class _collect_loss_roc:
             styles["scatter"][classifier]["color"] = color
         return styles
 
-    def __new__(cls, results: list, inline_resources=False):
-        import src.data_formats.numpy as npext
+    @classmethod
+    def _collect_data(cls, results: list):
         import pandas as pd
 
-        # fetch variables
+        import src.data_formats.numpy as npext
+
         plot = {}
         datasets = set()
-        # dtypes
         int64 = {"epoch"}
-        # grouped data
-        g_phases: list[pd.DataFrame] = []
-        g_classifiers = defaultdict(list)
-        g_data = defaultdict(dict)
-        g_rocs = defaultdict(_dict_dict)
-        # initialize data
+
+        groups: list[GroupData] = []
+
         for model in chain.from_iterable(map(lambda x: x[ResultKey.models], results)):
             name = model["name"].replace("__", ",").replace("_", ":")
             _data = defaultdict(list)
@@ -100,7 +113,11 @@ class _collect_loss_roc:
                 datasets.update(benchmark)
                 for k, v in benchmark.items():
                     # roc
-                    aucs = {f"AUC: {r['name']}": r["AUC"] for r in v["roc"] if r["AUC"] is not None}
+                    aucs = {
+                        f"AUC: {r['name']}": r["AUC"]
+                        for r in v["roc"]
+                        if r["AUC"] is not None
+                    }
                     plot.update(aucs)
                     for r in v["roc"]:
                         if r["FPR"] is None or r["TPR"] is None:
@@ -134,28 +151,41 @@ class _collect_loss_roc:
             for k in int64:
                 _phases[k] = _phases[k].astype(pd.Int64Dtype())
             group = None
-            for i, df in enumerate(g_phases):
-                if df.equals(_phases):
-                    group = i
+            for target_group in groups:
+                if target_group.phase.equals(_phases):
+                    group = target_group
                     break
             if group is None:
-                group = len(g_phases)
-                g_phases.append(_phases)
-            g_classifiers[group].append(name)
-            g_data[group] |= {(name, k): pd.DataFrame(v) for k, v in _data.items()}
+                group = GroupData(phase=_phases)
+                groups.append(group)
+            group.classifiers.append(name)
+            group.data |= {(name, k): pd.DataFrame(v) for k, v in _data.items()}
             for k, v in _rocs.items():
-                g_rocs[group][k] |= {(name, kk): vv for kk, vv in v.items()}
+                group.rocs[k] |= {(name, kk): vv for kk, vv in v.items()}
+
+        groups.sort(
+            key=lambda grp: (
+                tuple(grp.phase.columns),
+                tuple(map(tuple, grp.phase.values)),
+            )
+        )
+        return plot, datasets, groups
+
+    def __new__(cls, results: list, inline_resources=False):
+        plot, datasets, groups = cls._collect_data(results)
 
         jobs = []
         datasets = sorted(datasets)
-        for group in range(len(g_phases)):
-            classifiers = sorted(g_classifiers[group])
-            milestones = g_phases[group].columns.to_list()
+        plot_keys = sorted(plot)
+
+        for idx, group in enumerate(groups):
+            classifiers = sorted(group.classifiers)
+            milestones = group.phase.columns.to_list()
             milestones.remove("epoch")
             kwargs = dict(
-                group=group,
+                group=idx,
                 inline=inline_resources,
-                phase=g_phases[group],
+                phase=group.phase,
                 style=cls._style(datasets, classifiers),
                 category={
                     "dataset": datasets,
@@ -164,16 +194,16 @@ class _collect_loss_roc:
             )
             jobs.append(
                 _plot_loss_auc(
-                    plot=sorted(plot),
-                    plot_data=g_data[group],
+                    plot=plot_keys,
+                    plot_data=group.data,
                     phase_milestone=milestones,
                     **kwargs,
                 )
             )
-            jobs.append(_list_loss_auc(plot_data=g_data[group], **kwargs))
+            jobs.append(_list_loss_auc(plot_data=group.data, **kwargs))
             jobs.append(
                 _plot_roc(
-                    data=g_rocs[group],
+                    data=group.rocs,
                     x_axis=("FPR", "False Positive Rate"),
                     y_axis=("TPR", "True Positive Rate"),
                     figure_kwargs={
@@ -204,6 +234,7 @@ class _plot_loss_auc:
     def __call__(self):
         from bokeh.embed import file_html
         from bokeh.resources import CDN, INLINE
+
         from src.classifier.monitor import Index
 
         resources = INLINE if self._inline else CDN

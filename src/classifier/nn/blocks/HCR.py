@@ -7,9 +7,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.classifier.algorithm.statistics.variance import TensorVariance
 from rich import box as BoxStyle
 from rich.table import Table
+
+from src.classifier.algorithm.statistics.variance import TensorVariance
 
 
 class Lin_View(nn.Module):
@@ -614,6 +615,7 @@ class conv1d(nn.Module):
         nAveraging=1,
         phase_symmetric=False,
         PCC=False,
+        device=None,
     ):
         super(conv1d, self).__init__()
         self.bias = (
@@ -643,6 +645,7 @@ class conv1d(nn.Module):
                 eta=batchNormMomentum,
                 bias=bias,
                 name="%s GBN" % name,
+                device=device,
             )  # nn.BatchNorm1d(out_channels)
         else:
             self.batchNorm = False
@@ -911,12 +914,14 @@ class MultiHeadAttention(
         # self.qxkv_GBN = GhostBatchNorm1d(2, name='Attention qxkv GBN')
         # self.qxk_conv = conv1d(2, self.da,  1, name='qxk_conv', batchNorm=True)
         self.qxk_conv = GhostBatchNorm1d(
-            2, features_out=self.da, conv=True, name="qxk_conv"
+            2, features_out=self.da, conv=True, name="qxk_conv", device=device
         )
         # self.qxv_conv = conv1d(2, self.dva, 1, name='qxv_conv', batchNorm=True)
-        self.qk_GBN = GhostBatchNorm1d(self.h)
+        self.qk_GBN = GhostBatchNorm1d(self.h, device=device)
         # self.vqk_conv = conv1d(self.dva, self.dq, 1, name='vqk_conv', batchNorm=True)
-        self.vqk_conv = GhostBatchNorm1d(self.dq, conv=True, name="vqk GBN")
+        self.vqk_conv = GhostBatchNorm1d(
+            self.dq, conv=True, name="vqk GBN", device=device
+        )
         # self.output_GBN = GhostBatchNorm1d(self.dva)
 
         self.negativeInfinity = torch.tensor(-1e9, dtype=torch.float).to(device)
@@ -1114,18 +1119,23 @@ class MinimalAttention(
         self.do_qv = do_qv
         # self.iter = iterations
 
-        self.q_GBN = GhostBatchNorm1d(self.d, name="attention q GBN")
-        self.v_GBN = GhostBatchNorm1d(self.d, name="attention v GBN")
+        self.q_GBN = GhostBatchNorm1d(self.d, name="attention q GBN", device=device)
+        self.v_GBN = GhostBatchNorm1d(self.d, name="attention v GBN", device=device)
         if self.do_qv:
-            self.qv_GBN = GhostBatchNorm1d(self.d, name="attention qv GBN")
+            self.qv_GBN = GhostBatchNorm1d(
+                self.d, name="attention qv GBN", device=device
+            )
         # self.origin = nn.Parameter(torch.zeros(1,self.h, self.dh,1,1))
         # self.qv_ref = nn.Parameter(torch. ones(1,self.h, self.dh,1,1))
-        self.score_GBN = GhostBatchNorm1d(self.h, name="attention score GBN")
+        self.score_GBN = GhostBatchNorm1d(
+            self.h, name="attention score GBN", device=device
+        )
         self.conv = GhostBatchNorm1d(
             dim,
             phase_symmetric=phase_symmetric,
             conv=True,
             name="attention out convolution",
+            device=device,
         )
 
         self.negativeInfinity = torch.tensor(-1e9, dtype=torch.float).to(device)
@@ -1324,16 +1334,20 @@ class encoder(nn.Module):
 class transformer(
     nn.Module
 ):  # Attention is All You Need https://arxiv.org/pdf/1706.03762.pdf
-    def __init__(self, features):
+    def __init__(self, features, device):
         self.nf = features
-        self.encoderSelfAttention = MultiHeadAttention(1, self.nf, selfAttention=True)
+        self.encoderSelfAttention = MultiHeadAttention(
+            1, self.nf, selfAttention=True, device=device
+        )
         self.normEncoderSelfAttention = Norm(self.nf)
         self.encoderFF = encoder(self.nf, self.nf * 2)  # *4 in the paper
         self.normEncoderFF = Norm(self.nf)
 
-        self.decoderSelfAttention = MultiHeadAttention(1, self.nf, selfAttention=True)
+        self.decoderSelfAttention = MultiHeadAttention(
+            1, self.nf, selfAttention=True, device=device
+        )
         self.normDecoderSelfAttention = Norm(self.nf)
-        self.decoderAttention = MultiHeadAttention(1, self.nf)
+        self.decoderAttention = MultiHeadAttention(1, self.nf, device=device)
         self.normDecoderAttention = Norm(self.nf)
         self.decoderFF = encoder(self.nf, self.nf * 2)  # *4 in the paper
         self.normDecoderFF = Norm(self.nf)
@@ -1358,11 +1372,14 @@ class transformer(
 
 
 class dijetReinforceLayer(nn.Module):
-    def __init__(self, dijetFeatures, batchNorm=False, phase_symmetric=False):
+    def __init__(
+        self, dijetFeatures, batchNorm=False, phase_symmetric=False, device=None
+    ):
         super(dijetReinforceLayer, self).__init__()
         self.dD = dijetFeatures
         self.index = None
         self.name = "jet, jet, dijet convolution"
+        self.device = device
         # # make fixed convolution to compute average of jet pixel pairs (symmetric bilinear)
         # self.sym = nn.Conv1d(self.dD, self.dD, 2, stride=2, bias=False, groups=self.dD)
         # self.sym.weight.data.fill_(0.5)
@@ -1384,6 +1401,7 @@ class dijetReinforceLayer(nn.Module):
             conv=True,
             name=self.name,
             PCC=False,
+            device=self.device,
         )
 
     def forward(self, j, d):
@@ -1423,11 +1441,14 @@ class dijetReinforceLayer(nn.Module):
 
 
 class quadjetReinforceLayer(nn.Module):
-    def __init__(self, quadjetFeatures, batchNorm=False, phase_symmetric=False):
+    def __init__(
+        self, quadjetFeatures, batchNorm=False, phase_symmetric=False, device=None
+    ):
         super(quadjetReinforceLayer, self).__init__()
         self.dQ = quadjetFeatures
         self.index = None
         self.name = "dijet_sym, dijet_antisym, quadjet convolution"
+        self.device = device
 
         # make fixed convolution to compute average of dijet pixel pairs (symmetric bilinear)
         self.sym = nn.Conv1d(self.dQ, self.dQ, 2, stride=2, bias=False, groups=self.dQ)
@@ -1451,6 +1472,7 @@ class quadjetReinforceLayer(nn.Module):
             conv=True,
             name=self.name,
             PCC=False,
+            device=self.device,
         )
 
     def forward(self, d, q):  # , o):
@@ -1510,17 +1532,22 @@ class ResNetBlock(nn.Module):
                         conv=True,
                         name="%sjet convolution" % prefix,
                         PCC=False,
+                        device=self.device,
                     )
                 )
                 layers.addLayer(self.conv[-1], previousLayers)
 
             if prefix == "":
                 self.reinforce.append(
-                    dijetReinforceLayer(self.d, phase_symmetric=phase_symmetric)
+                    dijetReinforceLayer(
+                        self.d, phase_symmetric=phase_symmetric, device=self.device
+                    )
                 )
             else:
                 self.reinforce.append(
-                    quadjetReinforceLayer(self.d, phase_symmetric=phase_symmetric)
+                    quadjetReinforceLayer(
+                        self.d, phase_symmetric=phase_symmetric, device=self.device
+                    )
                 )
             layers.addLayer(self.reinforce[-1], previousLayers)
 
@@ -1591,6 +1618,7 @@ class InputEmbed(nn.Module):
                 conv=True,
                 bias=False,
                 name="ancillary embedder",
+                device=device,
             )
             # self.ancillaryConv  = GhostBatchNorm1d(self.dD, phase_symmetric=phase_symmetric, conv=True, name='Ancillary Convolution')
 
@@ -1601,9 +1629,14 @@ class InputEmbed(nn.Module):
             phase_symmetric=phase_symmetric,
             conv=True,
             name="jet embedder",
+            device=device,
         )  # phi is relative to dijet
         self.jetConv = GhostBatchNorm1d(
-            self.dD, phase_symmetric=phase_symmetric, conv=True, name="jet convolution"
+            self.dD,
+            phase_symmetric=phase_symmetric,
+            conv=True,
+            name="jet convolution",
+            device=device,
         )
         if self.useOthJets:
             self.othJetEmbed = GhostBatchNorm1d(
@@ -1612,12 +1645,14 @@ class InputEmbed(nn.Module):
                 phase_symmetric=phase_symmetric,
                 conv=True,
                 name="attention jet embedder",
+                device=device,
             )  # phi is removed but isSel/CanJet label is added
             self.othJetConv = GhostBatchNorm1d(
                 self.dD,
                 phase_symmetric=phase_symmetric,
                 conv=True,
                 name="attention jet convolution",
+                device=device,
             )
             self.MdPhi_embed = GhostBatchNorm1d(
                 3,
@@ -1625,12 +1660,14 @@ class InputEmbed(nn.Module):
                 phase_symmetric=phase_symmetric,
                 conv=True,
                 name="M(a,b), dPhi(a,b) embedder",
+                device=device,
             )
             self.MdPhi_conv = GhostBatchNorm1d(
                 self.dD,
                 phase_symmetric=phase_symmetric,
                 conv=True,
                 name="M(a,b), dPhi(a,b) convolution",
+                device=device,
             )
             # self. diMdPhi_embed = GhostBatchNorm1d(2, features_out=self.dD, phase_symmetric=phase_symmetric, conv=True, name='M(a,b), dPhi(a,b) Embedder')
             # self. diMdPhi_conv  = GhostBatchNorm1d(self.dD, features_out=self.dD//2,  phase_symmetric=False, conv=True, name='M(a,b), dPhi(a,b) Convolution')
@@ -1660,6 +1697,7 @@ class InputEmbed(nn.Module):
             phase_symmetric=phase_symmetric,
             conv=True,
             name="dijet embedder",
+            device=self.device,
         )  # phi is relative to quadjet
         self.quadjetEmbed = GhostBatchNorm1d(
             3,
@@ -1667,18 +1705,21 @@ class InputEmbed(nn.Module):
             phase_symmetric=phase_symmetric,
             conv=True,
             name="quadjet embedder",
+            device=self.device,
         )  # phi is removed
         self.dijetConv = GhostBatchNorm1d(
             self.dD,
             phase_symmetric=phase_symmetric,
             conv=True,
             name="dijet convolution",
+            device=self.device,
         )
         self.quadjetConv = GhostBatchNorm1d(
             self.dQ,
             phase_symmetric=phase_symmetric,
             conv=True,
             name="quadjet convolution",
+            device=self.device,
         )
 
         self.layers.addLayer(self.jetEmbed)
@@ -1712,14 +1753,16 @@ class InputEmbed(nn.Module):
 
         # Apply log transform to nSelJets feature: log(nSelJets - offset)
         # offset depends on the minimum expected value of the feature
-        if not hasattr(self, '_nSelJets_idx'):
+        if not hasattr(self, "_nSelJets_idx"):
             self._nSelJets_idx = None
             self._nSelJets_offset = 3  # default for nSelJets (minimum is 4)
             for idx, name in enumerate(self.ancillaryFeatures):
                 if "nSelJets" in name:
                     self._nSelJets_idx = idx
                     if "lowpt" in name:
-                        self._nSelJets_offset = 0  # nSelJets_lowpt starts at 1, use log(n)
+                        self._nSelJets_offset = (
+                            0  # nSelJets_lowpt starts at 1, use log(n)
+                        )
                     break
         if self._nSelJets_idx is not None:
             a[:, self._nSelJets_idx, :] = torch.log(
@@ -2048,10 +2091,15 @@ class HCR(nn.Module):
 
         # Calculate score for each quadjet, add them together with corresponding weight, and go to final output layer
         self.select_q = GhostBatchNorm1d(
-            self.dQ, features_out=1, conv=True, bias=False, name="quadjet selector"
+            self.dQ,
+            features_out=1,
+            conv=True,
+            bias=False,
+            name="quadjet selector",
+            device=self.device,
         )  # softmax is translation invariant hence bias=False
         self.out = GhostBatchNorm1d(
-            self.dQ, features_out=self.nC, conv=True, name="out"
+            self.dQ, features_out=self.nC, conv=True, name="out", device=self.device
         )
 
         # self.layers.addLayer(self.combine_q, [self.quadjetResNetBlock.reinforce[-1]])
@@ -2677,10 +2725,10 @@ class BasicDNN(nn.Module):
 
 
 class missingObjectRegressor(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super(missingObjectRegressor, self).__init__()
         self.debug = False
-        self.device = "cuda"
+        self.device = device
         self.d = 8
         self.nGhostBatches = 64
 
@@ -2689,10 +2737,10 @@ class missingObjectRegressor(nn.Module):
         )
 
         self.embedObject = GhostBatchNorm1d(
-            4, features_out=self.d, conv=True, name="embedder"
+            4, features_out=self.d, conv=True, name="embedder", device=self.device
         )
         self.embedMdPhi = GhostBatchNorm1d(
-            2, features_out=self.d, conv=True, name="embedder"
+            2, features_out=self.d, conv=True, name="embedder", device=self.device
         )
         # self.mask = torch.zeros((1,3,3), dtype=torch.bool).to(self.device)
         self.attention = []  # nn.ModuleList(self.reinforce)
@@ -2700,9 +2748,16 @@ class missingObjectRegressor(nn.Module):
             self.attention.append(MinimalAttention(self.d, heads=2, device=self.device))
         self.attention = nn.ModuleList(self.attention)
         self.select = GhostBatchNorm1d(
-            self.d, features_out=1, conv=True, bias=False, name="selector"
+            self.d,
+            features_out=1,
+            conv=True,
+            bias=False,
+            name="selector",
+            device=self.device,
         )  # softmax is translation invariant hence bias=False
-        self.out = GhostBatchNorm1d(self.d, features_out=4, conv=True, name="out")
+        self.out = GhostBatchNorm1d(
+            self.d, features_out=4, conv=True, name="out", device=self.device
+        )
 
     def setGhostBatches(self, nGhostBatches, subset=False):
         self.embedObject.setGhostBatches(nGhostBatches)

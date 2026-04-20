@@ -359,7 +359,7 @@ class HCREvaluation(Evaluation):
             load_kw = {}
             if self.device.type == "cpu":
                 load_kw["map_location"] = torch.device("cpu")
-            saved = torch.load(f, **load_kw)
+            saved = torch.load(f, **load_kw, weights_only=False)
         self._HCR = HCRModelEval(
             device=self.device,
             saved=saved,

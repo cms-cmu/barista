@@ -1,12 +1,9 @@
 FROM docker.io/condaforge/mambaforge:22.11.1-4
 
+ENV CONDA_OVERRIDE_CUDA="13.1"
 # python
 COPY env_ml_gpu.yml /tmp/env.yml
 RUN mamba env create -f /tmp/env.yml && mamba clean --all --yes && rm -f /tmp/env.yml
-ENV CONDA_DEFAULT_ENV=hep
-ENV CONDA_PREFIX=/opt/conda/envs/hep
-ENV PATH=$CONDA_PREFIX/bin:$PATH
-ENV LD_PRELOAD=$CONDA_PREFIX/lib/libstdc++.so.6
 
 # environment
 RUN touch /root/.rnd

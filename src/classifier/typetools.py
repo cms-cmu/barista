@@ -157,3 +157,14 @@ def new_TypedDict(typed_dict: type, *args, **kwargs):
         if k not in obj and k in defaults:
             obj[k] = defaults[k]
     return obj
+
+
+class Sortable(Protocol):
+    def __lt__(self, other, /) -> bool: ...
+
+
+_SortableT = TypeVar("_SortableT", bound=Sortable)
+
+
+def sort_frozenset(it: Iterable[frozenset[_SortableT]]) -> list[frozenset[_SortableT]]:
+    return sorted(it, key=lambda s: tuple(sorted(s)))

@@ -1,0 +1,55 @@
+config_dependencies:
+  stage: classifier
+  extends: .base_classifier_barista
+  script:
+    - python -m src.classifier.test.check_configs
+
+generate_dataset:
+  stage: classifier
+  extends: .base_classifier_barista
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/dataset/sparse.root
+      - output/dataset/dense.root
+
+main_cache:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - generate_dataset
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache.yml ${CLASSIFIER_WFS}/common.yml
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache_compare.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/main_cache/diagnostics/logs.html
+
+main_train:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - generate_dataset
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_train.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/main_train/result.json
+      - output/main_train/states.pkl
+      - output/main_train/model_test-SvD__*.pkl
+      - output/main_train/diagnostics/logs.html
+      - output/main_train/report/
+
+main_evaluate:
+  stage: classifier
+  extends: .base_classifier_barista
+  needs:
+    - generate_dataset
+    - main_train
+  script:
+    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
+  artifacts:
+    paths:
+      - output/main_evaluate/diagnostics/logs.html
+      - output/main_evaluate/chunks/*.root

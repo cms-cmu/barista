@@ -1,6 +1,6 @@
 import inspect
+import os
 import re
-from pathlib import Path
 from textwrap import indent
 
 import fsspec
@@ -42,17 +42,15 @@ def _print_mod(cat: str, imp: str, opts: list[str | dict], newline: str = "\n"):
 def __walk(cat: str, ctx: main._ModCtx):
     for pkg in walk_packages(
         "",
-        Path(__file__).resolve().parents[3]
-        / "/".join(EntryPoint._fetch_config(cat, ctx)),
+        os.path.join(ctx.path, *EntryPoint._fetch_config(cat, ctx)),
         skip_private=True,
     ):
         yield pkg, ctx
 
 
 def _walk_configs(cat: str, test: bool = False):
-    yield from __walk(cat, main._ModCtx())
-    if test:
-        yield from __walk(cat, main._ModCtx(test=True))
+    for ctx in EntryPoint._iter_context(test):
+        yield from __walk(cat, ctx)
 
 
 class Main(main.Main):
@@ -163,7 +161,8 @@ class Main(main.Main):
         )
         self._print(
             indent(
-                f'[blue]task[/blue] = [blue]{"|".join(parser._mains)}[/blue]', _INDENT
+                f'[blue]task[/blue] = [blue]{"|".join(parser._fetch_main())}[/blue]',
+                _INDENT,
             )
         )
         self._print(
@@ -177,7 +176,7 @@ class Main(main.Main):
             self._print(f"#{i}")
             self._print(indent(note, _INDENT))
         self._print("\n[orange3]\[Tasks][orange3]")
-        for task in parser._mains:
+        for task in parser._fetch_main():
             if self.opts.filter.fullmatch(task) is not None:
                 _, cls, _ = parser._fetch_module(f"{task}.Main", main._MAIN)
                 if self._check_special(cls):

@@ -30,6 +30,10 @@
 
     You are assumed to be in the `barista/` directory to run the following commands.
 
+!!! warning
+
+    All of the `./pyml.py` should be replaced by `./src/pyml.py`
+
 #### Container Setup and Usage
 
 The classifier runs in dedicated Apptainer containers with different modes for GPU and CPU workloads.
@@ -130,7 +134,3 @@ See the [HCR Training](hcr.md) for a complete example to train and evaluate a HC
 ## Monitor
 
 A monitor is provided to collect logs, progresses, resource metrics and other information from worker processes/nodes. See the [Monitor System](monitor.md) for details.
-
-## Histogram
-
-The histogramming is handled by `dask` processors for better performance and compatibility. See the [Histogram](histogram.md) for details.

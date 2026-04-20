@@ -5,9 +5,10 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Iterable, Protocol
 
 import numpy as np
-from src.data_formats.root import Chain, Chunk, Friend
 
 from src.classifier.monitor.progress import Progress, ProgressTracker
+from src.data_formats.root import Chain, Chunk, Friend
+
 from ..process import status
 from ..process.pool import CallbackExecutor
 
@@ -111,12 +112,13 @@ class merge_kfolds:
         optimize: int = None,
     ):
         self._friends = friends
+        self._naming = dump_naming
         self._job = _merge_worker(
             chain=Chain().add_friend(*friends, renaming=self._rename_column),
             methods=methods,
             name=friend_name,
             base_path=dump_base_path,
-            naming=dump_naming,
+            naming=self._naming,
         )
         self._step = step
         self._workers = workers
@@ -164,6 +166,7 @@ class merge_kfolds:
                     msg=("entries", "Optimizing friend trees"),
                 ) as progress:
                     result.friend = result.friend.merge(
+                        naming=self._naming,
                         step=self._optimize,
                         base_path=self._job.base_path,
                         executor=CallbackExecutor(
