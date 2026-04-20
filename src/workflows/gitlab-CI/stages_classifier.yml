@@ -52,21 +52,3 @@ main_evaluate:
   artifacts:
     paths:
       - output/main_evaluate/diagnostics/logs.html
-      - output/main_evaluate/chunks/*.root
-
-collect_logs:
-  stage: classifier
-  extends: .base_classifier_barista
-  needs:
-    - main_cache
-    - main_train
-    - main_evaluate
-  script:
-    - mkdir -p preview/
-    - cp --parents output/main_cache/diagnostics/logs.html preview/classifier/logs/main_cache.html
-    - cp --parents output/main_train/diagnostics/logs.html preview/classifier/logs/main_train.html
-    - cp --parents output/main_evaluate/diagnostics/logs.html preview/classifier/logs/main_evaluate.html
-    - cp --parents output/main_train/report/* preview/classifier/report/main_train/
-  artifacts:
-    paths:
-      - preview/
