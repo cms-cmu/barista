@@ -203,7 +203,7 @@ build_classifier_gpu_container_lpc:
       - software/dockerfiles/ml/env_ml_gpu.yml
 
 
-deploy_classifier_gpu_container:
+deploy_classifier_gpu_container_lpc:
   stage: deploy
   image: quay.io/buildah/stable
   needs:
