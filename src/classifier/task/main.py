@@ -110,9 +110,10 @@ class EntryPoint:
         if cls._mains is ...:
             cls._mains = []
             for ctx in cls._iter_context():
-                for file in os.listdir(
-                    os.path.join(ctx.path, *cls._fetch_config(_MAIN, ctx))
-                ):
+                main_dir = os.path.join(ctx.path, *cls._fetch_config(_MAIN, ctx))
+                if not os.path.isdir(main_dir):
+                    continue
+                for file in os.listdir(main_dir):
                     if file.endswith(".py") and not _is_private(file):
                         cls._mains.append(file.removesuffix(".py"))
         return cls._mains
