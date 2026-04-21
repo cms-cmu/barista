@@ -5,12 +5,16 @@
     DOCKER_FILE_NAME: "Dockerfile"
     REGISTRY_IMAGE_PATH: ${CI_REGISTRY_IMAGE}:test
     EXTRA_TAGS: "test"
+    BUILD_ARGS: ""
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export BUILDAH_FORMAT=docker
     - export STORAGE_DRIVER=vfs
     - buildah images
-    - buildah build --storage-driver=$STORAGE_DRIVER -f $DOCKER_FILE_NAME -t $REGISTRY_IMAGE_PATH
+    - |
+      BUILD_ARG_FLAGS=""
+      for arg in $BUILD_ARGS; do BUILD_ARG_FLAGS="$BUILD_ARG_FLAGS --build-arg $arg"; done
+      buildah build --storage-driver=$STORAGE_DRIVER -f $DOCKER_FILE_NAME -t $REGISTRY_IMAGE_PATH $BUILD_ARG_FLAGS
     - if [ -n "$EXTRA_TAGS" ]; then
         for tag in $EXTRA_TAGS; do
           buildah tag $REGISTRY_IMAGE_PATH ${CI_REGISTRY_IMAGE}:$tag;
@@ -178,3 +182,42 @@ deploy_classifier_cpu_container:
       changes:
         - software/dockerfiles/ml/Dockerfile.ml_cpu
         - software/dockerfiles/ml/env_ml_cpu.yml
+
+build_classifier_gpu_container_lpc:
+  extends:
+    - .buildah
+  before_script:
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
+    - echo $REGISTRY_IMAGE_PATH
+    - cd software/dockerfiles/ml/
+  variables:
+    DOCKER_FILE_NAME: "Dockerfile.ml_gpu"
+    EXTRA_TAGS: "classifier_test"
+    BUILD_ARGS: "CUDA_VERSION=12.6"
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+      - software/dockerfiles/ml/Dockerfile.ml_gpu
+      - software/dockerfiles/ml/env_ml_gpu.yml
+
+
+deploy_classifier_gpu_container:
+  stage: deploy
+  image: quay.io/buildah/stable
+  needs:
+    - build_classifier_gpu_container_lpc
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
+    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_lpc
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_lpc
+  rules:
+    - if: $RECREATE_CONTAINERS == "true"
+    - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - software/dockerfiles/ml/Dockerfile.ml_gpu
+        - software/dockerfiles/ml/env_ml_gpu.yml
