@@ -212,8 +212,8 @@ deploy_classifier_gpu_container_lpc:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
-    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_lpc
-    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_lpc
+    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_lpc_latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_lpc_latest
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
