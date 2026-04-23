@@ -356,7 +356,7 @@ class HCREvaluation(Evaluation):
 
     def stages(self):
         with fsspec.open(self._model, "rb") as f:
-            load_kw = {}
+            load_kw = {"weights_only": False}
             if self.device.type == "cpu":
                 load_kw["map_location"] = torch.device("cpu")
             saved = torch.load(f, **load_kw)

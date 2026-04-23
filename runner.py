@@ -1032,6 +1032,12 @@ if __name__ == '__main__':
         default=False,
         help='Submit jobs to HTCondor cluster'
     )
+    exec_group.add_argument(
+        '--tmpdir',
+        dest="tmpdir",
+        default=None,
+        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+    )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
     debug_group.add_argument(
