@@ -145,7 +145,7 @@ class CommonTrain(Common):
             .add(Input.weight, "float32").columns(Columns.weight)
             .add(Input.ancillary, "float32").columns(*InputBranch.feature_ancillary)
             .add(Input.CanJet, "float32").columns(*InputBranch.feature_CanJet, target=InputBranch.n_CanJet)
-            .add(Input.NotCanJet, "float32").columns(*InputBranch.feature_NotCanJet, target=InputBranch.n_NotCanJet, pad_value=-1)
+            .add(Input.NotCanJet, "float32").columns(*InputBranch.feature_NotCanJet, target=InputBranch.n_NotCanJet, pad_value=InputBranch.pad_value)
         )
         self.preprocessors.extend(
             [
@@ -199,8 +199,9 @@ class CommonTrain(Common):
     def debug(self):
         import logging
 
-        from src.classifier.config.state.label import MultiClass
         from rich.pretty import pretty_repr
+
+        from src.classifier.config.state.label import MultiClass
 
         pres = defaultdict(list)
         for gs in self.files:

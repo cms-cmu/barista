@@ -150,22 +150,25 @@ class FixedThresholdROC:
         N = self.__N
         if self.__TP is None or self.__FP is None:
             return {
-                "FPR": None, "TPR": None, "AUC": None,
+                "FPR": None,
+                "TPR": None,
+                "AUC": None,
                 "P": to_num(P) if P is not None else None,
                 "N": to_num(N) if N is not None else None,
-                "TP": None, "FP": None,
+                "TP": None,
+                "FP": None,
             }
         tp, _ = self.__TP.hist()
         fp, _ = self.__FP.hist()
         fpr, tpr, auc = self.roc()
         result = {
-            "FPR": npext.to.base64(to_arr(fpr)), # false positive rate: FP/N
-            "TPR": npext.to.base64(to_arr(tpr)), # true positive rate: TP/P
-            "AUC": to_num(auc), # calculated area under curve
-            "P": to_num(P), # total positives
-            "N": to_num(N), # total negatives
-            "TP": npext.to.base64(to_arr(tp)), # true positives
-            "FP": npext.to.base64(to_arr(fp)), # false positives
+            "FPR": npext.to.base64(to_arr(fpr)),  # false positive rate: FP/N
+            "TPR": npext.to.base64(to_arr(tpr)),  # true positive rate: TP/P
+            "AUC": to_num(auc),  # calculated area under curve
+            "P": to_num(P),  # total positives
+            "N": to_num(N),  # total negatives
+            "TP": npext.to.base64(to_arr(tp)),  # true positives
+            "FP": npext.to.base64(to_arr(fp)),  # false positives
         }
 
         return result

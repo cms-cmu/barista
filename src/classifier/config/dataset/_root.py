@@ -6,17 +6,19 @@ from functools import cached_property, reduce
 from itertools import chain
 from typing import TYPE_CHECKING, Iterable
 
-from src.utils import unique
 from src.classifier.config.main._utils import progress_advance
 from src.classifier.task import ArgParser, Dataset, converter, parse
+from src.classifier.typetools import sort_frozenset
+from src.utils import unique
 
 from ..setting import IO as IOSetting
 
 if TYPE_CHECKING:
     import pandas as pd
-    from src.data_formats.root import Chunk, Friend
+
     from src.classifier.df.io import FromRoot, ToTensor
     from src.classifier.df.tools import DFProcessor
+    from src.data_formats.root import Chunk, Friend
 
 
 class LoadRoot(ABC, Dataset):
@@ -50,6 +52,11 @@ class LoadRoot(ABC, Dataset):
         type=converter.int_pos,
         default=10,
         help="the maximum number of workers to fetch metadata and load training set",
+    )
+    argparser.add_argument(
+        "--preserve-order",
+        action="store_true",
+        help="keep the order of the files",
     )
     argparser.add_argument(
         "--tree",
@@ -120,7 +127,9 @@ class LoadRoot(ABC, Dataset):
         if self.opts.test_files is not None:
             n = self.opts.test_files
             files = files[:n]
-            logging.info(f"--test-files: limited to {len(files)} files (from {len(self.files)})")
+            logging.info(
+                f"--test-files: limited to {len(files)} files (from {len(self.files)})"
+            )
         yield self.from_root(), files
 
     def train(self):
@@ -133,6 +142,7 @@ class LoadRoot(ABC, Dataset):
             max_workers=self.opts.max_workers,
             chunksize=self.opts.train_chunksize,
             tree=self.opts.tree,
+            preserve_order=self.opts.preserve_order,
         )
         loader.to_tensor = self.to_tensor
         loader.postprocessors = self.postprocessors
@@ -145,10 +155,10 @@ class LoadRoot(ABC, Dataset):
             )
         from concurrent.futures import ProcessPoolExecutor
 
-        from src.data_formats.root import Chunk
         from src.classifier.monitor.progress import Progress
         from src.classifier.process import pool, status
         from src.classifier.root.dataset import FriendTreeEvalDataset
+        from src.data_formats.root import Chunk
 
         from_roots = [*self._from_root()]
         with ProcessPoolExecutor(
@@ -168,6 +178,7 @@ class LoadRoot(ABC, Dataset):
                             _fetch(tree=self.opts.tree),
                             files,
                             callbacks=[lambda _: progress_advance(progress)],
+                            preserve_order=self.opts.preserve_order,
                         ),
                     )
                     for from_root, files in from_roots
@@ -229,7 +240,9 @@ class LoadGroupedRoot(LoadRoot):
         for k in files:
             group_files = files[k]
             if n is not None:
-                logging.info(f"--test-files: group {k}: limited to {min(n, len(group_files))} files (from {len(group_files)})")
+                logging.info(
+                    f"--test-files: group {k}: limited to {min(n, len(group_files))} files (from {len(group_files)})"
+                )
                 group_files = group_files[:n]
             yield self.from_root(k), group_files
 
@@ -239,7 +252,7 @@ class LoadGroupedRoot(LoadRoot):
         filelists = parse.grouped_mappings(self.opts.filelists, ",")
         return {
             k: self._parse_files(files.get(k, []), filelists.get(k, []))
-            for k in set(files).union(filelists)
+            for k in sort_frozenset(set(files).union(filelists))
         }
 
     @cached_property
@@ -276,11 +289,13 @@ class _load_root:
         max_workers: int,
         chunksize: int,
         tree: str,
+        preserve_order: bool,
     ):
         self._from_root = from_root
         self._max_workers = max_workers
         self._chunksize = chunksize
         self._tree = tree
+        self._preserve_order = preserve_order
 
     def __call__(self):
         data = self.load()
@@ -298,9 +313,10 @@ class _load_root:
         from concurrent.futures import ProcessPoolExecutor
 
         import pandas as pd
-        from src.data_formats.root import Chunk
+
         from src.classifier.monitor.progress import Progress
         from src.classifier.process import pool, status
+        from src.data_formats.root import Chunk
 
         with ProcessPoolExecutor(
             max_workers=self._max_workers,
@@ -318,6 +334,7 @@ class _load_root:
                             _fetch(tree=self._tree),
                             files,
                             callbacks=[lambda _: progress_advance(progress)],
+                            preserve_order=self._preserve_order,
                         )
                     )
                     for _, files in self._from_root
@@ -340,6 +357,7 @@ class _load_root:
                                 callbacks=[
                                     lambda x: progress_advance(progress, len(x))
                                 ],
+                                preserve_order=self._preserve_order,
                             )
                             for i in range(len(chunks))
                         )
@@ -350,7 +368,7 @@ class _load_root:
             df = pd.DataFrame()
             logging.info("Loaded <DataFrame>: empty (all chunks filtered or empty)")
             return df
-            
+
         df = pd.concat(objs, ignore_index=True)
         logging.info(
             "Loaded <DataFrame>:",

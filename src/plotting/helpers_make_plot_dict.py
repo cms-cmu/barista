@@ -560,7 +560,8 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
 
     _load_hists(plot_data, cfg, entries, rebin=rebin, do2d=do2d, debug=debug)
 
-    if kwargs.get("doRatio", True):
+    # Default doRatio=False for 2D; users can opt in with doRatio=True.
+    if kwargs.get("doRatio", not do2d):
         _add_ratio_plots(plot_data, **kwargs)
 
     return plot_data

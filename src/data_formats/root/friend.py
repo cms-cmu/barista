@@ -880,6 +880,8 @@ class Friend:
             raise ValueError("Please specify an parallel backend.")
         if base_path is not ...:
             base_path = EOS(base_path)
+        if naming is ...:
+            naming = _NAMING
         self._init_dump()
         data = defaultdict(list)
         if executor is not None:

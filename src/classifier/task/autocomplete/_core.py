@@ -58,13 +58,13 @@ def autocomplete(args: Iterable[str]):
     args = deque(args[1:])
     main = args.popleft() if args else ""
     if len(args) == 0:
-        for part in m.EntryPoint._mains + [m._FROM, m._TEMPLATE]:
+        for part in m.EntryPoint._fetch_main() + [m._FROM, m._TEMPLATE]:
             if part.startswith(main):
                 yield part
         return
     subargs = m.EntryPoint._fetch_subargs(args)
     if len(args) == 0:
-        if main in m.EntryPoint._mains:
+        if main in m.EntryPoint._fetch_main():
             yield from _subcomplete(
                 m.EntryPoint._fetch_module(
                     f"{main}.Main",

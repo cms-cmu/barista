@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from textwrap import indent
 from typing import Any
 
@@ -57,7 +58,20 @@ class _share_global_state:
         del self._states
 
 
+class _share_import_path:
+    def __getstate__(self):
+        return sys.path
+
+    def __setstate__(self, state):
+        self._states = state
+
+    def __call__(self):
+        sys.path = self._states
+        del self._states
+
+
 status.initializer.add_unique(_share_global_state)
+status.initializer.add_unique(_share_import_path)
 
 
 class _ClassPropertyMeta(type):
@@ -134,8 +148,9 @@ class GlobalSetting(GlobalState, Static, metaclass=_ClassPropertyMeta):
 
     @classmethod
     def help(cls):
-        from typetools import get_partial_type_hints, type_name
         from rich.markup import escape
+
+        from src.typetools import get_partial_type_hints, type_name
 
         from ..docstring import class_attribute_docstring
         from . import parse

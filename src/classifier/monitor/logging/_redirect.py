@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Iterable
 
 from src.classifier.config.setting import monitor as cfg
 from src.classifier.config.state.static import GitRepo
 
+from ...sysutils import recursive_interrupt
 from ..backends import Platform
 from ..core import Recorder, post_to_monitor
 
@@ -52,3 +54,6 @@ class MultiPlatformHandler(logging.Handler):
                 if handler.__platform__ not in record.msg:
                     continue
             handler.handle(record)
+        if cfg.Log.exit_on_exception and record.levelno >= logging.ERROR:
+            recursive_interrupt()
+            os._exit(1)
