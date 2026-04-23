@@ -473,24 +473,6 @@ def _compute_ratio_entry(spec: RatioSpec, plot_data: Dict) -> Dict:
     The returned dict has the shape expected by _draw_ratio_panel:
     keys ratio, error, centers, type, plus any forwarded style keys.
     """
-    if spec.is_2d:
-        num_hist = plot_data["hists"][spec.numerator.key]
-        den_hist = plot_data["hists"][spec.denominator.key]
-        num_values = np.array(num_hist["values"])
-        num_vars = np.array(num_hist["variances"])
-        den_values = np.array(den_hist["values"])
-        den_vars = np.array(den_hist["variances"])
-        safe_den = den_values.copy()
-        safe_den[safe_den == 0] = plot_helpers.EPSILON
-        ratios, ratio_uncert = plot_helpers.make_ratio(
-            num_values, num_vars, safe_den, den_vars, norm=spec.norm
-        )
-        return {
-            **spec.style,
-            "ratio": ratios.tolist(),
-            "error": ratio_uncert.tolist(),
-        }
-
     den_values, den_vars, den_centers, _ = _resolve_hist_source(spec.denominator, plot_data)
 
     if spec.numerator is None:
@@ -688,13 +670,11 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
             if opts.debug:
                 logger.info(f'\t doing ratio')
 
-            # Convention from _add_2d_ratio_plots: first hist is denominator,
-            # second is numerator.
             key_iter = iter(plot_data["hists"])
-            den_key = next(key_iter)
-            den_hist_data = plot_data["hists"][den_key]
             num_key = next(key_iter)
             num_hist_data = plot_data["hists"][num_key]
+            den_key = next(key_iter)
+            den_hist_data = plot_data["hists"][den_key]
             ratio_key = next(iter(plot_data["ratio"]))
 
             hist_obj_2d = _make_masked_2d_hist(num_hist_data, values=plot_data["ratio"][ratio_key]["ratio"])
@@ -708,12 +688,10 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
             ax_top_right = fig.add_subplot(gs[0, 1])
             _make_masked_2d_hist(num_hist_data).plot2d(
                 cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
-            ax_top_right.set_title(f"numerator: {num_key}", fontsize=12)
 
             ax_bottom_right = fig.add_subplot(gs[1, 1])
             _make_masked_2d_hist(den_hist_data).plot2d(
                 cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
-            ax_bottom_right.set_title(f"denominator: {den_key}", fontsize=12)
 
             axis_list = [ax_big, ax_top_right, ax_bottom_right]
             if opts.xlim:
@@ -722,10 +700,6 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
             if opts.ylim:
                 for ax in axis_list:
                     ax.set_ylim(*opts.ylim)
-
-            # Make ax_big the current axis so the trailing CMS label
-            # and region title get applied to it, not a sub-panel.
-            plt.sca(ax_big)
 
         else:
             if len(plot_data.get("hists", {})):
