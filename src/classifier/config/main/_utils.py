@@ -6,7 +6,14 @@ from functools import cached_property
 from itertools import chain
 from typing import TYPE_CHECKING
 
-from src.classifier.task import ArgParser, Dataset, EntryPoint, Main, TaskOptions, converter
+from src.classifier.task import (
+    ArgParser,
+    Dataset,
+    EntryPoint,
+    Main,
+    TaskOptions,
+    converter,
+)
 from src.classifier.task.dataset import TrainingSetLoader
 
 if TYPE_CHECKING:
@@ -55,15 +62,21 @@ class LoadTrainingSets(Main):
         default=1,
         help="the maximum number of datasets to load in parallel",
     )
+    argparser.add_argument(
+        "--preserve-order",
+        action="store_true",
+        help="preserve the order of datasets",
+    )
 
     def load_training_sets(self, parser: EntryPoint):
         from concurrent.futures import ProcessPoolExecutor
 
         import torch
+        from torch.utils.data import ConcatDataset, StackDataset
+
         from src.classifier.monitor.progress import Progress
         from src.classifier.nn.dataset.sliceable import NamedTensorDataset
         from src.classifier.process import pool, status
-        from torch.utils.data import ConcatDataset, StackDataset
 
         # load datasets in parallel
         tasks: list[Dataset] = parser.tasks[TaskOptions.dataset.name]
@@ -86,6 +99,7 @@ class LoadTrainingSets(Main):
                     _load_dataset,
                     loaders,
                     callbacks=[lambda _: progress_advance(progress)],
+                    preserve_order=self.opts.preserve_order,
                 )
             ]
         logging.info(f"Loaded {len(loaders)} datasets in {datetime.now() - timer}")

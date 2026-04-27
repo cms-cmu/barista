@@ -1,0 +1,22 @@
+flag:
+  - test
+
+setting:
+  - module: cms.CollisionData
+    option:
+      - years: ["2016", "2017", "2018"]
+
+  - module: monitor.Log
+    option:
+      - forward_exception: false
+      - exit_on_exception: true
+
+  - module: test.Randomness
+    option:
+      - seed: 0
+        n_threads: 1
+        deterministic_algorithm: true
+
+  - module: ml.DataLoader
+    option:
+      - num_workers: 0

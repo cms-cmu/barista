@@ -76,6 +76,8 @@ class Log(GlobalSetting):
     "logging level"
     forward_exception: bool = False
     "forward the uncaught exceptions to the monitor (set this to False or run a standalone monitor if some exceptions do not show up)"
+    exit_on_exception: bool = False
+    "exit all related processes when an exception is raised"
 
 
 class Progress(GlobalSetting):

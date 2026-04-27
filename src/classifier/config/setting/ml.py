@@ -40,7 +40,7 @@ class Training(GlobalSetting):
     "Multistage training"
 
     disable_benchmark: bool = False
-    "disable unrequired benchmark steps"
+    "disable unnecessary benchmark steps"
 
 
 class SplitterKeys(GlobalSetting):

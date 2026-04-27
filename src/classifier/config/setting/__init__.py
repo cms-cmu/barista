@@ -6,9 +6,9 @@ import warnings
 from typing import TYPE_CHECKING, Literal
 
 import fsspec
-from src.classifier.task.state import GlobalSetting, _share_global_state
 
 from src.classifier.config.state import System
+from src.classifier.task.state import GlobalSetting, _share_global_state
 
 if TYPE_CHECKING:
     from src.storage.eos import EOS

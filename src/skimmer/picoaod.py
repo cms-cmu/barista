@@ -100,7 +100,7 @@ class PicoAOD(ProcessorABC):
         return self._preselected
 
     # no retry, return empty dict if any exception
-    @retry(1, handler=_log_exception, skip=(SkimmingError,))
+    # @retry(1, handler=_log_exception, skip=(SkimmingError,))
     def process(self, events: ak.Array):
         EOS.set_retry(3, 10)  # 3 retries with 10 seconds interval
 

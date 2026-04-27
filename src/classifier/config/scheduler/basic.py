@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 from src.classifier.nn.schedule import MultiStepBS, Schedule
 
@@ -22,9 +22,15 @@ class FixedStep(Schedule):
     bs_init: int = 2**10
     bs_scale: float = 2.0
     bs_milestones: list[int] = (1, 3, 6, 10)
+    bs_kwargs: dict[str, Any] = None
     lr_init: float = 1.0e-2
     lr_scale: float = 0.25
     lr_milestones: list[int] = (15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
+    lr_kwargs: dict[str, Any] = None
+
+    def __post_init__(self):
+        self.bs_kwargs = self.bs_kwargs or {}
+        self.lr_kwargs = self.lr_kwargs or {}
 
     def optimizer(self, parameters, **kwargs):
         import torch.optim as optim
@@ -42,7 +48,7 @@ class FixedStep(Schedule):
             batch_size=self.bs_init,
             milestones=self.bs_milestones,
             gamma=self.bs_scale,
-            **kwargs,
+            **self.bs_kwargs | kwargs,
         )
 
     def lr_scheduler(self, optimizer, **kwargs):
@@ -52,7 +58,7 @@ class FixedStep(Schedule):
             optimizer=optimizer,
             milestones=self.lr_milestones,
             gamma=self.lr_scale,
-            **kwargs,
+            **self.lr_kwargs | kwargs,
         )
 
 
