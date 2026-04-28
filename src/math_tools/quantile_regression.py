@@ -1,3 +1,9 @@
+from __future__ import annotations
+import sys
+# Remove the directory containing this file from sys.path to prevent local
+# random.py from shadowing stdlib random (used transitively by tempfile)
+sys.path = [p for p in sys.path if p != __file__.rsplit('/', 1)[0]]
+
 import os
 import re
 import pickle
@@ -14,7 +20,7 @@ plt.rcParams["figure.figsize"] = [8,8]
 plt.rcParams["font.size"] = 18
 
 REGIONS = ("nominal_4j2b", "lowpt_4j2b")
-DEFAULT_N_BINS = 50  # matches SvBHists.phh in bbreww/analysis/helpers/hist_templates.py
+DEFAULT_N_BINS = 5  # start of n_bins scan
 # Filename pattern written by bbreww processor:
 #   phh_hist_{dataset}__{year}_{chunk_id}.pkl
 _PHH_FILE_RE = re.compile(r"^phh_hist_(?P<dataset>.+?)__(?P<year>.+)_(?P<chunk>[0-9a-f]{8})\.pkl$")
@@ -238,7 +244,7 @@ def stability_split_scan(transformer, sig_phh, sig_w, bkg_phh, bkg_w,
 
 
 def optimize_n_bins(transformer, sig_phh, sig_w, bkg_phh, bkg_w,
-                    n_bins_default=DEFAULT_N_BINS, n_bins_max=70,
+                    n_bins_default=DEFAULT_N_BINS, n_bins_max=30,
                     min_unweighted_bkg=5):
     """Scan n_bins from default to n_bins_max. Stop when the min-bkg floor is hit.
 
@@ -273,7 +279,7 @@ def optimize_n_bins(transformer, sig_phh, sig_w, bkg_phh, bkg_w,
 
 
 def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
-                         n_bins_default=DEFAULT_N_BINS, n_bins_max=70,
+                         n_bins_default=DEFAULT_N_BINS, n_bins_max=30,
                          min_unweighted_bkg=5):
     """End-to-end: load directory, split sig/bkg, fit transformer, scan bins.
 
@@ -307,6 +313,15 @@ def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
                                n_bins_max=n_bins_max,
                                min_unweighted_bkg=min_unweighted_bkg)
         summary[region] = scan
+
+        best_n = scan['best_n_bins']
+        if best_n is not None:
+            edges = _quantile_bin_edges(transformer, best_n)
+            edges_path = os.path.join(output_dir, f"bin_edges_{region}.txt")
+            with open(edges_path, 'w') as f:
+                f.write(f"# region={region}  n_bins={best_n}  Z={scan['best_z']:.4f}\n")
+                f.write(", ".join(f"{e:.6f}" for e in edges) + "\n")
+            print(f"  bin edges written to {edges_path}")
 
         halves = stability_split_scan(transformer, s_phh, s_w, b_phh, b_w,
                                       n_bins_default=n_bins_default,
@@ -354,7 +369,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--n_quantiles", type=int, default=10000, help="Number of quantiles", required=False)
     parser.add_argument("-b", "--n_bins", type=int, default=DEFAULT_N_BINS,
                         help="Default/starting number of equal-probability bins")
-    parser.add_argument("--n-bins-max", type=int, default=70,
+    parser.add_argument("--n-bins-max", type=int, default=30,
                         help="Upper end of the bin-count scan (--input-dir mode)")
     parser.add_argument("--min-bkg", type=int, default=5,
                         help="Minimum unweighted background events required per bin")
