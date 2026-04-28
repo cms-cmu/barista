@@ -11,7 +11,7 @@ class CollisionData(GlobalSetting):
         #"2023_BPix" : ["E", "F", "G"]
     }
     "eras for MC datasets"
-    years: list[str] = ["2022", "2023"]
+    years: list[str] = ["2022", "2023", "2024"]
     "years for data"
 
 
