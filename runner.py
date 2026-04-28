@@ -34,6 +34,25 @@ from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
 from coffea import processor
 from coffea.dataset_tools import rucio_utils
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
+
+# Patch for SITECONF storage.json entries that use 'site' instead of 'rse'
+# (seen after a SITECONF format change; coffea's get_xrootd_sites_map assumes 'rse' always present)
+_orig_get_xrootd_sites_map = rucio_utils.get_xrootd_sites_map
+def _patched_get_xrootd_sites_map():
+    import coffea.dataset_tools.rucio_utils as _ru
+    _orig_json_load = _ru.json.load
+    def _safe_json_load(f):
+        data = _orig_json_load(f)
+        for entry in data:
+            if 'rse' not in entry and 'site' in entry:
+                entry['rse'] = entry['site']
+        return data
+    _ru.json.load = _safe_json_load
+    try:
+        return _orig_get_xrootd_sites_map()
+    finally:
+        _ru.json.load = _orig_json_load
+rucio_utils.get_xrootd_sites_map = _patched_get_xrootd_sites_map
 from coffea.util import save
 from dask.distributed import performance_report
 from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
