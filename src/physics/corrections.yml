@@ -350,6 +350,7 @@
     L: 0.113    
     #L: 0.146
     M: 0.245
+    T: 0.6734
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -411,6 +412,7 @@
     L: 0.1201
     #L: 0.1552 
     M: 0.2605
+    T: 0.6915
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -476,6 +478,7 @@
     L: 0.08777
     #L: 0.11375
     M: 0.1917
+    T: 0.6172
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -537,6 +540,7 @@
     L: 0.0879
     #L: 0.1139
     M: 0.1919
+    T: 0.7994
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -597,11 +601,12 @@
   jes_unc:  
     - DUMMY
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2026-01-30/btagging.json.gz'
-  btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
+  btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer24/#ak4-b-tagging
     #L: 0.0359
     L: 0.0879
     #L: 0.1139
     M: 0.1919
+    T: 0.7994    
   btag_uncertainties:
     - cferr1
     - cferr2
