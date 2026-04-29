@@ -468,7 +468,6 @@ def setup_condor_cluster(config_runner, tarball_path):
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
         ],
-        'env_extra': ['export PYTHONUNBUFFERED=1'],
     }
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
@@ -1051,6 +1050,12 @@ if __name__ == '__main__':
         action="store_true",
         default=False,
         help='Submit jobs to HTCondor cluster'
+    )
+    exec_group.add_argument(
+        '--tmpdir',
+        dest="tmpdir",
+        default=None,
+        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
     )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
