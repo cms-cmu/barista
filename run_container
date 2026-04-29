@@ -89,6 +89,7 @@ detect_cluster_profile() {
     local HOST
     HOST=$(hostname)
     case "$HOST" in
+        *cmslpcgpu*) echo "lpc_gpu" ;;
         *cmslpc*)  echo "lpc" ;;
         *lxplus*)  echo "lxplus" ;;
         *falcon*)  echo "falcon" ;;

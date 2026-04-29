@@ -1,4 +1,6 @@
 import os, sys
+import gzip
+import json
 import tarfile
 import logging
 
@@ -153,6 +155,7 @@ def apply_jerc_corrections( event,
 # Cache parsed CorrectionSets so the JSON-POG file (≈70 MB) is loaded once
 # per file path rather than once per chunk.
 _cset_cache: dict = {}
+_run_range_cache: dict = {}
 
 def _get_correction_set(path: str):
     """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
@@ -162,6 +165,43 @@ def _get_correction_set(path: str):
     else:
         logging.debug(f"CorrectionSet cache hit for {path}")
     return _cset_cache[path]
+
+def _get_run_range(path: str) -> tuple[float, float] | None:
+    """Return (run_min, run_max) from the first DATA correction that bins on run, or None."""
+    if path in _run_range_cache:
+        return _run_range_cache[path]
+    def _find_run_edges(node, depth=0):
+        if depth > 10:
+            return None
+        if isinstance(node, dict):
+            if node.get("nodetype") == "binning" and node.get("input") == "run":
+                edges = node.get("edges", [])
+                if len(edges) >= 2:
+                    return (edges[0], edges[-1])
+            for v in node.values():
+                r = _find_run_edges(v, depth + 1)
+                if r is not None:
+                    return r
+        elif isinstance(node, list):
+            for v in node:
+                r = _find_run_edges(v, depth + 1)
+                if r is not None:
+                    return r
+        return None
+    try:
+        opener = gzip.open if path.endswith(".gz") else open
+        with opener(path) as f:
+            data = json.load(f)
+        for corr in data.get("corrections", []):
+            if "DATA" in corr.get("name", ""):
+                r = _find_run_edges(corr.get("data", {}))
+                if r is not None:
+                    _run_range_cache[path] = r
+                    return r
+    except Exception:
+        pass
+    _run_range_cache[path] = None
+    return None
 
 # Correction levels that appear in the JSON-POG key names but are NOT
 # JES uncertainty sources (used to filter them out during auto-detection).
@@ -283,11 +323,17 @@ def apply_jerc_corrections_jsonpog(
     compound_key = f"{jec_campaign}_{jec_tag}_L1L2L3Res{key_suffix}"
     jec = _JsonPogJEC(cset.compound[compound_key])
 
-    # Broadcast run number to per-jet only when the compound correction needs it
+    # Broadcast run number to per-jet only when the compound correction needs it.
+    # Clamp to the correction's valid run range — picoAODs near the preVFP/postVFP
+    # boundary can contain runs that fall just outside the range for their assigned era.
     if "run" in jec.signature:
-        nominal_jet["run"] = ak.broadcast_arrays(
-            ak.values_astype(event.run, np.float32), nominal_jet.pt,
-        )[0]
+        run_vals = ak.values_astype(event.run, np.float32)
+        run_range = _get_run_range(jerc_file)
+        if run_range is not None:
+            run_min, run_max = np.float32(run_range[0]), np.float32(run_range[1])
+            run_vals = np.clip(ak.to_numpy(run_vals), run_min, run_max)
+            run_vals = ak.Array(run_vals)
+        nominal_jet["run"] = ak.broadcast_arrays(run_vals, nominal_jet.pt)[0]
 
     # ── JER adapters (MC only, when campaign/version are provided) ────────────
     jer   = None
