@@ -32,7 +32,6 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 from __future__ import annotations
 
 import logging
-import time
 from numbers import Number
 from typing import TYPE_CHECKING, Callable, Generator, Literal, TypedDict, overload
 
@@ -115,17 +114,19 @@ class ReaderOptions(TypedDict, total=False):
 
 BRANCH_FILTER = "branch_filter"
 
+IS_UPROOT_5_0_0 = Version(uproot.__version__) >= Version("5.0.0")
+IS_UPROOT_5_7_0 = Version(uproot.__version__) >= Version("5.7.0")
+
 
 def _ttree_extend(file: WritableDirectory, name: str, data: RecordLike):
-    "explicitly create TTree instead of RNTuple for uproot>=5.7.0"
+    "explicitly create TTree instead of RNTuple"
     if name not in file:
-        tree = file.mktree(name, data)
-        if tree.num_entries > 0:
-            return tree
+        if IS_UPROOT_5_7_0:
+            file.mktree(name, data)
+        else:
+            file.update({name: data})
     else:
-        tree = file[name]
-    tree.extend(data)
-    return tree
+        file[name].extend(data)
 
 
 class TreeWriter:
@@ -358,7 +359,7 @@ class TreeWriter:
                 raise ValueError(f'Metadata name "{name}" conflicts with other trees.')
         else:
             self._trees[name] = None
-        if Version(uproot.__version__) >= Version("5.0.0"):
+        if IS_UPROOT_5_0_0:
             _ttree_extend(self._file, name, {k: [v] for k, v in metadata.items()})
         else:
             import awkward as ak
@@ -733,7 +734,7 @@ class TreeReader(_Reader):
                 raise ValueError(
                     f"Expected one entry in {source.path}[{name}], got {num_entries}."
                 )
-            if Version(uproot.__version__) >= Version("5.0.0"):
+            if IS_UPROOT_5_0_0:
                 metadata = {k: v[0] for k, v in file[name].arrays(library="np").items()}
             else:
                 import awkward as ak
