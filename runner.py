@@ -92,9 +92,11 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
     import getpass
     username = getpass.getuser()
-    tmpdir = f"/uscmst1b_scratch/lpc1/3DayLifetime/{username}/"
-    if tmpdir:
-        os.makedirs(tmpdir, exist_ok=True)
+    if tmpdir is None:
+        lpc_default = f"/uscmst1b_scratch/lpc1/3DayLifetime/{username}/"
+        # Use LPC scratch when on LPC; otherwise fall back to $TMPDIR (or /tmp)
+        tmpdir = lpc_default if os.path.isdir("/uscmst1b_scratch") else tempfile.gettempdir()
+    os.makedirs(tmpdir, exist_ok=True)
     temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
     tarball_path = os.path.join(temp_dir, 'code_barista.tar.gz')
 

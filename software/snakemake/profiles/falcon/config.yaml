@@ -5,9 +5,17 @@ software-deployment-method:
 apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /home/export/ -B /tmp:/tmp --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv"
 slurm-logdir: "slurm_logs"
 slurm-status-command: "squeue"
+latency-wait: 60
+# Note: Falcon has no HTCondor. The Run3 Snakefiles auto-detect this via
+# `shutil.which("condor_submit")` in rules/run3_variants.smk and default
+# `run_on_condor=False` on falcon. Override with `--config run_on_condor=True`.
 default-resources:
   slurm_partition: "work"
-  runtime: 240
+  # Snakemake parses bare numeric runtime values from profile YAML as SECONDS
+  # via humanfriendly.parse_timespan (resources.py:860). A unit suffix forces
+  # interpretation as minutes/hours. "8h" → 480 min, fits in the work partition's
+  # 2-day max. Override per-rule with `resources: runtime = N` where N is minutes.
+  runtime: "8h"
   mem_mb: 16000
   cpus_per_task: 4
   tmpdir: "/tmp"
