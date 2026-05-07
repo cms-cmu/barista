@@ -188,11 +188,15 @@ def _mixeddata(self: Data, metadata: str):
 def _mixeddata_all(self: Data, metadata: str):
     filelists = []
     if "mixed_all" in self.data_sources:
+        # Top-level dataset name in the metadata yaml. Defaults to
+        # "mixeddata_all" (legacy); override with --data-mixed-all-name to
+        # point at a different mixed-data sample, e.g. mixeddata_all_rank0.
+        ds_name = getattr(self.opts, "data_mixed_all_name", "mixeddata_all")
         for year, eras in CollisionData.eras.items():
             filelists.append(
                 [
                     f"label:data,year:{year},source:mixed_all",
-                    *(metadata + f".mixeddata_all.{year}.picoAOD.{e}.files" for e in eras),
+                    *(metadata + f".{ds_name}.{year}.picoAOD.{e}.files" for e in eras),
                 ]
             )
     return filelists
@@ -251,6 +255,15 @@ class Data(_PicoAOD):
         nargs="+",
         default=[],
         help="index of synthetic samples",
+    )
+    argparser.add_argument(
+        "--data-mixed-all-name",
+        metavar="NAME",
+        default="mixeddata_all",
+        help="top-level dataset name in the metadata yaml for the mixed_all "
+             "data source. Default 'mixeddata_all'; set to e.g. "
+             "'mixeddata_all_rank0' to read from a different mixed-data "
+             "registry without renaming any committed yamls.",
     )
 
     @cached_property
