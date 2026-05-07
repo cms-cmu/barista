@@ -193,9 +193,10 @@ class CompareRootFile(CompareFloat):
         reader = TreeReader()
         result = reader.arrays(Chunk(result), library="pd")
         reference = reader.arrays(Chunk(reference), library="pd")
+        assert set(result.columns) == set(reference.columns)
         try:
             pd.testing.assert_frame_equal(
-                result,
+                result[reference.columns],
                 reference,
                 check_dtype=False,
                 atol=self.opts.atol,
