@@ -232,7 +232,7 @@ class PicoAOD(ProcessorABC):
 def _fetch_metadata(dataset: str, path: PathLike, dask: bool = False):
     try:
         with uproot.open(path) as f:
-            if "genEventCount" in f["Runs"].keys():
+            if "Runs" in f and "genEventCount" in f["Runs"].keys():
                 data = f["Runs"].arrays(
                     ["genEventCount", "genEventSumw", "genEventSumw2"]
                 )
