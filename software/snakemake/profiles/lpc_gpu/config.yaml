@@ -1,4 +1,8 @@
 # Snakemake profile for FNAL LPC GPU nodes (e.g. cmslpcgpu1)
+# Note: the P100-targeted classifier image is selected automatically inside
+# Snakefile_Run3{,MvD}_training.smk via hostname detection — no profile
+# config override needed (and trying to set --config here is broken because
+# CLI --config replaces the profile's wholesale).
 use-singularity: true
 apptainer-args: "--nv -B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data"
 default-resources:

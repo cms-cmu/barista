@@ -120,8 +120,19 @@ class _ZZ_ZH(_MCDataset):
 class _ggF(_MCDataset):
     processes = ("ggF",)
 
+    # CLI defaults — Run2 conventions. Override per training run via
+    # --ggf-signal-pattern, --ggf-coupling-format, --ggf-coupling-defaults,
+    # and --ggf-load-kl on the Signal dataset (defined on _picoAOD.Signal
+    # below).
+    _DEFAULT_PATTERN = "GluGluToHHTo4B_cHHH{kl}"
+    _DEFAULT_FORMAT  = "trim"      # Run2 cHHH style: 1.0 -> "1", 2.45 -> "2p45"
+
     @classmethod
-    def __c2str(cls, coupling: float):
+    def _c2str(cls, coupling: float, fmt: str):
+        """Format a coupling value as a dataset-name fragment."""
+        if fmt == "fixed2":
+            return f"{coupling:.2f}".replace(".", "p")     # Run3: 1.0 -> "1p00"
+        # default: trim (Run2 cHHH style — :.6g drops trailing zeros)
         return f"{coupling:.6g}".replace(".", "p")
 
     @classmethod
@@ -131,16 +142,35 @@ class _ggF(_MCDataset):
     def __new__(cls, self: MC, metadata: str):
         from src.physics.dihiggs.kappa_framework import Coupling
 
+        # Read pattern / format / extras from CLI args, falling back to
+        # Run2 defaults if the args weren't registered (e.g. older Eval
+        # configs that don't set them).
+        pattern = getattr(self.opts, "ggf_signal_pattern", cls._DEFAULT_PATTERN)
+        fmt     = getattr(self.opts, "ggf_coupling_format", cls._DEFAULT_FORMAT)
+        load_kl = getattr(self.opts, "ggf_load_kl", None)
+        defaults_str = getattr(self.opts, "ggf_coupling_defaults", "")
+        defaults: dict[str, float] = {}
+        if defaults_str:
+            for kv in defaults_str.split(","):
+                k, _, v = kv.partition("=")
+                defaults[k.strip()] = float(v)
+
+        kl_values = list(load_kl) if load_kl else MC_HH_ggF.kl
+
         filelists = []
         datasets = {}
         if "ggF" in self.mc_processes:
-            datasets[("ggF", "GluGluToHHTo4B_cHHH{kl}")] = Coupling(kl=MC_HH_ggF.kl)
+            datasets[("ggF", pattern)] = Coupling(kl=kl_values)
         for year in CollisionData.eras:
-            for (label, pattern), couplings in datasets.items():
+            for (label, pat), couplings in datasets.items():
                 for c in couplings:
-                    process = pattern.format(
-                        **{k: cls.__c2str(v) for k, v in c.items()}
-                    )
+                    # Pattern placeholders are filled first from the
+                    # Coupling values, then from --ggf-coupling-defaults
+                    # for any keys the Coupling doesn't carry.
+                    fill = {k: cls._c2str(v, fmt) for k, v in c.items()}
+                    for k, v in defaults.items():
+                        fill.setdefault(k, cls._c2str(v, fmt))
+                    process = pat.format(**fill)
                     filelists.append(
                         [
                             f"label:{label},year:{year},{cls.__cs2label(c)}",
@@ -311,4 +341,38 @@ class MixedAllBackground(Data, MC):
 
 
 class Signal(MC):
+    argparser = ArgParser()
+    argparser.add_argument(
+        "--ggf-signal-pattern",
+        default="GluGluToHHTo4B_cHHH{kl}",
+        help="Dataset-key pattern for ggF signal samples. {kl}, {kt}, {c2} "
+             "placeholders are filled from the Coupling values; missing keys "
+             "fall back to --ggf-coupling-defaults. "
+             "Run2 default: 'GluGluToHHTo4B_cHHH{kl}'. "
+             "Run3 example:  'GluGlutoHHto4B_kl-{kl}_kt-{kt}_c2-{c2}'.",
+    )
+    argparser.add_argument(
+        "--ggf-coupling-format",
+        default="trim",
+        choices=["trim", "fixed2"],
+        help="Coupling-string format. 'trim' (Run2, default): :.6g, e.g. "
+             "1.0 -> '1', 2.45 -> '2p45'. 'fixed2' (Run3): :.2f, e.g. "
+             "1.0 -> '1p00', 2.45 -> '2p45'.",
+    )
+    argparser.add_argument(
+        "--ggf-coupling-defaults",
+        default="",
+        help="Comma-separated coupling defaults filled into pattern "
+             "placeholders not present in the Coupling. "
+             "Example for Run3: 'kt=1.0,c2=0.0'.",
+    )
+    argparser.add_argument(
+        "--ggf-load-kl",
+        nargs="*",
+        type=float,
+        default=None,
+        help="Restrict signal loading to these kl values (default: all "
+             "of MC_HH_ggF.kl). Use to skip BSM kl points whose picoAODs "
+             "or classifier_inputs friend trees don't exist yet.",
+    )
     pico_filelists = (_ZZ_ZH, _ggF)
