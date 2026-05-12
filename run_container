@@ -192,6 +192,22 @@ setup_lpc_jobqueue() {
     export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${LPC_CONDOR_CONFIG},${LPC_CONDOR_LOCAL}:${LPC_CONDOR_LOCAL}.orig,${PWD}/.cmslpc-local-conf:${LPC_CONDOR_LOCAL}"
 }
 
+# --- Helpers ---
+
+_write_pythonstartup() {
+    cat > "$1" << 'EOF'
+import atexit, os, readline
+_hist = os.path.join(os.path.dirname(os.environ.get("PYTHONSTARTUP", "")), ".python_history")
+try:
+    readline.read_history_file(_hist)
+except FileNotFoundError:
+    pass
+readline.set_history_length(10000)
+atexit.register(readline.write_history_file, _hist)
+del atexit, os, readline, _hist
+EOF
+}
+
 # --- Container Functions ---
 
 run_coffea() {
@@ -203,16 +219,17 @@ run_coffea() {
 
     # 1. Base Flags
     touch "$PWD/.python_history"
+    _write_pythonstartup "$PWD/.pythonstartup"
     local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
-        --env PYTHONHISTFILE=/srv/.python_history
+        --env PYTHONSTARTUP=/srv/.pythonstartup
     )
     ulimit -n 65536
-    
+
     # LPC-Specific Environment Variable
     if [[ $HOST == *"cmslpc"* ]]; then
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
@@ -221,7 +238,7 @@ run_coffea() {
     # 2. FALCON / ROGUE Logic
     if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env PYTHONSTARTUP="$PWD/.pythonstartup" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
@@ -229,7 +246,7 @@ run_coffea() {
         else
             # CASE B: Login Node -> Submit Interactive Job
             info "Not in a job. Launching interactive Slurm session..."
-            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" "$@"
+            srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
             return # Stop execution on login node
         fi
     fi
@@ -268,13 +285,14 @@ run_coffea_dev() {
 
     # 1. Base Flags
     touch "$PWD/.python_history"
+    _write_pythonstartup "$PWD/.pythonstartup"
     local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
-        --env PYTHONHISTFILE=/srv/.python_history
+        --env PYTHONSTARTUP=/srv/.pythonstartup
     )
     ulimit -n 65536
 
@@ -286,7 +304,7 @@ run_coffea_dev() {
     # 2. FALCON / ROGUE Logic
     if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env PYTHONSTARTUP="$PWD/.pythonstartup" )
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
