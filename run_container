@@ -77,6 +77,34 @@ Examples:
   $0 reana ls
   $0 classifier          Run commands inside the classifier with GPU container.
   $0 classifier_cpu      Run commands inside the classifier with CPU container.
+
+SLURM execution (falcon.phys.cmu.edu):
+  On the falcon login node, passing --slurm to runner.py auto-submits the job
+  via sbatch instead of running interactively. Workers are spawned as separate
+  SLURM jobs by Dask (SLURMCluster).
+
+  $0 python runner.py -p <proc.py> -c <cfg.yml> -m <meta/> -y UL18 --slurm
+
+  Key runner.py options for SLURM:
+    --slurm                  Submit Dask workers as SLURM jobs
+    --worker-memory 8GB      Override worker memory (default from config)
+    --slurm-qos cpu_light    QoS: cpu_light (7d), cpu_medium (1d), cpu_heavy (4h)
+
+  Scheduler job environment variables (override defaults):
+    SLURM_PARTITION=work     Partition for the scheduler job
+    SLURM_QOS=cpu_light      QoS for the scheduler job
+    SLURM_TIME=12:00:00      Wall time for the scheduler job
+    SLURM_MEM=8G             Memory for the scheduler job
+
+  Dask dashboard (optional):
+    Set DASK_DASHBOARD_PORT to a port in 10200-10300 to open a reverse SSH
+    tunnel from the compute node back to the login node:
+
+    DASK_DASHBOARD_PORT=10200 $0 python runner.py ... --slurm
+
+    Then from your laptop:
+    ssh -L 10200:localhost:10200 tgomezes@falcon.phys.cmu.edu
+    Open: http://localhost:10200
 EOF
 }
 
@@ -223,11 +251,66 @@ run_coffea() {
         # Critical: Mirror Bind for Dask
         FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
 
+        # Bind SLURM client binaries so dask-jobqueue SLURMCluster can call
+        # sbatch from inside the container. The host glibc (>=2.38, newer than
+        # the container's) is bound at /host-libc/; bin/sbatch wrapper uses it.
+        if [ -f /usr/bin/sbatch ]; then
+            FLAGS+=(
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol
+                -B /usr/lib/x86_64-linux-gnu/slurm-wlm
+                -B /usr/lib/x86_64-linux-gnu/libmunge.so.2
+                -B /lib/x86_64-linux-gnu/libc.so.6:/host-libc/libc.so.6
+                -B /lib/x86_64-linux-gnu/libm.so.6:/host-libc/libm.so.6
+                -B /lib/x86_64-linux-gnu/libresolv.so.2:/host-libc/libresolv.so.2
+                -B /lib/x86_64-linux-gnu/libnss_files.so.2:/host-libc/libnss_files.so.2
+                -B /lib64/ld-linux-x86-64.so.2:/host-libc/ld-linux-x86-64.so.2
+                -B /etc/slurm -B /etc/passwd -B /etc/group -B /run/munge
+            )
+        fi
+
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
             info "Inside Slurm Job ($SLURM_JOB_ID). Running container directly..."
+        elif [[ " $* " == *" --slurm "* ]]; then
+            # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
+            local _ROOT
+            _ROOT="$(cd "$(dirname "$0")" && pwd)"
+            local PARTITION="${SLURM_PARTITION:-work}"
+            local QOS="${SLURM_QOS:-cpu_light}"
+            local TIME="${SLURM_TIME:-12:00:00}"
+            local MEM="${SLURM_MEM:-8G}"
+            local CPUS="${SLURM_CPUS:-4}"
+            local JOB_NAME="${SLURM_JOB_NAME:-barista-scheduler}"
+            local LOG_DIR="${_ROOT}/slurm_dask_logs"
+            mkdir -p "${LOG_DIR}"
+
+            local TUNNEL_CMD=""
+            if [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
+                TUNNEL_CMD="${_ROOT}/bin/open-dask-tunnel.sh && "
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
+            fi
+
+            local SBATCH_ARGS=(
+                --partition="${PARTITION}"
+                --qos="${QOS}"
+                --time="${TIME}"
+                --mem="${MEM}"
+                --cpus-per-task="${CPUS}"
+                --job-name="${JOB_NAME}"
+                --output="${LOG_DIR}/scheduler-%j.out"
+                --error="${LOG_DIR}/scheduler-%j.err"
+            )
+            [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && SBATCH_ARGS+=(--export=ALL,DASK_DASHBOARD_PORT="${DASK_DASHBOARD_PORT}")
+
+            local CMD="${TUNNEL_CMD}cd ${_ROOT} && $0 $*"
+            info "Submitting scheduler job: partition=${PARTITION} qos=${QOS} time=${TIME} mem=${MEM} cpus=${CPUS}"
+            sbatch "${SBATCH_ARGS[@]}" --wrap="${CMD}"
+            info "Monitor with: squeue --me"
+            info "  tail -f ${LOG_DIR}/scheduler-<JOBID>.out"
+            return
         else
-            # CASE B: Login Node -> Submit Interactive Job
+            # CASE C: Login node, no --slurm -> Submit interactive job
             info "Not in a job. Launching interactive Slurm session..."
             srun --pty --partition=work --time=04:00:00 --mem=2G "$0" "$@"
             return # Stop execution on login node
@@ -288,11 +371,63 @@ run_coffea_dev() {
         # Critical: Mirror Bind for Dask
         FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
 
+        if [ -f /usr/bin/sbatch ]; then
+            FLAGS+=(
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol
+                -B /usr/lib/x86_64-linux-gnu/slurm-wlm
+                -B /usr/lib/x86_64-linux-gnu/libmunge.so.2
+                -B /lib/x86_64-linux-gnu/libc.so.6:/host-libc/libc.so.6
+                -B /lib/x86_64-linux-gnu/libm.so.6:/host-libc/libm.so.6
+                -B /lib/x86_64-linux-gnu/libresolv.so.2:/host-libc/libresolv.so.2
+                -B /lib/x86_64-linux-gnu/libnss_files.so.2:/host-libc/libnss_files.so.2
+                -B /lib64/ld-linux-x86-64.so.2:/host-libc/ld-linux-x86-64.so.2
+                -B /etc/slurm -B /etc/passwd -B /etc/group -B /run/munge
+            )
+        fi
+
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
             info "Inside Slurm Job ($SLURM_JOB_ID). Running Dev Coffea2025 container directly..."
+        elif [[ " $* " == *" --slurm "* ]]; then
+            # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
+            local _ROOT
+            _ROOT="$(cd "$(dirname "$0")" && pwd)"
+            local PARTITION="${SLURM_PARTITION:-work}"
+            local QOS="${SLURM_QOS:-cpu_light}"
+            local TIME="${SLURM_TIME:-12:00:00}"
+            local MEM="${SLURM_MEM:-8G}"
+            local CPUS="${SLURM_CPUS:-4}"
+            local JOB_NAME="${SLURM_JOB_NAME:-barista-scheduler}"
+            local LOG_DIR="${_ROOT}/slurm_dask_logs"
+            mkdir -p "${LOG_DIR}"
+
+            local TUNNEL_CMD=""
+            if [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
+                TUNNEL_CMD="${_ROOT}/bin/open-dask-tunnel.sh && "
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
+            fi
+
+            local SBATCH_ARGS=(
+                --partition="${PARTITION}"
+                --qos="${QOS}"
+                --time="${TIME}"
+                --mem="${MEM}"
+                --cpus-per-task="${CPUS}"
+                --job-name="${JOB_NAME}"
+                --output="${LOG_DIR}/scheduler-%j.out"
+                --error="${LOG_DIR}/scheduler-%j.err"
+            )
+            [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && SBATCH_ARGS+=(--export=ALL,DASK_DASHBOARD_PORT="${DASK_DASHBOARD_PORT}")
+
+            local CMD="${TUNNEL_CMD}cd ${_ROOT} && $0 dev $*"
+            info "Submitting scheduler job: partition=${PARTITION} qos=${QOS} time=${TIME} mem=${MEM} cpus=${CPUS}"
+            sbatch "${SBATCH_ARGS[@]}" --wrap="${CMD}"
+            info "Monitor with: squeue --me"
+            info "  tail -f ${LOG_DIR}/scheduler-<JOBID>.out"
+            return
         else
-            # CASE B: Login Node -> Submit Interactive Job
+            # CASE C: Login node, no --slurm -> Submit interactive job
             info "Not in a job. Launching interactive Slurm session (Dev Coffea2025)..."
             srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
             return # Stop execution on login node

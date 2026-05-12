@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Wrapper used by dask-jobqueue SLURMCluster to launch Dask workers inside the
+# Apptainer container on falcon compute nodes.
+# When invoked from a SLURM worker job, $SLURM_JOB_ID is set, so run_container
+# runs apptainer directly (no nested srun).
+BARISTA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "${BARISTA_ROOT}/run_container" python "$@"
