@@ -286,7 +286,7 @@ run_coffea() {
 
             local TUNNEL_CMD=""
             if [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
-                TUNNEL_CMD="${_ROOT}/bin/open-dask-tunnel.sh && "
+                TUNNEL_CMD="${_ROOT}/software/slurm/open-dask-tunnel.sh && "
                 info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
                 info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
             fi
@@ -403,7 +403,7 @@ run_coffea_dev() {
 
             local TUNNEL_CMD=""
             if [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
-                TUNNEL_CMD="${_ROOT}/bin/open-dask-tunnel.sh && "
+                TUNNEL_CMD="${_ROOT}/software/slurm/open-dask-tunnel.sh && "
                 info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
                 info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
             fi

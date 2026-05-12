@@ -555,7 +555,7 @@ def setup_slurm_cluster(config_runner):
     os.makedirs(log_dir, exist_ok=True)
 
     barista_root = os.path.dirname(os.path.abspath(__file__))
-    bin_dir = os.path.join(barista_root, 'bin')
+    bin_dir = os.path.join(barista_root, 'software', 'slurm')
     worker_python = os.path.join(bin_dir, 'dask-worker-python')
 
     if not os.access(worker_python, os.X_OK):
