@@ -59,6 +59,13 @@ class HCRTrain(KFoldTrain):
         metavar=("CLASS", "KWARGS"),
         help=f"fine-tuning scheduler {parse.EMBED}",
     )
+    argparser.add_argument(
+        "--pretrained-weights",
+        default="",
+        help="directory containing pretrained .pkl files named with _offset{N}_. "
+             "The file matching the current training offset is loaded as weight initialization. "
+             "If empty, training starts from random weights.",
+    )
 
     def initializer(self, splitter: Splitter, **kwargs):
         from src.classifier.ml.models.HCR import (
@@ -83,6 +90,7 @@ class HCRTrain(KFoldTrain):
                 rocs=self.rocs,
             ),
             model=self.model,
+            pretrained_weights=self.opts.pretrained_weights or None,
             **kwargs,
         )
 

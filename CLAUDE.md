@@ -39,6 +39,35 @@ When testing changes use the skills /test-barista and /test-coffea4bees
 ./run_container snakemake --snakefile <workflow.smk> --cores 4
 ```
 
+### Running Tests Locally
+
+```bash
+# Unit tests (run inside container)
+./run_container python -m src.tests.hist_collection
+./run_container python -m src.tests.kappa_framework
+./run_container python -m pytest src/plotting/tests/
+
+# Local CI emulation (from coffea4bees/ directory)
+source scripts/run-local-ci.sh NAME_OF_CI_JOB
+```
+
+### Classifier Training Workflow
+
+```bash
+# Train/evaluate/analyze an HCR classifier (uses Snakemake + classifier container)
+./run_container snakemake \
+    --snakefile src/classifier/workflow/Snakefile \
+    --configfile <path/to/workflow_config.yml> \
+    --cores 1
+
+# Dry-run to preview DAG
+./run_container snakemake --snakefile src/classifier/workflow/Snakefile \
+    --configfile <path/to/workflow_config.yml> -np
+```
+
+Example `workflow_config.yml` files live in `coffea4bees/classifier/config/workflows/`.
+The DAG is: `train → evaluate` and `train → analyze` (parallel after training).
+
 
 ## Architecture
 
@@ -65,8 +94,10 @@ Dependency flow: `utils → (storage, data_formats, math) → (hist_tools, physi
 | `skimmer/`             | NanoAOD→PicoAOD event filtering (integrity checks, metadata)            |
 | `friendtrees/`         | Friend tree creation and management                                     |
 | `plotting/`            | Matplotlib-based visualization                                          |
-| `classifier/`          | HCR ensemble ML models                                                  |
+| `classifier/`          | HCR ensemble ML models; `workflow/` holds the Snakemake training DAG    |
 | `data/`                | Physics corrections: b-tagging SFs, JEC, pileup weights, golden JSONs   |
+| `system/`              | EOS filesystem utilities (overlaps with `storage/`)                     |
+| `tests/`               | Module-level integration tests (`hist_collection`, `kappa_framework`)   |
 
 ### Container Architecture
 
@@ -83,7 +114,7 @@ Different pixi environments:
 
 ## CI/CD
 
-GitLab CI stages: `build → setup → code → skimmer → friendtree → analysis → tools → plot → cutflow → validation → pages`
+GitLab CI stages: `build → setup → code → skimmer → friendtree → analysis → tools → plot → cutflow → deploy → validation → pages → classifier`
 
 Pipeline rules:
 - Skips on markdown-only changes, tags, and branches containing 'test'

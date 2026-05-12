@@ -88,7 +88,7 @@ Generate a short kebab-case descriptor for the MR title from the branch name:
 Example: branch `plotting_refactor` → slug `plotting-refactor`
 Example: branch `feat/add-MvD-weights` → slug `add-mvd-weights`
 
-MR title: `WIP: CI test — <slug>`
+MR title: `Draft: CI test — <slug>`
 
 ---
 
@@ -131,7 +131,7 @@ curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
 curl -s -X POST \
      --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
      --header "Content-Type: application/json" \
-     --data "{\"source_branch\": \"$BRANCH\", \"target_branch\": \"master\", \"title\": \"WIP: CI test — $SLUG\"}" \
+     --data "{\"source_branch\": \"$BRANCH\", \"target_branch\": \"master\", \"title\": \"Draft: CI test — $SLUG\"}" \
   "https://gitlab.cern.ch/api/v4/projects/cms-cmu%2Fbarista/merge_requests"
 ```
 
