@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Wrapper to call the host sbatch from inside the Apptainer container on falcon.
+# The host glibc (>=2.38) is bound at /host-libc/ by run_container.
+exec /host-libc/ld-linux-x86-64.so.2 \
+    --library-path /host-libc:/usr/lib/x86_64-linux-gnu/slurm-wlm \
+    /usr/bin/sbatch "$@"
