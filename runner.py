@@ -544,6 +544,61 @@ def setup_condor_cluster(config_runner, tarball_path):
     return client, cluster
 
 
+def setup_slurm_cluster(config_runner):
+    """Setup Dask SLURMCluster for falcon compute nodes."""
+    from dask.distributed import Client
+    from dask_jobqueue import SLURMCluster
+    import uuid
+
+    log_base = config_runner.get('slurm_log_directory', 'slurm_dask_logs')
+    log_dir = os.path.abspath(f"{log_base}_{uuid.uuid4().hex[:8]}")
+    os.makedirs(log_dir, exist_ok=True)
+
+    barista_root = os.path.dirname(os.path.abspath(__file__))
+    bin_dir = os.path.join(barista_root, 'software', 'slurm')
+    worker_python = os.path.join(bin_dir, 'dask-worker-python')
+
+    if not os.access(worker_python, os.X_OK):
+        raise FileNotFoundError(f"dask worker wrapper not found or not executable: {worker_python}")
+
+    # Prepend bin/ to PATH so SLURMCluster picks up the bin/sbatch wrapper that
+    # can call the host sbatch from inside the Apptainer container on falcon.
+    os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+
+    cluster_args = {
+        'cores': config_runner['slurm_cores'],
+        'memory': config_runner['worker_memory'],
+        'walltime': config_runner.get('slurm_walltime', '08:00:00'),
+        'queue': config_runner.get('slurm_partition', 'work'),
+        'job_extra_directives': config_runner.get('slurm_job_extra', []),
+        'log_directory': log_dir,
+        'python': worker_python,
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
+    }
+    if config_runner.get('slurm_qos'):
+        cluster_args['job_extra_directives'] = (
+            list(cluster_args['job_extra_directives']) + [f"--qos={config_runner['slurm_qos']}"]
+        )
+
+    logging.info("Creating SLURMCluster with args:")
+    logging.info(pretty_repr(cluster_args))
+
+    cluster = SLURMCluster(**cluster_args)
+    cluster.adapt(
+        minimum=config_runner['min_workers'],
+        maximum=config_runner['max_workers'],
+    )
+
+    client = Client(cluster)
+    logging.info(f"Dask dashboard: {client.dashboard_link}")
+    logging.info(f"SLURM worker log directory: {log_dir}")
+
+    logging.info("Waiting for at least one SLURM worker...")
+    client.wait_for_workers(1)
+    logging.info("SLURM cluster setup complete!")
+    return client, cluster
+
+
 def setup_local_cluster(config_runner):
     """Setup local Dask cluster configuration."""
     from dask.distributed import Client, LocalCluster
@@ -706,7 +761,13 @@ def setup_config_defaults(config_runner, args):
         'friend_base_argname': "make_classifier_input",
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
-        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120]
+        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'slurm_cores': 4,
+        'slurm_partition': 'work',
+        'slurm_qos': 'cpu_light',
+        'slurm_walltime': '08:00:00',
+        'slurm_log_directory': 'slurm_dask_logs',
+        'slurm_job_extra': [],
     }
 
     for key, default_value in defaults.items():
@@ -1057,6 +1118,25 @@ if __name__ == '__main__':
         help='Submit jobs to HTCondor cluster'
     )
     exec_group.add_argument(
+        '--slurm',
+        dest="slurm",
+        action="store_true",
+        default=False,
+        help='Submit Dask workers as SLURM jobs (for falcon compute cluster)'
+    )
+    exec_group.add_argument(
+        '--worker-memory',
+        dest="worker_memory",
+        default=None,
+        help='Override worker memory (e.g. 8GB). Overrides the value in the config file.'
+    )
+    exec_group.add_argument(
+        '--slurm-qos',
+        dest="slurm_qos",
+        default=None,
+        help='Override SLURM QoS for worker jobs (e.g. cpu_light, cpu_medium, cpu_heavy). Overrides slurm_qos in the config file.'
+    )
+    exec_group.add_argument(
         '--tmpdir',
         dest="tmpdir",
         default=None,
@@ -1107,6 +1187,7 @@ if __name__ == '__main__':
     # Disable verbose logging from third-party libraries
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
+    logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
 
     logging.info(f"Running with these parameters: {args}")
 
@@ -1161,6 +1242,10 @@ if __name__ == '__main__':
     setup_config_defaults(config_runner, args)
     if args.dashboard_address is not None:
         config_runner['dashboard_address'] = args.dashboard_address
+    if args.worker_memory is not None:
+        config_runner['worker_memory'] = args.worker_memory
+    if args.slurm_qos is not None:
+        config_runner['slurm_qos'] = args.slurm_qos
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 
@@ -1250,6 +1335,10 @@ if __name__ == '__main__':
         args.run_dask = True
         tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
         client, cluster = setup_condor_cluster(config_runner, tarball_path)
+    elif args.slurm:
+        logging.info("Configuring SLURM cluster execution...")
+        args.run_dask = True
+        client, cluster = setup_slurm_cluster(config_runner)
     elif args.run_dask:
         logging.info("Configuring local Dask cluster execution...")
         client, cluster = setup_local_cluster(config_runner)
