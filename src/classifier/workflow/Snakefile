@@ -15,29 +15,27 @@ from datetime import datetime
 
 DATE = datetime.now().strftime("%Y%m%d")
 
-# ── Resolve {lpc_user} and {eos_base} placeholders ────────────────────────────
-
-_lpc_user = config["lpc_user"]
-_eos_base = config["eos_base"].format(lpc_user=_lpc_user)
+EOS_BASE = config["eos_base"]
+LABEL    = config["label"]
 
 
 def _r(val):
-    """Resolve {lpc_user} and {eos_base} in a string value."""
     if isinstance(val, str):
-        return val.format(lpc_user=_lpc_user, eos_base=_eos_base)
+        return val.format(eos_base=EOS_BASE, label=LABEL)
     return val
 
 
-CERNUSER                = config["cern_user"]
 CLASSIFIER_CONFIG_PATHS = config["classifier_config_paths"]
-WFS_BASE                = _r(config["wfs_base"])
+WFS_BASE                = config["wfs_base"]
 OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
 PLOT_INPUTS             = bool(config.get("plot_inputs", False))
 
 MODEL          = _r(config["model"])
 TRAIN_TEMPLATE = _r(config["train_template"])
 EVAL_TEMPLATE  = _r(config["eval_template"])
-METADATA       = _r(config.get("metadata", ""))
+METADATA       = config.get("metadata", "")
+
+PLOT_BASE = config["plot_base"]
 
 # ── Container images ──────────────────────────────────────────────────────────
 
@@ -85,7 +83,7 @@ rule train:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10000-60000 -n 1) && \
+        PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         ./src/pyml.py \
             template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
@@ -113,11 +111,11 @@ rule analyze:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         model                   = MODEL,
-        plot                    = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_analyze",
+        plot                    = f"{PLOT_BASE}/{DATE}_{LABEL}/analyze",
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10000-60000 -n 1) && \
+        PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         ./src/pyml.py analyze \
             --results {params.model}/result.json \
@@ -151,7 +149,7 @@ rule evaluate:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10000-60000 -n 1) && \
+        PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         ./src/pyml.py \
             template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
@@ -181,7 +179,7 @@ rule plot_inputs_raw:
         init     = INIT,
         model    = MODEL,
         metadata = METADATA,
-        plot     = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_inputs",
+        plot     = f"{PLOT_BASE}/{DATE}_{LABEL}/inputs_raw",
     shell:
         """
         {params.init} && \
@@ -213,7 +211,7 @@ rule plot_inputs_dataprep:
         init     = INIT,
         model    = MODEL,
         metadata = METADATA,
-        plot     = f"root://eosuser.cern.ch//eos/user/{CERNUSER}/www/HH4b/Plots/{DATE}_inputs",
+        plot     = f"{PLOT_BASE}/{DATE}_{LABEL}/inputs_dataprep",
     shell:
         """
         {params.init} && \

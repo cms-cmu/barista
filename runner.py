@@ -548,16 +548,19 @@ def setup_local_cluster(config_runner):
     """Setup local Dask cluster configuration."""
     from dask.distributed import Client, LocalCluster
 
+    dashboard_addr = config_runner['dashboard_address']
     cluster_args = {
         'n_workers': config_runner['workers'],
         'memory_limit': config_runner['worker_memory'],
         'threads_per_worker': 1,
-        'dashboard_address': f":{config_runner['dashboard_address']}",  # bind to 0.0.0.0, not just localhost
+        'dashboard_address': f":{dashboard_addr}",
+        'scheduler_port': 0 if dashboard_addr == 0 else 8786,
     }
     cluster = LocalCluster(**cluster_args)
     client = Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
-    logging.info(f"  SSH tunnel:   ssh -L {config_runner['dashboard_address']}:<compute_node>:{config_runner['dashboard_address']} <login_node>")
+    if dashboard_addr != 0:
+        logging.info(f"  SSH tunnel:   ssh -L {dashboard_addr}:<compute_node>:{dashboard_addr} <login_node>")
     return client, cluster
 
 
