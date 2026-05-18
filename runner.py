@@ -1170,12 +1170,6 @@ if __name__ == '__main__':
         default=False,
         help='Check input files for corruption before processing'
     )
-    debug_group.add_argument(
-        '--tmpdir',
-        dest="tmpdir",
-        default=None,
-        help='Parent directory for temporary condor tarball directory (default: LPC scratch)'
-    )
 
     # Reproducibility options
     repro_group = parser.add_argument_group('Reproducibility')
