@@ -28,6 +28,10 @@ class FixedStep(Schedule):
     lr_milestones: list[int] = (15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
     weight_decay: float = 0.0
 
+    def __post_init__(self):
+        self.bs_kwargs = self.bs_kwargs or {}
+        self.lr_kwargs = self.lr_kwargs or {}
+    
     def optimizer(self, parameters, **kwargs):
         import torch.optim as optim
 
