@@ -26,11 +26,7 @@ class FixedStep(Schedule):
     lr_init: float = 1.0e-2
     lr_scale: float = 0.25
     lr_milestones: list[int] = (15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
-    lr_kwargs: dict[str, Any] = None
-
-    def __post_init__(self):
-        self.bs_kwargs = self.bs_kwargs or {}
-        self.lr_kwargs = self.lr_kwargs or {}
+    weight_decay: float = 0.0
 
     def optimizer(self, parameters, **kwargs):
         import torch.optim as optim
@@ -38,6 +34,7 @@ class FixedStep(Schedule):
         return optim.Adam(
             parameters,
             lr=self.lr_init,
+            weight_decay=self.weight_decay,
             # amsgrad=True, # PLAN test performance
             **kwargs,
         )
