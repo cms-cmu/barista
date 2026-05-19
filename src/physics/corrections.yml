@@ -40,16 +40,16 @@
     jer_version: JRV3
   jes_unc:
     - Regrouped_Absolute
-    - Regrouped_Absolute_2016
+    - Regrouped_Absolute_2016APV
     - Regrouped_BBEC1
-    - Regrouped_BBEC1_2016
+    - Regrouped_BBEC1_2016APV
     - Regrouped_EC2
-    - Regrouped_EC2_2016
+    - Regrouped_EC2_2016APV
     - Regrouped_FlavorQCD
     - Regrouped_HF
-    - Regrouped_HF_2016
+    - Regrouped_HF_2016APV
     - Regrouped_RelativeBal
-    - Regrouped_RelativeSample_2016
+    - Regrouped_RelativeSample_2016APV
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016preVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0508
