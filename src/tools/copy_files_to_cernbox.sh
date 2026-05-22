@@ -28,8 +28,8 @@ usage() {
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage 0
 fi
-
-command -v gfal-copy >/dev/null 2>&1 || { echo "gfal-copy not found"; exit 1; }
+command -v xrdcp >/dev/null 2>&1 || { echo "xrdcp not found"; exit 1; }
+command -v xrdfs >/dev/null 2>&1 || { echo "xrdfs not found"; exit 1; }
 
 # Default values
 source_folder=""
@@ -82,10 +82,10 @@ if [[ $use_tar -eq 1 ]]; then
       tar -C "$source_folder" -czf "$tmp_dir/$archive_name" .
       
       echo "Transferring tarball ${archive_name}"
-      src="file://${tmp_dir}/${archive_name}"
-      dst="root://eosuser.cern.ch${destination_folder}/${archive_name}"
-      # Provide parent directory creation via -p if supported (gfal-copy normally creates parents if specified or wait, gfal-copy creates parent if needed? Let's make sure destination exists might need -p ... gfal-copy does it automatically or requires --parents. Let's just use gfal-copy and assume structure or it creates it, the existing script doesn't use --parents but we are transferring a single file, it's safer to just run it)
-      gfal-copy -f "$src" "$dst"
+      xrdfs root://eosuser.cern.ch mkdir -p "$destination_folder"
+      src="${tmp_dir}/${archive_name}"
+      dst="root://eosuser.cern.ch//${destination_folder#/}/${archive_name}"
+      xrdcp -f "$src" "$dst"
       
       # Optional remote unpack if eos is mounted locally
       if [[ -d "$destination_folder" ]]; then
@@ -113,19 +113,14 @@ trap 'rm -f "$command_file"' EXIT
 
 # If the first item is a file (has extension), treat source as direct folder
 if [[ $first_item == *.* ]]; then
+  xrdfs root://eosuser.cern.ch mkdir -p "$destination_folder"
   # Transfer files directly from source folder
   for ifile in $($list_cmd "$source_folder");
   do
       if [[ -z $file_filter || $ifile =~ $file_filter ]];
       then
-          # Build source URL for gfal-copy
-          if [[ $source_folder =~ ^root:// ]]; then
-            src="${source_folder}/${ifile}"
-          else
-            src="file://${source_folder}/${ifile}"
-          fi
-          
-          dst="root://eosuser.cern.ch${destination_folder}/${ifile}"
+          src="${source_folder}/${ifile}"
+          dst="root://eosuser.cern.ch//${destination_folder#/}/${ifile}"
           printf "%s\0%s\0" "$src" "$dst" >> "$command_file"
       fi
   done
@@ -135,18 +130,13 @@ else
   do
       if [[ -z $folder_filter || $ifolder =~ $folder_filter ]];
       then
+          xrdfs root://eosuser.cern.ch mkdir -p "${destination_folder}/${ifolder}"
           for ifile in $($list_cmd "${source_folder}/${ifolder}");
           do
               if [[ -z $file_filter || $ifile =~ $file_filter ]];
               then
-                  # Build source URL for gfal-copy
-                  if [[ $source_folder =~ ^root:// ]]; then
-                    src="${source_folder}/${ifolder}/${ifile}"
-                  else
-                    src="file://${source_folder}/${ifolder}/${ifile}"
-                  fi
-                  
-                  dst="root://eosuser.cern.ch${destination_folder}/${ifolder}/${ifile}"
+                  src="${source_folder}/${ifolder}/${ifile}"
+                  dst="root://eosuser.cern.ch//${destination_folder#/}/${ifolder}/${ifile}"
                   printf "%s\0%s\0" "$src" "$dst" >> "$command_file"
               fi
           done
@@ -157,8 +147,8 @@ fi
 if [[ $jobs -gt 1 ]]; then
   echo "Found $(grep -z -c . "$command_file" | awk '{print $1/2}') files to transfer."
   echo "Transfers will be run in parallel using $jobs workers..."
-  xargs -0 -n 2 -P "$jobs" bash -c 'echo "Transferring: $0"; gfal-copy -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"'
+  xargs -0 -n 2 -P "$jobs" bash -c 'echo "Transferring: $0"; xrdcp -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"' < "$command_file"
 else
   echo "Found $(grep -z -c . "$command_file" | awk '{print $1/2}') files to transfer sequentially..."
-  xargs -0 -n 2 -P 1 bash -c 'echo "Transferring: $0"; gfal-copy -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"'
+  xargs -0 -n 2 -P 1 bash -c 'echo "Transferring: $0"; xrdcp -f "$0" "$1" && echo "  => Done: $0" || echo "  => Failed: $0"' < "$command_file"
 fi
