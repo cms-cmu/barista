@@ -38,15 +38,32 @@ cat <<EOF >> "$TMP_NAV"
 EOF
 
 # Replace nav section in mkdocs.yml
-awk -v navfile="$TMP_NAV" '
-    BEGIN {nav=0}
-    /^nav:/ {print "nav:"; nav=1; next}
-    nav==1 && /^\s*- / {next}
-    nav==1 && NF==0 {nav=0; while ((getline line < navfile) > 0) print line; close(navfile)}
-    {print}
-' "$MKDOCS_YML" > "$MKDOCS_YML.tmp"
+python3 -c '
+import sys
+yml_path = sys.argv[1]
+nav_path = sys.argv[2]
+with open(yml_path, "r") as f:
+    lines = f.readlines()
+new_lines = []
+in_nav = False
+for line in lines:
+    if line.startswith("nav:"):
+        new_lines.append(line)
+        in_nav = True
+        with open(nav_path, "r") as nf:
+            new_lines.extend(nf.readlines())
+        continue
+    if in_nav:
+        stripped = line.strip()
+        if stripped.startswith("-") or not stripped:
+            continue
+        else:
+            in_nav = False
+    new_lines.append(line)
+with open(yml_path, "w") as f:
+    f.writelines(new_lines)
+' "$MKDOCS_YML" "$TMP_NAV"
 
-mv "$MKDOCS_YML.tmp" "$MKDOCS_YML"
 rm "$TMP_NAV"
 
 echo "mkdocs.yml navigation updated!"
