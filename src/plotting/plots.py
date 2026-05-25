@@ -9,7 +9,7 @@ import src.plotting.iPlot_config as cfg
 import src.plotting.helpers as plot_helpers
 import src.plotting.helpers_make_plot_dict as plot_helpers_make_plot_dict
 import src.plotting.helpers_make_plot as plot_helpers_make_plot
-from src.plotting.plot_types import RenderOptions, _DATA_ONLY_KEYS
+from src.plotting.plot_types import RenderOptions
 from dataclasses import fields as _dataclass_fields
 
 def init_arg_parser():
@@ -80,11 +80,10 @@ def parse_args():
 
 # ---------------------------------------------------------------------------
 # Single normalization map: strip underscores + lowercase every input key,
-# look up here to get the canonical field name.
+# look up here to get the canonical RenderOptions field name.
 #
-# Auto-populated from RenderOptions fields AND _DATA_ONLY_KEYS so camelCase /
-# snake_case / mixed-case variants (addFlow, do_ratio, yScale, Rebin, …) are
-# covered for free.
+# Auto-populated from RenderOptions fields so camelCase / snake_case /
+# mixed-case variants (addFlow, do_ratio, yScale, …) are covered for free.
 # Explicit entries handle abbreviations and genuinely different root words
 # where stripping alone isn't enough (ratio→doRatio, normalize→norm, …).
 # Keys are already stripped+lowercased; values are canonical field names.
@@ -92,7 +91,7 @@ def parse_args():
 _RENDER_FIELDS: frozenset = frozenset(f.name for f in _dataclass_fields(RenderOptions))
 _NORMALIZE_MAP: dict = {
     name.lower().replace('_', ''): name
-    for name in _RENDER_FIELDS | _DATA_ONLY_KEYS
+    for name in _RENDER_FIELDS
 }
 _NORMALIZE_MAP.update({
     # norm
@@ -123,9 +122,6 @@ _NORMALIZE_MAP.update({
     # fmt  ('format'/'output' ≠ 'fmt' after stripping)
     'format':          'fmt',
     'outputformat':    'fmt',
-    # year
-    'yr':              'year',
-    'years':           'year',
 })
 
 
@@ -226,8 +222,7 @@ def make2DPlot(cfg, process, var='selJets.pt',
 def load_hists(input_hists):
     hists = []
     for _inFile in input_hists:
-        with open(_inFile, 'rb') as hfile:
-            hists.append(load(hfile))
+        hists.append(load(_inFile))
 
     return hists
 

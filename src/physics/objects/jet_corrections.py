@@ -1,8 +1,8 @@
 import os, sys
-import gzip
-import json
 import tarfile
 import logging
+import gzip
+import json
 
 import numpy as np
 import awkward as ak
@@ -102,7 +102,7 @@ def apply_jerc_corrections( event,
     nominal_jet = event.Jet
     if isMC: nominal_jet['pt_gen'] = ak.values_astype(ak.fill_none(nominal_jet.matched_gen.pt, 0), np.float32)
 
-    nominal_jet['rho'] = ak.broadcast_arrays((event.Rho.fixedGridRhoFastjetAll if 'Rho' in event.fields else event.fixedGridRhoFastjetAll), nominal_jet.pt)[0]
+    nominal_jet['rho_value'] = ak.broadcast_arrays((event.Rho.fixedGridRhoFastjetAll if 'Rho' in event.fields else event.fixedGridRhoFastjetAll), nominal_jet.pt)[0]
 
     from coffea.lookup_tools import extractor
     extract = extractor()
@@ -135,7 +135,7 @@ def apply_jerc_corrections( event,
     name_map['ptGenJet'] = 'pt_gen'
     name_map['ptRaw']    = 'pt_raw'
     name_map['massRaw']  = 'mass_raw'
-    name_map['Rho']      = 'rho'
+    name_map['Rho']      = 'rho_value'
     logging.debug(name_map)
 
     jet_factory = CorrectedJetsFactory(name_map, jec_stack)
@@ -156,15 +156,6 @@ def apply_jerc_corrections( event,
 # per file path rather than once per chunk.
 _cset_cache: dict = {}
 _run_range_cache: dict = {}
-
-def _get_correction_set(path: str):
-    """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
-    if path not in _cset_cache:
-        logging.debug(f"CorrectionSet cache miss — loading {path}")
-        _cset_cache[path] = correctionlib.CorrectionSet.from_file(path)
-    else:
-        logging.debug(f"CorrectionSet cache hit for {path}")
-    return _cset_cache[path]
 
 def _get_run_range(path: str) -> tuple[float, float] | None:
     """Return (run_min, run_max) from the first DATA correction that bins on run, or None."""
@@ -202,6 +193,15 @@ def _get_run_range(path: str) -> tuple[float, float] | None:
         pass
     _run_range_cache[path] = None
     return None
+
+def _get_correction_set(path: str):
+    """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
+    if path not in _cset_cache:
+        logging.debug(f"CorrectionSet cache miss — loading {path}")
+        _cset_cache[path] = correctionlib.CorrectionSet.from_file(path)
+    else:
+        logging.debug(f"CorrectionSet cache hit for {path}")
+    return _cset_cache[path]
 
 # Correction levels that appear in the JSON-POG key names but are NOT
 # JES uncertainty sources (used to filter them out during auto-detection).
@@ -275,8 +275,12 @@ def apply_jerc_corrections_jsonpog(
     """
     logging.info(f"Applying JSON-POG JEC/JER corrections for {dataset}")
 
-    from src.physics.objects.jetmet_tools.CorrectedJetsFactory import (
-        _JsonPogJEC, _JsonPogJER, _JsonPogJERSF, _JsonPogJUNC, _JsonPogJECStack,
+    from src.physics.objects.jetmet_tools.correctionlib_adapters import (
+        CorrectionLibJEC as _JsonPogJEC,
+        CorrectionLibJER as _JsonPogJER,
+        CorrectionLibJERSF as _JsonPogJERSF,
+        CorrectionLibJUNC as _JsonPogJUNC,
+        CorrectionLibJECStack as _JsonPogJECStack,
     )
 
     # ── extract parameters from corrections_metadata ──────────────────────────
@@ -314,7 +318,7 @@ def apply_jerc_corrections_jsonpog(
         nominal_jet["pt_gen"] = ak.values_astype(
             ak.fill_none(nominal_jet.matched_gen.pt, 0), np.float32
         )
-    nominal_jet["rho"] = ak.broadcast_arrays(
+    nominal_jet["rho_value"] = ak.broadcast_arrays(
         event.Rho.fixedGridRhoFastjetAll if "Rho" in event.fields else event.fixedGridRhoFastjetAll,
         nominal_jet.pt,
     )[0]
@@ -370,7 +374,7 @@ def apply_jerc_corrections_jsonpog(
         "ptGenJet": "pt_gen",
         "ptRaw":    "pt_raw",
         "massRaw":  "mass_raw",
-        "Rho":      "rho",
+        "Rho":      "rho_value",
         "run":      "run",
     }
 
@@ -379,19 +383,14 @@ def apply_jerc_corrections_jsonpog(
     return jet_factory.build(nominal_jet, event.event, seeds=seeds)
 
 
-def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False):
+def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):
     '''
     taken from https://github.com/PocketCoffea/PocketCoffea/blob/main/pocket_coffea/lib/cut_functions.py#L65
     modified to veto jets not events
     '''
 
-    if 'jetId' in jets.fields:
-        passes_tight_id = ((jets.jetId & 2)==2)
-    else:
-        passes_tight_id = jets.passJetId
-
     mask_for_VetoMap = (
-        passes_tight_id # Must fulfill tight jetId
+        ((jets.jetId & 2)==2) # Must fulfill tight jetId
         & (abs(jets.eta) < 5.19) # Must be within HCal acceptance
         & ((jets.neEmEF + jets.chEmEF) < 0.9) # Energy fraction not dominated by ECal
     )
@@ -407,7 +406,7 @@ def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False):
         corr.evaluate("jetvetomap", etaFlat, phiFlat),
         counts=etaCounts,
     )
-    jetMask = ak.where( weight == 0, True, False, axis=1 )  # if 0 is not vetoed, then True
+    jetMask = ak.where( weight == 0, True, False )  # if 0 is not vetoed, then True
 
     if event_veto == False:
         veto_mask = jetMask & mask_for_VetoMap

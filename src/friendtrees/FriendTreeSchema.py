@@ -6,7 +6,15 @@ class FriendTreeSchema(BaseSchema):
     def __init__(self, base_form, name=''):
         super().__init__(base_form)
         self.mixins = {}
-        self._form["contents"] = self._build_collections(self._form["contents"])
+        if isinstance(self._form["contents"], dict):
+            # coffea 0.7: contents is a dict {name: form}
+            self._form["contents"] = self._build_collections(self._form["contents"])
+        else:
+            # coffea 2025: contents is a list parallel to fields
+            branch_forms = dict(zip(self._form["fields"], self._form["contents"]))
+            output = self._build_collections(branch_forms)
+            self._form["fields"] = list(output.keys())
+            self._form["contents"] = list(output.values())
 
     def _build_collections(self, branch_forms):
         for k in branch_forms:
@@ -47,8 +55,8 @@ class FriendTreeSchema(BaseSchema):
 
         return output
 
-    @property
-    def behavior(self):
+    @classmethod
+    def behavior(cls):
         """Behaviors necessary to implement this schema"""
         from coffea.nanoevents.methods import nanoaod
 

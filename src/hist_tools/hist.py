@@ -37,6 +37,7 @@ from ..aktools import (
     and_fields,
     get_field,
 )
+from ..config import Configurable, config
 from ..data_formats import awkward as akext
 from ..typetools import check_type, find_subclass
 from . import template as _t
@@ -159,7 +160,7 @@ FillType = TypeVar("FillType", bound="_Fill")
 class _MissingFillValue: ...
 
 
-class _Fill(Generic[HistType]):
+class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
     class __backend__:
         ak: ak
         check_empty_mask: bool
@@ -168,7 +169,7 @@ class _Fill(Generic[HistType]):
 
         allow_str_array: bool = Version(ak.__version__) >= Version("2.0.0")
 
-    allow_missing = True
+    allow_missing = config(True)
 
     def __init__(
         self,
@@ -306,6 +307,19 @@ class _Fill(Generic[HistType]):
                     ):
                         hist_args = self.__backend__.broadcast_all(**hist_args)
                     ############################################################
+                    # awkward v2 preserves optional types (?bool, ?float);
+                    # convert to concrete numpy before filling boost-histogram
+                    for k, v in hist_args.items():
+                        if isinstance(v, ak.Array) and ak.any(ak.is_none(v)):
+                            if "bool" in str(v.type):
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, False))
+                            else:
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
+                        elif isinstance(v, ak.Array):
+                            try:
+                                hist_args[k] = ak.to_numpy(v)
+                            except ValueError:
+                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
                     hists._hists[name].fill(**hist_args)
                     hists._filled.add(name)
                 except Exception:
