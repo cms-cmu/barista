@@ -531,9 +531,10 @@ def setup_slurm_cluster(config_runner):
     from dask.distributed import Client
     from dask_jobqueue import SLURMCluster
     import uuid
+    import socket
 
-    log_base = config_runner.get('slurm_log_directory', 'slurm_dask_logs')
-    log_dir = os.path.abspath(f"{log_base}_{uuid.uuid4().hex[:8]}")
+    log_base = config_runner.get('slurm_log_directory', 'slurm_logs')
+    log_dir = os.path.abspath(os.path.join(log_base, uuid.uuid4().hex[:8]))
     os.makedirs(log_dir, exist_ok=True)
 
     barista_root = os.path.dirname(os.path.abspath(__file__))
@@ -543,21 +544,41 @@ def setup_slurm_cluster(config_runner):
     if not os.access(worker_python, os.X_OK):
         raise FileNotFoundError(f"dask worker wrapper not found or not executable: {worker_python}")
 
+    # Detect if running on Bridges 2
+    hostname = socket.gethostname()
+    is_bridges2 = 'bridges2' in hostname or 'psc' in hostname
+
     # Prepend bin/ to PATH so SLURMCluster picks up the bin/sbatch wrapper that
     # can call the host sbatch from inside the Apptainer container on falcon.
-    os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+    # On Bridges 2, we bypass the falcon sbatch wrapper because sbatch runs natively.
+    if not is_bridges2:
+        os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+
+    default_partition = 'RM-shared' if is_bridges2 else 'work'
+    partition = config_runner.get('slurm_partition', default_partition)
+    if partition == 'work' and is_bridges2:
+        partition = 'RM-shared'
+
+    job_extra = list(config_runner.get('slurm_job_extra', []))
+    
+    # If on Bridges 2 and billing account is specified in environment, inject it
+    account = os.environ.get('SLURM_ACCOUNT')
+    if is_bridges2 and account:
+        job_extra.append(f"-A {account}")
 
     cluster_args = {
         'cores': config_runner['slurm_cores'],
         'memory': config_runner['worker_memory'],
         'walltime': config_runner.get('slurm_walltime', '08:00:00'),
-        'queue': config_runner.get('slurm_partition', 'work'),
-        'job_extra_directives': config_runner.get('slurm_job_extra', []),
+        'queue': partition,
+        'job_extra_directives': job_extra,
         'log_directory': log_dir,
         'python': worker_python,
         'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
     }
-    if config_runner.get('slurm_qos'):
+    if is_bridges2:
+        cluster_args['processes'] = 1
+    if config_runner.get('slurm_qos') and not is_bridges2:
         cluster_args['job_extra_directives'] = (
             list(cluster_args['job_extra_directives']) + [f"--qos={config_runner['slurm_qos']}"]
         )
@@ -758,7 +779,7 @@ def setup_config_defaults(config_runner, args):
         'slurm_partition': 'work',
         'slurm_qos': 'cpu_light',
         'slurm_walltime': '08:00:00',
-        'slurm_log_directory': 'slurm_dask_logs',
+        'slurm_log_directory': 'slurm_logs',
         'slurm_job_extra': [],
     }
 

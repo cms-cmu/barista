@@ -32,13 +32,13 @@ build_container:
   extends:
     - .buildah
   before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
     - echo $REGISTRY_IMAGE_PATH
   variables:
     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis"
     EXTRA_TAGS: ""
   after_script:
-    - echo "ANALYSIS_IMAGE_TAG=${CI_COMMIT_SHORT_SHA}" > build.env
+    - echo "ANALYSIS_IMAGE_TAG=$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}" > build.env
   artifacts:
     reports:
       dotenv: build.env
@@ -55,13 +55,13 @@ build_container_coffea0_7:
   extends:
     - .buildah
   before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:coffea0_7_${CI_COMMIT_SHORT_SHA}"
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:coffea0_7_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
     - echo $REGISTRY_IMAGE_PATH
   variables:
     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis_dev"
     EXTRA_TAGS: ""
   after_script:
-    - echo "COFFEA0_7_IMAGE_TAG=coffea0_7_${CI_COMMIT_SHORT_SHA}" > build_coffea0_7.env
+    - echo "COFFEA0_7_IMAGE_TAG=coffea0_7_$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}" > build_coffea0_7.env
   artifacts:
     reports:
       dotenv: build_coffea0_7.env
@@ -82,8 +82,8 @@ deploy_container:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
-    - buildah tag ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA} ${CI_REGISTRY_IMAGE}:latest
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+    - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
@@ -97,8 +97,8 @@ deploy_container_coffea0_7:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:coffea0_7_${CI_COMMIT_SHORT_SHA}
-    - buildah tag ${CI_REGISTRY_IMAGE}:coffea0_7_${CI_COMMIT_SHORT_SHA} ${CI_REGISTRY_IMAGE}:coffea0_7_latest
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG}
+    - buildah tag ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:coffea0_7_latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:coffea0_7_latest
   rules:
     - if: $CI_COMMIT_BRANCH == "master"
