@@ -27,7 +27,7 @@ workflow:
 variables:
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
-  ANALYSIS_IMAGE_TAG: "dev_coffea2025_latest"
+  ANALYSIS_IMAGE_TAG: "latest"
   CLASSIFIER_IMAGE_TAG: "classifier_cpu_latest"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
