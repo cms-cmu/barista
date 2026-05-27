@@ -1,5 +1,4 @@
 # Snakemake profile for FNAL LPC cluster (cmslpc)
-use-singularity: true
 apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data"
 default-resources:
-  tmpdir: "output/snakemake_tmp"
+  - "tmpdir='/tmp'"

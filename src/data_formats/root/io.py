@@ -19,7 +19,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 
     .. code-block:: python
 
-        timeout = 600
+        timeout = 180
 
 .. warning::
     Writers will always overwrite the output file if it exists.
@@ -32,6 +32,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 from __future__ import annotations
 
 import logging
+import time
 from numbers import Number
 from typing import TYPE_CHECKING, Callable, Generator, Literal, TypedDict, overload
 
@@ -55,8 +56,6 @@ if TYPE_CHECKING:
     import numpy as np
     import numpy.typing as npt
     import pandas as pd
-    from uproot.writing import WritableDirectory
-
 
 if TYPE_CHECKING:
     RecordLike = ak.Array | pd.DataFrame | dict[str, np.ndarray]
@@ -93,7 +92,7 @@ class _Reader:
         "open_files": False,
     }
     _default_options = {
-        "timeout": 600,
+        "timeout": 180,
     }
 
     def __init__(self, **options):
@@ -114,20 +113,6 @@ class ReaderOptions(TypedDict, total=False):
 
 BRANCH_FILTER = "branch_filter"
 
-IS_UPROOT_5_0_0 = Version(uproot.__version__) >= Version("5.0.0")
-IS_UPROOT_5_7_0 = Version(uproot.__version__) >= Version("5.7.0")
-
-
-def _ttree_extend(file: WritableDirectory, name: str, data: RecordLike):
-    "explicitly create TTree instead of RNTuple"
-    if name not in file:
-        if IS_UPROOT_5_7_0:
-            file.mktree(name, data)
-        else:
-            file.update({name: data})
-    else:
-        file[name].extend(data)
-
 
 class TreeWriter:
     """
@@ -143,10 +128,11 @@ class TreeWriter:
         Size of :class:`TBasket`. If not given, a new :class:`TBasket` will be created for each :meth:`extend` call.
     **options: dict, optional
         Additional options passed to :func:`uproot.recreate`.
+    Attributes
+    ----------
+    tree : ~heptools.root.chunk.Chunk or list[~heptools.root.chunk.Chunk]
+        Created :class:`TTree`.
     """
-
-    tree: Chunk | list[Chunk]
-    """~heptools.root.Chunk or list[~heptools.root.Chunk]: Created :class:`TTree`."""
 
     def __init__(
         self,
@@ -252,9 +238,17 @@ class TreeWriter:
 
                 if akext.is_jagged(data):
                     data = {k: data[k] for k in data.fields}
-            elif self._backend == "pd":
-                data = {k: data[k] for k in data.columns}
-            _ttree_extend(self._file, self._tree_name, data)
+            if self._tree_name not in self._file:
+                if self._backend == "pd":
+                    branch_types = {col: data[col].values.dtype for col in data.columns}
+                elif self._backend == "np":
+                    branch_types = {k: v.dtype for k, v in data.items()}
+                elif hasattr(data, "fields"):
+                    branch_types = {k: data[k].type for k in data.fields}
+                elif isinstance(data, dict):
+                    branch_types = {k: v.type if hasattr(v, "type") else v.dtype for k, v in data.items()}
+                self._file.mktree(self._tree_name, branch_types)
+            self._file[self._tree_name].extend(data)
         data = None
 
     def extend(self, data: RecordLike):
@@ -359,8 +353,8 @@ class TreeWriter:
                 raise ValueError(f'Metadata name "{name}" conflicts with other trees.')
         else:
             self._trees[name] = None
-        if IS_UPROOT_5_0_0:
-            _ttree_extend(self._file, name, {k: [v] for k, v in metadata.items()})
+        if Version(uproot.__version__) >= Version("5.0.0"):
+            self._file[name] = {k: [v] for k, v in metadata.items()}
         else:
             import awkward as ak
             import numpy as np
@@ -415,7 +409,6 @@ class TreeReader(_Reader):
                     time.sleep(delay)
                     delay *= 2
         raise last_exc
-
     @overload
     def arrays(
         self,
@@ -704,7 +697,7 @@ class TreeReader(_Reader):
                 raise ValueError(
                     f"Expected one entry in {source.path}[{name}], got {num_entries}."
                 )
-            if IS_UPROOT_5_0_0:
+            if Version(uproot.__version__) > Version("5.0.0"):
                 metadata = {k: v[0] for k, v in file[name].arrays(library="np").items()}
             else:
                 import awkward as ak
