@@ -1,8 +1,16 @@
 # Based on https://github.com/CoffeaTeam/coffea/blob/7dd4f863837a6319579f078c9e445c61d9106943/coffea/nanoevents/schemas/nanoaod.py
 from coffea.nanoevents.schemas.base import BaseSchema, zip_forms
 
+class behavior_descriptor:
+    def __get__(self, instance, owner):
+        """Behaviors necessary to implement this schema (works as class property and instance property)"""
+        from coffea.nanoevents.methods import nanoaod
+        return nanoaod.behavior
+
 class FriendTreeSchema(BaseSchema):
     """Basic multiclassifier friend tree schema"""
+    behavior = behavior_descriptor()
+
     def __init__(self, base_form, name=''):
         super().__init__(base_form)
         self.mixins = {}
@@ -54,10 +62,3 @@ class FriendTreeSchema(BaseSchema):
         output[name]["parameters"].update({"collection_name": name})
 
         return output
-
-    @classmethod
-    def behavior(cls):
-        """Behaviors necessary to implement this schema"""
-        from coffea.nanoevents.methods import nanoaod
-
-        return nanoaod.behavior
