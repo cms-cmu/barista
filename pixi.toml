@@ -12,6 +12,7 @@ pip = "*"
 
 # Snakemake and workflow tools
 snakemake = "*"
+snakemake-executor-plugin-slurm = "*"
 
 # System tools
 # Commenting out since they're typically available on target systems
@@ -27,9 +28,7 @@ libopenblas = "<0.3.30"
 
 [pypi-dependencies]
 # Pip-only packages from Dockerfile
-# panoptes-ui removed: pulls in pandas→numpy→libopenblas which crashes on AMD EPYC (no AVX-512)
-snkmt = { git = "ssh://git@github.com/alefisico/snkmt.git", branch = "feature/layout-redesign" }
-snakemake-logger-plugin-snkmt = { git = "ssh://git@github.com/alefisico/snakemake-logger-plugin-snkmt.git" }
+snkmt = { git = "https://github.com/alefisico/snkmt.git", branch = "feature/layout-redesign" }
 
 [tasks]
 # Define common tasks
