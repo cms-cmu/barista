@@ -99,8 +99,8 @@ class Eval(Generic[_EvalT]):
         + r"|".join(
             [
                 rf"((?<={i})[^\[\]\",=]*?(?={j}))"
-                for i in ["\[", ","]
-                for j in [",", "\]"]
+                for i in [r"\[", ","]
+                for j in [",", r"\]"]
             ]
         )
         + r")"
