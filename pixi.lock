@@ -4482,7 +4482,6 @@ packages:
   - python >=3.10
   - python
   license: BSD-3-Clause
-  license_family: BSD
   purls:
   - pkg:pypi/idna?source=compressed-mapping
   size: 56858
