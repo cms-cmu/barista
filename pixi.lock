@@ -1593,7 +1593,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/greenlet?source=compressed-mapping
+  - pkg:pypi/greenlet?source=hash-mapping
   size: 263116
   timestamp: 1779292372878
 - conda: https://conda.anaconda.org/conda-forge/linux-64/gtk3-3.24.52-ha5ea40c_0.conda
@@ -3574,7 +3574,6 @@ packages:
   - python >=3.10
   - python
   license: BSD-3-Clause
-  license_family: BSD
   purls:
   - pkg:pypi/idna?source=compressed-mapping
   size: 56858
