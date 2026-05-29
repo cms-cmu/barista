@@ -1,4 +1,12 @@
-# Snakemake profile for FNAL LPC cluster (cmslpc)
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data"
+software-deployment-method:
+  - apptainer
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data -B software/container/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh --env ENV=/srv/apptainer_env.sh"
+executor: cluster-generic
+cluster-generic-submit-cmd: "python tmp/submit_wrapper.py"
+cluster-generic-status-cmd: "python tmp/status_wrapper.py"
+cluster-generic-cancel-cmd: "condor_rm"
 default-resources:
   - "tmpdir='/tmp'"
+  - "mem_mb=4000"
+latency-wait: 60
+
