@@ -30,9 +30,8 @@ libopenblas = "<0.3.30"
 
 [pypi-dependencies]
 # Pip-only packages from Dockerfile
-# panoptes-ui removed: pulls in pandas→numpy→libopenblas which crashes on AMD EPYC (no AVX-512)
-snkmt = { git = "ssh://git@github.com/alefisico/snkmt.git", branch = "feature/layout-redesign" }
-snakemake-logger-plugin-snkmt = { git = "ssh://git@github.com/alefisico/snakemake-logger-plugin-snkmt.git" }
+snkmt = { git = "https://github.com/alefisico/snkmt.git", branch = "feat-dask-condor-monitor" }
+snakemake-logger-plugin-snkmt = { git = "https://github.com/cademirch/snakemake-logger-plugin-snkmt.git" }
 
 [tasks]
 # Define common tasks

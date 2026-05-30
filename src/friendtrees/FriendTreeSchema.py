@@ -1,11 +1,15 @@
 # Based on https://github.com/CoffeaTeam/coffea/blob/7dd4f863837a6319579f078c9e445c61d9106943/coffea/nanoevents/schemas/nanoaod.py
 from coffea.nanoevents.schemas.base import BaseSchema, zip_forms
 
+class CallableDict(dict):
+    def __call__(self):
+        return self
+
 class behavior_descriptor:
     def __get__(self, instance, owner):
         """Behaviors necessary to implement this schema (works as class property and instance property)"""
         from coffea.nanoevents.methods import nanoaod
-        return nanoaod.behavior
+        return CallableDict(nanoaod.behavior)
 
 class FriendTreeSchema(BaseSchema):
     """Basic multiclassifier friend tree schema"""

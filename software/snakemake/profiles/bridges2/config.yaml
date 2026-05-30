@@ -13,3 +13,11 @@ default-resources:
   mem_mb: 8000
   cpus_per_task: 2
   tmpdir: "/tmp"
+
+set-resources:
+  train:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:v100-16:1"
+  evaluate:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:v100-16:1"

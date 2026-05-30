@@ -881,6 +881,8 @@ class Friend(Configurable, namespace="root.Friend"):
             raise ValueError("Please specify an parallel backend.")
         if base_path is not ...:
             base_path = EOS(base_path)
+        if naming is ...:
+            naming = "{name}_{uuid}_{start}_{stop}.root"
         self._init_dump()
         data = defaultdict(list)
         if executor is not None:
