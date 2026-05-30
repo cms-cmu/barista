@@ -90,7 +90,10 @@ deploy_container:
     - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
   rules:
+    - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis
 
 
 deploy_container_coffea0_7:
@@ -105,7 +108,10 @@ deploy_container_coffea0_7:
     - buildah tag ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:coffea0_7_latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:coffea0_7_latest
   rules:
+    - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis_dev
 
 # We used to use reana in the container. We are not using it anymore, but we keep the code here in case we want to go back to it in the future.
 # build_container_reana:
