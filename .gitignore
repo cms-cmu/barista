@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.python_history
+.pythonstartup
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -213,3 +215,6 @@ scripts/
 # lxplus: interim dask_lxplus install and HTCondor job logs
 .lxplus_site/
 condor_logs/
+.sites_map.json
+.cmslpc-local-conf
+.nfs00000033b3f03528000000b5
