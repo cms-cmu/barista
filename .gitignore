@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.python_history
+.pythonstartup
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -205,3 +207,6 @@ bbreww
 pourover_output/
 .pytest*/
 apptainer_env.sh
+.sites_map.json
+.cmslpc-local-conf
+.nfs00000033b3f03528000000b5
