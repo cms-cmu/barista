@@ -75,6 +75,7 @@ stages:
   - build
   - setup
   - code 
+  - classifier
   - skimmer
   - friendtree
   - analysis
@@ -84,7 +85,6 @@ stages:
   - deploy
   - validation
   - pages
-  - classifier
 
 setup_coffea4bees:
   stage: setup

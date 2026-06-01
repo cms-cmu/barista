@@ -59,9 +59,16 @@ validate = "hepdata-validate"
 python = ">=3.11"
 pip = "*"
 setuptools = "<70.0.0"
+snakemake = "9.16.3"
+jsonschema = "<4.10.0"
 
 [feature.reana.pypi-dependencies]
-reana-client = "*"
+reana-client = ">=0.95.0a1"
+reana-commons = { git = "https://github.com/alefisico/reana-commons", rev = "8dcdb5d6dd16893895ee18ec3d6c3564e6cbac2d" }
+rdflib-jsonld = ">=0.6.0"
+
+[feature.reana.activation.env]
+PYTHONNOUSERSITE = "1"
 
 [environments]
 # Default environment includes all base dependencies
