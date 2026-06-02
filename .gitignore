@@ -1,5 +1,3 @@
-.worktrees/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -199,10 +197,4 @@ slurm_logs/
 logs/
 notes/
 .bashrc
-.cmslpc-local-conf
-/test.*
-.claude/session-summaries/
-.claude/plans/
-mutagen.*
-.pourover_archives/
-.pytest*
+.cmslpc-local.conf

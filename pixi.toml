@@ -28,9 +28,8 @@ libopenblas = "<0.3.30"
 
 [pypi-dependencies]
 # Pip-only packages from Dockerfile
-# panoptes-ui removed: pulls in pandas→numpy→libopenblas which crashes on AMD EPYC (no AVX-512)
-snkmt = { git = "ssh://git@github.com/alefisico/snkmt.git", branch = "feature/layout-redesign" }
-snakemake-logger-plugin-snkmt = { git = "ssh://git@github.com/alefisico/snakemake-logger-plugin-snkmt.git" }
+snkmt = { git = "https://github.com/alefisico/snkmt.git", branch = "feat-dask-condor-monitor" }
+snakemake-logger-plugin-snkmt = { git = "https://github.com/cademirch/snakemake-logger-plugin-snkmt.git" }
 
 [tasks]
 # Define common tasks
@@ -57,19 +56,12 @@ hepdata-lib = "*"
 validate = "hepdata-validate"
 
 [feature.reana.dependencies]
-python = ">=3.11"
+python = "3.10.*"
 pip = "*"
 setuptools = "<70.0.0"
-snakemake = "==9.16.3"
-jsonschema = "<4.10.0"
 
 [feature.reana.pypi-dependencies]
-reana-client = ">=0.95.0a1"
-reana-commons = { git = "https://github.com/alefisico/reana-commons", rev = "8dcdb5d6dd16893895ee18ec3d6c3564e6cbac2d" }
-rdflib-jsonld = ">=0.6.0"
-
-[feature.reana.activation.env]
-PYTHONNOUSERSITE = "1"
+reana-client = "*"
 
 [environments]
 # Default environment includes all base dependencies

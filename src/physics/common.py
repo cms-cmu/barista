@@ -57,18 +57,6 @@ def apply_btag_sf( jets,
 
     def get_sf(jets, sys):
         flat_jets = ak.flatten(jets)
-        bad = ak.to_numpy(flat_jets.btagScore) < 0
-        if bad.any():
-            logging.warning(f"correction_file={correction_file} correction_type={correction_type}")
-            for pt, eta, phi, score, jetId, pnetb in zip(
-                ak.to_numpy(flat_jets.pt)[bad],
-                ak.to_numpy(flat_jets.eta)[bad],
-                ak.to_numpy(flat_jets.phi)[bad],
-                ak.to_numpy(flat_jets.btagScore)[bad],
-                ak.to_numpy(flat_jets.jetId)[bad],
-                ak.to_numpy(flat_jets.btagPNetB)[bad],
-            ):
-                logging.warning(f"Jet with btagScore<0: pt={pt:.2f} eta={eta:.3f} phi={phi:.3f} btagScore={score} jetId={jetId} btagPNetB={pnetb}")
         return np.prod(
             ak.unflatten(
                 btagSF.evaluate(
@@ -76,7 +64,7 @@ def apply_btag_sf( jets,
                     ak.to_numpy(flat_jets.hadronFlavour),
                     ak.to_numpy(np.abs(flat_jets.eta)),
                     ak.to_numpy(flat_jets.pt),
-                    np.clip(ak.to_numpy(flat_jets.btagScore), 0, 1)
+                    ak.to_numpy(flat_jets.btagScore)
                 ),
                 ak.num(jets)
             ), axis=1
@@ -121,17 +109,7 @@ def apply_btag_sf( jets,
 
 def drClean(coll1,coll2,cone=0.4):
 
-    from coffea.nanoevents.methods import vector
-    j_eta = coll1.eta
-    j_phi = coll1.phi
-    l_eta = coll2.eta
-    l_phi = coll2.phi
-
-    j_eta, l_eta = ak.unzip(ak.cartesian([j_eta, l_eta], nested=True))
-    j_phi, l_phi = ak.unzip(ak.cartesian([j_phi, l_phi], nested=True))
-    delta_eta = j_eta - l_eta
-    delta_phi = vector._deltaphi_kernel(j_phi,l_phi)
-    dr = np.hypot(delta_eta, delta_phi)
+    dr = coll1.metric_table(coll2)
     nolepton_mask = ~ak.any(dr < cone, axis=2)
     jets_noleptons = coll1[nolepton_mask]
     return [jets_noleptons, nolepton_mask]

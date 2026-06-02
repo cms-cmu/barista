@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import gc
 import logging
-import psutil
 import re
 import uuid
 from abc import abstractmethod
@@ -35,8 +34,8 @@ def _log_exception(e, *_):
 
 
 def _clear_cache(events: ak.Array):
-    # try to clear cached branches
-    for cache in events.caches:
+    # try to clear cached branches (caches attribute removed in coffea 2025)
+    for cache in getattr(events, "caches", []):
         cache.clear()
     gc.collect()
 
@@ -100,7 +99,7 @@ class PicoAOD(ProcessorABC):
         return self._preselected
 
     # no retry, return empty dict if any exception
-    # @retry(1, handler=_log_exception, skip=(SkimmingError,))
+    @retry(1, handler=_log_exception, skip=(SkimmingError,))
     def process(self, events: ak.Array):
         EOS.set_retry(3, 10)  # 3 retries with 10 seconds interval
 
@@ -121,7 +120,7 @@ class PicoAOD(ProcessorABC):
                 metadata = reader.load_metadata(
                     self._campaign, cached, builtin_types=True
                 )
-                return {dataset: metadata | {"files": [cached], "source": source_chunk, "attempted": {str(chunk.path): True}}}
+                return {dataset: metadata | {"files": [cached], "source": source_chunk}}
             except Exception:
                 pass
 
@@ -176,7 +175,6 @@ class PicoAOD(ProcessorABC):
             | {
                 "files": [],
                 "source": source_chunk,
-                "attempted": {str(chunk.path): True},
             }
         }
         self._cutFlow.addOutputSkim(result, dataset)
@@ -232,7 +230,7 @@ class PicoAOD(ProcessorABC):
 def _fetch_metadata(dataset: str, path: PathLike, dask: bool = False):
     try:
         with uproot.open(path) as f:
-            if "Runs" in f and "genEventCount" in f["Runs"].keys():
+            if "genEventCount" in f["Runs"].keys():
                 data = f["Runs"].arrays(
                     ["genEventCount", "genEventSumw", "genEventSumw2"]
                 )
@@ -283,13 +281,7 @@ def integrity_check(
     num_entries: dict[str, dict[str, int]] = None,
 ):
     complete = True
-    proc = psutil.Process()
-    mem_before = proc.memory_info().rss / 1024**3
-    vmem = psutil.virtual_memory()
-    logging.info(
-        f"Checking integrity of the picoAOD... "
-        f"[process RSS: {mem_before:.2f} GB, system available: {vmem.available/1024**3:.2f} GB]"
-    )
+    logging.info("Checking integrity of the picoAOD...")
     diff = set(fileset) - set(output)
     miss_dict = {}
     if diff:
@@ -301,7 +293,6 @@ def integrity_check(
             logging.warning(f'No file is saved for "{dataset}"')
         inputs = map(EOS, fileset[dataset]["files"])
         outputs = {EOS(k): v for k, v in output[dataset]["source"].items()}
-        attempted = {EOS(k) for k in output[dataset].get("attempted", {}).keys()}
         ns = (
             None
             if num_entries is None
@@ -311,11 +302,9 @@ def integrity_check(
         chunk_missing = []
         for file in inputs:
             if file not in outputs:
-                if file in attempted:
-                    logging.warning(f'File was processed but has zero selected events: "{file}"')
-                else:
-                    logging.warning(f'The whole file is missing in outputs: "{file}"')
-                    file_missing.append(str(file))
+                logging.error(f'The whole file is missing in outputs: "{file}"')
+                complete = False
+                file_missing.append(str(file))
             else:
                 chunks = sorted(outputs[file], key=lambda x: x[0])
                 if ns is not None:
@@ -337,11 +326,8 @@ def integrity_check(
             miss_dict["file_missing"] = file_missing
         if chunk_missing:
             miss_dict["chunk_missing"] = chunk_missing
-    output[dataset].pop("source")
-    output[dataset].pop("attempted", None)
-    output[dataset]["missing"] = miss_dict
-    mem_after = proc.memory_info().rss / 1024**3
-    logging.info(f"Integrity check complete [process RSS: {mem_after:.2f} GB (was {mem_before:.2f} GB), complete: {complete}]")
+        output[dataset].pop("source")
+        output[dataset]["missing"] = miss_dict
     return output, complete
 
 

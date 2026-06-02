@@ -1,0 +1,16 @@
+version: 0.9.4
+inputs:
+  files:
+    - src/workflows/Snakefile_reana_simple.smk
+workflow:
+  type: snakemake
+  file: src/workflows/Snakefile_reana_simple.smk
+  resources:
+    compute_backend: slurmcern
+    voms_proxy: true
+workspace:
+  retention_days:
+    reana_output/*: 7
+outputs:
+  directories:
+    - reana_output/

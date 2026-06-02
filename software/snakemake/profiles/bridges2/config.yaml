@@ -1,0 +1,23 @@
+# Snakemake profile for PSC Bridges 2
+executor: slurm
+software-deployment-method:
+  - apptainer
+apptainer-args: "-B /jet/home -B /ocean/projects/phy260026p -B /tmp:/tmp -B /cvmfs:/cvmfs --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv"
+slurm-logdir: "slurm_logs"
+slurm-status-command: "squeue"
+latency-wait: 60
+default-resources:
+  slurm_partition: "RM-shared"
+  slurm_account: "phy260026p"
+  runtime: "4h"
+  mem_mb: 8000
+  cpus_per_task: 2
+  tmpdir: "/tmp"
+
+set-resources:
+  train:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:v100-16:1"
+  evaluate:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:v100-16:1"

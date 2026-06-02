@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 import argparse
-import getpass
 import inspect
 import sys
 from pathlib import Path
@@ -55,6 +54,7 @@ def _patched_get_xrootd_sites_map():
     finally:
         _ru.json.load = _orig_json_load
 rucio_utils.get_xrootd_sites_map = _patched_get_xrootd_sites_map
+
 from coffea.util import save
 from dask.distributed import performance_report
 from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
@@ -68,7 +68,11 @@ if TYPE_CHECKING:
 dask.config.set({'logging.distributed': 'error'})
 
 NanoAODSchema.warn_missing_crossrefs = False
+if hasattr(NanoAODSchema, 'error_missing_event_ids'):
+    NanoAODSchema.error_missing_event_ids = False
 warnings.filterwarnings("ignore")
+
+from src.compat import COFFEA_2025
 
 # Global variable to track temp directory for cleanup
 _temp_condor_dir = None
@@ -451,9 +455,10 @@ def setup_condor_cluster(config_runner, tarball_path):
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
     import getpass
+    import uuid
+
     logging.info("Initializing HTCondor cluster configuration...")
 
-    import uuid
     # Each runner.py invocation needs a unique log_directory: dask_jobqueue calls
     # os.makedirs() without exist_ok=True, so it crashes if the directory already
     # exists (e.g. from a previous run or a simultaneous parallel Snakemake job).
@@ -515,31 +520,6 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     client.register_plugin(WorkerLostLogger())
 
-    log_dir = cluster_args['log_directory']
-
-    class WorkerLostLogger(SchedulerPlugin):
-        def _find_log(self, worker_addr):
-            import glob
-            try:
-                for path in glob.glob(f"{log_dir}/worker-*.err"):
-                    with open(path) as f:
-                        if worker_addr in f.read():
-                            return path
-            except OSError:
-                pass
-            return None
-
-        def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred" or worker is None:
-                return
-            log_file = self._find_log(worker)
-            if log_file:
-                logging.error(f"Task permanently failed: {key} -> {log_file}")
-            else:
-                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
-
-    client.register_plugin(WorkerLostLogger())
-
     logging.info('Waiting for at least one worker...')
     client.wait_for_workers(1)
     logging.info('HTCondor cluster setup complete!')
@@ -551,9 +531,10 @@ def setup_slurm_cluster(config_runner):
     from dask.distributed import Client
     from dask_jobqueue import SLURMCluster
     import uuid
+    import socket
 
-    log_base = config_runner.get('slurm_log_directory', 'slurm_dask_logs')
-    log_dir = os.path.abspath(f"{log_base}_{uuid.uuid4().hex[:8]}")
+    log_base = config_runner.get('slurm_log_directory', 'slurm_logs')
+    log_dir = os.path.abspath(os.path.join(log_base, uuid.uuid4().hex[:8]))
     os.makedirs(log_dir, exist_ok=True)
 
     barista_root = os.path.dirname(os.path.abspath(__file__))
@@ -563,21 +544,41 @@ def setup_slurm_cluster(config_runner):
     if not os.access(worker_python, os.X_OK):
         raise FileNotFoundError(f"dask worker wrapper not found or not executable: {worker_python}")
 
+    # Detect if running on Bridges 2
+    hostname = socket.gethostname()
+    is_bridges2 = 'bridges2' in hostname or 'psc' in hostname
+
     # Prepend bin/ to PATH so SLURMCluster picks up the bin/sbatch wrapper that
     # can call the host sbatch from inside the Apptainer container on falcon.
-    os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+    # On Bridges 2, we bypass the falcon sbatch wrapper because sbatch runs natively.
+    if not is_bridges2:
+        os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+
+    default_partition = 'RM-shared' if is_bridges2 else 'work'
+    partition = config_runner.get('slurm_partition', default_partition)
+    if partition == 'work' and is_bridges2:
+        partition = 'RM-shared'
+
+    job_extra = list(config_runner.get('slurm_job_extra', []))
+    
+    # If on Bridges 2 and billing account is specified in environment, inject it
+    account = os.environ.get('SLURM_ACCOUNT')
+    if is_bridges2 and account:
+        job_extra.append(f"-A {account}")
 
     cluster_args = {
         'cores': config_runner['slurm_cores'],
         'memory': config_runner['worker_memory'],
         'walltime': config_runner.get('slurm_walltime', '08:00:00'),
-        'queue': config_runner.get('slurm_partition', 'work'),
-        'job_extra_directives': config_runner.get('slurm_job_extra', []),
+        'queue': partition,
+        'job_extra_directives': job_extra,
         'log_directory': log_dir,
         'python': worker_python,
         'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
     }
-    if config_runner.get('slurm_qos'):
+    if is_bridges2:
+        cluster_args['processes'] = 1
+    if config_runner.get('slurm_qos') and not is_bridges2:
         cluster_args['job_extra_directives'] = (
             list(cluster_args['job_extra_directives']) + [f"--qos={config_runner['slurm_qos']}"]
         )
@@ -778,7 +779,7 @@ def setup_config_defaults(config_runner, args):
         'slurm_partition': 'work',
         'slurm_qos': 'cpu_light',
         'slurm_walltime': '08:00:00',
-        'slurm_log_directory': 'slurm_dask_logs',
+        'slurm_log_directory': 'slurm_logs',
         'slurm_job_extra': [],
     }
 
@@ -788,30 +789,50 @@ def setup_config_defaults(config_runner, args):
 
 def setup_executor(config_runner, args, client, pool):
     """Setup processor executor based on configuration."""
-    executor_args = {
-        'schema': config_runner['schema'],
-        'savemetrics': True,
-        'skipbadfiles': config_runner['skipbadfiles'],
-        'xrootdtimeout': 900
-    }
-
-    if args.debug:
-        logging.info("Running iterative executor in debug mode")
-        return processor.iterative_executor, executor_args
-    elif args.condor or args.run_dask:
-        executor_args.update({
-            "client": client,
-            "align_clusters": False,
-            "status": args.run_dask and not args.condor
-        })
-        return processor.dask_executor, executor_args
+    if COFFEA_2025:
+        runner_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 600,
+            'chunksize': config_runner['chunksize'],
+            'maxchunks': config_runner['maxchunks'],
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.IterativeExecutor(), runner_args
+        elif args.condor or args.run_dask:
+            return processor.DaskExecutor(
+                client=client,
+                status=args.run_dask and not args.condor,
+            ), runner_args
+        else:
+            logging.info("Running futures executor")
+            return processor.FuturesExecutor(workers=config_runner['workers']), runner_args
     else:
-        logging.info("Running futures executor")
-        executor_args.update({
-            "pool": pool,
-            "workers": config_runner['workers']
-        })
-        return processor.futures_executor, executor_args
+        executor_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 900,
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.iterative_executor, executor_args
+        elif args.condor or args.run_dask:
+            executor_args.update({
+                "client": client,
+                "align_clusters": False,
+                "status": args.run_dask and not args.condor,
+            })
+            return processor.dask_executor, executor_args
+        else:
+            logging.info("Running futures executor")
+            executor_args.update({
+                "pool": pool,
+                "workers": config_runner['workers'],
+            })
+            return processor.futures_executor, executor_args
 
 
 def process_skimming_output(output, fileset, configs, config_runner, args, client):
@@ -952,17 +973,38 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
-    output, metrics = processor.run_uproot_job(
-        fileset,
-        treename='Events',
-        processor_instance=analysis_class(**configs.get('config', {})),
-        executor=executor,
-        executor_args=executor_args,
-        chunksize=config_runner['chunksize'],
-        maxchunks=config_runner['maxchunks'],
-    )
+    if COFFEA_2025:
+        runner = processor.Runner(
+            executor=executor,
+            schema=executor_args['schema'],
+            savemetrics=executor_args['savemetrics'],
+            skipbadfiles=executor_args['skipbadfiles'],
+            xrootdtimeout=executor_args['xrootdtimeout'],
+            chunksize=executor_args['chunksize'],
+            maxchunks=executor_args['maxchunks'],
+        )
+        result = runner(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+        )
+        if isinstance(result, tuple):
+            output, metrics = result
+        else:
+            output = result
+            metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
+    else:
+        output, metrics = processor.run_uproot_job(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+            executor=executor,
+            executor_args=executor_args,
+            chunksize=config_runner['chunksize'],
+            maxchunks=config_runner['maxchunks'],
+        )
     elapsed = time.time() - tstart
-    nEvent = metrics['entries']
+    nEvent = metrics.get('entries', 0)
     logging.info(f'Metrics:')
     logging.info(pretty_repr(metrics))
     logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
@@ -1265,7 +1307,6 @@ if __name__ == '__main__':
         config_runner['dashboard_address'] = find_free_port(requested)
         if config_runner['dashboard_address'] != requested:
             logging.info(f"Dashboard port {requested} in use, using {config_runner['dashboard_address']} instead.")
-
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 

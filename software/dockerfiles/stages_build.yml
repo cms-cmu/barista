@@ -36,33 +36,43 @@ build_container:
     - echo $REGISTRY_IMAGE_PATH
   variables:
     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis"
-    EXTRA_TAGS: "test"
+    EXTRA_TAGS: ""
   after_script:
-    - echo "ANALYSIS_IMAGE_TAG=test" > build.env
+    - echo "ANALYSIS_IMAGE_TAG=$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}" > build.env
   artifacts:
     reports:
       dotenv: build.env
   rules:
     - if: $RECREATE_CONTAINERS == "true"
-    # - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - software/dockerfiles/Dockerfile_analysis
 
 
-build_container_coffea2025:
+build_container_coffea0_7:
   extends:
     - .buildah
   before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:dev_coffea2025_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
+    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:coffea0_7_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
     - echo $REGISTRY_IMAGE_PATH
   variables:
     DOCKER_FILE_NAME: "software/dockerfiles/Dockerfile_analysis_dev"
-    EXTRA_TAGS: "dev_coffea2025_latest"
+    EXTRA_TAGS: ""
+  after_script:
+    - echo "COFFEA0_7_IMAGE_TAG=coffea0_7_$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}" > build_coffea0_7.env
+  artifacts:
+    reports:
+      dotenv: build_coffea0_7.env
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis_dev
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - software/dockerfiles/Dockerfile_analysis_dev
@@ -76,15 +86,32 @@ deploy_container:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:test
-    - buildah tag ${CI_REGISTRY_IMAGE}:test ${CI_REGISTRY_IMAGE}:latest
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+    - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
   rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "master"
       changes:
         - software/dockerfiles/Dockerfile_analysis
+
+
+deploy_container_coffea0_7:
+  stage: deploy
+  image: quay.io/buildah/stable
+  needs:
+    - build_container_coffea0_7
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - export STORAGE_DRIVER=vfs
+    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG}
+    - buildah tag ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:coffea0_7_latest
+    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:coffea0_7_latest
+  rules:
+    - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/Dockerfile_analysis_dev
 
 # We used to use reana in the container. We are not using it anymore, but we keep the code here in case we want to go back to it in the future.
 # build_container_reana:
