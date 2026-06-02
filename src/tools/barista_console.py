@@ -97,7 +97,7 @@ _HISTORY_MAXLEN = 60  # keep up to 60 samples (~60 s at 1 s poll rate)
 # Version marker — bump this whenever the bar-caching behaviour changes so
 # users can verify which copy of the file is actually running on each host.
 # Surfaced in the startup banner and logged once per session.
-DASK_PANEL_REV = "2026-05-20-e"  # no dots in any state; text-only placeholders
+DASK_PANEL_REV = "2026-05-20-f"  # DRY stale-mark helper; dropped _stale_carry
 
 
 def _throughput_eta(history: deque, counts: dict):
@@ -197,6 +197,16 @@ class DaskJobPanel(VerticalScroll):
         self._history = {}
         self._refresh_display()
 
+    def _mark_stale_all(self, now: float) -> None:
+        """Mark every cached entry with counts as stale-since-NOW so the
+        renderer keeps the bar on screen with an `unreachable Xs`
+        annotation.  Used when a wider failure (snkmt DB exception, empty
+        job_logs) prevents us from refreshing any single job — we never
+        wipe cached data, just annotate it as not-currently-confirmable."""
+        for info in self._metrics.values():
+            if info.get("counts") is not None and not info.get("stale_since"):
+                info["stale_since"] = now
+
     @work(exclusive=True, thread=True, exit_on_error=False)
     def _poll(self) -> None:
         if self.workflow_id is None:
@@ -207,32 +217,17 @@ class DaskJobPanel(VerticalScroll):
                 job_logs = _running_job_logs(self.workflow_id)
             except Exception:
                 # snkmt DB read failed transiently (NFS blip, lock contention,
-                # etc.) — DON'T wipe _metrics.  Mark every existing entry stale
-                # so the renderer keeps the cached bars on screen with an
-                # `unreachable Xs` annotation until the next successful read
-                # replaces them.
-                now_s = time.monotonic()
-                for name, info in self._metrics.items():
-                    if info.get("counts") is not None and not info.get("stale_since"):
-                        info["stale_since"] = now_s
-                        info["_stale_carry"] = True
+                # etc.).  Don't wipe _metrics — mark existing entries stale
+                # and let the renderer keep cached bars on screen.
+                self._mark_stale_all(time.monotonic())
                 self.app.call_from_thread(self._refresh_display)
                 return
 
             if not job_logs:
-                # snkmt returned 0 rows.  Could be the workflow legitimately
-                # finished, OR a transient state where jobs are between
-                # snkmt's published states / LOG-file registrations.  Per
-                # user preference: never wipe a previously-good bar.  Mark
-                # existing entries stale and let the renderer keep them on
-                # screen with an `unreachable Xs` annotation.  The bar will
-                # clear naturally on the next non-empty tick if the snkmt
-                # status confirms the job is no longer RUNNING.
-                now_s = time.monotonic()
-                for name, info in self._metrics.items():
-                    if info.get("counts") is not None and not info.get("stale_since"):
-                        info["stale_since"] = now_s
-                        info["_stale_carry"] = True
+                # snkmt returned 0 rows — could be a legitimate finish or
+                # a transient gap between published states.  Same treatment
+                # as the DB-exception case: mark stale, keep bars visible.
+                self._mark_stale_all(time.monotonic())
                 self.app.call_from_thread(self._refresh_display)
                 return
 
@@ -299,7 +294,6 @@ class DaskJobPanel(VerticalScroll):
                             "has_dashboard": bool(dashboard_url),
                             "log_path": log_path,
                             "stale_since": prev.get("stale_since") or time.monotonic(),
-                            "_stale_carry": True,
                         }
                         continue
                     # First-ever observation failed — show the placeholder.
@@ -332,7 +326,6 @@ class DaskJobPanel(VerticalScroll):
                     continue
                 if info.get("counts") is not None and not info.get("stale_since"):
                     info["stale_since"] = now_loop
-                    info["_stale_carry"] = True
 
             # HTCondor worker counts (non-blocking; returns {} if condor_q unavailable)
             condor = condor_counts_for_jobs(scanned)
@@ -340,13 +333,14 @@ class DaskJobPanel(VerticalScroll):
                 if name in new_metrics:
                     new_metrics[name]["condor"] = cc
 
-            # Update per-job history for throughput/ETA.  Skip carried-over
-            # stale entries so a network blip doesn't get measured as zero
-            # progress (we genuinely don't know what's happening during the
-            # outage; pause the rate calc rather than dilute it).
+            # Update per-job history for throughput/ETA.  Skip entries with
+            # `stale_since` set: their counts are a carried-over snapshot
+            # from an earlier successful tick, not fresh measurements.
+            # Appending them would dilute the rate calc with fake-zero
+            # progress; pausing keeps the last real rate visible.
             now = time.monotonic()
             for name, info in new_metrics.items():
-                if info.get("_stale_carry"):
+                if info.get("stale_since"):
                     continue
                 mem = (info.get("counts") or {}).get("memory", 0)
                 if name not in self._history:
