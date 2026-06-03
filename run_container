@@ -4,7 +4,7 @@
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_latest"
-COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
+COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
@@ -194,8 +194,8 @@ setup_host_env() {
         if [ -f "${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif" ]; then
             DEV_COFFEA2025_IMAGE="${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif"
         fi
-        if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0.sif" ]; then
-            COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0.sif"
+        if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif" ]; then
+            COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif"
         fi
         if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_latest.sif" ]; then
             CLASSIFIER_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_latest.sif"
@@ -614,16 +614,18 @@ run_coffea_dev() {
 run_combine() {
     check_apptainer
     info "Running Combine container..."
-    local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
     touch "$PWD/.python_history"
     local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
+        -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh
+        --env BASH_ENV=/srv/apptainer_env.sh
+        --env ENV=/srv/apptainer_env.sh
         --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
     )
 
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash
     else
-        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$SETUP && $*"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$*"
     fi
 }
 

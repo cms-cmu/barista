@@ -11,3 +11,19 @@ code_kappa_framework_barista:
     - .base_analysis_barista
   script:
     - source src/scripts/code-kappa-framework.sh
+
+code_stat_analysis_combine:
+  stage: code
+  extends:
+    - .base_combine_coffea4bees
+  script:
+    - python3 src/tests/stat_analysis.py
+
+code_snakemake_dryrun_combine:
+  stage: code
+  extends:
+    - .base_analysis_coffea4bees
+  script:
+    - mkdir -p output/v4_systematics_test/datacards/HH4b
+    - touch output/v4_systematics_test/datacards/HH4b/datacard__HH4b.txt
+    - ./run_container snakemake --snakefile src/stat_analysis/combine.smk --config stat_only=True channels='{"HH4b":{"signallabel":"ggHH_kl_1_kt_1_13p0TeV_hbbhbb","othersignal":"","signal":"GluGluToHHTo4B_cHHH1"}}' -n
