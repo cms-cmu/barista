@@ -15,23 +15,29 @@ TEMPLATES = {
         fi
         set -o pipefail
         LOG=$(pwd)/{log}
-        DATACARD_DIR=$(realpath $(dirname {input}))
         mkdir -p $(dirname $LOG)
-        TMPOUT=$(mktemp $(pwd)/workspace_XXXXXX.root)
+        mkdir -p $(dirname {output})
+
+        python3 -c '
+import os, shutil, glob
+datacard = "{input}"
+out_dir = os.path.dirname("{output}")
+in_dir = os.path.dirname(datacard)
+for ext in ["*.txt", "*.root"]:
+    for f in glob.glob(os.path.join(in_dir, ext)):
+        shutil.copy(f, os.path.join(out_dir, os.path.basename(f)))
+'
+
         (
         echo "[$(date)] Starting workspace rule"
-        cd $DATACARD_DIR && \\
-            text2workspace.py $(basename {input}) \\
-            -P {params.physics_model} \\
-            {params.poi_maps} \\
-            {params.extra_t2w_args} \\
-            -o $TMPOUT && \\
-            rootls $TMPOUT
-        echo "[$(date)] Completed workspace rule"
+        cd $(dirname {output}) && \
+            text2workspace.py $(basename {input}) \
+            -P {params.physics_model} \
+            {params.poi_maps} \
+            {params.extra_t2w_args} \
+            -o $(basename {output}) && \
+            rootls $(basename {output})
         ) 2>&1 | tee {log}
-        test -s $TMPOUT || { echo "ERROR: workspace tmp output missing or empty" >&2; exit 1; }
-        cp $TMPOUT {output}
-        rm -f $TMPOUT
     """,
     "limits": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
@@ -40,7 +46,11 @@ TEMPLATES = {
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_TXT=$(realpath {output.txt})
+        OUT_JSON=$(realpath {output.json})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_TXT)
+        mkdir -p $(dirname $OUT_JSON)
         (
         echo "[$(date)] Starting limits rule with signal {params.signallabel}"
 
@@ -61,19 +71,20 @@ TEMPLATES = {
         fi
 
         echo "[$(date)] Running AsymptoticLimits"
-        cd $DATACARD_DIR && \\
-            combine -M AsymptoticLimits $(basename {input}) \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
-            -n _{params.signallabel} \\
-            > $(basename {output.txt})
-        echo "[$(date)] Running CollectLimits"
-        cd $DATACARD_DIR && \\
-            combineTool.py -M CollectLimits \\
-            higgsCombine_{params.signallabel}.AsymptoticLimits.mH120.root \\
-            -o $(basename {output.json})
-        echo "[$(date)] Completed limits rule with signal {params.signallabel}"
+        cd $DATACARD_DIR && \
+            combine -M AsymptoticLimits $(basename {input}) \
+            -m {params.mass} \
+            --redefineSignalPOIs r{params.signallabel} \
+            $SET_ZERO_OPT \
+            $FREEZE_OPT \
+            -n _{params.signallabel} \
+            > temp_limits.txt && \
+        echo "[$(date)] Running CollectLimits" && \
+            combineTool.py -M CollectLimits \
+            higgsCombine_{params.signallabel}.AsymptoticLimits.mH{params.mass}.root \
+            -o temp_limits.json && \
+            mv temp_limits.txt $OUT_TXT && \
+            mv temp_limits.json $OUT_JSON
         ) 2>&1 | tee {log}
     """,
     "significance": """
@@ -84,6 +95,8 @@ TEMPLATES = {
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname {output})
+        OUT_FILE=$(realpath {output})
         (
         echo "[$(date)] Starting significance rule with signal {params.signallabel}"
 
@@ -103,22 +116,20 @@ TEMPLATES = {
             fi
         fi
 
-        echo "[$(date)] Running observed significance"
-        cd $DATACARD_DIR && \\
-            combine -M Significance $(basename {input}) \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            -n _{params.signallabel} > $(basename {output})
-        echo "[$(date)] Running expected significance"
-        cd $DATACARD_DIR && \\
-            combine -M Significance $(basename {input}) \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
-            -n _{params.signallabel} \\
-            -t -1 --expectSignal=1 >> $(basename {output})
-        echo "[$(date)] Completed significance rule with signal {params.signallabel}"
+        cd $DATACARD_DIR && \
+            combine -M Significance $(basename {input}) \
+            -m {params.mass} \
+            $SET_ZERO_OPT \
+            $FREEZE_OPT \
+            --redefineSignalPOIs r{params.signallabel} \
+            -n _{params.signallabel} > $OUT_FILE && \
+            combine -M Significance $(basename {input}) \
+            -m {params.mass} \
+            --redefineSignalPOIs r{params.signallabel} \
+            $SET_ZERO_OPT \
+            $FREEZE_OPT \
+            -n _{params.signallabel} \
+            -t -1 --expectSignal=1 >> $OUT_FILE
         ) 2>&1 | tee {log}
     """,
     "likelihood_scan_snapshot": """
@@ -128,7 +139,9 @@ TEMPLATES = {
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         echo "[$(date)] Starting likelihood_scan snapshot fit with signal {params.signallabel}"
 
@@ -148,15 +161,15 @@ TEMPLATES = {
             fi
         fi
 
-        cd $DATACARD_DIR && \\
-            combine -M MultiDimFit -d $(basename {input}) \\
-            -m {params.mass} \\
-            -n _$(basename {input} .root)_snapshot \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
+        cd $DATACARD_DIR && \
+            combine -M MultiDimFit -d $(basename {input}) \
+            -m {params.mass} \
+            -n _$(basename {input} .root)_snapshot \
+            $SET_ZERO_OPT \
+            $FREEZE_OPT \
             --saveWorkspace --robustFit 1
-        ) 2>&1 | tee {log}
-        cp $(dirname {input})/higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root {output}
+        ) 2>&1 | tee {log} && \
+        cp $DATACARD_DIR/higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
     """,
     "likelihood_scan_chunk": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
@@ -165,7 +178,9 @@ TEMPLATES = {
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         echo "[$(date)] Starting likelihood_scan chunk {wildcards.split_index} with signal {params.signallabel}"
 
@@ -185,17 +200,17 @@ TEMPLATES = {
             fi
         fi
 
-        cd $DATACARD_DIR && \\
-            combine -M MultiDimFit \\
-            -d $(basename {input}) \\
-            -n _$(basename {input} .root)_chunk_{wildcards.split_index} \\
-            -m {params.mass} \\
-            -P r{params.signallabel} \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
+        cd $DATACARD_DIR && \
+            combine -M MultiDimFit \
+            -d $(basename {input}) \
+            -n _$(basename {input} .root)_chunk_{wildcards.split_index} \
+            -m {params.mass} \
+            -P r{params.signallabel} \
+            $SET_ZERO_OPT \
+            $FREEZE_OPT \
             --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1
-        ) 2>&1 | tee {log}
-        cp $(dirname {input})/higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root {output}
+        ) 2>&1 | tee {log} && \
+        cp $DATACARD_DIR/higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
     """,
     "likelihood_scan": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
@@ -203,48 +218,42 @@ TEMPLATES = {
             exit 0
         fi
         LOG=$(pwd)/{log}
-        DATACARD_DIR=$(realpath $(dirname {output}))
+        OUT_FILE=$(realpath {output})
+        DATACARD_DIR=$(dirname $OUT_FILE)
         mkdir -p $(dirname $LOG)
+        mkdir -p $DATACARD_DIR
         (
         echo "[$(date)] Merging likelihood scan chunks and plotting"
-        cd $DATACARD_DIR && \\
-            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \\
-            $(for f in {input}; do basename $f; done) && \\
-            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \\
-            --POI r{params.signallabel} -o $(basename {output} .pdf)
+        cd $DATACARD_DIR && \
+            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+            $(for f in {input}; do basename $f; done) && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+            --POI r{params.signallabel} -o scan_plot && \
+            mv scan_plot.pdf $OUT_FILE
         ) 2>&1 | tee {log}
     """,
-    "impacts": """
+    "impacts_initial_fit": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
-        echo "[$(date)] Starting impacts rule with signal {params.signallabel}"
+        echo "[$(date)] Starting impacts_initial_fit rule with signal {params.signallabel}"
 
         # Check if there are any nuisance parameters
         if [ "{has_nuisances}" = "0" ]; then
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'No Nuisance Parameters in Datacard (Impacts not applicable)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py "$DATACARD_DIR/$(basename {output})"
-            rm dummy_plot.py
+            echo "no_nuisances" > $OUT_FILE
             exit 0
         fi
 
         SET_ZERO_OPT=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 SET_ZERO_OPT="--setParameters $formatted_params"
             fi
@@ -252,43 +261,71 @@ EOF
 
         SET_RANGES_OPT=""
         if [ -n "{params.set_parameters_ranges}" ]; then
-            formatted_params=$(echo "{params.set_parameters_ranges}" | tr ' ' '\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0,0/' | paste -sd: -)
+            formatted_params=$(echo "{params.set_parameters_ranges}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0,0/' | paste -sd: -)
             if [ -n "$formatted_params" ]; then
                 SET_RANGES_OPT=":$formatted_params"
             fi
         fi
 
         echo "[$(date)] Running initial fit"
-        cd $DATACARD_DIR && \\
-            combineTool.py -M Impacts -d $(basename {input}) \\
-            --doInitialFit --robustFit 1 -m 125 \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            --setParameterRanges r{params.signallabel}=-10,10$SET_RANGES_OPT \\
-            $SET_ZERO_OPT \\
+        cd $DATACARD_DIR && \
+            combineTool.py -M Impacts -d $(basename {input}) \
+            --doInitialFit --robustFit 1 -m {params.mass} \
+            --redefineSignalPOIs r{params.signallabel} \
+            --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
+            $SET_ZERO_OPT \
             -n $(basename {input} .root)
+        ) 2>&1 | tee {log} && \
+        cp $DATACARD_DIR/higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
+    """,
+    "impacts_do_fits": """
+        if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
+            echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
+            exit 0
+        fi
+        LOG=$(pwd)/{log}
+        DATACARD_DIR=$(realpath $(dirname {input.workspace}))
+        OUT_DIR=$(realpath {output.fits_dir})
+        mkdir -p $(dirname $LOG)
+        mkdir -p $OUT_DIR
+        (
+        echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
+
+        if [ -f {input.init_fit} ] && [ "$(cat {input.init_fit} 2>/dev/null)" = "no_nuisances" ]; then
+            echo "no_nuisances" > $OUT_DIR/no_nuisances
+            exit 0
+        fi
+
+        # Copy the initial fit root file back to DATACARD_DIR so combineTool can find it
+        cp $(realpath {input.init_fit}) $DATACARD_DIR/higgsCombine_initialFit_$(basename {input.workspace} .root).MultiDimFit.mH{params.mass}.root
+
+        SET_ZERO_OPT=""
+        if [ -n "{params.set_parameters_zero}" ]; then
+            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            if [ -n "$formatted_params" ]; then
+                SET_ZERO_OPT="--setParameters $formatted_params"
+            fi
+        fi
+
+        SET_RANGES_OPT=""
+        if [ -n "{params.set_parameters_ranges}" ]; then
+            formatted_params=$(echo "{params.set_parameters_ranges}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0,0/' | paste -sd: -)
+            if [ -n "$formatted_params" ]; then
+                SET_RANGES_OPT=":$formatted_params"
+            fi
+        fi
+
         echo "[$(date)] Running fits per systematic"
-        cd $DATACARD_DIR && \\
-            combineTool.py -M Impacts -d $(basename {input}) \\
-            --doFits --robustFit 1 -m 125 --parallel {threads} \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            --setParameterRanges r{params.signallabel}=-10,10$SET_RANGES_OPT \\
-            $SET_ZERO_OPT \\
-            -n $(basename {input} .root)
-        echo "[$(date)] Running merging results"
-        cd $DATACARD_DIR && \\
-            combineTool.py -M Impacts \\
-            -m 125 -n $(basename {input} .root) \\
-            --redefineSignalPOIs r{params.signallabel} \\
-            -d $(basename {input}) \\
-            -o impacts_combine_$(basename {input} .root)_exp.json
-        echo "[$(date)] Running creating pdf"
-        cd $DATACARD_DIR && \\
-            plotImpacts.py -i impacts_combine_$(basename {input} .root)_exp.json \\
-            -o $(basename {output} .pdf) \\
-            --POI r{params.signallabel} \\
-            --per-page 20 --left-margin 0.3 --height 400 --label-size 0.04
-        echo "[$(date)] Completed impacts rule with signal {params.signallabel}"
-        ) 2>&1 | tee {log}
+        cd $DATACARD_DIR && \
+            combineTool.py -M Impacts -d $(basename {input.workspace}) \
+            --doFits --robustFit 1 -m {params.mass} --parallel {threads} \
+            --redefineSignalPOIs r{params.signallabel} \
+            --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
+            $SET_ZERO_OPT \
+            -n $(basename {input.workspace} .root)
+        ) 2>&1 | tee {log} && \
+        cp $DATACARD_DIR/higgsCombine_paramFit_$(basename {input.workspace} .root)_*.root $OUT_DIR/ && \
+        cp $(realpath {input.init_fit}) $OUT_DIR/
     """,
     "gof_data": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
@@ -297,7 +334,9 @@ EOF
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         echo "[$(date)] Starting gof_data rule with signal {params.signallabel}"
 
@@ -309,14 +348,14 @@ EOF
             fi
         fi
 
-        cd $DATACARD_DIR && \\
-            combine -M GoodnessOfFit $(basename {input}) \\
-            -m {params.mass} \\
-            --algo {params.gof_algo} \\
-            $SET_ZERO_OPT \\
-            -n _$(basename {input} .root)_{params.signallabel}_gof_data \\
-            2>&1 | tee gof_data_$(basename {input} .root)_{params.signallabel}.txt && \\
-            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_data.GoodnessOfFit.mH{params.mass}.root $(basename {output})
+        cd $DATACARD_DIR && \
+            combine -M GoodnessOfFit $(basename {input}) \
+            -m {params.mass} \
+            --algo {params.gof_algo} \
+            $SET_ZERO_OPT \
+            -n _$(basename {input} .root)_{params.signallabel}_gof_data \
+            2>&1 | tee gof_data_$(basename {input} .root)_{params.signallabel}.txt && \
+            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_data.GoodnessOfFit.mH{params.mass}.root $OUT_FILE
         echo "[$(date)] Completed gof_data rule with signal {params.signallabel}"
         ) 2>&1 | tee {log}
     """,
@@ -327,7 +366,9 @@ EOF
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         echo "[$(date)] Starting gof_toys_chunk {wildcards.split_index} rule with signal {params.signallabel}"
 
@@ -346,14 +387,14 @@ EOF
             TOYS_OPT="--toysNoSystematics"
         fi
 
-        combine -M GoodnessOfFit $(basename {input}) \\
-            -m {params.mass} \\
-            -t {params.toys_per_job} --algo {params.gof_algo} $TOYS_OPT \\
-            -s {params.seed} \\
-            $SET_ZERO_OPT \\
-            -n _$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index} \\
-            2>&1 | tee gof_toys_$(basename {input} .root)_{params.signallabel}_{wildcards.split_index}.txt && \\
-            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index}.GoodnessOfFit.mH{params.mass}.{params.seed}.root $(basename {output})
+        combine -M GoodnessOfFit $(basename {input}) \
+            -m {params.mass} \
+            -t {params.toys_per_job} --algo {params.gof_algo} $TOYS_OPT \
+            -s {params.seed} \
+            $SET_ZERO_OPT \
+            -n _$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index} \
+            2>&1 | tee gof_toys_$(basename {input} .root)_{params.signallabel}_{wildcards.split_index}.txt && \
+            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index}.GoodnessOfFit.mH{params.mass}.{params.seed}.root $OUT_FILE
         echo "[$(date)] Completed gof_toys_chunk {wildcards.split_index} rule with signal {params.signallabel}"
         ) 2>&1 | tee {log}
     """,
@@ -364,59 +405,129 @@ EOF
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input.data}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         echo "[$(date)] Merging gof toys and plotting GoF saturated distribution"
-        cd $DATACARD_DIR && \\
-            combineTool.py -M CollectGoodnessOfFit \\
-            --input $(basename {input.data}) $(for f in {input.toys}; do basename $f; done) \\
-            -o gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json && \\
-            plotGof.py gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json \\
-            --statistic {params.gof_algo} --mass {params.mass}.0 \\
-            --output $(basename {output} .pdf)
+        cd $DATACARD_DIR && \
+            combineTool.py -M CollectGoodnessOfFit \
+            --input $(basename {input.data}) $(for f in {input.toys}; do basename $f; done) \
+            -o gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json && \
+            plotGof.py gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json \
+            --statistic {params.gof_algo} --mass {params.mass}.0 \
+            --output gof_plot && \
+            mv gof_plot.pdf $OUT_FILE
         echo "[$(date)] Completed gof rule"
         ) 2>&1 | tee {log}
     """,
-    "fit_diagnostics": """
+    "fit_diagnostics_bonly": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_BONLY=$(realpath {output.bonly})
+        OUT_DIFF_BONLY=$(realpath {output.diff_bonly})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_BONLY)
+        mkdir -p $(dirname $OUT_DIFF_BONLY)
         (
-        echo "[$(date)] Starting fit_diagnostics rule with signal {params.signallabel}"
+        echo "[$(date)] Starting fit_diagnostics_bonly rule with signal {params.signallabel}"
 
-        FREEZE_OPT=""
+        # B-only parameters
+        FREEZE_OPT_BONLY=""
         if [ -n "{params.freeze_parameters}" ]; then
-            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                FREEZE_OPT="--freezeParameters $formatted_params"
-            fi
+            formatted_params=$(echo "{params.freeze_parameters} r{params.signallabel}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            FREEZE_OPT_BONLY="--freezeParameters $formatted_params"
+        else
+            FREEZE_OPT_BONLY="--freezeParameters r{params.signallabel}"
         fi
 
-        SET_ZERO_OPT=""
+        SET_ZERO_OPT_BONLY=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                SET_ZERO_OPT="--setParameters $formatted_params"
-            fi
+            formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            SET_ZERO_OPT_BONLY="--setParameters $formatted_params"
+        else
+            SET_ZERO_OPT_BONLY="--setParameters r{params.signallabel}=0"
         fi
 
-        echo "[$(date)] Running FitDiagnostics"
-        cd $DATACARD_DIR && \\
-            combine -M FitDiagnostics $(basename {input}) \\
+        cd $DATACARD_DIR
+
+        echo "[$(date)] Running FitDiagnostics B-only"
+        combine -M FitDiagnostics $(basename {input}) \\
+            -m {params.mass} \\
             --redefineSignalPOIs r{params.signallabel} \\
-            $SET_ZERO_OPT \\
-            $FREEZE_OPT \\
+            $SET_ZERO_OPT_BONLY \\
+            $FREEZE_OPT_BONLY \\
             -n _$(basename {input} .root)_prefit_bonly \\
             --saveShapes --saveWithUncertainties --plots
+
+        echo "[$(date)] Running diffNuisances B-only"
+        python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \\
+            -p r{params.signallabel} \\
+            -a fitDiagnostics_$(basename {input} .root)_prefit_bonly.root \\
+            -g diffNuisances_$(basename {input} .root)_prefit_bonly.root
+
         mkdir -p fitDiagnostics_bonly
-        mv *th1x* fitDiagnostics_bonly/ 2>/dev/null || true
-        mv covariance* fitDiagnostics_bonly/ 2>/dev/null || true
-        ) 2>&1 | tee {log}
-        cp $DATACARD_DIR/fitDiagnostics_$(basename {input} .root)_prefit_bonly.root {output}
+        mv *prefit_bonly* fitDiagnostics_bonly/ 2>/dev/null || true
+        ) 2>&1 | tee {log} && \\
+        cp $DATACARD_DIR/fitDiagnostics_bonly/fitDiagnostics_$(basename {input} .root)_prefit_bonly.root $OUT_BONLY && \\
+        cp $DATACARD_DIR/fitDiagnostics_bonly/diffNuisances_$(basename {input} .root)_prefit_bonly.root $OUT_DIFF_BONLY
+    """,
+    "fit_diagnostics_sb": """
+        if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
+            echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
+            exit 0
+        fi
+        LOG=$(pwd)/{log}
+        DATACARD_DIR=$(realpath $(dirname {input}))
+        OUT_SB=$(realpath {output.sb})
+        OUT_DIFF_SB=$(realpath {output.diff_sb})
+        mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_SB)
+        mkdir -p $(dirname $OUT_DIFF_SB)
+        (
+        echo "[$(date)] Starting fit_diagnostics_sb rule with signal {params.signallabel}"
+
+        # S+B parameters
+        FREEZE_OPT_SB=""
+        if [ -n "{params.freeze_parameters}" ]; then
+            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            FREEZE_OPT_SB="--freezeParameters $formatted_params"
+        fi
+
+        SET_ZERO_OPT_SB=""
+        if [ -n "{params.set_parameters_zero}" ]; then
+            formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\\\\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            SET_ZERO_OPT_SB="--setParameters $formatted_params"
+        else
+            SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+        fi
+
+        cd $DATACARD_DIR
+
+        echo "[$(date)] Running FitDiagnostics S+B"
+        combine -M FitDiagnostics $(basename {input}) \\
+            -m {params.mass} \\
+            --redefineSignalPOIs r{params.signallabel} \\
+            $SET_ZERO_OPT_SB \\
+            $FREEZE_OPT_SB \\
+            -n _$(basename {input} .root)_prefit_sb \\
+            --saveShapes --saveWithUncertainties --plots
+
+        echo "[$(date)] Running diffNuisances S+B"
+        python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \\
+            -p r{params.signallabel} \\
+            -a fitDiagnostics_$(basename {input} .root)_prefit_sb.root \\
+            -g diffNuisances_$(basename {input} .root)_prefit_sb.root
+
+        mkdir -p fitDiagnostics_sb
+        mv *prefit_sb* fitDiagnostics_sb/ 2>/dev/null || true
+        ) 2>&1 | tee {log} && \\
+        cp $DATACARD_DIR/fitDiagnostics_sb/fitDiagnostics_$(basename {input} .root)_prefit_sb.root $OUT_SB && \\
+        cp $DATACARD_DIR/fitDiagnostics_sb/diffNuisances_$(basename {input} .root)_prefit_sb.root $OUT_DIFF_SB
     """,
     "postfit": """
         if [ "${SLURM_PROCID:-0}" -ne 0 ]; then
@@ -425,7 +536,9 @@ EOF
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
+        OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname $OUT_FILE)
         (
         # Run postfit plot script from Snakemake workspace root (plot script path is relative to workspace root)
         METADATA_FILE=$(echo "{params.metadata_template}" | sed "s|{channel}|{params.channel}|g")
@@ -436,8 +549,8 @@ EOF
             -s {params.signal} \\
             {params.ylog} \\
             -m $METADATA_FILE
-        ) 2>&1 | tee {log}
-        cp $DATACARD_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf {output}
+        ) 2>&1 | tee {log} && \\
+        cp $DATACARD_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE
     """
 }
 
@@ -482,21 +595,27 @@ def format_template(template, job_properties):
     
     # Determine if there are nuisance parameters (for gof and impacts dummy fallback)
     has_nuisances = "1"
+    txt_files = []
     if inputs:
         inp_list = inputs if isinstance(inputs, list) else list(inputs.values())
         if inp_list:
             input_dir = os.path.dirname(inp_list[0])
             txt_files = glob.glob(os.path.join(input_dir, "*.txt"))
-            if txt_files:
-                for txt_file in txt_files:
-                    try:
-                        with open(txt_file, "r") as f:
-                            content = f.read()
-                            if "kmax 0" in content:
-                                has_nuisances = "0"
-                                break
-                    except Exception:
-                        pass
+            
+    if not txt_files:
+        output_base = get_output_base_dir(job_properties)
+        txt_files = glob.glob(os.path.join(output_base, "..", "**", "*.txt"), recursive=True)
+        
+    if txt_files:
+        for txt_file in txt_files:
+            try:
+                with open(txt_file, "r") as f:
+                    content = f.read()
+                    if "kmax 0" in content:
+                        has_nuisances = "0"
+                        break
+            except Exception:
+                pass
 
     fmt_dict = {
         "log": log,
@@ -537,7 +656,10 @@ def format_template(template, job_properties):
         
     # Add params mappings
     for key, val in params.items():
-        fmt_dict[f"params.{key}"] = val
+        if isinstance(val, (list, tuple)):
+            fmt_dict[f"params.{key}"] = " ".join(map(str, val))
+        else:
+            fmt_dict[f"params.{key}"] = val
         
     # Specific rule parameter overrides for Snakemake dict-like access
     rule = job_properties["rule"]
@@ -564,6 +686,12 @@ def format_template(template, job_properties):
     if rule == "limits":
         fmt_dict["output.txt"] = outputs[0]
         fmt_dict["output.json"] = outputs[1]
+    elif rule == "fit_diagnostics_bonly":
+        fmt_dict["output.bonly"] = outputs[0]
+        fmt_dict["output.diff_bonly"] = outputs[1]
+    elif rule == "fit_diagnostics_sb":
+        fmt_dict["output.sb"] = outputs[0]
+        fmt_dict["output.diff_sb"] = outputs[1]
 
         
     # Formatting using regex to handle dotted keys (e.g. {input.workspace})
@@ -581,27 +709,24 @@ def format_template(template, job_properties):
 
 def get_output_base_dir(job_properties):
     """
-    Dynamically extract the base output directory (e.g. output/v4_systematics_test)
+    Dynamically extract the base output directory (e.g. output/v4_systematics_test/HH4b)
     from log or output paths in job_properties.
     """
     log = job_properties.get("log", [""])[0]
-    if log and log.startswith("output/"):
+    if log:
         parts = log.split("/")
-        if len(parts) >= 2:
-            if parts[1] == "logs":
-                return "output"
-            else:
-                return f"output/{parts[1]}"
-                
+        if "logs" in parts:
+            idx = parts.index("logs")
+            return "/".join(parts[:idx])
+            
     outputs = job_properties.get("output", [])
     for out in outputs:
-        if out.startswith("output/"):
-            parts = out.split("/")
-            if len(parts) >= 2:
-                if parts[1] in ["datacards", "plots", "logs"]:
-                    return "output"
-                else:
-                    return f"output/{parts[1]}"
+        # Check if the output has subdirectories like limits, workspace, gof, etc.
+        parts = out.split("/")
+        for subd in ["workspace", "limits", "significance", "likelihood_scan", "gof", "impacts", "postfit"]:
+            if subd in parts:
+                idx = parts.index(subd)
+                return "/".join(parts[:idx])
     return "output"
 
 def main():
@@ -627,19 +752,21 @@ def main():
     jobid = job_properties.get("jobid", 0)
     
     # Track inputs/outputs
-    inputs = list(job_properties.get("input", []))
-    outputs = list(job_properties.get("output", []))
+    raw_inputs = job_properties.get("input", [])
+    inputs = list(raw_inputs.values()) if isinstance(raw_inputs, dict) else list(raw_inputs)
+    raw_outputs = job_properties.get("output", [])
+    outputs = list(raw_outputs.values()) if isinstance(raw_outputs, dict) else list(raw_outputs)
     log = job_properties.get("log", [""])[0]
     
     # Route Condor logs to output log directory dynamically
+    output_base_dir = get_output_base_dir(job_properties)
     if log:
-        log_dir = os.path.dirname(log)
+        log_dir = os.path.join(os.path.dirname(log), "condor")
     else:
-        log_dir = "condor_logs"
+        log_dir = os.path.join(output_base_dir, "logs", "condor")
         
     # Create necessary directories
     os.makedirs(log_dir, exist_ok=True)
-    output_base_dir = get_output_base_dir(job_properties)
     job_dir = os.path.join(output_base_dir, "condor_jobs")
     os.makedirs(job_dir, exist_ok=True)
     
@@ -699,7 +826,7 @@ def main():
 
     # 3. Process impacts_collect rule inputs (transfer fit root files to execute node)
     if rule == "impacts_collect":
-        workspace_path = os.path.normpath(job_properties["input"][0])
+        workspace_path = os.path.normpath(inputs[0])
         workspace_dir = os.path.dirname(workspace_path)
         # Find all paramFit and initialFit root files
         extra_inputs = glob.glob(os.path.join(workspace_dir, "higgsCombine_paramFit_*.root"))
@@ -723,7 +850,7 @@ def main():
     output_transfers = list(output_rel_paths)
     # Special case for impacts_do_fits: copy back the whole directory to get the fit root files
     if rule == "impacts_do_fits":
-        workspace_path = os.path.normpath(job_properties["input"][0])
+        workspace_path = os.path.normpath(inputs[0])
         workspace_dir = os.path.dirname(workspace_path)
         if workspace_dir and workspace_dir not in output_transfers:
             output_transfers.append(workspace_dir)

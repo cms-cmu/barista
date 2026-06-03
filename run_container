@@ -616,7 +616,7 @@ run_combine() {
     info "Running Combine container..."
     touch "$PWD/.python_history"
     local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
-        -B software/container/apptainer_env.sh:/srv/apptainer_env.sh
+        -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh
         --env BASH_ENV=/srv/apptainer_env.sh
         --env ENV=/srv/apptainer_env.sh
         --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
