@@ -45,7 +45,13 @@ from snkmt.version import VERSION
 
 # Monitoring logic from runner_monitor
 sys.path.insert(0, str(Path(__file__).parent))
-from runner_monitor import SNKMT_DB, condor_counts_for_jobs, query_metrics_remote, scan_logs  # noqa: E402
+from runner_monitor import (  # noqa: E402
+    SNKMT_DB,
+    condor_counts_for_jobs,
+    dashboard_url_from_info,
+    query_metrics_remote,
+    scan_logs,
+)
 
 # ---------------------------------------------------------------------------
 # Progress bar (Rich markup version)
@@ -231,10 +237,15 @@ class DaskJobPanel(VerticalScroll):
                 self.app.call_from_thread(self._refresh_display)
                 return
 
-            sample = next(iter(job_logs))
-            log_dir = str(Path(sample).parent)
-
-            scanned = scan_logs(log_dir)
+            # A single workflow can write job logs to more than one logs/
+            # directory (e.g. a mixeddata-prep stage in one output dir and the
+            # hist stage in another).  Scan EVERY distinct parent dir, not just
+            # the parent of the first row — otherwise running jobs that live in
+            # a different dir than job_logs' first entry are silently dropped.
+            log_dirs = {str(Path(p).parent) for p in job_logs}
+            scanned: dict = {}
+            for log_dir in log_dirs:
+                scanned.update(scan_logs(log_dir))
 
             # Start `new_metrics` as a copy of the previous tick — anything
             # we DON'T successfully re-poll this tick is kept (and marked
@@ -264,10 +275,12 @@ class DaskJobPanel(VerticalScroll):
 
                 seen_names.add(name)
 
-                dashboard_url = info.get("dashboard")
-                if not dashboard_url and info.get("proxy_port") and info.get("scheduler"):
-                    host = info["scheduler"].split("://")[1].split(":")[0]
-                    dashboard_url = f"http://{host}:{info['proxy_port']}"
+                # Resolve the dashboard URL.  Condor logs emit only a proxy
+                # path (/proxy/PORT/status) with no host, so this uses the
+                # `Dask scheduler host:` line runner.py logs to build a URL
+                # reachable from a different node than the scheduler.  Falls
+                # back to a tcp:// scheduler host, then localhost.
+                dashboard_url = dashboard_url_from_info(info)
 
                 counts = query_metrics_remote(dashboard_url) if dashboard_url else None
                 # All-zero counts (Dask scheduler responding but currently

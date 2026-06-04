@@ -48,6 +48,7 @@ def _clear_line():
 DASHBOARD_RE    = re.compile(r"Dask dashboard:\s+(http://\S+)")
 PROXY_RE        = re.compile(r"Dask dashboard:\s+/proxy/(\d+)")  # /proxy/PORT/status
 SCHEDULER_RE    = re.compile(r"'tcp://([^']+)'")   # matches tcp://host:port inside Client repr
+SCHED_HOST_RE   = re.compile(r"Dask scheduler host:\s+(\S+)")  # explicit host logged by runner.py
 COMPLETE_RE     = re.compile(r"JOB EXECUTION COMPLETED SUCCESSFULLY|Dask performance report saved")
 SMKLOG_RE       = re.compile(r"^\s+log:\s+(\S+\.log)")
 WORKER_LOG_DIR_RE = re.compile(r"Condor worker log directory: (\S+)")
@@ -87,6 +88,9 @@ def scan_logs(search_root):
                     m = SCHEDULER_RE.search(line)
                     if m:
                         info['scheduler'] = f"tcp://{m.group(1)}"
+                    m = SCHED_HOST_RE.search(line)
+                    if m:
+                        info['scheduler_host'] = m.group(1)
                     m = WORKER_LOG_DIR_RE.search(line)
                     if m:
                         info['worker_log_dir'] = m.group(1)
@@ -98,6 +102,32 @@ def scan_logs(search_root):
             info['log_path'] = os.path.abspath(path)
             jobs[name] = info
     return jobs
+
+
+def dashboard_url_from_info(info):
+    """Build a Dask dashboard base URL from a scan_logs info dict, or None.
+
+    Resolution order for the host of a /proxy/PORT dashboard:
+      1. `scheduler_host` — explicit hostname logged by runner.py (works
+         cross-node; preferred).
+      2. host parsed from a `tcp://host:port` scheduler repr, if present.
+      3. `localhost` — last resort; only correct when the monitor runs on the
+         same node as the scheduler.
+
+    A full `dashboard` URL (older non-proxy logs) is returned as-is.
+    """
+    url = info.get('dashboard')
+    if url:
+        return url
+    port = info.get('proxy_port')
+    if not port:
+        return None
+    host = info.get('scheduler_host')
+    if not host and info.get('scheduler'):
+        host = info['scheduler'].split('://')[1].split(':')[0]
+    if not host:
+        host = 'localhost'
+    return f"http://{host}:{port}"
 
 
 # ---------------------------------------------------------------------------
@@ -512,12 +542,9 @@ def run(search_root="output/"):
                         job_state[name] = (None, False, None, True)
                         continue
 
-                dashboard_url = info.get('dashboard')
-
-                # Proxy URL (/proxy/PORT): reconstruct direct URL from scheduler host
-                if not dashboard_url and info.get('proxy_port') and info.get('scheduler'):
-                    host = info['scheduler'].split("://")[1].split(":")[0]
-                    dashboard_url = f"http://{host}:{info['proxy_port']}"
+                # Proxy URL (/proxy/PORT): reconstruct direct URL using the
+                # logged scheduler host (cross-node), tcp:// host, or localhost.
+                dashboard_url = dashboard_url_from_info(info)
 
                 # Fallback: connect to TCP scheduler to get dashboard URL
                 if not dashboard_url and not done and info.get('scheduler'):
