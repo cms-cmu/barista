@@ -1854,6 +1854,39 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls: []
+  size: 3072984
+  timestamp: 1766347479317
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-python-1.88.0-py313hfaae9d9_7.conda
+  sha256: 2dc359355c01b6b410572df440cd1d5022b9d591fcbd7d5f1ccef513ce0648e6
+  md5: 8d50c0fcc6f6cb7c0505342983a8f889
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libboost 1.88.0 hd24cca6_7
+  - libgcc >=14
+  - libstdcxx >=14
+  - numpy >=1.23,<3
+  - python >=3.13,<3.14.0a0
+  - python_abi 3.13.* *_cp313
+  constrains:
+  - py-boost <0.0a0
+  - boost <0.0a0
+  license: BSL-1.0
+  purls: []
+  size: 130496
+  timestamp: 1766348147704
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.11.0-8_h0358290_openblas.conda
+  build_number: 8
+  sha256: 1a2bc77bb26520255904a3d9b1f40e6bf0bf9d8d3405c7709dd162282820915a
+  md5: 33a413f1095f8325e5c30fde3b0d2445
+  depends:
+  - libblas 3.11.0 8_h4a7cf45_openblas
+  constrains:
+  - blas 2.308   openblas
+  - liblapacke 3.11.0   8*_openblas
+  - liblapack  3.11.0   8*_openblas
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
   size: 18778
   timestamp: 1779859107964
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.9.0-31_he106b2a_openblas.conda
