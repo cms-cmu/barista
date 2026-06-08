@@ -61,7 +61,7 @@ validate = "hepdata-validate"
 python = ">=3.11"
 pip = "*"
 setuptools = "<70.0.0"
-snakemake = "9.16.3"
+snakemake = "==9.16.3"
 jsonschema = "<4.10.0"
 
 [feature.reana.pypi-dependencies]

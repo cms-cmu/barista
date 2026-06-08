@@ -189,8 +189,6 @@ set_ROOT.sh
 
 */*/.DS_Store
 tmp/
-/pixi.toml
-/pixi.lock
 /.pixi*
 test.pdf*~
 slurm_logs/
@@ -198,3 +196,8 @@ logs/
 notes/
 .bashrc
 .cmslpc-local.conf
+.claude/
+.gemini/
+.pourover_*/
+pourover_output/
+.pytest*/
