@@ -29,11 +29,13 @@ CLASSIFIER_CONFIG_PATHS = config["classifier_config_paths"]
 WFS_BASE                = config["wfs_base"]
 OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
 PLOT_INPUTS             = bool(config.get("plot_inputs", False))
+PLOT_WEIGHTS            = bool(config.get("plot_weights", False))
 
 MODEL          = _r(config["model"])
 TRAIN_TEMPLATE = _r(config["train_template"])
 EVAL_TEMPLATE  = _r(config["eval_template"])
 METADATA       = config.get("metadata", "")
+FRIEND         = _r(config.get("friend", ""))
 
 PLOT_BASE = config["plot_base"]
 
@@ -56,6 +58,10 @@ def _all_targets():
         targets += [
             f"{OUTPUT_DIR}/plot_inputs_raw.done",
             f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
+        ]
+    if PLOT_WEIGHTS:
+        targets += [
+            f"{OUTPUT_DIR}/plot_weights.done",
         ]
     return targets
 
@@ -223,3 +229,41 @@ rule plot_inputs_dataprep:
             2>&1 | tee -a {log}
         touch {output.flag}
         """
+
+
+rule plot_weights:
+    # Only targeted by rule all when plot_weights: true in workflow_config.yml.
+    # Requires metadata to be set. Running directly with metadata: "" will fail.
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/plot_weights.done",
+    log:
+        f"{OUTPUT_DIR}/plot_weights.log",
+    container: CLASSIFIER_CPU
+    resources:
+        runtime = 60,
+        mem_mb  = 8000,
+    threads: 1
+    params:
+        init         = INIT,
+        model        = MODEL,
+        metadata     = METADATA,
+        plot         = f"{PLOT_BASE}/{DATE}_{LABEL}/weights",
+        wfs_base     = WFS_BASE,
+        template_str = TRAIN_TEMPLATE,
+        friend_path  = FRIEND,
+    shell:
+        """
+        {params.init} && \
+        python src/classifier/plot_weights.py \
+            --checkpoint {params.model} \
+            --metadata {params.metadata} \
+            --output-dir {params.plot} \
+            --wfs-base {params.wfs_base} \
+            --template-str "{params.template_str}" \
+            --friend-path "{params.friend_path}" \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+
