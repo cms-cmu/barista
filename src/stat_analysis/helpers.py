@@ -73,7 +73,7 @@ def get_likelihood_scan_chunks(wildcards, config):
     split_size = int(config.get("likelihood_scan_split_size", 10))
     num_splits = (points + split_size - 1) // split_size
     return [
-        f"{wildcards.path}_likelihood_scan_chunk_{i}__{wildcards.signallabel}.root"
+        f"{wildcards.path}/likelihood_scan/datacard_likelihood_scan_chunk_{i}__{wildcards.signallabel}.root"
         for i in range(num_splits)
     ]
 
