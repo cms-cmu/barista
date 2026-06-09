@@ -733,21 +733,7 @@ def main():
     jobscript = sys.argv[-1]
     job_properties = read_job_properties(jobscript)
     
-    # Locate proxy to handle multi-login round-robin
-    try:
-        uid = os.getuid()
-        home_proxy = os.path.expanduser(f"~/x509up_u{uid}")
-        if os.path.exists(home_proxy):
-            os.environ["X509_USER_PROXY"] = home_proxy
-            print(f"[submit_wrapper] Using shared proxy from home: {home_proxy}", file=sys.stderr)
-        else:
-            tmp_proxy = f"/tmp/x509up_u{uid}"
-            if os.path.exists(tmp_proxy):
-                os.environ["X509_USER_PROXY"] = tmp_proxy
-                print(f"[submit_wrapper] Using proxy from tmp: {tmp_proxy}", file=sys.stderr)
-    except Exception as e:
-        print(f"[submit_wrapper] Warning locating proxy: {e}", file=sys.stderr)
-        
+
     rule = job_properties.get("rule", "unknown")
     jobid = job_properties.get("jobid", 0)
     
