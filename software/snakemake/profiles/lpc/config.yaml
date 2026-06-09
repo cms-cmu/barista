@@ -1,6 +1,6 @@
 software-deployment-method:
   - apptainer
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh --env ENV=/srv/apptainer_env.sh"
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /uscmst1b_scratch -B /uscms_data -B /uscms_data/d3/algomez/HH4b/barista-migrate-combine-workflow-results/software/combine/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh --env ENV=/srv/apptainer_env.sh"
 executor: cluster-generic
 cluster-generic-submit-cmd: "python software/snakemake/scripts/submit_wrapper.py"
 cluster-generic-status-cmd: "python software/snakemake/scripts/status_wrapper.py"
