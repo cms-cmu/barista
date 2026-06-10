@@ -74,9 +74,9 @@ class TestStatAnalysisHelpers(unittest.TestCase):
         wildcards = SimpleNamespace(path="output/scan", signallabel="ggHH")
         chunks = get_likelihood_scan_chunks(wildcards, config)
         self.assertEqual(chunks, [
-            "output/scan_likelihood_scan_chunk_0__ggHH.root",
-            "output/scan_likelihood_scan_chunk_1__ggHH.root",
-            "output/scan_likelihood_scan_chunk_2__ggHH.root"
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_0__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_1__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_2__ggHH.root"
         ])
 
 
