@@ -271,6 +271,23 @@ class DaskJobPanel(VerticalScroll):
                 # (RUNNING → SUBMITTED → RUNNING during evictions/retries)
                 # that previously caused the bar to disappear.
                 if status != "RUNNING" or info.get("done"):
+                    # Job isn't actively running this tick.  Distinguish a
+                    # *terminal* finish (snkmt SUCCESS/ERROR or the log's
+                    # completion marker) from a transient non-RUNNING blip
+                    # (status None during an HTCondor state transition).  A
+                    # terminal job is marked `done` so the renderer shows it as
+                    # ✓ completed / ✗ failed instead of leaving the last bar to
+                    # be stale-marked as "unreachable" (which looked like it was
+                    # still running).  Transient blips fall through to the
+                    # post-loop stale pass, preserving the old behaviour.
+                    terminal = info.get("done") or status in ("SUCCESS", "ERROR")
+                    if terminal and name in new_metrics:
+                        new_metrics[name] = {
+                            **new_metrics[name],
+                            "done": True,
+                            "errored": status == "ERROR",
+                            "stale_since": None,
+                        }
                     continue
 
                 seen_names.add(name)
@@ -307,6 +324,7 @@ class DaskJobPanel(VerticalScroll):
                             "has_dashboard": bool(dashboard_url),
                             "log_path": log_path,
                             "stale_since": prev.get("stale_since") or time.monotonic(),
+                            "done": False,  # snkmt says RUNNING again (restart)
                         }
                         continue
                     # First-ever observation failed — show the placeholder.
@@ -337,6 +355,8 @@ class DaskJobPanel(VerticalScroll):
             for name, info in new_metrics.items():
                 if name in seen_names:
                     continue
+                if info.get("done"):
+                    continue  # finished — render as completed, never "unreachable"
                 if info.get("counts") is not None and not info.get("stale_since"):
                     info["stale_since"] = now_loop
 
@@ -410,8 +430,16 @@ class DaskJobPanel(VerticalScroll):
             stale_age = (time.monotonic() - stale_since) if stale_since else None
 
             n_erred = counts.get("erred", 0) if counts else 0
+            done = info.get("done")
 
-            if counts is None:
+            if done:
+                # Terminal job — show its final bar (if we ever got counts)
+                # tagged as completed/failed, so it's clearly distinct from a
+                # still-running or unreachable job.
+                tag = ("[bold red]✗ failed[/bold red]" if info.get("errored")
+                       else "[bold green]✓ completed[/bold green]")
+                bar = f"{_rich_bar(counts)}  {tag}" if counts else tag
+            elif counts is None:
                 # No cached data has ever arrived for this job.  Per user
                 # preference: NEVER render dots — they look like a wipe of
                 # cached progress.  Show a text-only placeholder instead.
@@ -439,7 +467,9 @@ class DaskJobPanel(VerticalScroll):
             paused_str = f"\n  [bold yellow]⚠ {n_paused} worker{'s' if n_paused != 1 else ''} paused (memory pressure)[/bold yellow]" if n_paused else ""
 
             rate, eta = _throughput_eta(self._history.get(name, deque()), counts or {})
-            if rate is not None:
+            if done:
+                throughput_str = ""  # finished — no rate/ETA
+            elif rate is not None:
                 eta_str = f"  [dim]~{_fmt_eta(eta)} remaining[/dim]" if eta else "  [dim]nearly done[/dim]"
                 throughput_str = f"\n  [dim]{rate:.1f} tasks/s{eta_str}[/dim]"
             elif counts is not None:
@@ -447,7 +477,7 @@ class DaskJobPanel(VerticalScroll):
             else:
                 throughput_str = ""
 
-            condor = info.get("condor")
+            condor = None if done else info.get("condor")
             if condor:
                 idle, running, held = condor['idle'], condor['running'], condor['held']
                 held_str = f"[bold red]{held}H[/bold red]" if held else f"[dim]{held}H[/dim]"
