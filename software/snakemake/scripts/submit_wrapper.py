@@ -733,23 +733,37 @@ def main():
     jobscript = sys.argv[-1]
     job_properties = read_job_properties(jobscript)
     
-    # Locate proxy to handle multi-login round-robin
-    try:
-        uid = os.getuid()
-        home_proxy = os.path.expanduser(f"~/x509up_u{uid}")
-        if os.path.exists(home_proxy):
-            os.environ["X509_USER_PROXY"] = home_proxy
-            print(f"[submit_wrapper] Using shared proxy from home: {home_proxy}", file=sys.stderr)
-        else:
-            tmp_proxy = f"/tmp/x509up_u{uid}"
-            if os.path.exists(tmp_proxy):
-                os.environ["X509_USER_PROXY"] = tmp_proxy
-                print(f"[submit_wrapper] Using proxy from tmp: {tmp_proxy}", file=sys.stderr)
-    except Exception as e:
-        print(f"[submit_wrapper] Warning locating proxy: {e}", file=sys.stderr)
-        
+
     rule = job_properties.get("rule", "unknown")
     jobid = job_properties.get("jobid", 0)
+
+    # Determine if this rule should run on HTCondor or locally
+    config = job_properties.get("config", {})
+    run_on_condor_val = config.get("run_on_condor", False)
+    run_on_condor = str(run_on_condor_val).lower() in ("true", "1", "yes")
+
+    CONDOR_ELIGIBLE_RULES = {
+        "likelihood_scan_snapshot",
+        "likelihood_scan_chunk",
+        "likelihood_scan",
+        "impacts_initial_fit",
+        "impacts_do_fits",
+        "gof_data",
+        "gof_toys_chunk",
+        "gof",
+        "fit_diagnostics_bonly",
+        "fit_diagnostics_sb"
+    }
+
+    if not (run_on_condor and rule in CONDOR_ELIGIBLE_RULES):
+        print(f"[submit_wrapper] Running rule '{rule}' locally on login node (run_on_condor={run_on_condor})...", file=sys.stderr)
+        try:
+            result = subprocess.run(["/bin/bash", jobscript])
+            print(f"local_job_{rule}_{jobid}")
+            sys.exit(result.returncode)
+        except Exception as e:
+            print(f"[submit_wrapper] Local execution of rule '{rule}' failed: {e}", file=sys.stderr)
+            sys.exit(1)
     
     # Track inputs/outputs
     raw_inputs = job_properties.get("input", [])

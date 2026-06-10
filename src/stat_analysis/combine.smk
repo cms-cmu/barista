@@ -13,6 +13,7 @@ if os.path.exists("/cvmfs/unpacked.cern.ch"):
 
 # Default target generation for transparent running
 out_base = os.path.normpath(config.get("output_path", "output/v4_systematics_test/HH4b/"))
+log_dir = os.path.join(config.get("output_path", "output"), "logs")
 stat_only = config.get("stat_only", False)
 
 targets = []
@@ -20,63 +21,93 @@ for channel, ch_config in config.get("channels", {}).items():
     signallabel = ch_config.get("signallabel")
     if not signallabel:
         continue
-    # If run directly, the default path prefix is:
-    base_prefix = f"{out_base}/workspace/datacard"
+    # If run directly, the default path prefix is the channel out_base
+    base_prefix = out_base
     targets.extend([
-        f"{base_prefix}_limits__{signallabel}.json",
-        f"significance__{base_prefix}__{signallabel}.log",
-        f"{base_prefix}_likelihood_scan__{signallabel}.pdf",
-        f"{base_prefix}_likelihood_scan__{signallabel}.png",
-        f"{base_prefix}_postfit__{signallabel}.pdf",
-        f"{base_prefix}_postfit__{signallabel}.png",
-        f"{base_prefix}_fitDiagnostics_bonly__{signallabel}.root",
-        f"{base_prefix}_fitDiagnostics_sb__{signallabel}.root",
-        f"{base_prefix}_diffNuisances_bonly__{signallabel}.root",
-        f"{base_prefix}_diffNuisances_sb__{signallabel}.root"
+        f"{base_prefix}/limits/datacard_limits__{signallabel}.json",
+        f"{base_prefix}/significance/datacard_significance__{signallabel}.log",
+        f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf",
+        f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.png",
+        f"{base_prefix}/postfit/datacard_postfit__{signallabel}.pdf",
+        f"{base_prefix}/postfit/datacard_postfit__{signallabel}.png",
+        f"{base_prefix}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
+        f"{base_prefix}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
+        f"{base_prefix}/postfit/datacard_diffNuisances_bonly__{signallabel}.root",
+        f"{base_prefix}/postfit/datacard_diffNuisances_sb__{signallabel}.root"
     ])
     if not stat_only:
         targets.extend([
-            f"{base_prefix}_gof__{signallabel}.pdf",
-            f"{base_prefix}_gof__{signallabel}.png",
-            f"{base_prefix}_impacts__{signallabel}.pdf",
-            f"{base_prefix}_impacts__{signallabel}.png",
-            f"{base_prefix}_impacts_split__{signallabel}"
+            f"{base_prefix}/gof/datacard_gof__{signallabel}.pdf",
+            f"{base_prefix}/gof/datacard_gof__{signallabel}.png",
+            f"{base_prefix}/impacts/datacard_impacts__{signallabel}.pdf",
+            f"{base_prefix}/impacts/datacard_impacts__{signallabel}.png",
+            f"{base_prefix}/impacts/datacard_impacts_split__{signallabel}"
         ])
 
-if targets:
+is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+if targets and is_standalone:
     rule all:
         input: targets
 
+def get_channel_by_signal(wildcards):
+    signallabel = wildcards.signallabel
+    for channel, ch_config in config.get("channels", {}).items():
+        if ch_config.get("signallabel") == signallabel or channel == signallabel:
+            return channel
+    return ""
+
+def get_signal_by_channel(wildcards):
+    channel = get_channel_by_signal(wildcards)
+    return config.get("channels", {}).get(channel, {}).get("signal", "")
+
 def get_workspace_input(wildcards):
-    default_input = f"{wildcards.path}.txt"
+    default_input = f"{wildcards.path}/workspace/datacard__{wildcards.signallabel}.txt"
     if os.path.exists(default_input):
         return default_input
-    basename = os.path.basename(wildcards.path)
-    if basename.startswith("datacard__"):
-        signallabel = basename.replace("datacard__", "")
-    elif "__" in basename:
-        signallabel = basename.split("__")[-1]
-    else:
-        signallabel = basename
+    signallabel = wildcards.signallabel
     for channel, ch_config in config.get("channels", {}).items():
-        if ch_config.get("signallabel") == signallabel:
-            datacards_dir = os.path.join(os.path.dirname(out_base), "datacards", channel)
-            input_datacard = os.path.join(datacards_dir, f"datacard__{channel}.txt")
-            if os.path.exists(input_datacard):
-                return input_datacard
+        if ch_config.get("signallabel") == signallabel or channel == signallabel:
+            # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
+            case_dc_name = f"datacard__{channel}"
+            for case_key, case_info in config.get("cases", {}).items():
+                if case_info.get("datacard"):
+                    case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
+                    if case_key.upper() in channel.upper() or channel.upper() in case_key.upper():
+                        case_dc_name = case_dc
+                        break
+
+            # If imported as a module, return the planned consolidated path to link the DAG.
+            is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+            if not is_standalone:
+                return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
+
+            # Check 1: new consolidated location (e.g. out_base/datacards/)
+            for prefix in ["datacard__", "datacard_"]:
+                path_to_check = os.path.join(wildcards.path, "datacards", f"{prefix}{channel}.txt")
+                if os.path.exists(path_to_check):
+                    return path_to_check
+            # Check 2: workspace folder directly
+            for prefix in ["datacard__", "datacard_"]:
+                path_to_check = os.path.join(wildcards.path, "workspace", f"{prefix}{channel}.txt")
+                if os.path.exists(path_to_check):
+                    return path_to_check
+            # Check 3: old location (2 levels up fallback)
+            parent_dir = os.path.dirname(os.path.dirname(out_base))
+            for prefix in ["datacard__", "datacard_"]:
+                path_to_check = os.path.join(parent_dir, "datacards", channel, f"{prefix}{channel}.txt")
+                if os.path.exists(path_to_check):
+                    return path_to_check
+            
+            # Default fallback
+            return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
     return default_input
 
 def get_poi_maps_dynamic(wildcards):
-    basename = os.path.basename(wildcards.path)
-    if basename.startswith("datacard__"):
-        signallabel = basename.replace("datacard__", "")
-    elif "__" in basename:
-        signallabel = basename.split("__")[-1]
-    else:
-        signallabel = basename
+    signallabel = wildcards.signallabel
     for channel, ch_config in config.get("channels", {}).items():
-        if ch_config.get("signallabel") == signallabel:
-            signals = [ch_config["signallabel"]] + ch_config.get("othersignal", "").split()
+        if ch_config.get("signallabel") == signallabel or channel == signallabel:
+            actual_signal = ch_config.get("signallabel", channel)
+            signals = [actual_signal] + ch_config.get("othersignal", "").split()
             poi_ranges = config.get("poi_ranges", "1,-10,10")
             return make_poi_maps(signals=signals, poi_ranges=poi_ranges)
     return ""
@@ -88,15 +119,16 @@ localrules: pdf_to_png, split_impacts, impacts_collect
 
 rule workspace:
     input: get_workspace_input
-    output: "{path}.root"
+    output: "{path}/workspace/datacard__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         poi_maps = lambda wildcards: get_poi_maps_dynamic(wildcards),
         physics_model = lambda wildcards: config.get("physics_model", "HiggsAnalysis.CombinedLimit.PhysicsModel:multiSignalModel"),
         extra_t2w_args = lambda wildcards: config.get("extra_t2w_args", "--PO verbose")
-    log: "output/logs/workspace_{path}.log"
+    log: f"{log_dir}/workspace_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -144,25 +176,27 @@ for ext in ["*.txt", "*.root"]:
         """
 
 rule limits:
-    input: "{path}__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
     output: 
-        txt="{path}_limits__{signallabel}.txt",
-        json="{path}_limits__{signallabel}.json"
+        txt="{path}/limits/datacard_limits__{signallabel}.txt",
+        json="{path}/limits/datacard_limits__{signallabel}.json"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/limits_{path}__{signallabel}.log"
+    log: f"{log_dir}/limits_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_TXT=$(realpath {output.txt})
         OUT_JSON=$(realpath {output.json})
         mkdir -p $(dirname $LOG)
@@ -188,8 +222,8 @@ rule limits:
         fi
 
         echo "[$(date)] Running AsymptoticLimits"
-        cd $DATACARD_DIR && \
-            combine -M AsymptoticLimits $(basename {input}) \
+        cd $(dirname $OUT_TXT) && \
+            combine -M AsymptoticLimits $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT \
@@ -206,23 +240,25 @@ rule limits:
         """
 
 rule significance:
-    input: "{path}__{signallabel}.root"
-    output: "significance__{path}__{signallabel}.log"
+    input: "{path}/workspace/datacard__{signallabel}.root"
+    output: "{path}/significance/datacard_significance__{signallabel}.log"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/significance_{path}__{signallabel}.log"
+    log: f"{log_dir}/significance_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname {output})
         OUT_FILE=$(realpath {output})
@@ -245,41 +281,43 @@ rule significance:
             fi
         fi
 
-        cd $DATACARD_DIR && \
-            combine -M Significance $(basename {input}) \
+        cd $(dirname $OUT_FILE) && \
+            combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
             --redefineSignalPOIs r{params.signallabel} \
-            -n _{params.signallabel} > $OUT_FILE && \
-            combine -M Significance $(basename {input}) \
+            -n _{params.signallabel} > $(basename {output}) && \
+            combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
             -n _{params.signallabel} \
-            -t -1 --expectSignal=1 >> $OUT_FILE
+            -t -1 --expectSignal=1 >> $(basename {output})
         ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_snapshot:
-    input: "{path}__{signallabel}.root"
-    output: temp("{path}_likelihood_scan_snapshot__{signallabel}.root")
+    input: "{path}/workspace/datacard__{signallabel}.root"
+    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root")
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/likelihood_scan_snapshot_{path}__{signallabel}.log"
+    log: f"{log_dir}/likelihood_scan_snapshot_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -302,20 +340,20 @@ rule likelihood_scan_snapshot:
             fi
         fi
 
-        cd $DATACARD_DIR && \
-            combine -M MultiDimFit -d $(basename {input}) \
+        cd $(dirname $OUT_FILE) && \
+            combine -M MultiDimFit -d $WORKSPACE_FILE \
             -m {params.mass} \
             -n _$(basename {input} .root)_snapshot \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
-            --saveWorkspace --robustFit 1
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
+            --saveWorkspace --robustFit 1 && \
+            mv higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
+        ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_chunk:
-    input: "{path}_likelihood_scan_snapshot__{signallabel}.root"
-    output: temp("{path}_likelihood_scan_chunk_{split_index}__{signallabel}.root")
+    input: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root"
+    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_chunk_{split_index}__{signallabel}.root")
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -327,15 +365,17 @@ rule likelihood_scan_chunk:
         r_max = lambda wildcards: config.get("r_max", "10"),
         first_point = lambda wildcards: get_grid_split_points(wildcards, config)[0],
         last_point = lambda wildcards: get_grid_split_points(wildcards, config)[1]
-    log: "output/logs/likelihood_scan_chunk_{split_index}_{path}__{signallabel}.log"
+    log: f"{log_dir}/likelihood_scan_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        SNAPSHOT_FILE=$(realpath {input})
         OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -358,30 +398,31 @@ rule likelihood_scan_chunk:
             fi
         fi
 
-        cd $DATACARD_DIR && \
+        cd $(dirname $OUT_FILE) && \
             combine -M MultiDimFit \
-            -d $(basename {input}) \
+            -d $SNAPSHOT_FILE \
             -n _$(basename {input} .root)_chunk_{wildcards.split_index} \
             -m {params.mass} \
             -P r{params.signallabel} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
-            --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
+            --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1 && \
+            mv higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
+        ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan:
     input:
         lambda wildcards: get_likelihood_scan_chunks(wildcards, config)
-    output: "{path}_likelihood_scan__{signallabel}.pdf"
+    output: "{path}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/likelihood_scan_{path}__{signallabel}.log"
+    log: f"{log_dir}/likelihood_scan_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -389,13 +430,17 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
+        INPUT_FILES=""
+        for f in {input}; do
+            INPUT_FILES="$INPUT_FILES $(realpath $f)"
+        done
         mkdir -p $(dirname $LOG)
         mkdir -p $DATACARD_DIR
         (
         echo "[$(date)] Merging likelihood scan chunks and plotting"
         cd $DATACARD_DIR && \
             hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            $(for f in {input}; do basename $f; done) && \
+            $INPUT_FILES && \
             plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
             --POI r{params.signallabel} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
@@ -403,8 +448,8 @@ rule likelihood_scan:
         """
 
 rule impacts_initial_fit:
-    input: "{path}__{signallabel}.root"
-    output: "{path}_initialFit__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
+    output: "{path}/impacts/datacard_initialFit__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -414,15 +459,16 @@ rule impacts_initial_fit:
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/impacts_initial_fit_{path}__{signallabel}.log"
+    log: f"{log_dir}/impacts_initial_fit_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
-        DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -460,23 +506,23 @@ rule impacts_initial_fit:
         fi
 
         echo "[$(date)] Running initial fit"
-        cd $DATACARD_DIR && \
-            combineTool.py -M Impacts -d $(basename {input}) \
+        cd $(dirname $OUT_FILE) && \
+            combineTool.py -M Impacts -d $WORKSPACE_FILE \
             --doInitialFit --robustFit 1 -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
             $SET_ZERO_OPT \
-            -n $(basename {input} .root)
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
+            -n $(basename {input} .root) && \
+            mv higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
+        ) 2>&1 | tee {log}
         """
 
 rule impacts_do_fits:
     input:
-        workspace = "{path}__{signallabel}.root",
-        init_fit = "{path}_initialFit__{signallabel}.root"
+        workspace = "{path}/workspace/datacard__{signallabel}.root",
+        init_fit = "{path}/impacts/datacard_initialFit__{signallabel}.root"
     output:
-        fits_dir = directory("{path}_impacts_fits__{signallabel}")
+        fits_dir = directory("{path}/impacts/datacard_impacts_fits__{signallabel}")
     container: config.get("combine_container", COMBINE_IMAGE)
     threads: int(config.get("impacts_parallel", "4"))
     params:
@@ -487,15 +533,18 @@ rule impacts_do_fits:
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/impacts_do_fits_{path}__{signallabel}.log"
+    log: f"{log_dir}/impacts_do_fits_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
+        WORKSPACE_FILE=$(realpath {input.workspace})
+        INIT_FIT_FILE=$(realpath {input.init_fit})
         OUT_DIR=$(realpath {output.fits_dir})
         mkdir -p $(dirname $LOG)
         mkdir -p $OUT_DIR
@@ -503,18 +552,18 @@ rule impacts_do_fits:
         echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode or no_nuisances mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat {input.init_fit} 2>/dev/null)" = "stat_only" ]; then
+        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "stat_only" ]; then
             echo "stat_only" > $OUT_DIR/stat_only
             exit 0
         fi
 
-        if [ -f {input.init_fit} ] && [ "$(cat {input.init_fit} 2>/dev/null)" = "no_nuisances" ]; then
+        if [ -f $INIT_FIT_FILE ] && [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "no_nuisances" ]; then
             echo "no_nuisances" > $OUT_DIR/no_nuisances
             exit 0
         fi
 
-        # Copy the initial fit root file back to DATACARD_DIR so combineTool can find it
-        cp $(realpath {input.init_fit}) $DATACARD_DIR/higgsCombine_initialFit_$(basename {input.workspace} .root).MultiDimFit.mH{params.mass}.root
+        # Copy the initial fit root file to OUT_DIR under the name combineTool expects
+        cp $INIT_FIT_FILE $OUT_DIR/higgsCombine_initialFit_$(basename {input.workspace} .root).MultiDimFit.mH{params.mass}.root
 
         SET_ZERO_OPT=""
         if [ -n "{params.set_parameters_zero}" ]; then
@@ -533,39 +582,41 @@ rule impacts_do_fits:
         fi
 
         echo "[$(date)] Running fits per systematic"
-        cd $DATACARD_DIR && \
-            combineTool.py -M Impacts -d $(basename {input.workspace}) \
+        cd $OUT_DIR && \
+            combineTool.py -M Impacts -d $WORKSPACE_FILE \
             --doFits --robustFit 1 -m {params.mass} --parallel {threads} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
             $SET_ZERO_OPT \
-            -n $(basename {input.workspace} .root)
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/higgsCombine_paramFit_$(basename {input.workspace} .root)_*.root $OUT_DIR/ && \
-        cp $(realpath {input.init_fit}) $OUT_DIR/
+            -n $(basename {input.workspace} .root) && \
+            cp $INIT_FIT_FILE $OUT_DIR/
+        ) 2>&1 | tee {log}
         """
 
 rule impacts_collect:
     input:
-        workspace = "{path}__{signallabel}.root",
-        fits_done = "{path}_impacts_fits__{signallabel}"
+        workspace = "{path}/workspace/datacard__{signallabel}.root",
+        fits_done = "{path}/impacts/datacard_impacts_fits__{signallabel}"
     output:
-        pdf = "{path}_impacts__{signallabel}.pdf"
+        pdf = "{path}/impacts/datacard_impacts__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         mass = lambda wildcards: config.get("mass", "125"),
         per_page = lambda wildcards: config.get("impacts_per_page", "20"),
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/impacts_collect_{path}__{signallabel}.log"
+    log: f"{log_dir}/impacts_collect_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
+        WORKSPACE_FILE=$(realpath {input.workspace})
+        FITS_DONE_DIR=$(realpath {input.fits_done})
         OUT_FILE=$(realpath {output.pdf})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -573,7 +624,7 @@ rule impacts_collect:
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f {input.fits_done}/stat_only ]; then
+        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
             echo "stat_only is enabled. Creating dummy impacts plot."
             cat << 'EOF' > dummy_plot.py
 import sys
@@ -590,7 +641,7 @@ EOF
             exit 0
         fi
 
-        if [ -f {input.fits_done}/no_nuisances ]; then
+        if [ -f $FITS_DONE_DIR/no_nuisances ]; then
             cat << 'EOF' > dummy_plot.py
 import sys
 import matplotlib
@@ -606,20 +657,21 @@ EOF
             exit 0
         fi
 
-        # Copy files back from fits_done directory so combineTool can merge them
-        cp {input.fits_done}/higgsCombine_initialFit_$(basename {input.workspace} .root).MultiDimFit.mH{params.mass}.root $DATACARD_DIR/
-        cp {input.fits_done}/higgsCombine_paramFit_$(basename {input.workspace} .root)_*.root $DATACARD_DIR/
+        # Copy files from fits_done directory to the directory where we will collect them (impacts/)
+        cd $(dirname $OUT_FILE) && \
+            cp $FITS_DONE_DIR/higgsCombine_initialFit_$(basename {input.workspace} .root).MultiDimFit.mH{params.mass}.root ./ && \
+            cp $FITS_DONE_DIR/higgsCombine_paramFit_$(basename {input.workspace} .root)_*.root ./
 
         echo "[$(date)] Running merging results"
-        cd $DATACARD_DIR && \
+        cd $(dirname $OUT_FILE) && \
             combineTool.py -M Impacts \
             -m {params.mass} -n $(basename {input.workspace} .root) \
             --redefineSignalPOIs r{params.signallabel} \
-            -d $(basename {input.workspace}) \
+            -d $WORKSPACE_FILE \
             -o impacts_combine_$(basename {input.workspace} .root)_exp.json
 
         echo "[$(date)] Running creating pdf"
-        cd $DATACARD_DIR && \
+        cd $(dirname $OUT_FILE) && \
             plotImpacts.py -i impacts_combine_$(basename {input.workspace} .root)_exp.json \
             -o impacts_plot \
             --POI r{params.signallabel} \
@@ -629,8 +681,8 @@ EOF
         """
 
 rule gof_data:
-    input: "{path}__{signallabel}.root"
-    output: "{path}_gof_data__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
+    output: "{path}/gof/datacard_gof_data__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -638,15 +690,17 @@ rule gof_data:
         mass = lambda wildcards: config.get("mass", "120"),
         gof_algo = lambda wildcards: config.get("gof_algo", "saturated"),
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/gof_data_{path}__{signallabel}.log"
+    log: f"{log_dir}/gof_data_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -667,20 +721,20 @@ rule gof_data:
             fi
         fi
 
-        cd $DATACARD_DIR && \
-            combine -M GoodnessOfFit $(basename {input}) \
+        cd $(dirname $OUT_FILE) && \
+            combine -M GoodnessOfFit $WORKSPACE_FILE \
             -m {params.mass} \
             --algo {params.gof_algo} \
             $SET_ZERO_OPT \
             -n _$(basename {input} .root)_{params.signallabel}_gof_data \
             2>&1 | tee gof_data_$(basename {input} .root)_{params.signallabel}.txt && \
-            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_data.GoodnessOfFit.mH{params.mass}.root $OUT_FILE
+            mv higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_data.GoodnessOfFit.mH{params.mass}.root $(basename {output})
         ) 2>&1 | tee {log}
         """
 
 rule gof_toys_chunk:
-    input: "{path}__{signallabel}.root"
-    output: "{path}_gof_toys_{split_index}__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
+    output: "{path}/gof/datacard_gof_toys_{split_index}__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -690,15 +744,17 @@ rule gof_toys_chunk:
         gof_algo = lambda wildcards: config.get("gof_algo", "saturated"),
         seed = lambda wildcards: int(wildcards.split_index) + 123456,
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/gof_toys_chunk_{split_index}_{path}__{signallabel}.log"
+    log: f"{log_dir}/gof_toys_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_FILE=$(realpath {output})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
@@ -719,39 +775,40 @@ rule gof_toys_chunk:
             fi
         fi
 
-        cd $DATACARD_DIR
+        cd $(dirname $OUT_FILE)
         # Check if there are any nuisance parameters
         TOYS_OPT="--toysFrequentist"
-        NUISANCES=$(find . -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
+        NUISANCES=$(find $DATACARD_DIR -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
         if [ "$NUISANCES" = "0" ] || [ -z "$NUISANCES" ]; then
             TOYS_OPT="--toysNoSystematics"
         fi
 
-        combine -M GoodnessOfFit $(basename {input}) \
+        combine -M GoodnessOfFit $WORKSPACE_FILE \
             -m {params.mass} \
             -t {params.toys_per_job} --algo {params.gof_algo} $TOYS_OPT \
             -s {params.seed} \
             $SET_ZERO_OPT \
             -n _$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index} \
             2>&1 | tee gof_toys_$(basename {input} .root)_{params.signallabel}_{wildcards.split_index}.txt && \
-            cp higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index}.GoodnessOfFit.mH{params.mass}.{params.seed}.root $OUT_FILE
+            mv higgsCombine_$(basename {input} .root)_{params.signallabel}_gof_toys_{wildcards.split_index}.GoodnessOfFit.mH{params.mass}.{params.seed}.root $(basename {output})
         ) 2>&1 | tee {log}
         """
 
 rule gof:
     input:
-        data = "{path}_gof_data__{signallabel}.root",
-        toys = lambda wildcards: [f"{wildcards.path}_gof_toys_{i}__{wildcards.signallabel}.root" for i in range(int(config.get("num_toy_jobs", 10)))]
-    output: "{path}_gof__{signallabel}.pdf"
+        data = "{path}/gof/datacard_gof_data__{signallabel}.root",
+        toys = lambda wildcards: [f"{wildcards.path}/gof/datacard_gof_toys_{i}__{wildcards.signallabel}.root" for i in range(int(config.get("num_toy_jobs", 10)))]
+    output: "{path}/gof/datacard_gof__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         mass = lambda wildcards: config.get("mass", "120"),
         gof_algo = lambda wildcards: config.get("gof_algo", "saturated"),
         stat_only = lambda wildcards: config.get("stat_only", False)
-    log: "output/logs/gof_{path}__{signallabel}.log"
+    log: f"{log_dir}/gof_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -793,25 +850,27 @@ EOF
         """
 
 rule fit_diagnostics_bonly:
-    input: "{path}__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
     output:
-        bonly = "{path}_fitDiagnostics_bonly__{signallabel}.root",
-        diff_bonly = "{path}_diffNuisances_bonly__{signallabel}.root"
+        bonly = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
+        diff_bonly = "{path}/postfit/datacard_diffNuisances_bonly__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/fit_diagnostics_bonly_{path}__{signallabel}.log"
+    log: f"{log_dir}/fit_diagnostics_bonly_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_BONLY=$(realpath {output.bonly})
         OUT_DIFF_BONLY=$(realpath {output.diff_bonly})
         mkdir -p $(dirname $LOG)
@@ -837,10 +896,10 @@ rule fit_diagnostics_bonly:
             SET_ZERO_OPT_BONLY="--setParameters r{params.signallabel}=0"
         fi
 
-        cd $DATACARD_DIR
+        cd $(dirname $OUT_BONLY)
 
         echo "[$(date)] Running FitDiagnostics B-only"
-        combine -M FitDiagnostics $(basename {input}) \
+        combine -M FitDiagnostics $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_BONLY \
@@ -852,35 +911,38 @@ rule fit_diagnostics_bonly:
         python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \
             -p r{params.signallabel} \
             -a fitDiagnostics_$(basename {input} .root)_prefit_bonly.root \
-            -g diffNuisances_$(basename {input} .root)_prefit_bonly.root
+            -g diffNuisances_$(basename {input} .root)_prefit_bonly.root \
+            --skipFitB || touch diffNuisances_$(basename {input} .root)_prefit_bonly.root
 
         mkdir -p fitDiagnostics_bonly
         mv *prefit_bonly* fitDiagnostics_bonly/ 2>/dev/null || true
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/fitDiagnostics_bonly/fitDiagnostics_$(basename {input} .root)_prefit_bonly.root $OUT_BONLY && \
-        cp $DATACARD_DIR/fitDiagnostics_bonly/diffNuisances_$(basename {input} .root)_prefit_bonly.root $OUT_DIFF_BONLY
+        mv fitDiagnostics_bonly/fitDiagnostics_$(basename {input} .root)_prefit_bonly.root $OUT_BONLY && \
+        mv fitDiagnostics_bonly/diffNuisances_$(basename {input} .root)_prefit_bonly.root $OUT_DIFF_BONLY
+        ) 2>&1 | tee {log}
         """
 
 rule fit_diagnostics_sb:
-    input: "{path}__{signallabel}.root"
+    input: "{path}/workspace/datacard__{signallabel}.root"
     output:
-        sb = "{path}_fitDiagnostics_sb__{signallabel}.root",
-        diff_sb = "{path}_diffNuisances_sb__{signallabel}.root"
+        sb = "{path}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
+        diff_sb = "{path}/postfit/datacard_diffNuisances_sb__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: "output/logs/fit_diagnostics_sb_{path}__{signallabel}.log"
+    log: f"{log_dir}/fit_diagnostics_sb_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
+        WORKSPACE_FILE=$(realpath {input})
         OUT_SB=$(realpath {output.sb})
         OUT_DIFF_SB=$(realpath {output.diff_sb})
         mkdir -p $(dirname $LOG)
@@ -904,10 +966,10 @@ rule fit_diagnostics_sb:
             SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
         fi
 
-        cd $DATACARD_DIR
+        cd $(dirname $OUT_SB)
 
         echo "[$(date)] Running FitDiagnostics S+B"
-        combine -M FitDiagnostics $(basename {input}) \
+        combine -M FitDiagnostics $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_SB \
@@ -919,38 +981,39 @@ rule fit_diagnostics_sb:
         python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \
             -p r{params.signallabel} \
             -a fitDiagnostics_$(basename {input} .root)_prefit_sb.root \
-            -g diffNuisances_$(basename {input} .root)_prefit_sb.root
+            -g diffNuisances_$(basename {input} .root)_prefit_sb.root || touch diffNuisances_$(basename {input} .root)_prefit_sb.root
 
         mkdir -p fitDiagnostics_sb
         mv *prefit_sb* fitDiagnostics_sb/ 2>/dev/null || true
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/fitDiagnostics_sb/fitDiagnostics_$(basename {input} .root)_prefit_sb.root $OUT_SB && \
-        cp $DATACARD_DIR/fitDiagnostics_sb/diffNuisances_$(basename {input} .root)_prefit_sb.root $OUT_DIFF_SB
+        mv fitDiagnostics_sb/fitDiagnostics_$(basename {input} .root)_prefit_sb.root $OUT_SB && \
+        mv fitDiagnostics_sb/diffNuisances_$(basename {input} .root)_prefit_sb.root $OUT_DIFF_SB
+        ) 2>&1 | tee {log}
         """
 
 rule postfit:
     input:
-        workspace = "{path}__{signallabel}.root",
-        fit_result = "{path}_fitDiagnostics_bonly__{signallabel}.root"
-    output: "{path}_postfit__{signallabel}.pdf"
+        workspace = "{path}/workspace/datacard__{signallabel}.root",
+        fit_result = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root"
+    output: "{path}/postfit/datacard_postfit__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
-        channel = "",
-        signal = "",
-        ylog = "",
+        channel = lambda wildcards: wildcards.path.rstrip('/').split('/')[-1],
+        signal = "{signallabel}",
+        ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1] == "HH4b" else "",
         plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py"),
         metadata_template = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")
-    log: "output/logs/postfit_{path}__{signallabel}.log"
+    log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
         LOG=$(pwd)/{log}
-        DATACARD_DIR=$(realpath $(dirname {input.workspace}))
         OUT_FILE=$(realpath {output})
+        OUT_DIR=$(realpath $(dirname {output}))
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
@@ -958,32 +1021,34 @@ rule postfit:
         METADATA_FILE=$(echo "{params.metadata_template}" | sed "s|{{channel}}|{params.channel}|g")
         python3 {params.plot_script} \
             -i {input.fit_result} \
-            -o $DATACARD_DIR/plots/ \
+            -o $OUT_DIR/plots/ \
             -c {params.channel} \
             -s {params.signal} \
             {params.ylog} \
-            -m $METADATA_FILE
-        ) 2>&1 | tee {log} && \
-        cp $DATACARD_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE
+            -m $METADATA_FILE && \
+            cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE
+        ) 2>&1 | tee {log}
         """
 
 rule pdf_to_png:
     input: "{path}.pdf"
     output: "{path}.png"
-    log: "output/logs/pdf_to_png_{path}.log"
+    log: f"{log_dir}/pdf_to_png_{{path}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         python3 src/plotting/pb_pdf_to_png.py {input} > {log} 2>&1
         """
 
 rule split_impacts:
     input:
-        pdf = "{path}_impacts__{signallabel}.pdf"
+        pdf = "{path}/impacts/datacard_impacts__{signallabel}.pdf"
     output:
-        dir = directory("{path}_impacts_split__{signallabel}")
-    log: "output/logs/split_impacts_{path}__{signallabel}.log"
+        dir = directory("{path}/impacts/datacard_impacts_split__{signallabel}")
+    log: f"{log_dir}/split_impacts_{{path}}__{{signallabel}}.log"
     shell:
         """
+        . /srv/apptainer_env.sh || true
         LOG=$(pwd)/{log}
         mkdir -p $(dirname $LOG)
         (

@@ -24,6 +24,6 @@ code_snakemake_dryrun_combine:
   extends:
     - .base_analysis_coffea4bees
   script:
-    - mkdir -p output/v4_systematics_test/datacards/HH4b
-    - touch output/v4_systematics_test/datacards/HH4b/datacard__HH4b.txt
+    - mkdir -p output/v4_systematics_test/HH4b/datacards
+    - touch output/v4_systematics_test/HH4b/datacards/datacard__HH4b.txt
     - ./run_container snakemake --snakefile src/stat_analysis/combine.smk --config stat_only=True channels='{"HH4b":{"signallabel":"ggHH_kl_1_kt_1_13p0TeV_hbbhbb","othersignal":"","signal":"GluGluToHHTo4B_cHHH1"}}' -n

@@ -47,6 +47,10 @@ def main():
         
     jobid = sys.argv[-1]
     
+    if jobid.startswith("local_job_"):
+        print("success")
+        sys.exit(0)
+    
     # Try parsing the log file first
     status = check_log_status(jobid)
     if status is not None:

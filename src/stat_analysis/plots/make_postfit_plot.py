@@ -88,7 +88,25 @@ if __name__ == '__main__':
     channels = metadata['bin'] 
     mj = metadata['processes']['background']['multijet']['label']
     tt = metadata['processes']['background']['tt']['label']
-    signal = metadata['processes']['signal'][args.signal]['label']
+    
+    signal_key = args.signal
+    if signal_key not in metadata['processes']['signal']:
+        found = False
+        for k, v in metadata['processes']['signal'].items():
+            if v.get('label') == signal_key or k == signal_key:
+                signal_key = k
+                found = True
+                break
+        if not found:
+            for k, v in metadata['processes']['signal'].items():
+                if signal_key in k or (v.get('label') and signal_key in v.get('label')):
+                    signal_key = k
+                    found = True
+                    break
+        if not found:
+            raise KeyError(f"Signal process key or label '{args.signal}' not found in metadata processes:signal")
+    signal = metadata['processes']['signal'][signal_key]['label']
+    
     infile = ROOT.TFile.Open(args.input_file)
 
     if args.make_bkg_covariance:
