@@ -337,6 +337,7 @@
     jec_version: V3
     jer_campaign: Summer22_22Sep2023
     jer_version: JRV1
+    jet_type: AK4PFPuppi
     run_tags:
       B: RunCD
       C: RunCD
@@ -399,6 +400,7 @@
     jec_version: V3
     jer_campaign: Summer22EE_22Sep2023
     jer_version: JRV1
+    jet_type: AK4PFPuppi
     run_tags:
       E: RunE
       F: RunF
@@ -469,6 +471,7 @@
     jec_version: V2
     jer_campaign: Summer23Prompt23
     jer_version: RunCv1234_JRV1
+    jet_type: AK4PFPuppi
     #run_tags: not needed
   jes_unc:
     - DUMMY
@@ -530,6 +533,7 @@
     jec_version: V3
     jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1
+    jet_type: AK4PFPuppi
     #run_tags: not needed 
   jes_unc:  
     - DUMMY
@@ -596,6 +600,7 @@
     jec_version: V2
     jer_campaign: Summer23BPixPrompt23
     jer_version: RunD_JRV1 ### DUMMY, TO BE UPDATED
+    jet_type: AK4PFPuppi
     #run_tags: not needed in 2024
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetid.json.gz'
   jes_unc:  

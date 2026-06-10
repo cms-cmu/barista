@@ -291,6 +291,7 @@ def apply_jerc_corrections_jsonpog(
     jer_campaign = jec_meta.get("jer_campaign")
     jer_version  = jec_meta.get("jer_version")
     junc_sources = corrections_metadata.get("jes_unc") if run_systematics else None
+    jet_type     = jec_meta.get("jet_type", jet_type)
 
     # Resolve run_tag for DATA: match the dataset suffix against run_tags keys
     # (longest match first to handle multi-char eras like C01, D1, etc.)
