@@ -520,8 +520,6 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     client.register_plugin(WorkerLostLogger())
 
-    logging.info('Waiting for at least one worker...')
-    client.wait_for_workers(1)
     logging.info('HTCondor cluster setup complete!')
     return client, cluster
 
@@ -596,8 +594,6 @@ def setup_slurm_cluster(config_runner):
     logging.info(f"Dask dashboard: {client.dashboard_link}")
     logging.info(f"SLURM worker log directory: {log_dir}")
 
-    logging.info("Waiting for at least one SLURM worker...")
-    client.wait_for_workers(1)
     logging.info("SLURM cluster setup complete!")
     return client, cluster
 
@@ -766,7 +762,7 @@ def setup_config_defaults(config_runner, args):
         'worker_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
-        'max_workers': 100,
+        'max_workers': 400,
         'workers': 2,
         'skipbadfiles': False,
         'dashboard_address': 10200,
@@ -1024,6 +1020,206 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
         process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
         save_coffea_output(output, config_runner, args)
 
+def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout):
+    """Monitor connected clients and active tasks, shut down when idle."""
+    logging.info("Dask cluster daemon monitoring loop started.")
+    idle_start = None
+    
+    while True:
+        try:
+            # Query scheduler info
+            scheduler_info = client.scheduler_info()
+            
+            # Count connected clients, excluding this daemon client itself
+            connected_clients = scheduler_info.get('clients', {})
+            active_clients = max(0, len(connected_clients) - 1)
+            
+            # Query number of processing tasks
+            processing_tasks = client.processing()
+            n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
+            
+            logging.debug(f"Daemon status: {active_clients} active clients, {n_tasks} tasks processing.")
+            
+            if active_clients > 0 or n_tasks > 0:
+                if idle_start is not None:
+                    logging.info("Cluster is active again. Resetting idle timer.")
+                idle_start = None
+            else:
+                if idle_start is None:
+                    idle_start = time.time()
+                    logging.info(f"Cluster is idle. Starting countdown to shutdown (timeout: {idle_timeout}s)...")
+                else:
+                    elapsed = time.time() - idle_start
+                    if elapsed >= idle_timeout:
+                        logging.info(f"Cluster idle timeout reached ({idle_timeout}s). Shutting down.")
+                        break
+        except Exception as e:
+            logging.error(f"Error in daemon monitoring loop: {e}")
+            break
+            
+        time.sleep(30)
+        
+    # Shutdown logic
+    # Immediately delete the JSON file so new clients do not try to connect to a dying scheduler
+    try:
+        if os.path.exists(scheduler_json_path):
+            os.remove(scheduler_json_path)
+    except OSError:
+        pass
+
+    logging.info("Shutting down Dask cluster and workers...")
+    try:
+        client.close()
+    except Exception:
+        pass
+    try:
+        cluster.close()
+    except Exception:
+        pass
+    logging.info("Daemon shutdown complete. Exiting.")
+
+
+def setup_shared_dask_client(args, config_runner):
+    """Check for/connect to an existing cluster daemon, or spawn one if needed."""
+    import hashlib
+    import getpass
+    import subprocess
+    from distributed import Client
+    
+    # 1. Determine namespaced file paths
+    workspace_path = os.path.abspath(os.path.dirname(__file__))
+    workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
+    username = getpass.getuser()
+    daemon_dir = f"/tmp/barista_{username}"
+    os.makedirs(daemon_dir, exist_ok=True)
+    scheduler_json_path = f"{daemon_dir}/dask_scheduler_{workspace_hash}.json"
+    daemon_log_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.log"
+    
+    # 2. Explicit scheduler address bypass
+    if args.scheduler_address:
+        logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
+        client = Client(args.scheduler_address)
+        return client, None
+        
+    # 3. Connection retry / reuse logic (client process)
+    if not args.start_cluster_daemon:
+        client = None
+        if os.path.exists(scheduler_json_path):
+            try:
+                with open(scheduler_json_path, "r") as f:
+                    data = json.load(f)
+                    address = data["address"]
+                logging.info(f"Checking for existing Dask scheduler at {address}...")
+                client = Client(address, timeout="2s")
+                logging.info("Successfully connected to existing Dask scheduler!")
+                return client, None
+            except Exception as e:
+                logging.info(f"Existing scheduler is not responsive: {e}. Starting a new one.")
+                try:
+                    os.remove(scheduler_json_path)
+                except OSError:
+                    pass
+                    
+        # 4. Spawning daemon logic with locking to prevent race conditions
+        import fcntl
+        lock_file_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.lock"
+        lock_file = open(lock_file_path, "w")
+        try:
+            # Try to acquire exclusive lock without blocking
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            
+            # If we got the lock, check if the JSON file is now valid
+            # (in case another process just finished spawning it before we got here)
+            if os.path.exists(scheduler_json_path):
+                try:
+                    with open(scheduler_json_path, "r") as f:
+                        data = json.load(f)
+                        address = data["address"]
+                    client = Client(address, timeout="2s")
+                    fcntl.flock(lock_file, fcntl.LOCK_UN)
+                    lock_file.close()
+                    return client, None
+                except Exception:
+                    pass
+
+            logging.info("Starting new background Dask cluster daemon...")
+            cmd = [sys.executable, __file__, "--start-cluster-daemon"]
+            cmd.extend(sys.argv[1:])
+            
+            with open(daemon_log_path, "a") as log_file:
+                subprocess.Popen(cmd, stdout=log_file, stderr=log_file, start_new_session=True)
+                
+            # Poll for the JSON file to appear and become connectable
+            start_wait = time.time()
+            while time.time() - start_wait < 60:
+                if os.path.exists(scheduler_json_path):
+                    try:
+                        with open(scheduler_json_path, "r") as f:
+                            data = json.load(f)
+                            address = data["address"]
+                        logging.info(f"Connecting to spawned scheduler at {address}...")
+                        client = Client(address, timeout="2s")
+                        logging.info("Connected to new Dask cluster!")
+                        fcntl.flock(lock_file, fcntl.LOCK_UN)
+                        lock_file.close()
+                        return client, None
+                    except Exception:
+                        pass
+                time.sleep(1)
+                
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+            lock_file.close()
+            raise RuntimeError("Failed to connect to the spawned Dask cluster daemon within 60 seconds.")
+            
+        except BlockingIOError:
+            # Another process holds the lock (currently spawning). Wait for it.
+            logging.info("Another process is spawning the daemon. Waiting for lock...")
+            # Block until the lock is released
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            # Now the daemon is spawned. Read JSON and connect.
+            try:
+                with open(scheduler_json_path, "r") as f:
+                    data = json.load(f)
+                    address = data["address"]
+                client = Client(address, timeout="5s")
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+                lock_file.close()
+                return client, None
+            except Exception as e:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+                lock_file.close()
+                raise RuntimeError(f"Failed to connect to daemon spawned by another process: {e}")
+            
+    # 5. Daemon setup logic (daemon process)
+    else:
+        logging.info("Initializing Dask cluster daemon...")
+        global _temp_condor_dir
+        if args.condor:
+            logging.info("Configuring LPCCondorCluster daemon...")
+            tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
+            client, cluster = setup_condor_cluster(config_runner, tarball_path)
+        elif args.slurm:
+            logging.info("Configuring SLURMCluster daemon...")
+            client, cluster = setup_slurm_cluster(config_runner)
+        elif args.run_dask:
+            logging.info("Configuring LocalCluster daemon...")
+            client, cluster = setup_local_cluster(config_runner)
+        else:
+            raise ValueError("Daemon started without a valid cluster type flag (--condor, --slurm, or --dask)")
+            
+        # Write info to JSON
+        with open(scheduler_json_path, "w") as f:
+            json.dump({"address": client.scheduler.address, "pid": os.getpid()}, f)
+            
+        # Register worker plugin
+        logging.info("Registering worker plugin for Dask client in daemon...")
+        worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
+        client.register_plugin(worker_initializer)
+        
+        # Enter monitoring loop (exits process on timeout)
+        run_daemon_monitoring_loop(client, cluster, scheduler_json_path, args.idle_timeout)
+        sys.exit(0)
+
 
 if __name__ == '__main__':
 
@@ -1195,6 +1391,26 @@ if __name__ == '__main__':
         dest="tmpdir",
         default=None,
         help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+    )
+    exec_group.add_argument(
+        '--start-cluster-daemon',
+        dest="start_cluster_daemon",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS
+    )
+    exec_group.add_argument(
+        '--idle-timeout',
+        dest="idle_timeout",
+        type=int,
+        default=600,
+        help='Time in seconds to wait before shutting down an idle cluster (default: 600s / 10m)'
+    )
+    exec_group.add_argument(
+        '--scheduler-address',
+        dest="scheduler_address",
+        default=None,
+        help='Address of an existing Dask scheduler to connect to (e.g. tcp://IP:PORT)'
     )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
@@ -1391,18 +1607,10 @@ if __name__ == '__main__':
     pool = None
     cluster = None
 
-    if args.condor:
-        logging.info("Configuring HTCondor cluster execution...")
+    if args.condor or args.slurm or args.scheduler_address or args.run_dask:
+        logging.info("Configuring shared Dask cluster client...")
         args.run_dask = True
-        tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-        client, cluster = setup_condor_cluster(config_runner, tarball_path)
-    elif args.slurm:
-        logging.info("Configuring SLURM cluster execution...")
-        args.run_dask = True
-        client, cluster = setup_slurm_cluster(config_runner)
-    elif args.run_dask:
-        logging.info("Configuring local Dask cluster execution...")
-        client, cluster = setup_local_cluster(config_runner)
+        client, cluster = setup_shared_dask_client(args, config_runner)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -1473,11 +1681,12 @@ if __name__ == '__main__':
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:
-            try:
-                obj.close()
-                logging.info(f"Successfully closed {obj_name}")
-            except (RuntimeError, NameError) as e:
-                logging.warning(f"Error closing {obj_name}: {e}")
+            if obj is not None:
+                try:
+                    obj.close()
+                    logging.info(f"Successfully closed {obj_name}")
+                except (RuntimeError, NameError, AttributeError) as e:
+                    logging.warning(f"Error closing {obj_name}: {e}")
 
         logging.info(f'Dask performance report saved in {dask_report_file}')
     else:
