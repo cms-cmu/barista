@@ -176,6 +176,9 @@ parse_apptainer_args() {
 }
 
 setup_host_env() {
+    # Compute workspace hash to isolate Dask schedulers per worktree/workspace
+    WORKSPACE_HASH=$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")
+
     local HOST
     HOST=$(hostname)
     CLUSTER_PROFILE=$(detect_cluster_profile)
@@ -306,6 +309,104 @@ run_coffea() {
     local HOST
     HOST=$(hostname)
 
+    # Check if we need to start the shared Dask daemon
+    if [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--run-dask"* ]] && \
+       [[ " $* " != *" --start-cluster-daemon "* ]]; then
+        
+        # Determine scheduler JSON path and lock file path
+        local SCHEDULER_JSON="/tmp/barista_${USER}/dask_scheduler_${WORKSPACE_HASH}.json"
+        local SCHEDULER_LOCK="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.lock"
+        local DAEMON_LOG="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.log"
+        mkdir -p "/tmp/barista_${USER}"
+        
+        # Acquire lock to prevent race conditions during check & spawn
+        exec 9>"$SCHEDULER_LOCK"
+        if flock -x 9; then
+            # Check if daemon is responsive
+            if ! python3 -c "
+import os, json, socket
+if os.path.exists('$SCHEDULER_JSON'):
+    try:
+        with open('$SCHEDULER_JSON') as f:
+            addr = json.load(f)['address']
+        host, port = addr.replace('tcp://', '').split(':')
+        s = socket.create_connection((host, int(port)), timeout=2)
+        s.close()
+        exit(0)
+    except Exception:
+        pass
+exit(1)
+" 2>/dev/null; then
+                info "Shared Dask daemon not running or unresponsive. Spawning in background on host..."
+                # Remove stale JSON if any
+                rm -f "$SCHEDULER_JSON"
+                
+                # Reconstruct clean runner.py daemon command
+                local DASK_FLAG=""
+                local CONFIG_FILE=""
+                local TMP_DIR=""
+                
+                local i=1
+                while [ $i -le $# ]; do
+                    eval arg=\$\{$i\}
+                    case "$arg" in
+                        --condor) DASK_FLAG="--condor" ;;
+                        --slurm) DASK_FLAG="--slurm" ;;
+                        --run-dask) DASK_FLAG="--run-dask" ;;
+                        -c|--config|--configs)
+                            next_idx=$((i+1))
+                            eval CONFIG_FILE=\$\{$next_idx\}
+                            ;;
+                        --tmpdir)
+                            next_idx=$((i+1))
+                            eval TMP_DIR=\$\{$next_idx\}
+                            ;;
+                    esac
+                    i=$((i+1))
+                done
+                
+                # Spawn daemon in the background on the host
+                (
+                    exec 9>&-
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                )
+                
+                # Wait a few seconds for the daemon to start and write the JSON file
+                local count=0
+                while [ $count -lt 120 ]; do
+                    if [ -f "$SCHEDULER_JSON" ]; then
+                        # Check if it has become responsive
+                        if python3 -c "
+import os, json, socket
+try:
+    with open('$SCHEDULER_JSON') as f:
+        addr = json.load(f)['address']
+    host, port = addr.replace('tcp://', '').split(':')
+    s = socket.create_connection((host, int(port)), timeout=2)
+    s.close()
+    exit(0)
+except Exception:
+    exit(1)
+" 2>/dev/null; then
+                            info "Shared Dask daemon is now running and responsive."
+                            break
+                        fi
+                    fi
+                    sleep 1
+                    count=$((count+1))
+                done
+                if [ $count -eq 120 ]; then
+                    warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+                fi
+            else
+                info "Shared Dask daemon is already running and responsive."
+            fi
+            # Release lock
+            flock -u 9
+        fi
+        exec 9>&-
+    fi
+
     # 1. Base Flags
     touch "$PWD/.python_history"
     _write_pythonstartup "$PWD/.pythonstartup"
@@ -316,6 +417,7 @@ run_coffea() {
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
 
@@ -473,6 +575,7 @@ run_coffea_dev() {
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
 
