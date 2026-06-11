@@ -147,10 +147,15 @@ class WorkerInitializer(WorkerPlugin):
 
         # Unpack code package if present (for HTCondor jobs)
         if os.path.exists("code_barista.tar.gz"):
-            logging.info("Extracting code_barista.tar.gz on worker...")
-            with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
-                tar.extractall()
-            logging.info("Code package extracted successfully")
+            if not os.path.exists(".code_extracted"):
+                logging.info("Extracting code_barista.tar.gz on worker...")
+                with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
+                    tar.extractall()
+                with open(".code_extracted", "w") as f:
+                    f.write("extracted\n")
+                logging.info("Code package extracted successfully")
+            else:
+                logging.info("Code package already extracted, skipping")
 
         # Add current directory to Python path so imports work
         if os.getcwd() not in sys.path:
@@ -472,11 +477,15 @@ def setup_condor_cluster(config_runner, tarball_path):
         'memory': config_runner['worker_memory'],
         'ship_env': False,
         'log_directory': config_runner.get('log_directory', _default_log_dir),
-        'scheduler_options': {'dashboard_address': config_runner['dashboard_address'], 'port': 0},
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}", 'port': 0},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
         ],
+        'job_extra_directives': {
+            'leave_in_queue': 'False',
+            'periodic_remove': '(JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 300)'
+        },
     }
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
@@ -521,7 +530,7 @@ def setup_condor_cluster(config_runner, tarball_path):
     client.register_plugin(WorkerLostLogger())
 
     logging.info('HTCondor cluster setup complete!')
-    return client, cluster
+    return client, cluster, log_dir
 
 
 def setup_slurm_cluster(config_runner):
@@ -1087,8 +1096,10 @@ def setup_shared_dask_client(args, config_runner):
     from distributed import Client
     
     # 1. Determine namespaced file paths
-    workspace_path = os.path.abspath(os.path.dirname(__file__))
-    workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
+    workspace_hash = os.environ.get("BARISTA_WORKSPACE_HASH")
+    if not workspace_hash:
+        workspace_path = os.path.abspath(os.path.dirname(__file__))
+        workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
     username = getpass.getuser()
     daemon_dir = f"/tmp/barista_{username}"
     os.makedirs(daemon_dir, exist_ok=True)
@@ -1101,103 +1112,61 @@ def setup_shared_dask_client(args, config_runner):
         client = Client(args.scheduler_address)
         return client, None
         
+    def log_daemon_info(data):
+        if "daemon_log" in data:
+            logging.info(f"Dask daemon log: {data['daemon_log']}")
+        if "worker_log_dir" in data:
+            logging.info(f"Condor worker log directory: {data['worker_log_dir']}")
+
     # 3. Connection retry / reuse logic (client process)
     if not args.start_cluster_daemon:
-        client = None
-        if os.path.exists(scheduler_json_path):
-            try:
-                with open(scheduler_json_path, "r") as f:
-                    data = json.load(f)
-                    address = data["address"]
-                logging.info(f"Checking for existing Dask scheduler at {address}...")
-                client = Client(address, timeout="2s")
-                logging.info("Successfully connected to existing Dask scheduler!")
-                return client, None
-            except Exception as e:
-                logging.info(f"Existing scheduler is not responsive: {e}. Starting a new one.")
-                try:
-                    os.remove(scheduler_json_path)
-                except OSError:
-                    pass
-                    
-        # 4. Spawning daemon logic with locking to prevent race conditions
-        import fcntl
-        lock_file_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.lock"
-        lock_file = open(lock_file_path, "w")
-        try:
-            # Try to acquire exclusive lock without blocking
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            
-            # If we got the lock, check if the JSON file is now valid
-            # (in case another process just finished spawning it before we got here)
+        # Wait up to 15 seconds for the scheduler JSON to appear and be readable
+        # (to handle shared filesystem sync/latency)
+        start_wait = time.time()
+        data = None
+        while time.time() - start_wait < 15:
             if os.path.exists(scheduler_json_path):
                 try:
                     with open(scheduler_json_path, "r") as f:
                         data = json.load(f)
-                        address = data["address"]
-                    client = Client(address, timeout="2s")
-                    fcntl.flock(lock_file, fcntl.LOCK_UN)
-                    lock_file.close()
-                    return client, None
+                    if data and "address" in data:
+                        break
                 except Exception:
                     pass
+            time.sleep(1)
 
-            logging.info("Starting new background Dask cluster daemon...")
-            cmd = [sys.executable, __file__, "--start-cluster-daemon"]
-            cmd.extend(sys.argv[1:])
-            
-            with open(daemon_log_path, "a") as log_file:
-                subprocess.Popen(cmd, stdout=log_file, stderr=log_file, start_new_session=True)
-                
-            # Poll for the JSON file to appear and become connectable
-            start_wait = time.time()
-            while time.time() - start_wait < 60:
-                if os.path.exists(scheduler_json_path):
-                    try:
-                        with open(scheduler_json_path, "r") as f:
-                            data = json.load(f)
-                            address = data["address"]
-                        logging.info(f"Connecting to spawned scheduler at {address}...")
-                        client = Client(address, timeout="2s")
-                        logging.info("Connected to new Dask cluster!")
-                        fcntl.flock(lock_file, fcntl.LOCK_UN)
-                        lock_file.close()
-                        return client, None
-                    except Exception:
-                        pass
-                time.sleep(1)
-                
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
-            lock_file.close()
-            raise RuntimeError("Failed to connect to the spawned Dask cluster daemon within 60 seconds.")
-            
-        except BlockingIOError:
-            # Another process holds the lock (currently spawning). Wait for it.
-            logging.info("Another process is spawning the daemon. Waiting for lock...")
-            # Block until the lock is released
-            fcntl.flock(lock_file, fcntl.LOCK_EX)
-            # Now the daemon is spawned. Read JSON and connect.
+        if not data:
+            raise RuntimeError(
+                f"Dask scheduler connection file not found: {scheduler_json_path}. "
+                f"Make sure the daemon is running and has started successfully."
+            )
+
+        address = data["address"]
+        logging.info(f"Connecting to shared Dask scheduler at {address}...")
+
+        # Retry connecting to the Dask scheduler to handle high load / slow startup
+        client = None
+        for attempt in range(1, 6):
             try:
-                with open(scheduler_json_path, "r") as f:
-                    data = json.load(f)
-                    address = data["address"]
                 client = Client(address, timeout="5s")
-                fcntl.flock(lock_file, fcntl.LOCK_UN)
-                lock_file.close()
+                logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                log_daemon_info(data)
                 return client, None
             except Exception as e:
-                fcntl.flock(lock_file, fcntl.LOCK_UN)
-                lock_file.close()
-                raise RuntimeError(f"Failed to connect to daemon spawned by another process: {e}")
+                if attempt == 5:
+                    raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 5 attempts: {e}")
+                logging.warning(f"Connection attempt {attempt}/5 failed: {e}. Retrying in 2 seconds...")
+                time.sleep(2)
             
     # 5. Daemon setup logic (daemon process)
     else:
         logging.info("Initializing Dask cluster daemon...")
         global _temp_condor_dir
+        log_dir = None
         if args.condor:
             logging.info("Configuring LPCCondorCluster daemon...")
             tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-            client, cluster = setup_condor_cluster(config_runner, tarball_path)
+            client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
         elif args.slurm:
             logging.info("Configuring SLURMCluster daemon...")
             client, cluster = setup_slurm_cluster(config_runner)
@@ -1208,8 +1177,15 @@ def setup_shared_dask_client(args, config_runner):
             raise ValueError("Daemon started without a valid cluster type flag (--condor, --slurm, or --dask)")
             
         # Write info to JSON
+        info_data = {
+            "address": client.scheduler.address,
+            "pid": os.getpid(),
+            "daemon_log": daemon_log_path,
+        }
+        if log_dir is not None:
+            info_data["worker_log_dir"] = log_dir
         with open(scheduler_json_path, "w") as f:
-            json.dump({"address": client.scheduler.address, "pid": os.getpid()}, f)
+            json.dump(info_data, f)
             
         # Register worker plugin
         logging.info("Registering worker plugin for Dask client in daemon...")
@@ -1461,6 +1437,28 @@ if __name__ == '__main__':
 
     logging.info(f"Running with these parameters: {args}")
 
+    if args.start_cluster_daemon:
+        logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
+        configs = yaml.safe_load(open(args.configs, 'r'))
+        if not 'config' in configs: configs['config'] = {}
+        configs['config']['corrections_metadata'] = corrections_metadata
+        config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+        setup_config_defaults(config_runner, args)
+        if args.dashboard_address is not None:
+            config_runner['dashboard_address'] = args.dashboard_address
+        if args.worker_memory is not None:
+            config_runner['worker_memory'] = args.worker_memory
+        if args.slurm_qos is not None:
+            config_runner['slurm_qos'] = args.slurm_qos
+        if config_runner['dashboard_address'] != 0:
+            requested = config_runner['dashboard_address']
+            config_runner['dashboard_address'] = find_free_port(requested)
+        setup_schema(config_runner)
+
+        args.run_dask = True
+        client, cluster = setup_shared_dask_client(args, config_runner)
+        sys.exit(0)
+
     # Load configuration and metadata files
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
@@ -1619,8 +1617,8 @@ if __name__ == '__main__':
         logging.info(f"Process pool created with {config_runner['workers']} workers")
 
 
-    # Register worker plugin if using Dask
-    if client is not None:
+    # Register worker plugin if using Dask and we did not connect to a shared daemon
+    if client is not None and (args.start_cluster_daemon or args.scheduler_address):
         logging.info("Registering worker plugin for Dask client...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
