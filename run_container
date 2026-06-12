@@ -3,8 +3,8 @@
 # --- Configuration ---
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
-DEV_COFFEA2025_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:dev_coffea2025_latest"
-COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
+DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_latest"
+COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
@@ -13,7 +13,7 @@ BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 # Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
-    DEV_COFFEA2025_IMAGE="/cvmfs/unpacked.cern.ch/${DEV_COFFEA2025_IMAGE#docker://}"
+    DEV_COFFEA0_7_IMAGE="/cvmfs/unpacked.cern.ch/${DEV_COFFEA0_7_IMAGE#docker://}"
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
     CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
@@ -22,9 +22,9 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
 fi
 
 # --- Helpers ---
-info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
-error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; }
-warning() { echo -e "\033[1;33m[WARNING]\033[0m $1"; }
+info() { echo -e "\033[1;34m[INFO]\033[0m $1" >&2; }
+error() { echo -e "\033[1;31m[ERROR]\033[0m $1" >&2; }
+warning() { echo -e "\033[1;33m[WARNING]\033[0m $1" >&2; }
 
 check_apptainer() {
     command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed. Aborting."; exit 1; }
@@ -35,14 +35,48 @@ add_x509_proxy_flags() {
     local -n FLAGS_REF="$2"
 
     case "$HOST" in
-        *cmslpc*|*lxplus*|*falcon*|*rogue*)
+        *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*)
             local PROXY="${PWD}/proxy/x509_proxy"
-	    
-	    # make proxy file in the local running directory if no valid proxy exists
-	    mkdir -p proxy
-	    if ! voms-proxy-info --file ./proxy/x509_proxy --exists -valid 6:00 &>/dev/null; then
-	        voms-proxy-init -voms cms -valid 192:00 -out ./proxy/x509_proxy
-	    fi
+            mkdir -p proxy
+            
+            # Construct apptainer flags for proxy operations
+            local PROXY_FLAGS=( -B "${HOME}/.globus:${HOME}/.globus" )
+            if [[ "${PWD}" != "${HOME}"* ]]; then
+                PROXY_FLAGS+=( -B "${PWD}:${PWD}" --pwd "${PWD}" )
+            fi
+            if [ -d "/cvmfs/grid.cern.ch/etc/grid-security/certificates" ]; then
+                PROXY_FLAGS+=( -B /cvmfs --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates )
+            fi
+
+            # Check if proxy is valid
+            local PROXY_VALID=false
+            if command -v voms-proxy-info >/dev/null 2>&1; then
+                if voms-proxy-info --file "$PROXY" --exists -valid 6:00 &>/dev/null; then
+                    PROXY_VALID=true
+                fi
+            else
+                if "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-info --file "$PROXY" --exists -valid 6:00 &>/dev/null; then
+                    PROXY_VALID=true
+                fi
+            fi
+
+            if [ "$PROXY_VALID" = false ]; then
+                if [ ! -t 0 ]; then
+                    error "No valid Grid proxy found at $PROXY and stdin is not a TTY. Please initialize the proxy interactively by running run_container once from the login node before submitting batch jobs."
+                    exit 1
+                fi
+                if command -v voms-proxy-init >/dev/null 2>&1; then
+                    voms-proxy-init -voms cms -valid 192:00 -out "$PROXY"
+                else
+                    info "Host does not have voms-proxy-init. Attempting to generate proxy using the container..."
+                    if [[ "$CLUSTER_PROFILE" == "bridges2" ]]; then
+                        warning "On Bridges 2, generating proxy inside the container without VOMS attributes to avoid OOM-kill."
+                        "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-init -valid 192:00 -out "$PROXY"
+                    else
+                        "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-init -voms cms -valid 192:00 -out "$PROXY"
+                    fi
+                fi
+            fi
 
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
@@ -58,7 +92,7 @@ Usage: $0 [command] [options]
 Commands:
   [command...]          Run commands inside the coffea container.
                         (Interactive shell is the only option to run on LPC HTCondor).
-  dev [cmd...]          Run commands inside the dev coffea2025 container (coffea 2025, Python 3.12).
+  dev [cmd...]          Run commands inside the dev/legacy coffea0.7 container (coffea 0.7.30, Python 3.10).
   combine [cmd...]      Run commands inside the combine container.
   classifier [cmd...]   Run commands inside the classifier with GPU container.
   classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
@@ -77,6 +111,34 @@ Examples:
   $0 reana ls
   $0 classifier          Run commands inside the classifier with GPU container.
   $0 classifier_cpu      Run commands inside the classifier with CPU container.
+
+SLURM execution (falcon.phys.cmu.edu):
+  On the falcon login node, passing --slurm to runner.py auto-submits the job
+  via sbatch instead of running interactively. Workers are spawned as separate
+  SLURM jobs by Dask (SLURMCluster).
+
+  $0 python runner.py -p <proc.py> -c <cfg.yml> -m <meta/> -y UL18 --slurm
+
+  Key runner.py options for SLURM:
+    --slurm                  Submit Dask workers as SLURM jobs
+    --worker-memory 8GB      Override worker memory (default from config)
+    --slurm-qos cpu_light    QoS: cpu_light (7d), cpu_medium (1d), cpu_heavy (4h)
+
+  Scheduler job environment variables (override defaults):
+    SLURM_PARTITION=work     Partition for the scheduler job
+    SLURM_QOS=cpu_light      QoS for the scheduler job
+    SLURM_TIME=12:00:00      Wall time for the scheduler job
+    SLURM_MEM=8G             Memory for the scheduler job
+
+  Dask dashboard (optional):
+    Set DASK_DASHBOARD_PORT to a port in 10200-10300 to open a reverse SSH
+    tunnel from the compute node back to the login node:
+
+    DASK_DASHBOARD_PORT=10200 $0 python runner.py ... --slurm
+
+    Then from your laptop:
+    ssh -L 10200:localhost:10200 tgomezes@falcon.phys.cmu.edu
+    Open: http://localhost:10200
 EOF
 }
 
@@ -95,6 +157,7 @@ detect_cluster_profile() {
         *falcon*)  echo "falcon" ;;
         *rogue*)   echo "rogue" ;;
         *runner*)  echo "ci" ;;
+        *bridges2*|*psc*) echo "bridges2" ;;
         *)         echo "default" ;;
     esac
 }
@@ -113,11 +176,40 @@ parse_apptainer_args() {
 }
 
 setup_host_env() {
+    # Compute workspace hash to isolate Dask schedulers per worktree/workspace
+    WORKSPACE_HASH=$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")
+
     local HOST
     HOST=$(hostname)
     CLUSTER_PROFILE=$(detect_cluster_profile)
     local PROFILE_CONFIG="${PROFILE_DIR}/${CLUSTER_PROFILE}/config.yaml"
     info "Determining configuration for hostname: $HOST (profile: $CLUSTER_PROFILE)"
+
+    # Set default apptainer executable
+    APPTAINER_CMD="apptainer"
+
+    if [[ "$CLUSTER_PROFILE" == "bridges2" ]]; then
+        # Resolve SIF files from shared directory if present
+        local SHARED_IMAGE_DIR="/ocean/projects/phy260026p/shared/images"
+        if [ -f "${SHARED_IMAGE_DIR}/barista_latest.sif" ]; then
+            COFFEA_IMAGE="${SHARED_IMAGE_DIR}/barista_latest.sif"
+        fi
+        if [ -f "${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif" ]; then
+            DEV_COFFEA2025_IMAGE="${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif"
+        fi
+        if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif" ]; then
+            COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif"
+        fi
+        if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_latest.sif" ]; then
+            CLASSIFIER_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_latest.sif"
+        fi
+        if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_cpu_latest.sif" ]; then
+            CLASSIFIER_CPU_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_cpu_latest.sif"
+        fi
+        if [ -f "${SHARED_IMAGE_DIR}/brilws-docker_latest.sif" ]; then
+            BRILCALC_IMAGE="${SHARED_IMAGE_DIR}/brilws-docker_latest.sif"
+        fi
+    fi
 
     # Parse bind paths from profile config
     local APPTAINER_ARGS
@@ -192,6 +284,22 @@ setup_lpc_jobqueue() {
     export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${LPC_CONDOR_CONFIG},${LPC_CONDOR_LOCAL}:${LPC_CONDOR_LOCAL}.orig,${PWD}/.cmslpc-local-conf:${LPC_CONDOR_LOCAL}"
 }
 
+# --- Helpers ---
+
+_write_pythonstartup() {
+    cat > "$1" << 'EOF'
+import atexit, os, readline
+_hist = os.path.join(os.path.dirname(os.environ.get("PYTHONSTARTUP", "")), ".python_history")
+try:
+    readline.read_history_file(_hist)
+except FileNotFoundError:
+    pass
+readline.set_history_length(10000)
+atexit.register(readline.write_history_file, _hist)
+del atexit, os, readline, _hist
+EOF
+}
+
 # --- Container Functions ---
 
 run_coffea() {
@@ -201,35 +309,226 @@ run_coffea() {
     local HOST
     HOST=$(hostname)
 
+    # Check if we need to start the shared Dask daemon
+    if [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--run-dask"* ]] && \
+       [[ " $* " != *" --start-cluster-daemon "* ]]; then
+        
+        # Determine scheduler JSON path and lock file path
+        local SCHEDULER_JSON="/tmp/barista_${USER}/dask_scheduler_${WORKSPACE_HASH}.json"
+        local SCHEDULER_LOCK="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.lock"
+        local DAEMON_LOG="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.log"
+        mkdir -p "/tmp/barista_${USER}"
+        
+        # Acquire lock to prevent race conditions during check & spawn
+        exec 9>"$SCHEDULER_LOCK"
+        if flock -x 9; then
+            # Check if daemon is responsive
+            if ! python3 -c "
+import os, json, socket
+if os.path.exists('$SCHEDULER_JSON'):
+    try:
+        with open('$SCHEDULER_JSON') as f:
+            addr = json.load(f)['address']
+        host, port = addr.replace('tcp://', '').split(':')
+        s = socket.create_connection((host, int(port)), timeout=2)
+        s.close()
+        exit(0)
+    except Exception:
+        pass
+exit(1)
+" 2>/dev/null; then
+                info "Shared Dask daemon not running or unresponsive. Spawning in background on host..."
+                # Remove stale JSON if any
+                rm -f "$SCHEDULER_JSON"
+                
+                # Reconstruct clean runner.py daemon command
+                local DASK_FLAG=""
+                local CONFIG_FILE=""
+                local TMP_DIR=""
+                
+                local i=1
+                while [ $i -le $# ]; do
+                    eval arg=\$\{$i\}
+                    case "$arg" in
+                        --condor) DASK_FLAG="--condor" ;;
+                        --slurm) DASK_FLAG="--slurm" ;;
+                        --run-dask) DASK_FLAG="--run-dask" ;;
+                        -c|--config|--configs)
+                            next_idx=$((i+1))
+                            eval CONFIG_FILE=\$\{$next_idx\}
+                            ;;
+                        --tmpdir)
+                            next_idx=$((i+1))
+                            eval TMP_DIR=\$\{$next_idx\}
+                            ;;
+                    esac
+                    i=$((i+1))
+                done
+                
+                # Spawn daemon in the background on the host
+                (
+                    exec 9>&-
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                )
+                
+                # Wait a few seconds for the daemon to start and write the JSON file
+                local count=0
+                while [ $count -lt 120 ]; do
+                    if [ -f "$SCHEDULER_JSON" ]; then
+                        # Check if it has become responsive
+                        if python3 -c "
+import os, json, socket
+try:
+    with open('$SCHEDULER_JSON') as f:
+        addr = json.load(f)['address']
+    host, port = addr.replace('tcp://', '').split(':')
+    s = socket.create_connection((host, int(port)), timeout=2)
+    s.close()
+    exit(0)
+except Exception:
+    exit(1)
+" 2>/dev/null; then
+                            info "Shared Dask daemon is now running and responsive."
+                            break
+                        fi
+                    fi
+                    sleep 1
+                    count=$((count+1))
+                done
+                if [ $count -eq 120 ]; then
+                    warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+                fi
+            else
+                info "Shared Dask daemon is already running and responsive."
+            fi
+            # Release lock
+            flock -u 9
+        fi
+        exec 9>&-
+    fi
+
     # 1. Base Flags
     touch "$PWD/.python_history"
+    _write_pythonstartup "$PWD/.pythonstartup"
     local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
-        --env PYTHONHISTFILE=/srv/.python_history
+        --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
-    
+
     # LPC-Specific Environment Variable
     if [[ $HOST == *"cmslpc"* ]]; then
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
-    # 2. FALCON / ROGUE Logic
-    if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
+    # 2. FALCON / ROGUE / BRIDGES2 Logic
+    if [[ $HOST == *falcon* || $HOST == *rogue* || $HOST == *bridges2* || $HOST == *psc* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env PYTHONSTARTUP="$PWD/.pythonstartup" )
+
+        # Bind SLURM client binaries so dask-jobqueue SLURMCluster can call
+        # sbatch from inside the container.
+        if [[ $HOST == *falcon* || $HOST == *rogue* ]] && [ -f /usr/bin/sbatch ]; then
+            # Falcon uses custom wraps for newer glibc
+            FLAGS+=(
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol
+                -B /usr/lib/x86_64-linux-gnu/slurm-wlm
+                -B /usr/lib/x86_64-linux-gnu/libmunge.so.2
+                -B /lib/x86_64-linux-gnu/libc.so.6:/host-libc/libc.so.6
+                -B /lib/x86_64-linux-gnu/libm.so.6:/host-libc/libm.so.6
+                -B /lib/x86_64-linux-gnu/libresolv.so.2:/host-libc/libresolv.so.2
+                -B /lib/x86_64-linux-gnu/libnss_files.so.2:/host-libc/libnss_files.so.2
+                -B /lib64/ld-linux-x86-64.so.2:/host-libc/ld-linux-x86-64.so.2
+                -B /etc/slurm -B /etc/passwd -B /etc/group -B /run/munge
+            )
+        elif [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+            # Bridges 2 has older glibc than container, so we bind host binaries directly
+            FLAGS+=(
+                -B "${HOME}/.globus:${HOME}/.globus"
+                -B /cvmfs
+                --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol -B /usr/bin/scancel
+                -B /usr/lib64/slurm
+                -B /usr/lib64/libmunge.so.2
+                -B /var/spool/slurm
+                -B /run/munge
+                -B /etc/passwd -B /etc/group
+            )
+        fi
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
             info "Inside Slurm Job ($SLURM_JOB_ID). Running container directly..."
+        elif [[ " $* " == *" --slurm "* ]]; then
+            # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
+            local _ROOT
+            _ROOT="$(cd "$(dirname "$0")" && pwd)"
+            
+            local PARTITION
+            local QOS_ARG=()
+            local ACCOUNT_ARG=()
+            local MEM
+            local CPUS
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                PARTITION="${SLURM_PARTITION:-RM-shared}"
+                MEM="${SLURM_MEM:-8000M}"
+                CPUS="${SLURM_CPUS:-4}"
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+            else
+                PARTITION="${SLURM_PARTITION:-work}"
+                QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
+                MEM="${SLURM_MEM:-8G}"
+                CPUS="${SLURM_CPUS:-4}"
+            fi
+
+            local JOB_NAME="${SLURM_JOB_NAME:-barista-scheduler}"
+            local LOG_DIR="${_ROOT}/slurm_logs"
+            mkdir -p "${LOG_DIR}"
+
+            local TUNNEL_CMD=""
+            if [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && [[ $HOST == *falcon* ]]; then
+                TUNNEL_CMD="${_ROOT}/software/slurm/open-dask-tunnel.sh && "
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
+            elif [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} requested"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@bridges2.psc.edu"
+            fi
+
+            local SBATCH_ARGS=(
+                --partition="${PARTITION}"
+                "${QOS_ARG[@]}"
+                "${ACCOUNT_ARG[@]}"
+                --time="${SLURM_TIME:-12:00:00}"
+                --mem="${MEM}"
+                --cpus-per-task="${CPUS}"
+                --job-name="${JOB_NAME}"
+                --output="${LOG_DIR}/scheduler-%j.out"
+                --error="${LOG_DIR}/scheduler-%j.err"
+            )
+            [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && SBATCH_ARGS+=(--export=ALL,DASK_DASHBOARD_PORT="${DASK_DASHBOARD_PORT}")
+
+            local CMD="${TUNNEL_CMD}cd ${_ROOT} && $0 $*"
+            info "Submitting scheduler job: partition=${PARTITION} time=${SLURM_TIME:-12:00:00} mem=${MEM} cpus=${CPUS}"
+            sbatch "${SBATCH_ARGS[@]}" --wrap="${CMD}"
+            info "Monitor with: squeue --me"
+            info "  tail -f ${LOG_DIR}/scheduler-<JOBID>.out"
+            return
         else
-            # CASE B: Login Node -> Submit Interactive Job
+            # CASE C: Login node, no --slurm -> Submit interactive job
             info "Not in a job. Launching interactive Slurm session..."
-            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" "$@"
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                local ACCOUNT_ARG=()
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" "$@"
+            else
+                srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
+            fi
             return # Stop execution on login node
         fi
     fi
@@ -241,60 +540,151 @@ run_coffea() {
         # --- INTERACTIVE SHELL ---
         if [[ $HOST == *"cmslpc"* ]]; then
             info "Opening interactive shell (LPC mode)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash --rcfile /srv/.bashrc
         else
             info "Opening interactive shell..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash
         fi
     else
         # --- COMMAND EXECUTION ---
         local CMD="$*"
         if [[ $HOST == *"cmslpc"* ]]; then
             info "Running command (LPC mode)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
         else
             info "Running command..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$COFFEA_IMAGE" /bin/bash -c "$CMD"
         fi
     fi
 }
 
 run_coffea_dev() {
     check_apptainer
-    info "Running Dev Coffea2025 container..."
+    info "Running Dev Coffea0.7 container..."
     setup_lpc_jobqueue
     local HOST
     HOST=$(hostname)
 
     # 1. Base Flags
     touch "$PWD/.python_history"
+    _write_pythonstartup "$PWD/.pythonstartup"
     local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
-        --env PYTHONHISTFILE=/srv/.python_history
+        --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
 
     # LPC-Specific Environment Variable
     if [[ $HOST == *"cmslpc"* ]]; then
-        FLAGS+=( --env COFFEA_IMAGE_FULL="$DEV_COFFEA2025_IMAGE" )
+        FLAGS+=( --env COFFEA_IMAGE_FULL="$DEV_COFFEA0_7_IMAGE" )
     fi
 
-    # 2. FALCON / ROGUE Logic
-    if [[ $HOST == *falcon* || $HOST == *rogue* ]]; then
+    # 2. FALCON / ROGUE / BRIDGES2 Logic
+    if [[ $HOST == *falcon* || $HOST == *rogue* || $HOST == *bridges2* || $HOST == *psc* ]]; then
         # Critical: Mirror Bind for Dask
-        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" )
+        FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env PYTHONSTARTUP="$PWD/.pythonstartup" )
+
+        if [[ $HOST == *falcon* || $HOST == *rogue* ]] && [ -f /usr/bin/sbatch ]; then
+            # Falcon uses custom wraps for newer glibc
+            FLAGS+=(
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol
+                -B /usr/lib/x86_64-linux-gnu/slurm-wlm
+                -B /usr/lib/x86_64-linux-gnu/libmunge.so.2
+                -B /lib/x86_64-linux-gnu/libc.so.6:/host-libc/libc.so.6
+                -B /lib/x86_64-linux-gnu/libm.so.6:/host-libc/libm.so.6
+                -B /lib/x86_64-linux-gnu/libresolv.so.2:/host-libc/libresolv.so.2
+                -B /lib/x86_64-linux-gnu/libnss_files.so.2:/host-libc/libnss_files.so.2
+                -B /lib64/ld-linux-x86-64.so.2:/host-libc/ld-linux-x86-64.so.2
+                -B /etc/slurm -B /etc/passwd -B /etc/group -B /run/munge
+            )
+        elif [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+            # Bridges 2 has older glibc than container, so we bind host binaries directly
+            FLAGS+=(
+                -B "${HOME}/.globus:${HOME}/.globus"
+                -B /cvmfs
+                --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+                -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol -B /usr/bin/scancel
+                -B /usr/lib64/slurm
+                -B /usr/lib64/libmunge.so.2
+                -B /var/spool/slurm
+                -B /run/munge
+                -B /etc/passwd -B /etc/group
+            )
+        fi
 
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
-            info "Inside Slurm Job ($SLURM_JOB_ID). Running Dev Coffea2025 container directly..."
+            info "Inside Slurm Job ($SLURM_JOB_ID). Running Dev Coffea0.7 container directly..."
+        elif [[ " $* " == *" --slurm "* ]]; then
+            # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
+            local _ROOT
+            _ROOT="$(cd "$(dirname "$0")" && pwd)"
+            
+            local PARTITION
+            local QOS_ARG=()
+            local ACCOUNT_ARG=()
+            local MEM
+            local CPUS
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                PARTITION="${SLURM_PARTITION:-RM-shared}"
+                MEM="${SLURM_MEM:-8000M}"
+                CPUS="${SLURM_CPUS:-4}"
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+            else
+                PARTITION="${SLURM_PARTITION:-work}"
+                QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
+                MEM="${SLURM_MEM:-8G}"
+                CPUS="${SLURM_CPUS:-4}"
+            fi
+
+            local JOB_NAME="${SLURM_JOB_NAME:-barista-scheduler}"
+            local LOG_DIR="${_ROOT}/slurm_logs"
+            mkdir -p "${LOG_DIR}"
+
+            local TUNNEL_CMD=""
+            if [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && [[ $HOST == *falcon* ]]; then
+                TUNNEL_CMD="${_ROOT}/software/slurm/open-dask-tunnel.sh && "
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} → http://falcon.phys.cmu.edu:${DASK_DASHBOARD_PORT}"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@falcon.phys.cmu.edu"
+            elif [[ -n "${DASK_DASHBOARD_PORT:-}" ]]; then
+                info "Dashboard tunnel: port ${DASK_DASHBOARD_PORT} requested"
+                info "  Once job starts: ssh -L ${DASK_DASHBOARD_PORT}:localhost:${DASK_DASHBOARD_PORT} tgomezes@bridges2.psc.edu"
+            fi
+
+            local SBATCH_ARGS=(
+                --partition="${PARTITION}"
+                "${QOS_ARG[@]}"
+                "${ACCOUNT_ARG[@]}"
+                --time="${SLURM_TIME:-12:00:00}"
+                --mem="${MEM}"
+                --cpus-per-task="${CPUS}"
+                --job-name="${JOB_NAME}"
+                --output="${LOG_DIR}/scheduler-%j.out"
+                --error="${LOG_DIR}/scheduler-%j.err"
+            )
+            [[ -n "${DASK_DASHBOARD_PORT:-}" ]] && SBATCH_ARGS+=(--export=ALL,DASK_DASHBOARD_PORT="${DASK_DASHBOARD_PORT}")
+
+            local CMD="${TUNNEL_CMD}cd ${_ROOT} && $0 dev $*"
+            info "Submitting scheduler job: partition=${PARTITION} time=${SLURM_TIME:-12:00:00} mem=${MEM} cpus=${CPUS}"
+            sbatch "${SBATCH_ARGS[@]}" --wrap="${CMD}"
+            info "Monitor with: squeue --me"
+            info "  tail -f ${LOG_DIR}/scheduler-<JOBID>.out"
+            return
         else
-            # CASE B: Login Node -> Submit Interactive Job
-            info "Not in a job. Launching interactive Slurm session (Dev Coffea2025)..."
-            srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
+            # CASE C: Login node, no --slurm -> Submit interactive job
+            info "Not in a job. Launching interactive Slurm session (Dev Coffea0.7)..."
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                local ACCOUNT_ARG=()
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" dev "$@"
+            else
+                srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
+            fi
             return # Stop execution on login node
         fi
     fi
@@ -305,21 +695,21 @@ run_coffea_dev() {
     if [ -z "$*" ]; then
         # --- INTERACTIVE SHELL ---
         if [[ $HOST == *"cmslpc"* ]]; then
-            info "Opening interactive shell (LPC mode, Dev Coffea2025)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash --rcfile /srv/.bashrc
+            info "Opening interactive shell (LPC mode, Dev Coffea0.7)..."
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$DEV_COFFEA0_7_IMAGE" /bin/bash --rcfile /srv/.bashrc
         else
-            info "Opening interactive shell (Dev Coffea2025)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash
+            info "Opening interactive shell (Dev Coffea0.7)..."
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$DEV_COFFEA0_7_IMAGE" /bin/bash
         fi
     else
         # --- COMMAND EXECUTION ---
         local CMD="$*"
         if [[ $HOST == *"cmslpc"* ]]; then
-            info "Running command (LPC mode, Dev Coffea2025)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
+            info "Running command (LPC mode, Dev Coffea0.7)..."
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$DEV_COFFEA0_7_IMAGE" /bin/bash -c "source /srv/.bashrc && $CMD"
         else
-            info "Running command (Dev Coffea2025)..."
-            APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$DEV_COFFEA2025_IMAGE" /bin/bash -c "$CMD"
+            info "Running command (Dev Coffea0.7)..."
+            APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$DEV_COFFEA0_7_IMAGE" /bin/bash -c "$CMD"
         fi
     fi
 }
@@ -327,16 +717,18 @@ run_coffea_dev() {
 run_combine() {
     check_apptainer
     info "Running Combine container..."
-    local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
     touch "$PWD/.python_history"
     local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
+        -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh
+        --env BASH_ENV=/srv/apptainer_env.sh
+        --env ENV=/srv/apptainer_env.sh
         --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
     )
 
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$SETUP && $*"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$*"
     fi
 }
 
@@ -350,9 +742,9 @@ run_brilcalc() {
     )
 
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
+        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash
     else
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash -c "$*"
+        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${BRILCALC_IMAGE}" /bin/bash -c "$*"
     fi
 }
 
@@ -390,28 +782,42 @@ run_classifier() {
     # Collect remaining user arguments
     local USER_CMD="$*"
 
-    # CPU: Handle FALCON interactive session (like run_coffea)
-    if [ "$IS_CPU" = true ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+    # CPU: Handle FALCON / BRIDGES2 interactive session
+    if [ "$IS_CPU" = true ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
         if [ -n "$SLURM_JOB_ID" ]; then
             # Already inside a job
             info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive CPU classifier shell..."
         else
             # Login node - submit interactive job
-            info "Not in a job. Launching interactive Slurm session..."
-            srun --pty --partition=work --time=04:00:00 --mem=4G "$0" classifier_cpu
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                info "Not in a job. Launching interactive Slurm session..."
+                local ACCOUNT_ARG=()
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" classifier_cpu
+            else
+                info "Not in a job. Launching interactive Slurm session..."
+                srun --pty --partition=work --time=04:00:00 --mem=4G "$0" classifier_cpu
+            fi
             return
         fi
     fi
 
-    # GPU: Handle FALCON interactive session with default MPS share
-    if [ "$IS_CPU" = false ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* ]]; then
+    # GPU: Handle FALCON / BRIDGES2 interactive session
+    if [ "$IS_CPU" = false ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
         if [ -n "$SLURM_JOB_ID" ]; then
             # Already inside a job
             info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
         else
             # Login node - submit interactive GPU job
-            info "Not in a job. Launching interactive GPU Slurm session with --gres=mps:20..."
-            srun --pty --partition=work --time=04:00:00 --mem=4G --gres=mps:20 "$0" classifier
+            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+                info "Not in a job. Launching interactive GPU Slurm session with --gres=gpu:1..."
+                local ACCOUNT_ARG=()
+                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+                srun --pty --partition=GPU-shared "${ACCOUNT_ARG[@]}" --time=04:00:00 --cpus-per-task=4 --mem=8000M --gres=gpu:1 "$0" classifier
+            else
+                info "Not in a job. Launching interactive GPU Slurm session with --gres=mps:20..."
+                srun --pty --partition=work --time=04:00:00 --mem=4G --gres=mps:20 "$0" classifier
+            fi
             return
         fi
     fi
@@ -430,13 +836,13 @@ run_classifier() {
         fi
 
         info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
-        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "apptainer exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
+        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "${APPTAINER_CMD:-apptainer} exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
     elif [ -z "$USER_CMD" ]; then
         # Interactive (FALCON job or non-FALCON)
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
+        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
         # CPU with command or non-FALCON GPU/CPU with command
-        APPTAINER_SHELL=$(which bash) apptainer exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
+        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
     fi
 }
 
@@ -446,26 +852,39 @@ run_snakemake_container() {
     [[ -z "$1" ]] && { error "No arguments supplied."; show_help; exit 1; }
     [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]] && { error "--snakefile (-s) argument required."; exit 1; }
 
-    APPTAINER_SHELL=$(which bash) apptainer exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
+    APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
 }
 
 # --- Pixi / Snakemake Local ---
 
 install_pixi() {
     if ! command -v pixi &> /dev/null; then
-        info "Installing Pixi to ${PIXI_DIR}..."
-        export PIXI_HOME="${PIXI_DIR}"
-        mkdir -p "${PIXI_DIR}"
-        curl -fsSL https://pixi.sh/install.sh | bash || return 1
-        export PATH="${PIXI_DIR}/bin:$PATH"
+        if [ -x "${PIXI_DIR}/bin/pixi" ]; then
+            export PATH="${PIXI_DIR}/bin:$PATH"
+        else
+            info "Installing Pixi to ${PIXI_DIR}..."
+            export PIXI_HOME="${PIXI_DIR}"
+            mkdir -p "${PIXI_DIR}"
+            curl -fsSL https://pixi.sh/install.sh | bash >&2 || return 1
+            export PATH="${PIXI_DIR}/bin:$PATH"
+        fi
     fi
     command -v pixi &> /dev/null || return 1
 }
 
 run_snakemake() {
-    # FALCON: Launch interactive Slurm session if on login node
     local HOST
     HOST=$(hostname)
+    
+    if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+        if [ -z "$SLURM_JOB_ID" ]; then
+            info "Not in a job on Bridges-2. Launching Snakemake scheduler inside interactive Slurm session..."
+            local ACCOUNT_ARG=()
+            [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+            exec srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=04:00:00 --cpus-per-task=2 --mem=8000M "$0" snakemake "$@"
+        fi
+    fi
+
     # Note: on falcon, Snakemake runs directly on the login node (lightweight scheduler).
     # Heavy work is submitted to Slurm via the snakemake-executor-plugin-slurm.
 
@@ -492,15 +911,7 @@ run_snakemake() {
     # Reinstall logic
     if [ "$REINSTALL" = true ]; then
         info "Cleaning up environment..."
-        rm -f pixi.toml pixi.lock
-    fi
-
-    # Sync Config
-    local PIXI_CONFIG="software/pixi/pixi.toml"
-    if [ -f "${PIXI_CONFIG}" ]; then
-        cp "${PIXI_CONFIG}" pixi.toml
-    else
-        error "Template ${PIXI_CONFIG} not found."; exit 1
+        rm -rf .pixi
     fi
 
     # Install Environment
@@ -544,6 +955,7 @@ run_snakemake() {
     fi
 
     # Execute
+
     if [ "${ARGS[0]}" = "source" ]; then
         pixi run bash -c "${ARGS[*]}"
     else
@@ -576,15 +988,7 @@ run_reana() {
     # Reinstall logic
     if [ "$REINSTALL" = true ]; then
         info "Cleaning up environment..."
-        rm -f pixi.toml pixi.lock
-    fi
-
-    # Sync Config
-    local PIXI_CONFIG="software/pixi/pixi.toml"
-    if [ -f "${PIXI_CONFIG}" ]; then
-        cp "${PIXI_CONFIG}" pixi.toml
-    else
-        error "Template ${PIXI_CONFIG} not found."; exit 1
+        rm -rf .pixi
     fi
 
     # Install Environment

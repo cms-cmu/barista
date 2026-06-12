@@ -1,5 +1,3 @@
-.worktrees/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -191,18 +189,15 @@ set_ROOT.sh
 
 */*/.DS_Store
 tmp/
-/pixi.toml
-/pixi.lock
 /.pixi*
 test.pdf*~
 slurm_logs/
 logs/
 notes/
 .bashrc
-.cmslpc-local-conf
-/test.*
-.claude/session-summaries/
-.claude/plans/
-mutagen.*
-.pourover_archives/
-.pytest*
+.cmslpc-local.conf
+.claude/
+.gemini/
+.pourover_*/
+pourover_output/
+.pytest*/

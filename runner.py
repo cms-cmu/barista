@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 import argparse
-import getpass
 import inspect
 import sys
 from pathlib import Path
@@ -20,6 +19,8 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
+
+import socket
 
 import dask
 import uproot
@@ -53,6 +54,7 @@ def _patched_get_xrootd_sites_map():
     finally:
         _ru.json.load = _orig_json_load
 rucio_utils.get_xrootd_sites_map = _patched_get_xrootd_sites_map
+
 from coffea.util import save
 from dask.distributed import performance_report
 from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
@@ -66,7 +68,11 @@ if TYPE_CHECKING:
 dask.config.set({'logging.distributed': 'error'})
 
 NanoAODSchema.warn_missing_crossrefs = False
+if hasattr(NanoAODSchema, 'error_missing_event_ids'):
+    NanoAODSchema.error_missing_event_ids = False
 warnings.filterwarnings("ignore")
+
+from src.compat import COFFEA_2025
 
 # Global variable to track temp directory for cleanup
 _temp_condor_dir = None
@@ -141,10 +147,15 @@ class WorkerInitializer(WorkerPlugin):
 
         # Unpack code package if present (for HTCondor jobs)
         if os.path.exists("code_barista.tar.gz"):
-            logging.info("Extracting code_barista.tar.gz on worker...")
-            with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
-                tar.extractall()
-            logging.info("Code package extracted successfully")
+            if not os.path.exists(".code_extracted"):
+                logging.info("Extracting code_barista.tar.gz on worker...")
+                with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
+                    tar.extractall()
+                with open(".code_extracted", "w") as f:
+                    f.write("extracted\n")
+                logging.info("Code package extracted successfully")
+            else:
+                logging.info("Code package already extracted, skipping")
 
         # Add current directory to Python path so imports work
         if os.getcwd() not in sys.path:
@@ -449,9 +460,10 @@ def setup_condor_cluster(config_runner, tarball_path):
     from distributed import Client
     from lpcjobqueue import LPCCondorCluster
     import getpass
+    import uuid
+
     logging.info("Initializing HTCondor cluster configuration...")
 
-    import uuid
     # Each runner.py invocation needs a unique log_directory: dask_jobqueue calls
     # os.makedirs() without exist_ok=True, so it crashes if the directory already
     # exists (e.g. from a previous run or a simultaneous parallel Snakemake job).
@@ -465,11 +477,15 @@ def setup_condor_cluster(config_runner, tarball_path):
         'memory': config_runner['worker_memory'],
         'ship_env': False,
         'log_directory': config_runner.get('log_directory', _default_log_dir),
-        'scheduler_options': {'dashboard_address': config_runner['dashboard_address'], 'port': 0},
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}", 'port': 0},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
         ],
+        'job_extra_directives': {
+            'leave_in_queue': 'False',
+            'periodic_remove': '(JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 300)'
+        },
     }
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
@@ -513,34 +529,81 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     client.register_plugin(WorkerLostLogger())
 
-    log_dir = cluster_args['log_directory']
-
-    class WorkerLostLogger(SchedulerPlugin):
-        def _find_log(self, worker_addr):
-            import glob
-            try:
-                for path in glob.glob(f"{log_dir}/worker-*.err"):
-                    with open(path) as f:
-                        if worker_addr in f.read():
-                            return path
-            except OSError:
-                pass
-            return None
-
-        def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred" or worker is None:
-                return
-            log_file = self._find_log(worker)
-            if log_file:
-                logging.error(f"Task permanently failed: {key} -> {log_file}")
-            else:
-                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
-
-    client.register_plugin(WorkerLostLogger())
-
-    logging.info('Waiting for at least one worker...')
-    client.wait_for_workers(1)
     logging.info('HTCondor cluster setup complete!')
+    return client, cluster, log_dir
+
+
+def setup_slurm_cluster(config_runner):
+    """Setup Dask SLURMCluster for falcon compute nodes."""
+    from dask.distributed import Client
+    from dask_jobqueue import SLURMCluster
+    import uuid
+    import socket
+
+    log_base = config_runner.get('slurm_log_directory', 'slurm_logs')
+    log_dir = os.path.abspath(os.path.join(log_base, uuid.uuid4().hex[:8]))
+    os.makedirs(log_dir, exist_ok=True)
+
+    barista_root = os.path.dirname(os.path.abspath(__file__))
+    bin_dir = os.path.join(barista_root, 'software', 'slurm')
+    worker_python = os.path.join(bin_dir, 'dask-worker-python')
+
+    if not os.access(worker_python, os.X_OK):
+        raise FileNotFoundError(f"dask worker wrapper not found or not executable: {worker_python}")
+
+    # Detect if running on Bridges 2
+    hostname = socket.gethostname()
+    is_bridges2 = 'bridges2' in hostname or 'psc' in hostname
+
+    # Prepend bin/ to PATH so SLURMCluster picks up the bin/sbatch wrapper that
+    # can call the host sbatch from inside the Apptainer container on falcon.
+    # On Bridges 2, we bypass the falcon sbatch wrapper because sbatch runs natively.
+    if not is_bridges2:
+        os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
+
+    default_partition = 'RM-shared' if is_bridges2 else 'work'
+    partition = config_runner.get('slurm_partition', default_partition)
+    if partition == 'work' and is_bridges2:
+        partition = 'RM-shared'
+
+    job_extra = list(config_runner.get('slurm_job_extra', []))
+    
+    # If on Bridges 2 and billing account is specified in environment, inject it
+    account = os.environ.get('SLURM_ACCOUNT')
+    if is_bridges2 and account:
+        job_extra.append(f"-A {account}")
+
+    cluster_args = {
+        'cores': config_runner['slurm_cores'],
+        'memory': config_runner['worker_memory'],
+        'walltime': config_runner.get('slurm_walltime', '08:00:00'),
+        'queue': partition,
+        'job_extra_directives': job_extra,
+        'log_directory': log_dir,
+        'python': worker_python,
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
+    }
+    if is_bridges2:
+        cluster_args['processes'] = 1
+    if config_runner.get('slurm_qos') and not is_bridges2:
+        cluster_args['job_extra_directives'] = (
+            list(cluster_args['job_extra_directives']) + [f"--qos={config_runner['slurm_qos']}"]
+        )
+
+    logging.info("Creating SLURMCluster with args:")
+    logging.info(pretty_repr(cluster_args))
+
+    cluster = SLURMCluster(**cluster_args)
+    cluster.adapt(
+        minimum=config_runner['min_workers'],
+        maximum=config_runner['max_workers'],
+    )
+
+    client = Client(cluster)
+    logging.info(f"Dask dashboard: {client.dashboard_link}")
+    logging.info(f"SLURM worker log directory: {log_dir}")
+
+    logging.info("SLURM cluster setup complete!")
     return client, cluster
 
 
@@ -548,16 +611,19 @@ def setup_local_cluster(config_runner):
     """Setup local Dask cluster configuration."""
     from dask.distributed import Client, LocalCluster
 
+    dashboard_addr = config_runner['dashboard_address']
     cluster_args = {
         'n_workers': config_runner['workers'],
         'memory_limit': config_runner['worker_memory'],
         'threads_per_worker': 1,
-        'dashboard_address': f":{config_runner['dashboard_address']}",  # bind to 0.0.0.0, not just localhost
+        'dashboard_address': f":{dashboard_addr}",
+        'scheduler_port': 0 if dashboard_addr == 0 else 8786,
     }
     cluster = LocalCluster(**cluster_args)
     client = Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
-    logging.info(f"  SSH tunnel:   ssh -L {config_runner['dashboard_address']}:<compute_node>:{config_runner['dashboard_address']} <login_node>")
+    if dashboard_addr != 0:
+        logging.info(f"  SSH tunnel:   ssh -L {dashboard_addr}:<compute_node>:{dashboard_addr} <login_node>")
     return client, cluster
 
 
@@ -679,6 +745,16 @@ def setup_schema(config_runner):
         config_runner['schema'] = schema_mapping[config_runner['schema']]
 
 
+def find_free_port(preferred: int) -> int:
+    """Return preferred port if free, otherwise let the OS pick one."""
+    with socket.socket() as s:
+        try:
+            s.bind(('', preferred))
+        except OSError:
+            s.bind(('', 0))
+        return s.getsockname()[1]
+
+
 def setup_config_defaults(config_runner, args):
     """Set up all configuration defaults in one place."""
     defaults = {
@@ -695,7 +771,7 @@ def setup_config_defaults(config_runner, args):
         'worker_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
-        'max_workers': 100,
+        'max_workers': 400,
         'workers': 2,
         'skipbadfiles': False,
         'dashboard_address': 10200,
@@ -703,7 +779,13 @@ def setup_config_defaults(config_runner, args):
         'friend_base_argname': "make_classifier_input",
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
-        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120]
+        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'slurm_cores': 4,
+        'slurm_partition': 'work',
+        'slurm_qos': 'cpu_light',
+        'slurm_walltime': '08:00:00',
+        'slurm_log_directory': 'slurm_logs',
+        'slurm_job_extra': [],
     }
 
     for key, default_value in defaults.items():
@@ -712,30 +794,50 @@ def setup_config_defaults(config_runner, args):
 
 def setup_executor(config_runner, args, client, pool):
     """Setup processor executor based on configuration."""
-    executor_args = {
-        'schema': config_runner['schema'],
-        'savemetrics': True,
-        'skipbadfiles': config_runner['skipbadfiles'],
-        'xrootdtimeout': 900
-    }
-
-    if args.debug:
-        logging.info("Running iterative executor in debug mode")
-        return processor.iterative_executor, executor_args
-    elif args.condor or args.run_dask:
-        executor_args.update({
-            "client": client,
-            "align_clusters": False,
-            "status": args.run_dask and not args.condor
-        })
-        return processor.dask_executor, executor_args
+    if COFFEA_2025:
+        runner_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 600,
+            'chunksize': config_runner['chunksize'],
+            'maxchunks': config_runner['maxchunks'],
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.IterativeExecutor(), runner_args
+        elif args.condor or args.run_dask:
+            return processor.DaskExecutor(
+                client=client,
+                status=args.run_dask and not args.condor,
+            ), runner_args
+        else:
+            logging.info("Running futures executor")
+            return processor.FuturesExecutor(workers=config_runner['workers']), runner_args
     else:
-        logging.info("Running futures executor")
-        executor_args.update({
-            "pool": pool,
-            "workers": config_runner['workers']
-        })
-        return processor.futures_executor, executor_args
+        executor_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 900,
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.iterative_executor, executor_args
+        elif args.condor or args.run_dask:
+            executor_args.update({
+                "client": client,
+                "align_clusters": False,
+                "status": args.run_dask and not args.condor,
+            })
+            return processor.dask_executor, executor_args
+        else:
+            logging.info("Running futures executor")
+            executor_args.update({
+                "pool": pool,
+                "workers": config_runner['workers'],
+            })
+            return processor.futures_executor, executor_args
 
 
 def process_skimming_output(output, fileset, configs, config_runner, args, client):
@@ -876,17 +978,38 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
-    output, metrics = processor.run_uproot_job(
-        fileset,
-        treename='Events',
-        processor_instance=analysis_class(**configs.get('config', {})),
-        executor=executor,
-        executor_args=executor_args,
-        chunksize=config_runner['chunksize'],
-        maxchunks=config_runner['maxchunks'],
-    )
+    if COFFEA_2025:
+        runner = processor.Runner(
+            executor=executor,
+            schema=executor_args['schema'],
+            savemetrics=executor_args['savemetrics'],
+            skipbadfiles=executor_args['skipbadfiles'],
+            xrootdtimeout=executor_args['xrootdtimeout'],
+            chunksize=executor_args['chunksize'],
+            maxchunks=executor_args['maxchunks'],
+        )
+        result = runner(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+        )
+        if isinstance(result, tuple):
+            output, metrics = result
+        else:
+            output = result
+            metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
+    else:
+        output, metrics = processor.run_uproot_job(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+            executor=executor,
+            executor_args=executor_args,
+            chunksize=config_runner['chunksize'],
+            maxchunks=config_runner['maxchunks'],
+        )
     elapsed = time.time() - tstart
-    nEvent = metrics['entries']
+    nEvent = metrics.get('entries', 0)
     logging.info(f'Metrics:')
     logging.info(pretty_repr(metrics))
     logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
@@ -905,6 +1028,173 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
         process_analysis_output(output, args)
         process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
         save_coffea_output(output, config_runner, args)
+
+def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout):
+    """Monitor connected clients and active tasks, shut down when idle."""
+    logging.info("Dask cluster daemon monitoring loop started.")
+    idle_start = None
+    
+    while True:
+        try:
+            # Query scheduler info
+            scheduler_info = client.scheduler_info()
+            
+            # Count connected clients, excluding this daemon client itself
+            connected_clients = scheduler_info.get('clients', {})
+            active_clients = max(0, len(connected_clients) - 1)
+            
+            # Query number of processing tasks
+            processing_tasks = client.processing()
+            n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
+            
+            logging.debug(f"Daemon status: {active_clients} active clients, {n_tasks} tasks processing.")
+            
+            if active_clients > 0 or n_tasks > 0:
+                if idle_start is not None:
+                    logging.info("Cluster is active again. Resetting idle timer.")
+                idle_start = None
+            else:
+                if idle_start is None:
+                    idle_start = time.time()
+                    logging.info(f"Cluster is idle. Starting countdown to shutdown (timeout: {idle_timeout}s)...")
+                else:
+                    elapsed = time.time() - idle_start
+                    if elapsed >= idle_timeout:
+                        logging.info(f"Cluster idle timeout reached ({idle_timeout}s). Shutting down.")
+                        break
+        except Exception as e:
+            logging.error(f"Error in daemon monitoring loop: {e}")
+            break
+            
+        time.sleep(30)
+        
+    # Shutdown logic
+    # Immediately delete the JSON file so new clients do not try to connect to a dying scheduler
+    try:
+        if os.path.exists(scheduler_json_path):
+            os.remove(scheduler_json_path)
+    except OSError:
+        pass
+
+    logging.info("Shutting down Dask cluster and workers...")
+    try:
+        client.close()
+    except Exception:
+        pass
+    try:
+        cluster.close()
+    except Exception:
+        pass
+    logging.info("Daemon shutdown complete. Exiting.")
+
+
+def setup_shared_dask_client(args, config_runner):
+    """Check for/connect to an existing cluster daemon, or spawn one if needed."""
+    import hashlib
+    import getpass
+    import subprocess
+    from distributed import Client
+    
+    # 1. Determine namespaced file paths
+    workspace_hash = os.environ.get("BARISTA_WORKSPACE_HASH")
+    if not workspace_hash:
+        workspace_path = os.path.abspath(os.path.dirname(__file__))
+        workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
+    username = getpass.getuser()
+    daemon_dir = f"/tmp/barista_{username}"
+    os.makedirs(daemon_dir, exist_ok=True)
+    scheduler_json_path = f"{daemon_dir}/dask_scheduler_{workspace_hash}.json"
+    daemon_log_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.log"
+    
+    # 2. Explicit scheduler address bypass
+    if args.scheduler_address:
+        logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
+        client = Client(args.scheduler_address)
+        return client, None
+        
+    def log_daemon_info(data):
+        if "daemon_log" in data:
+            logging.info(f"Dask daemon log: {data['daemon_log']}")
+        if "worker_log_dir" in data:
+            logging.info(f"Condor worker log directory: {data['worker_log_dir']}")
+
+    # 3. Connection retry / reuse logic (client process)
+    if not args.start_cluster_daemon:
+        # Wait up to 15 seconds for the scheduler JSON to appear and be readable
+        # (to handle shared filesystem sync/latency)
+        start_wait = time.time()
+        data = None
+        while time.time() - start_wait < 15:
+            if os.path.exists(scheduler_json_path):
+                try:
+                    with open(scheduler_json_path, "r") as f:
+                        data = json.load(f)
+                    if data and "address" in data:
+                        break
+                except Exception:
+                    pass
+            time.sleep(1)
+
+        if not data:
+            raise RuntimeError(
+                f"Dask scheduler connection file not found: {scheduler_json_path}. "
+                f"Make sure the daemon is running and has started successfully."
+            )
+
+        address = data["address"]
+        logging.info(f"Connecting to shared Dask scheduler at {address}...")
+
+        # Retry connecting to the Dask scheduler to handle high load / slow startup
+        client = None
+        for attempt in range(1, 6):
+            try:
+                client = Client(address, timeout="5s")
+                logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                log_daemon_info(data)
+                return client, None
+            except Exception as e:
+                if attempt == 5:
+                    raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 5 attempts: {e}")
+                logging.warning(f"Connection attempt {attempt}/5 failed: {e}. Retrying in 2 seconds...")
+                time.sleep(2)
+            
+    # 5. Daemon setup logic (daemon process)
+    else:
+        logging.info("Initializing Dask cluster daemon...")
+        global _temp_condor_dir
+        log_dir = None
+        if args.condor:
+            logging.info("Configuring LPCCondorCluster daemon...")
+            tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
+            client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+        elif args.slurm:
+            logging.info("Configuring SLURMCluster daemon...")
+            client, cluster = setup_slurm_cluster(config_runner)
+        elif args.run_dask:
+            logging.info("Configuring LocalCluster daemon...")
+            client, cluster = setup_local_cluster(config_runner)
+        else:
+            raise ValueError("Daemon started without a valid cluster type flag (--condor, --slurm, or --dask)")
+            
+        # Write info to JSON
+        info_data = {
+            "address": client.scheduler.address,
+            "pid": os.getpid(),
+            "daemon_log": daemon_log_path,
+        }
+        if log_dir is not None:
+            info_data["worker_log_dir"] = log_dir
+        with open(scheduler_json_path, "w") as f:
+            json.dump(info_data, f)
+            
+        # Register worker plugin
+        logging.info("Registering worker plugin for Dask client in daemon...")
+        worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
+        client.register_plugin(worker_initializer)
+        
+        # Enter monitoring loop (exits process on timeout)
+        run_daemon_monitoring_loop(client, cluster, scheduler_json_path, args.idle_timeout)
+        sys.exit(0)
 
 
 if __name__ == '__main__':
@@ -1054,10 +1344,49 @@ if __name__ == '__main__':
         help='Submit jobs to HTCondor cluster'
     )
     exec_group.add_argument(
+        '--slurm',
+        dest="slurm",
+        action="store_true",
+        default=False,
+        help='Submit Dask workers as SLURM jobs (for falcon compute cluster)'
+    )
+    exec_group.add_argument(
+        '--worker-memory',
+        dest="worker_memory",
+        default=None,
+        help='Override worker memory (e.g. 8GB). Overrides the value in the config file.'
+    )
+    exec_group.add_argument(
+        '--slurm-qos',
+        dest="slurm_qos",
+        default=None,
+        help='Override SLURM QoS for worker jobs (e.g. cpu_light, cpu_medium, cpu_heavy). Overrides slurm_qos in the config file.'
+    )
+    exec_group.add_argument(
         '--tmpdir',
         dest="tmpdir",
         default=None,
         help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+    )
+    exec_group.add_argument(
+        '--start-cluster-daemon',
+        dest="start_cluster_daemon",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS
+    )
+    exec_group.add_argument(
+        '--idle-timeout',
+        dest="idle_timeout",
+        type=int,
+        default=600,
+        help='Time in seconds to wait before shutting down an idle cluster (default: 600s / 10m)'
+    )
+    exec_group.add_argument(
+        '--scheduler-address',
+        dest="scheduler_address",
+        default=None,
+        help='Address of an existing Dask scheduler to connect to (e.g. tcp://IP:PORT)'
     )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
@@ -1104,8 +1433,31 @@ if __name__ == '__main__':
     # Disable verbose logging from third-party libraries
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
+    logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
 
     logging.info(f"Running with these parameters: {args}")
+
+    if args.start_cluster_daemon:
+        logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
+        configs = yaml.safe_load(open(args.configs, 'r'))
+        if not 'config' in configs: configs['config'] = {}
+        configs['config']['corrections_metadata'] = corrections_metadata
+        config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+        setup_config_defaults(config_runner, args)
+        if args.dashboard_address is not None:
+            config_runner['dashboard_address'] = args.dashboard_address
+        if args.worker_memory is not None:
+            config_runner['worker_memory'] = args.worker_memory
+        if args.slurm_qos is not None:
+            config_runner['slurm_qos'] = args.slurm_qos
+        if config_runner['dashboard_address'] != 0:
+            requested = config_runner['dashboard_address']
+            config_runner['dashboard_address'] = find_free_port(requested)
+        setup_schema(config_runner)
+
+        args.run_dask = True
+        client, cluster = setup_shared_dask_client(args, config_runner)
+        sys.exit(0)
 
     # Load configuration and metadata files
     logging.info("Loading configuration and metadata files...")
@@ -1158,6 +1510,17 @@ if __name__ == '__main__':
     setup_config_defaults(config_runner, args)
     if args.dashboard_address is not None:
         config_runner['dashboard_address'] = args.dashboard_address
+
+    if args.worker_memory is not None:
+        config_runner['worker_memory'] = args.worker_memory
+    if args.slurm_qos is not None:
+        config_runner['slurm_qos'] = args.slurm_qos
+
+    if config_runner['dashboard_address'] != 0:
+        requested = config_runner['dashboard_address']
+        config_runner['dashboard_address'] = find_free_port(requested)
+        if config_runner['dashboard_address'] != requested:
+            logging.info(f"Dashboard port {requested} in use, using {config_runner['dashboard_address']} instead.")
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 
@@ -1242,14 +1605,10 @@ if __name__ == '__main__':
     pool = None
     cluster = None
 
-    if args.condor:
-        logging.info("Configuring HTCondor cluster execution...")
+    if args.condor or args.slurm or args.scheduler_address or args.run_dask:
+        logging.info("Configuring shared Dask cluster client...")
         args.run_dask = True
-        tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-        client, cluster = setup_condor_cluster(config_runner, tarball_path)
-    elif args.run_dask:
-        logging.info("Configuring local Dask cluster execution...")
-        client, cluster = setup_local_cluster(config_runner)
+        client, cluster = setup_shared_dask_client(args, config_runner)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -1258,8 +1617,8 @@ if __name__ == '__main__':
         logging.info(f"Process pool created with {config_runner['workers']} workers")
 
 
-    # Register worker plugin if using Dask
-    if client is not None:
+    # Register worker plugin if using Dask and we did not connect to a shared daemon
+    if client is not None and (args.start_cluster_daemon or args.scheduler_address):
         logging.info("Registering worker plugin for Dask client...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
@@ -1320,11 +1679,12 @@ if __name__ == '__main__':
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:
-            try:
-                obj.close()
-                logging.info(f"Successfully closed {obj_name}")
-            except (RuntimeError, NameError) as e:
-                logging.warning(f"Error closing {obj_name}: {e}")
+            if obj is not None:
+                try:
+                    obj.close()
+                    logging.info(f"Successfully closed {obj_name}")
+                except (RuntimeError, NameError, AttributeError) as e:
+                    logging.warning(f"Error closing {obj_name}: {e}")
 
         logging.info(f'Dask performance report saved in {dask_report_file}')
     else:

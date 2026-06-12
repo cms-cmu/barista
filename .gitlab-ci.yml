@@ -11,23 +11,37 @@ workflow:
     # Do not run for branches with 'test' in the name
     - if: '$CI_COMMIT_BRANCH =~ /test/'
       when: never
+    # Run for master branch pushes/merges
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+      when: always
     # Run for merge requests
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "dev_coffea2025_latest"
       when: always
     # Run for pushes to branches WITHOUT open merge requests
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS == null'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "dev_coffea2025_latest"
       when: always
     # Run for scheduled pipelines
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
       when: always
     # Run for web-triggered pipelines
     - if: '$CI_PIPELINE_SOURCE == "web"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
       when: always
 
 variables:
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
-  ANALYSIS_IMAGE_TAG: "latest"
+  DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+  ANALYSIS_IMAGE_TAG: ${DEFAULT_ANALYSIS_IMAGE_TAG}
   CLASSIFIER_IMAGE_TAG: "classifier_cpu_latest"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1

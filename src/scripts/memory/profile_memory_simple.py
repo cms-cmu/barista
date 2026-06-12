@@ -55,7 +55,7 @@ def main():
         # Load a small number of events
         print("Loading events...")
         events = NanoEventsFactory.from_root(
-            input_file,
+            {input_file: "Events"},
             schemaclass=NanoAODSchema,
             entry_stop=100  # Just 100 events for debugging
         ).events()

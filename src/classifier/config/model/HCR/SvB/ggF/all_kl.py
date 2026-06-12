@@ -112,6 +112,7 @@ class Train(HCRTrain):
 
         c_score = batch[Output.class_raw]
         weight = batch[Input.weight]
+        weight[weight < 0] = 0
         label = batch[Input.label]
 
         # calculate loss

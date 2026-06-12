@@ -29,6 +29,7 @@ class loss_remove:
     def __call__(self, batch: BatchType):
         c_score = batch[Output.class_raw]
         weight = batch[Input.weight]
+        weight[weight < 0] = 0
         label = batch[Input.label]
         idxs = sorted(MultiClass.indices(*self.labels))
         sliced = [i for i in range(MultiClass.n_trainable()) if i not in idxs]

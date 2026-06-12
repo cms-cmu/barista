@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gc
 from typing import TYPE_CHECKING, Callable
 
 from ...dask_tools.delayed import delayed
@@ -87,8 +86,6 @@ def merge(
             if transform:
                 data = transform(data)
             writer.extend(data)
-            del data
-            gc.collect()
     return writer.tree
 
 

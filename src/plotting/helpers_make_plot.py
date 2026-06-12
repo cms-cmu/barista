@@ -459,8 +459,6 @@ def _resolve_hist_source(source: HistSource, plot_data: Dict) -> Tuple[np.ndarra
         return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
     # source == "stack"
     stack = plot_data["stack"]
-    if not stack:
-        raise ValueError("stack is empty")
     values = np.sum([np.array(v["values"]) for v in stack.values()], axis=0)
     variances = np.sum([np.array(v["variances"]) for v in stack.values()], axis=0)
     first = next(iter(stack.values()))
@@ -519,13 +517,7 @@ def _resolve_ratio_specs(plot_data: Dict) -> None:
         return
     plot_data.setdefault("ratio", {})
     for spec in specs:
-        try:
-            plot_data["ratio"][spec.name] = _compute_ratio_entry(spec, plot_data)
-        except ValueError as e:
-            logger.warning(f"Skipping ratio panel: {e}. Set doRatio=False to suppress this warning.")
-            plot_data["ratio_specs"] = []
-            plot_data["ratio"] = {}
-            return
+        plot_data["ratio"][spec.name] = _compute_ratio_entry(spec, plot_data)
 
 
 def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt.Figure, plt.Axes, Optional[plt.Axes]]:
@@ -641,8 +633,8 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
         return fig, ax
 
     except Exception as e:
-        logger.error("Error in make_plot_from_dict:", exc_info=True)
-        raise
+        logger.error(f"Error in make_plot_from_dict: {str(e)}")
+        raise ValueError(f"Failed to create plot: {str(e)}")
 
 
 def _make_masked_2d_hist(hist_data: Dict, values: np.ndarray = None):

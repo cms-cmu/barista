@@ -188,6 +188,11 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
         for chunk_info in entry[1]:
             files[label].append(chunk_info["chunk"]["path"])
 
+    import random
+    rng = random.Random(42)
+    for label in files:
+        rng.shuffle(files[label])
+
     if max_files:
         for label in files:
             files[label] = files[label][:max_files]
@@ -259,15 +264,27 @@ def read_branches(file_paths, branches, n_canjet=4, n_notcanjet=8):
                 mask = ncanjet >= n_canjet
 
                 for branch in branches:
-                    arr = tree[branch].array(library="ak")[mask]
-                    if "CanJet" in branch and "NotCanJet" not in branch:
-                        padded = ak.fill_none(ak.pad_none(arr, n_canjet, clip=True), np.nan)
-                        arrays[branch].append(ak.to_numpy(padded))
-                    elif "NotCanJet" in branch:
-                        padded = ak.fill_none(ak.pad_none(arr, n_notcanjet, clip=True), np.nan)
-                        arrays[branch].append(ak.to_numpy(padded))
+                    if branch == "year":
+                        match = re.search(r"UL(\d{2})", path)
+                        if not match:
+                            match = re.search(r"20(\d{2})", path)
+                        if match:
+                            y_val = float(match.group(1))
+                        else:
+                            raise ValueError(f"Could not parse year from path: {path}")
+                        n_events = np.sum(mask)
+                        arr = np.full(n_events, y_val, dtype=np.float32)
+                        arrays[branch].append(arr)
                     else:
-                        arrays[branch].append(ak.to_numpy(arr))
+                        arr = tree[branch].array(library="ak")[mask]
+                        if "CanJet" in branch and "NotCanJet" not in branch:
+                            padded = ak.fill_none(ak.pad_none(arr, n_canjet, clip=True), np.nan)
+                            arrays[branch].append(ak.to_numpy(padded))
+                        elif "NotCanJet" in branch:
+                            padded = ak.fill_none(ak.pad_none(arr, n_notcanjet, clip=True), np.nan)
+                            arrays[branch].append(ak.to_numpy(padded))
+                        else:
+                            arrays[branch].append(ak.to_numpy(arr))
         except Exception as e:
             print(f"  Warning: skipping {path}: {e}")
     result = {}
@@ -460,9 +477,20 @@ def _build_tensors(file_paths, input_cfg):
                 # Ancillary: scalars
                 a_parts = []
                 for b in ancillary_branches:
-                    arr = ak.to_numpy(tree[b].array(library="ak")[mask])
-                    if arr.ndim == 1:
-                        arr = arr[:, np.newaxis]
+                    if b == "year":
+                        match = re.search(r"UL(\d{2})", path)
+                        if not match:
+                            match = re.search(r"20(\d{2})", path)
+                        if match:
+                            y_val = float(match.group(1))
+                        else:
+                            raise ValueError(f"Could not parse year from path: {path}")
+                        n_events = np.sum(mask)
+                        arr = np.full((n_events, 1), y_val, dtype=np.float32)
+                    else:
+                        arr = ak.to_numpy(tree[b].array(library="ak")[mask])
+                        if arr.ndim == 1:
+                            arr = arr[:, np.newaxis]
                     a_parts.append(arr)
                 a_list.append(np.concatenate(a_parts, axis=1))
         except Exception as e:

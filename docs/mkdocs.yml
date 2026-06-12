@@ -94,31 +94,31 @@ extra_javascript:
 nav:
     - Home: index.md
     - Source Code:
-        - Overview: src/index.md
+        - Index: src/index.md
         - Tools: src/tools.md
     - Software:
-        - Overview: software/index.md
+        - Index: software/index.md
     - Classifier:
-        - Overview: classifier/index.md
-        - HCR training: classifier/hcr.md
-        - Task system: classifier/task.md
-        - Monitor system: classifier/monitor.md
-        - Histogram: classifier/histogram.md
         - Backend: classifier/backend.md
+        - Hcr: classifier/hcr.md
+        - Index: classifier/index.md
+        - Monitor: classifier/monitor.md
+        - Task: classifier/task.md
     - HH4b Analysis:
-        - Overview: bbbb/index.md
         - Analysis: bbbb/analysis.md
-        - Analysis Tests: bbbb/analysis-tests.md
-        - Analysis Tools: bbbb/analysis-tools.md
-        - Analysis Tools Hists: bbbb/analysis-tools-hists.md
-        - Analysis Tools Ikappa: bbbb/analysis-tools-ikappa.md
-        - Analysis Weights Pytorch Models: bbbb/analysis-weights-pytorch_models.md
+        - Analysis-Tests: bbbb/analysis-tests.md
+        - Analysis-Tools-Hists: bbbb/analysis-tools-hists.md
+        - Analysis-Tools-Ikappa: bbbb/analysis-tools-ikappa.md
+        - Analysis-Tools: bbbb/analysis-tools.md
+        - Analysis-Weights-Pytorch Models: bbbb/analysis-weights-pytorch_models.md
+        - Index: bbbb/index.md
         - Jet Clustering: bbbb/jet_clustering.md
         - Metadata: bbbb/metadata.md
         - Plots: bbbb/plots.md
+        - Reana Submission: bbbb/reana_submission.md
         - Skimmer: bbbb/skimmer.md
         - Stats Analysis: bbbb/stats_analysis.md
         - Workflows: bbbb/workflows.md
     - bbWW Analysis:
-        - Overview: bbWW/index.md
+        - Index: bbWW/index.md
     - Documentation: readme.md

@@ -1,0 +1,578 @@
+import warnings
+from functools import partial
+
+import awkward
+import dask_awkward
+import numpy
+
+from .cbrng import Squares
+
+# ── coffea.util shims ────────────────────────────────────────────────────────
+# These functions live in coffea.util once the feat/jer_smear_cbrng PR is
+# merged.  Until the container is rebuilt, we provide local equivalents.
+
+try:
+    from coffea.util import awkward_rewrap
+except ImportError:
+    def awkward_rewrap(arr, like_what, gfunc):
+        func = partial(gfunc, data=arr.layout)
+        return awkward.transform(func, like_what, behavior=like_what.behavior)
+
+try:
+    from coffea.util import rewrap_recordarray
+except ImportError:
+    def rewrap_recordarray(layout, depth, data, **kwargs):
+        if isinstance(layout, awkward.contents.RecordArray):
+            return data
+        return None
+
+try:
+    from coffea.util import maybe_map_partitions
+except ImportError:
+    def maybe_map_partitions(func, *args, **kwargs):
+        """Simplified fallback: call func directly (no dask-awkward partitioning)."""
+        func_kwargs = {k: v for k, v in kwargs.items()}
+        return func(*args, **func_kwargs)
+
+_stack_parts = ["jec", "junc", "jer", "jersf"]
+_MIN_JET_ENERGY = numpy.float32(1e-2)
+_ONE_F32 = numpy.float32(1.0)
+_ZERO_F32 = numpy.float32(0.0)
+_JERSF_FORM = {
+    "class": "NumpyArray",
+    "inner_shape": [3],
+    "itemsize": 4,
+    "format": "f",
+    "primitive": "float32",
+}
+
+
+class _AwkwardRewrapFn:
+    def __init__(self, gfunc):
+        self.gfunc = gfunc
+
+    def __call__(self, array, like_what):
+        func = partial(self.gfunc, data=array.layout)
+        return awkward.transform(func, like_what, behavior=like_what.behavior)
+
+
+def rand_gauss(event_number, phi, eta, rng):
+    """Generate per-jet Gaussian random numbers using a counter-based RNG.
+
+    Each jet gets a deterministic random number derived from its event number,
+    phi, and eta, making the result independent of data partitioning.
+    """
+    event_number = numpy.asarray(
+        awkward.typetracer.length_zero_if_typetracer(event_number), dtype=numpy.uint64
+    )
+    phi_arr = numpy.asarray(
+        awkward.typetracer.length_zero_if_typetracer(phi), dtype=numpy.float32
+    )
+    eta_arr = numpy.asarray(
+        awkward.typetracer.length_zero_if_typetracer(eta), dtype=numpy.float32
+    )
+
+    # Build 128-bit counter: [event_number(64), phi_bits(32) << 32 | eta_bits(32)]
+    # This matches _rand_gauss in CorrectedJetsFactory.py (coffea 0.7 path) exactly,
+    # ensuring identical JER smearing between both code paths.
+    counter = numpy.empty((len(phi_arr), 2), dtype=numpy.uint64)
+    counter[:, 0] = event_number
+    counter[:, 1] = numpy.round(phi_arr, 3).view(numpy.uint32).astype(numpy.uint64) << numpy.uint64(32)
+    counter[:, 1] |= numpy.round(eta_arr, 3).view(numpy.uint32).astype(numpy.uint64)
+
+    rand = rng.normal(counter).astype(numpy.float32)
+
+    out = awkward.Array(rand)
+    if awkward.backend(phi) == "typetracer":
+        out = awkward.Array(
+            out.layout.to_typetracer(forget_length=True), behavior=out.behavior
+        )
+    return out
+
+
+def _legacy_rand_gauss(item):
+    """Legacy partition-dependent random number generator (kept for backwards compatibility)."""
+    seeds = (
+        awkward.typetracer.length_one_if_typetracer(item).to_numpy()[[0, -1]].view("i4")
+    )
+    randomstate = numpy.random.Generator(numpy.random.PCG64(seeds))
+
+    def getfunction(layout, depth, **kwargs):
+        if isinstance(layout, awkward.contents.NumpyArray) or not isinstance(
+            layout, (awkward.contents.Content,)
+        ):
+            return awkward.contents.NumpyArray(
+                randomstate.normal(size=len(layout)).astype(numpy.float32)
+            )
+        return None
+
+    out = awkward.transform(
+        getfunction,
+        awkward.typetracer.length_zero_if_typetracer(item),
+        behavior=item.behavior,
+    )
+    if awkward.backend(item) == "typetracer":
+        out = awkward.Array(
+            out.layout.to_typetracer(forget_length=True), behavior=out.behavior
+        )
+
+    assert out is not None
+    return out
+
+
+def jer_smear(
+    pt_gen,
+    jetPt,
+    etaJet,
+    jet_energy_resolution,
+    jet_resolution_rand_gauss,
+    jet_energy_resolution_scale_factor,
+    variation,
+    forceStochastic,
+):
+    pt_gen = pt_gen if not forceStochastic else None
+
+    if not isinstance(jetPt, awkward.highlevel.Array):
+        raise Exception("'jetPt' must be an awkward array of some kind!")
+
+    if forceStochastic:
+        pt_gen = awkward.without_parameters(awkward.zeros_like(jetPt))
+
+    jersmear = jet_energy_resolution * jet_resolution_rand_gauss
+    jersf = jet_energy_resolution_scale_factor[:, variation]
+    deltaPtRel = (jetPt - pt_gen) / jetPt
+    doHybrid = (pt_gen > 0) & (numpy.abs(deltaPtRel) < 3 * jet_energy_resolution)
+
+    detSmear = 1 + (jersf - 1) * deltaPtRel
+    stochSmear = 1 + numpy.sqrt(numpy.maximum(jersf**2 - 1, 0)) * jersmear
+
+    min_jet_pt = _MIN_JET_ENERGY / numpy.cosh(etaJet)
+    min_jet_pt_corr = min_jet_pt / jetPt
+
+    smearfact = awkward.where(doHybrid, detSmear, stochSmear)
+    smearfact = awkward.where(
+        (smearfact * jetPt) < min_jet_pt, min_jet_pt_corr, smearfact
+    )
+
+    backend = awkward.backend(smearfact, jetPt)
+
+    smearfact = awkward.typetracer.length_zero_if_typetracer(smearfact)
+    jetPt = awkward.typetracer.length_zero_if_typetracer(jetPt)
+
+    def getfunction(layout, depth, **kwargs):
+        if isinstance(layout, awkward.contents.NumpyArray) or not isinstance(
+            layout, awkward.contents.Content
+        ):
+            return awkward.contents.NumpyArray(smearfact)
+        return None
+
+    smearfact = awkward.transform(getfunction, jetPt, behavior=jetPt.behavior)
+
+    if backend == "typetracer":
+        jetPt = awkward.Array(
+            jetPt.layout.to_typetracer(forget_length=True), behavior=jetPt.behavior
+        )
+        smearfact = awkward.Array(
+            smearfact.layout.to_typetracer(forget_length=True),
+            behavior=smearfact.behavior,
+        )
+
+    return smearfact
+
+
+class CorrectedJetsFactory:
+    """
+    Factory class for applying corrections to jets, including organizing variations
+    (eg: JES up and down). It is constructed from a name map, which translates between
+    field names for corrections and field names in inputs, and a JECStack, which
+    contains the actual correction functions.
+
+    Once a CorrectedJetsFactory is constructed, the `build` method can produce corrected
+    jets from an input array of jets.
+
+    Parameters
+    ----------
+        name_map : dict[str, str]
+            Keys are argument names in the various corrections' signatures (eg: the ``signature``
+            attribute of a ``FactorizedJetCorrector`` object). Values are the names of the
+            corresponding fields as they would appear in the jet array passed to the `build`
+            method.
+        jec_stack : JECStack
+            Contains the corrections that will be applied to the input jet array when calling
+            `build`.
+    """
+
+    def __init__(self, name_map, jec_stack):
+        # from PhysicsTools/PatUtils/interface/SmearedJetProducerT.h#L283
+        self.forceStochastic = False
+
+        if "ptRaw" not in name_map or name_map["ptRaw"] is None:
+            warnings.warn(
+                "There is no name mapping for ptRaw,"
+                " CorrectedJets will assume that <object>.pt is raw pt!"
+            )
+            name_map["ptRaw"] = name_map["JetPt"] + "_raw"
+        self.treat_pt_as_raw = "ptRaw" not in name_map
+
+        if "massRaw" not in name_map or name_map["massRaw"] is None:
+            warnings.warn(
+                "There is no name mapping for massRaw,"
+                " CorrectedJets will assume that <object>.mass is raw pt!"
+            )
+            name_map["ptRaw"] = name_map["JetMass"] + "_raw"
+
+        total_signature = set()
+        for part in _stack_parts:
+            attr = getattr(jec_stack, part)
+            if attr is not None:
+                total_signature.update(attr.signature)
+
+        missing = total_signature - set(name_map.keys())
+        if len(missing) > 0:
+            raise Exception(
+                f"Missing mapping of {missing} in name_map!"
+                + " Cannot evaluate jet corrections!"
+                + " Please supply mappings for these variables!"
+            )
+
+        if "ptGenJet" not in name_map:
+            warnings.warn(
+                'Input jet collections must provide "ptGenJet" to apply the hybrid JER smearing method. '
+                "Falling back to stochastic smearing."
+            )
+            self.forceStochastic = True
+
+        self.real_sig = [v for k, v in name_map.items()]
+        self.name_map = name_map
+        self.jec_stack = jec_stack
+
+    def uncertainties(self):
+        """
+        Returns a list of the sources of uncertainty included in the stack.
+
+        Returns
+        -------
+            list[str]
+                A list of the sources of uncertainty.
+        """
+        out = ["JER"] if self.jec_stack.jer is not None else []
+        if self.jec_stack.junc is not None:
+            out.extend([f"JES_{unc}" for unc in self.jec_stack.junc.levels])
+        return out
+
+    def build(self, injets, event_number=None, seeds=("JER",)):
+        """
+        Apply the corrections to the array of jets, returning an array of corrected
+        jets.
+
+        Parameters
+        ----------
+            injets : awkward.Array or dask_awkward.Array
+                An array of uncorrected jets, to which we want to apply corrections.
+            event_number : awkward.Array or dask_awkward.Array, optional
+                Per-event event numbers (1D, one per event, same length as
+                ``injets``).  Automatically broadcast to per-jet.
+                When provided, uses a counter-based RNG seeded from per-jet
+                (event_number, phi, eta) for partition-independent reproducibility.
+                If ``None``, falls back to the legacy partition-dependent RNG.
+            seeds : tuple of str or int, optional
+                Seeds for the counter-based RNG.  Default is ``("JER",)``.
+
+        Returns
+        -------
+            awkward.Array or dask_awkward.Array
+                Array of jets, representing the corrected jets, with shape matching ``injets``.
+        """
+        if not isinstance(injets, (awkward.highlevel.Array, dask_awkward.Array)):
+            raise Exception("input jets must be an (dask_)awkward array of some kind!")
+
+        jets = injets
+        fields = awkward.fields(jets)
+        if len(fields) == 0:
+            raise Exception(
+                "Empty record, please pass a jet object with at least {self.real_sig} defined!"
+            )
+        out = awkward.flatten(jets)
+        wrap = partial(
+            awkward_rewrap,
+            like_what=jets._meta if isinstance(jets, dask_awkward.Array) else jets,
+            gfunc=rewrap_recordarray,
+        )
+
+        in_dict = {field: out[field] for field in fields}
+        # always forward the original (likely corrected) pt/mass
+        in_dict[self.name_map["JetPt"] + "_orig"] = in_dict[self.name_map["JetPt"]]
+        in_dict[self.name_map["JetMass"] + "_orig"] = in_dict[self.name_map["JetMass"]]
+        out_dict = dict(in_dict)
+
+        # take care of nominal JEC (no JER if available)
+        if self.treat_pt_as_raw:
+            out_dict[self.name_map["ptRaw"]] = out_dict[self.name_map["JetPt"]]
+            out_dict[self.name_map["massRaw"]] = out_dict[self.name_map["JetMass"]]
+
+        jec_name_map = dict(self.name_map)
+        jec_name_map["JetPt"] = jec_name_map["ptRaw"]
+        jec_name_map["JetMass"] = jec_name_map["massRaw"]
+        if self.jec_stack.jec is not None:
+            jec_args = {
+                k: out_dict[jec_name_map[k]] for k in self.jec_stack.jec.signature
+            }
+            out_dict["jet_energy_correction"] = self.jec_stack.jec.getCorrection(
+                **jec_args
+            )
+        else:
+            out_dict["jet_energy_correction"] = awkward.without_parameters(
+                awkward.ones_like(out_dict[self.name_map["JetPt"]])
+            )
+
+        # finally the lazy binding to the JEC
+        init_pt = out_dict["jet_energy_correction"] * out_dict[self.name_map["ptRaw"]]
+        init_mass = (
+            out_dict["jet_energy_correction"] * out_dict[self.name_map["massRaw"]]
+        )
+
+        out_dict[self.name_map["JetPt"]] = init_pt
+        out_dict[self.name_map["JetMass"]] = init_mass
+
+        out_dict[self.name_map["JetPt"] + "_jec"] = out_dict[self.name_map["JetPt"]]
+        out_dict[self.name_map["JetMass"] + "_jec"] = out_dict[self.name_map["JetMass"]]
+
+        # in jer we need to have a stash for the intermediate JEC products
+        has_jer = False
+        if self.jec_stack.jer is not None and self.jec_stack.jersf is not None:
+            has_jer = True
+            jer_name_map = dict(self.name_map)
+            jer_name_map["JetPt"] = jer_name_map["JetPt"] + "_jec"
+            jer_name_map["JetMass"] = jer_name_map["JetMass"] + "_jec"
+
+            jerargs = {
+                k: out_dict[jer_name_map[k]] for k in self.jec_stack.jer.signature
+            }
+            out_dict["jet_energy_resolution"] = self.jec_stack.jer.getResolution(
+                **jerargs
+            )
+
+            jersfargs = {
+                k: out_dict[jer_name_map[k]] for k in self.jec_stack.jersf.signature
+            }
+            out_dict["jet_energy_resolution_scale_factor"] = (
+                self.jec_stack.jersf.getScaleFactor(**jersfargs)
+            )
+
+            if event_number is not None:
+                # Counter-based RNG: deterministic per-jet, partition-independent
+                flat_event = awkward.flatten(
+                    awkward.broadcast_arrays(event_number, jets[self.name_map["JetPt"]])[0]
+                )
+                rng = Squares(*seeds)
+                out_dict["jet_resolution_rand_gauss"] = maybe_map_partitions(
+                    rand_gauss,
+                    flat_event,
+                    out_dict[self.name_map["JetPhi"]],
+                    out_dict[self.name_map["JetEta"]],
+                    rng,
+                )
+            else:
+                # Legacy RNG: partition-dependent (for backwards compatibility)
+                out_dict["jet_resolution_rand_gauss"] = maybe_map_partitions(
+                    _legacy_rand_gauss,
+                    out_dict[self.name_map["JetPt"] + "_orig"],
+                )
+
+            init_jerc = maybe_map_partitions(
+                jer_smear,
+                out_dict[jer_name_map["ptGenJet"]],
+                out_dict[jer_name_map["JetPt"]],
+                out_dict[jer_name_map["JetEta"]],
+                out_dict["jet_energy_resolution"],
+                out_dict["jet_resolution_rand_gauss"],
+                out_dict["jet_energy_resolution_scale_factor"],
+                0,
+                self.forceStochastic,
+            )
+            out_dict["jet_energy_resolution_correction"] = init_jerc
+
+            init_pt_jer = (
+                out_dict["jet_energy_resolution_correction"]
+                * out_dict[jer_name_map["JetPt"]]
+            )
+            init_mass_jer = (
+                out_dict["jet_energy_resolution_correction"]
+                * out_dict[jer_name_map["JetMass"]]
+            )
+
+            out_dict[self.name_map["JetPt"]] = init_pt_jer
+            out_dict[self.name_map["JetMass"]] = init_mass_jer
+
+            out_dict[self.name_map["JetPt"] + "_jer"] = out_dict[self.name_map["JetPt"]]
+            out_dict[self.name_map["JetMass"] + "_jer"] = out_dict[
+                self.name_map["JetMass"]
+            ]
+
+            # JER systematics
+            jerc_up = maybe_map_partitions(
+                jer_smear,
+                out_dict[jer_name_map["ptGenJet"]],
+                out_dict[jer_name_map["JetPt"]],
+                out_dict[jer_name_map["JetEta"]],
+                out_dict["jet_energy_resolution"],
+                out_dict["jet_resolution_rand_gauss"],
+                out_dict["jet_energy_resolution_scale_factor"],
+                1,
+                self.forceStochastic,
+            )
+            up = awkward.flatten(jets)
+            # always forward the original (likely corrected) pt/mass
+            up = awkward.with_field(
+                up, up[self.name_map["JetPt"]], where=self.name_map["JetPt"] + "_orig"
+            )
+            up = awkward.with_field(
+                up,
+                up[self.name_map["JetMass"]],
+                where=self.name_map["JetMass"] + "_orig",
+            )
+            up = awkward.with_field(
+                up, jerc_up, where="jet_energy_resolution_correction"
+            )
+
+            init_pt_jer = (
+                up["jet_energy_resolution_correction"] * out_dict[jer_name_map["JetPt"]]
+            )
+            init_mass_jer = (
+                up["jet_energy_resolution_correction"]
+                * out_dict[jer_name_map["JetMass"]]
+            )
+
+            up = awkward.with_field(up, init_pt_jer, where=self.name_map["JetPt"])
+            up = awkward.with_field(up, init_mass_jer, where=self.name_map["JetMass"])
+
+            jerc_down = maybe_map_partitions(
+                jer_smear,
+                out_dict[jer_name_map["ptGenJet"]],
+                out_dict[jer_name_map["JetPt"]],
+                out_dict[jer_name_map["JetEta"]],
+                out_dict["jet_energy_resolution"],
+                out_dict["jet_resolution_rand_gauss"],
+                out_dict["jet_energy_resolution_scale_factor"],
+                2,
+                self.forceStochastic,
+            )
+            down = awkward.flatten(jets)
+            # always forward the original (likely corrected) pt/mass
+            down = awkward.with_field(
+                up, down[self.name_map["JetPt"]], where=self.name_map["JetPt"] + "_orig"
+            )
+            down = awkward.with_field(
+                up,
+                down[self.name_map["JetMass"]],
+                where=self.name_map["JetMass"] + "_orig",
+            )
+            down = awkward.with_field(
+                down, jerc_down, where="jet_energy_resolution_correction"
+            )
+
+            init_pt_jer = (
+                down["jet_energy_resolution_correction"]
+                * out_dict[jer_name_map["JetPt"]]
+            )
+            init_mass_jer = (
+                down["jet_energy_resolution_correction"]
+                * out_dict[jer_name_map["JetMass"]]
+            )
+
+            down = awkward.with_field(down, init_pt_jer, where=self.name_map["JetPt"])
+            down = awkward.with_field(
+                down, init_mass_jer, where=self.name_map["JetMass"]
+            )
+
+            out_dict["JER"] = awkward.zip(
+                {"up": up, "down": down}, depth_limit=1, with_name="JetSystematic"
+            )
+
+        if self.jec_stack.junc is not None:
+            juncnames = {}
+            juncnames.update(self.name_map)
+            if has_jer:
+                juncnames["JetPt"] = juncnames["JetPt"] + "_jer"
+                juncnames["JetMass"] = juncnames["JetMass"] + "_jer"
+            else:
+                juncnames["JetPt"] = juncnames["JetPt"] + "_jec"
+                juncnames["JetMass"] = juncnames["JetMass"] + "_jec"
+            juncargs = {
+                k: out_dict[juncnames[k]] for k in self.jec_stack.junc.signature
+            }
+            juncs = self.jec_stack.junc.getUncertainty(**juncargs)
+
+            def junc_smeared_val(uncvals, up_down, variable):
+                return uncvals[:, up_down] * variable
+
+            def build_variation(
+                unc, template, jetpt, jetpt_orig, jetmass, jetmass_orig, updown
+            ):
+                var_dict = {
+                    field: template[field] for field in awkward.fields(template)
+                }
+                var_dict[jetpt] = junc_smeared_val(
+                    unc,
+                    updown,
+                    jetpt_orig,
+                )
+                var_dict[jetmass] = junc_smeared_val(
+                    unc,
+                    updown,
+                    jetmass_orig,
+                )
+                return awkward.zip(
+                    var_dict,
+                    depth_limit=1,
+                    parameters=template.layout.parameters,
+                    behavior=template.behavior,
+                )
+
+            def build_variant(unc, template, jetpt, jetpt_orig, jetmass, jetmass_orig):
+                up = build_variation(
+                    unc, template, jetpt, jetpt_orig, jetmass, jetmass_orig, 0
+                )
+                down = build_variation(
+                    unc, template, jetpt, jetpt_orig, jetmass, jetmass_orig, 1
+                )
+                return awkward.zip(
+                    {"up": up, "down": down}, depth_limit=1, with_name="JetSystematic"
+                )
+
+            template = awkward.zip(
+                in_dict,
+                depth_limit=1,
+                parameters=out.layout.parameters,
+                behavior=out.behavior,
+            )
+            for name, func in juncs:
+                out_dict[f"jet_energy_uncertainty_{name}"] = func
+                out_dict[f"JES_{name}"] = maybe_map_partitions(
+                    build_variant,
+                    func,
+                    template,
+                    self.name_map["JetPt"],
+                    out_dict[juncnames["JetPt"]],
+                    self.name_map["JetMass"],
+                    out_dict[juncnames["JetMass"]],
+                    label=f"{name}",
+                )
+
+        out_parms = out.layout.parameters
+        out_parms["corrected"] = True
+        out = awkward.zip(
+            out_dict, depth_limit=1, parameters=out_parms, behavior=out.behavior
+        )
+
+        if isinstance(jets, dask_awkward.Array):
+            out_meta = wrap(out._meta)
+
+            return maybe_map_partitions(
+                _AwkwardRewrapFn(gfunc=rewrap_recordarray),
+                out,
+                jets,
+                label="corrected_jets",
+                meta=out_meta,
+            )
+        return wrap(out)

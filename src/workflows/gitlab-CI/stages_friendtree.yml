@@ -5,6 +5,9 @@ classifier_friendtree_barista:
   needs:
     - voms_proxy
     - setup_coffea4bees
+    - job: build_container
+      optional: true
+      artifacts: true
   script:
     - source src/scripts/classifier-friendtree.sh
   artifacts: 
