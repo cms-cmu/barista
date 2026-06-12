@@ -49,7 +49,7 @@ from runner_monitor import (  # noqa: E402
     SNKMT_DB,
     condor_counts_for_jobs,
     dashboard_url_from_info,
-    query_metrics_remote,
+    query_metrics_remote_diag,
     scan_logs,
 )
 
@@ -299,7 +299,10 @@ class DaskJobPanel(VerticalScroll):
                 # back to a tcp:// scheduler host, then localhost.
                 dashboard_url = dashboard_url_from_info(info)
 
-                counts = query_metrics_remote(dashboard_url) if dashboard_url else None
+                if dashboard_url:
+                    counts, reason = query_metrics_remote_diag(dashboard_url)
+                else:
+                    counts, reason = None, "no dashboard URL"
                 # All-zero counts (Dask scheduler responding but currently
                 # has no tasks counted — e.g. between waves of tasks, after
                 # a scheduler restart, mid-startup) render as dots via
@@ -313,6 +316,7 @@ class DaskJobPanel(VerticalScroll):
                               + counts.get("waiting", 0))
                     if _total == 0:
                         counts = None
+                        reason = "reachable, no tasks yet"
                 if counts is None:
                     # Probe failed (or zero-count response) — carry over
                     # previous counts so the bar stays on screen.
@@ -324,6 +328,7 @@ class DaskJobPanel(VerticalScroll):
                             "has_dashboard": bool(dashboard_url),
                             "log_path": log_path,
                             "stale_since": prev.get("stale_since") or time.monotonic(),
+                            "reason": reason,
                             "done": False,  # snkmt says RUNNING again (restart)
                         }
                         continue
@@ -334,6 +339,7 @@ class DaskJobPanel(VerticalScroll):
                         "has_dashboard": bool(dashboard_url),
                         "log_path": log_path,
                         "stale_since": None,
+                        "reason": reason,
                     }
                     continue
 
@@ -344,6 +350,7 @@ class DaskJobPanel(VerticalScroll):
                     "has_dashboard": bool(dashboard_url),
                     "log_path": log_path,
                     "stale_since": None,
+                    "reason": None,
                 }
 
             # Any entry not refreshed this tick (snkmt status != RUNNING, log
@@ -431,6 +438,7 @@ class DaskJobPanel(VerticalScroll):
 
             n_erred = counts.get("erred", 0) if counts else 0
             done = info.get("done")
+            reason = info.get("reason")
 
             if done:
                 # Terminal job — show its final bar (if we ever got counts)
@@ -444,16 +452,19 @@ class DaskJobPanel(VerticalScroll):
                 # preference: NEVER render dots — they look like a wipe of
                 # cached progress.  Show a text-only placeholder instead.
                 if info.get("has_dashboard"):
-                    bar = "[yellow]unreachable (SSH/network) — waiting for first response[/yellow]"
+                    why = f" ({reason})" if reason else " (SSH/network)"
+                    bar = (f"[yellow]unreachable{why} — "
+                           f"waiting for first response[/yellow]")
                 else:
                     bar = "[dim]waiting for dashboard…[/dim]"
             elif stale_age is not None:
                 # Cached data, current probe failing — keep the bar exactly as
-                # it was, just annotate as unreachable.  No hard limit; the
-                # cache persists until snkmt reports the job is no longer
-                # running (which clears the entry naturally).
+                # it was, just annotate as unreachable with the reason.  No hard
+                # limit; the cache persists until snkmt reports the job is no
+                # longer running (which clears the entry naturally).
+                why = f": {reason}" if reason else ""
                 bar = (f"{_rich_bar(counts)}  "
-                       f"[yellow]unreachable {int(stale_age)}s[/yellow]")
+                       f"[yellow]unreachable {int(stale_age)}s{why}[/yellow]")
             else:
                 bar = _rich_bar(counts)
 

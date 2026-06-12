@@ -160,6 +160,22 @@ TASK_METRIC_RE   = re.compile(r'dask_scheduler_tasks\{state="(\w+)"\}\s+([\d.]+)
 WORKER_METRIC_RE = re.compile(r'dask_scheduler_workers\{state="(\w+)"\}\s+([\d.]+)')
 
 
+def _parse_metrics(text):
+    """Parse Prometheus /metrics text into task/worker counts, or None."""
+    counts = {}
+    for m in TASK_METRIC_RE.finditer(text):
+        counts[m.group(1)] = int(float(m.group(2)))
+    worker_states = {}
+    for m in WORKER_METRIC_RE.finditer(text):
+        worker_states[m.group(1)] = int(float(m.group(2)))
+    if worker_states:
+        counts['workers'] = sum(worker_states.values())
+        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
+                                  + worker_states.get('saturated', 0))
+        counts['workers_paused'] = worker_states.get('paused', 0)
+    return counts if counts else None
+
+
 def query_metrics(base_url, timeout=2):
     """
     Fetch /metrics from the Dask dashboard and return task/worker counts.
@@ -175,21 +191,7 @@ def query_metrics(base_url, timeout=2):
             text = resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError):
         return None
-
-    counts = {}
-    for m in TASK_METRIC_RE.finditer(text):
-        counts[m.group(1)] = int(float(m.group(2)))
-
-    worker_states = {}
-    for m in WORKER_METRIC_RE.finditer(text):
-        worker_states[m.group(1)] = int(float(m.group(2)))
-    if worker_states:
-        counts['workers'] = sum(worker_states.values())
-        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
-                                  + worker_states.get('saturated', 0))
-        counts['workers_paused'] = worker_states.get('paused', 0)
-
-    return counts if counts else None
+    return _parse_metrics(text)
 
 
 # SSH ControlMaster socket path — %h is expanded by SSH to the remote hostname,
@@ -197,22 +199,41 @@ def query_metrics(base_url, timeout=2):
 _SSH_CTL_FMT = "/tmp/barista_ssh_ctl_%h"
 
 
-def query_metrics_remote(base_url, timeout=5):
-    """Like query_metrics but falls back to SSH when direct HTTP is unreachable.
+def _classify_ssh_failure(stderr):
+    """Map ssh stderr to a short, human-friendly reason (or None if it doesn't
+    look like an ssh-level failure)."""
+    e = (stderr or "").lower()
+    if ("permission denied" in e or "gssapi" in e or "no kerberos" in e
+            or "credentials cache" in e or "not found in keytab" in e):
+        return "ssh auth — kinit?"
+    if "control" in e and ("socket" in e or "path" in e or "multiplex" in e):
+        return "ssh socket — stale"
+    if ("connection refused" in e or "connection timed out" in e
+            or "no route to host" in e or "connect to host" in e
+            or "operation timed out" in e or "name or service not known" in e):
+        return "ssh no route"
+    return None
 
-    On the first call to a given host, SSH opens a connection and keeps it
-    alive for 120 s (ControlPersist). Subsequent calls reuse that socket so
-    the SSH overhead is ~0 ms after the first query.
 
-    Requires: ssh access to worker nodes and curl installed there.
+def query_metrics_remote_diag(base_url, timeout=5):
+    """Like query_metrics_remote but also returns a diagnostic reason.
+
+    Returns ``(counts, reason)`` where ``counts`` is the metrics dict (or None
+    on failure) and ``reason`` is None on success or a short string explaining
+    why the probe failed, e.g. ``"ssh auth — kinit?"``, ``"ssh no route"``,
+    ``"ssh socket — stale"``, ``"dashboard down"``, ``"bad url"``.
+
+    Resolution: try direct HTTP first; if unreachable, fall back to SSH (which
+    is what reveals *why* — direct HTTP can't distinguish a firewall from a
+    dead dashboard, but the ssh attempt's stderr usually can).
     """
     counts = query_metrics(base_url, timeout=2)
     if counts is not None:
-        return counts
+        return counts, None
 
     host_match = re.match(r'https?://([^/:]+):(\d+)', base_url)
     if not host_match:
-        return None
+        return None, "bad url"
     host, port = host_match.group(1), host_match.group(2)
 
     try:
@@ -232,24 +253,33 @@ def query_metrics_remote(base_url, timeout=5):
             text=True,
             timeout=timeout + 3,
         )
-        if result.returncode != 0 or not result.stdout:
-            return None
-        text = result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+    except subprocess.TimeoutExpired:
+        return None, "ssh timeout"
+    except OSError:
+        return None, "ssh error"
 
-    counts = {}
-    for m in TASK_METRIC_RE.finditer(text):
-        counts[m.group(1)] = int(float(m.group(2)))
-    worker_states = {}
-    for m in WORKER_METRIC_RE.finditer(text):
-        worker_states[m.group(1)] = int(float(m.group(2)))
-    if worker_states:
-        counts['workers'] = sum(worker_states.values())
-        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
-                                  + worker_states.get('saturated', 0))
-        counts['workers_paused'] = worker_states.get('paused', 0)
-    return counts if counts else None
+    # returncode 255 (or negative/signal) is an ssh-level failure; any other
+    # non-zero code is the *remote* command (curl) failing, i.e. the dashboard
+    # itself is unreachable on the scheduler node.
+    if result.returncode == 255 or result.returncode < 0:
+        return None, (_classify_ssh_failure(result.stderr) or "ssh failed")
+    if result.returncode != 0 or not result.stdout:
+        return None, "dashboard down"
+
+    counts = _parse_metrics(result.stdout)
+    return (counts, None) if counts else (None, "dashboard down")
+
+
+def query_metrics_remote(base_url, timeout=5):
+    """Like query_metrics but falls back to SSH when direct HTTP is unreachable.
+
+    On the first call to a given host, SSH opens a connection and keeps it
+    alive for 120 s (ControlPersist). Subsequent calls reuse that socket so
+    the SSH overhead is ~0 ms after the first query.
+
+    Requires: ssh access to worker nodes and curl installed there.
+    """
+    return query_metrics_remote_diag(base_url, timeout=timeout)[0]
 
 
 # ---------------------------------------------------------------------------
