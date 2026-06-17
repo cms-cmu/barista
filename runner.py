@@ -481,6 +481,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
+            f"--death-timeout {config_runner.get('death_timeout', 300)}",
         ],
         'job_extra_directives': {
             'leave_in_queue': 'False',
@@ -1000,7 +1001,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
     if COFFEA_2025:
-        runner = processor.Runner(
+        runner_kwargs = dict(
             executor=executor,
             schema=executor_args['schema'],
             savemetrics=executor_args['savemetrics'],
@@ -1008,7 +1009,24 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             xrootdtimeout=executor_args['xrootdtimeout'],
             chunksize=executor_args['chunksize'],
             maxchunks=executor_args['maxchunks'],
+            # NOTE: do NOT set metadata_cache={} — under Condor with many chunks
+            # per worker, the in-process dict grows unboundedly and contributes
+            # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
+
+        # SimpleCheckpointer wiring is opt-in via --checkpoint-dir.
+        # NOTE: not usable under --condor at LPC because workers can't write to
+        # the shared filesystem (only EOS would work for that). Auto-resubmit at
+        # the chunk level is handled by bbreww/scripts/submit_all_run3.sh
+        # instead. The flag is retained for local/futures runs.
+        if getattr(args, 'checkpoint_dir', None):
+            from coffea.processor import SimpleCheckpointer
+            os.makedirs(args.checkpoint_dir, exist_ok=True)
+            logging.info(f"Checkpointing enabled, checkpoint_dir={args.checkpoint_dir}")
+            runner_kwargs['checkpointer'] = SimpleCheckpointer(
+                checkpoint_dir=args.checkpoint_dir, verbose=True
+            )
+        runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
             treename='Events',
@@ -1416,6 +1434,12 @@ if __name__ == '__main__':
         dest="scheduler_address",
         default=None,
         help='Address of an existing Dask scheduler to connect to (e.g. tcp://IP:PORT)'
+        '--checkpoint-dir',
+        dest="checkpoint_dir",
+        default=None,
+        help='Directory for SimpleCheckpointer to save/load chunk outputs (coffea_2025 only). '
+             'Reuse the same path to resume a crashed/killed run; use a fresh path for a new run. '
+             'If unset, no checkpointing is performed.'
     )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
