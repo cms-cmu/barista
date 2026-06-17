@@ -233,6 +233,10 @@ setup_host_env() {
             if [ ! -d "$PIXI_DIR" ]; then
                 info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
             fi
+            CACHE_BASE="$HOME"
+            ;;
+        *falcon*|*rogue*)
+            CACHE_BASE="$HOME"
             ;;
         *runner*)
             PIXI_DIR="/tmp/pixi"
