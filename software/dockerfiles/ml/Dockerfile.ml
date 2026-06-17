@@ -4,7 +4,7 @@ ARG CUDA_VERSION="13.1"
 ENV CONDA_OVERRIDE_CUDA=${CUDA_VERSION}
 
 # python
-COPY env_ml_gpu.yml /tmp/env.yml
+COPY env_ml.yml /tmp/env.yml
 RUN mamba env create -f /tmp/env.yml && mamba clean --all --yes && rm -f /tmp/env.yml
 
 # environment

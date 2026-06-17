@@ -42,7 +42,6 @@ variables:
   RECREATE_CONTAINERS: "false"
   DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
   ANALYSIS_IMAGE_TAG: ${DEFAULT_ANALYSIS_IMAGE_TAG}
-  CLASSIFIER_IMAGE_TAG: "classifier_cpu_latest"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
@@ -191,12 +190,8 @@ setup_bbreww:
 .base_classifier_barista:
   needs:
     - voms_proxy
-    - job: deploy_classifier_cpu_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${CLASSIFIER_IMAGE_TAG}
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
-    - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
   tags:
