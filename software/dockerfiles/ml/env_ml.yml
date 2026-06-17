@@ -28,9 +28,9 @@ dependencies:
   # benchmarks
   - scalene=1.5.51
   # Scikit-HEP
-  - uproot=5.7.3
-  - awkward=2.9.0
-  - awkward-pandas=2023.8.0
+  - uproot>=5.0
+  - awkward>=2.0
+  - awkward-pandas
   - hist=2.10.1
   - particle=0.26.1
   - correctionlib=2.8.0
