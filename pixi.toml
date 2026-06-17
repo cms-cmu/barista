@@ -63,6 +63,7 @@ pip = "*"
 setuptools = "<70.0.0"
 snakemake = "==9.16.3"
 jsonschema = "<4.10.0"
+packaging = "<26"
 
 [feature.reana.pypi-dependencies]
 reana-client = ">=0.95.0a1"
