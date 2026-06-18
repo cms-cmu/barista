@@ -77,8 +77,6 @@ build_container_coffea0_7:
 deploy_container:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_container
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
@@ -92,8 +90,6 @@ deploy_container:
 deploy_container_coffea0_7:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_container_coffea0_7
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
@@ -141,8 +137,6 @@ build_classifier_container:
 deploy_classifier_container:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_classifier_container
   script:
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
