@@ -48,6 +48,12 @@ def _clear_line():
 DASHBOARD_RE    = re.compile(r"Dask dashboard:\s+(http://\S+)")
 PROXY_RE        = re.compile(r"Dask dashboard:\s+/proxy/(\d+)")  # /proxy/PORT/status
 SCHEDULER_RE    = re.compile(r"'tcp://([^']+)'")   # matches tcp://host:port inside Client repr
+SCHED_HOST_RE   = re.compile(r"Dask scheduler host:\s+(\S+)")  # explicit host logged by runner.py
+# rich's log formatter right-aligns a source locator like "runner.py:500" and
+# wraps a long message's value onto the next line.  Used to reject that token
+# and to recognise a bare hostname on the wrapped continuation line.
+_SRC_LOC_RE     = re.compile(r"^\w+\.py:\d+$")
+_HOSTNAME_RE    = re.compile(r"^[A-Za-z0-9][\w.\-]*$")  # plausible bare hostname token
 COMPLETE_RE     = re.compile(r"JOB EXECUTION COMPLETED SUCCESSFULLY|Dask performance report saved")
 SMKLOG_RE       = re.compile(r"^\s+log:\s+(\S+\.log)")
 WORKER_LOG_DIR_RE = re.compile(r"Condor worker log directory: (\S+)")
@@ -71,6 +77,7 @@ def scan_logs(search_root):
     for path in sorted(glob.glob(pattern, recursive=True)):
         name = os.path.basename(path).replace(".log", "")
         info = {}
+        pending_host = False  # saw "Dask scheduler host:" whose value wrapped
         try:
             with open(path) as f:
                 for line in f:
@@ -87,6 +94,22 @@ def scan_logs(search_root):
                     m = SCHEDULER_RE.search(line)
                     if m:
                         info['scheduler'] = f"tcp://{m.group(1)}"
+                    m = SCHED_HOST_RE.search(line)
+                    if m:
+                        val = m.group(1)
+                        if _SRC_LOC_RE.match(val):
+                            # rich wrapped the hostname onto the next line; the
+                            # token captured here is the "runner.py:NNN" source
+                            # locator.  Grab the real host from the next line.
+                            pending_host = True
+                        else:
+                            info['scheduler_host'] = val
+                            pending_host = False
+                    elif pending_host:
+                        tok = line.split()
+                        if tok and _HOSTNAME_RE.match(tok[0]) and not _SRC_LOC_RE.match(tok[0]):
+                            info['scheduler_host'] = tok[0]
+                        pending_host = False
                     m = WORKER_LOG_DIR_RE.search(line)
                     if m:
                         info['worker_log_dir'] = m.group(1)
@@ -98,6 +121,32 @@ def scan_logs(search_root):
             info['log_path'] = os.path.abspath(path)
             jobs[name] = info
     return jobs
+
+
+def dashboard_url_from_info(info):
+    """Build a Dask dashboard base URL from a scan_logs info dict, or None.
+
+    Resolution order for the host of a /proxy/PORT dashboard:
+      1. `scheduler_host` — explicit hostname logged by runner.py (works
+         cross-node; preferred).
+      2. host parsed from a `tcp://host:port` scheduler repr, if present.
+      3. `localhost` — last resort; only correct when the monitor runs on the
+         same node as the scheduler.
+
+    A full `dashboard` URL (older non-proxy logs) is returned as-is.
+    """
+    url = info.get('dashboard')
+    if url:
+        return url
+    port = info.get('proxy_port')
+    if not port:
+        return None
+    host = info.get('scheduler_host')
+    if not host and info.get('scheduler'):
+        host = info['scheduler'].split('://')[1].split(':')[0]
+    if not host:
+        host = 'localhost'
+    return f"http://{host}:{port}"
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +179,22 @@ TASK_METRIC_RE   = re.compile(r'dask_scheduler_tasks\{state="(\w+)"\}\s+([\d.]+)
 WORKER_METRIC_RE = re.compile(r'dask_scheduler_workers\{state="(\w+)"\}\s+([\d.]+)')
 
 
+def _parse_metrics(text):
+    """Parse Prometheus /metrics text into task/worker counts, or None."""
+    counts = {}
+    for m in TASK_METRIC_RE.finditer(text):
+        counts[m.group(1)] = int(float(m.group(2)))
+    worker_states = {}
+    for m in WORKER_METRIC_RE.finditer(text):
+        worker_states[m.group(1)] = int(float(m.group(2)))
+    if worker_states:
+        counts['workers'] = sum(worker_states.values())
+        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
+                                  + worker_states.get('saturated', 0))
+        counts['workers_paused'] = worker_states.get('paused', 0)
+    return counts if counts else None
+
+
 def query_metrics(base_url, timeout=2):
     """
     Fetch /metrics from the Dask dashboard and return task/worker counts.
@@ -145,21 +210,7 @@ def query_metrics(base_url, timeout=2):
             text = resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError):
         return None
-
-    counts = {}
-    for m in TASK_METRIC_RE.finditer(text):
-        counts[m.group(1)] = int(float(m.group(2)))
-
-    worker_states = {}
-    for m in WORKER_METRIC_RE.finditer(text):
-        worker_states[m.group(1)] = int(float(m.group(2)))
-    if worker_states:
-        counts['workers'] = sum(worker_states.values())
-        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
-                                  + worker_states.get('saturated', 0))
-        counts['workers_paused'] = worker_states.get('paused', 0)
-
-    return counts if counts else None
+    return _parse_metrics(text)
 
 
 # SSH ControlMaster socket path — %h is expanded by SSH to the remote hostname,
@@ -167,22 +218,41 @@ def query_metrics(base_url, timeout=2):
 _SSH_CTL_FMT = "/tmp/barista_ssh_ctl_%h"
 
 
-def query_metrics_remote(base_url, timeout=5):
-    """Like query_metrics but falls back to SSH when direct HTTP is unreachable.
+def _classify_ssh_failure(stderr):
+    """Map ssh stderr to a short, human-friendly reason (or None if it doesn't
+    look like an ssh-level failure)."""
+    e = (stderr or "").lower()
+    if ("permission denied" in e or "gssapi" in e or "no kerberos" in e
+            or "credentials cache" in e or "not found in keytab" in e):
+        return "ssh auth — kinit?"
+    if "control" in e and ("socket" in e or "path" in e or "multiplex" in e):
+        return "ssh socket — stale"
+    if ("connection refused" in e or "connection timed out" in e
+            or "no route to host" in e or "connect to host" in e
+            or "operation timed out" in e or "name or service not known" in e):
+        return "ssh no route"
+    return None
 
-    On the first call to a given host, SSH opens a connection and keeps it
-    alive for 120 s (ControlPersist). Subsequent calls reuse that socket so
-    the SSH overhead is ~0 ms after the first query.
 
-    Requires: ssh access to worker nodes and curl installed there.
+def query_metrics_remote_diag(base_url, timeout=5):
+    """Like query_metrics_remote but also returns a diagnostic reason.
+
+    Returns ``(counts, reason)`` where ``counts`` is the metrics dict (or None
+    on failure) and ``reason`` is None on success or a short string explaining
+    why the probe failed, e.g. ``"ssh auth — kinit?"``, ``"ssh no route"``,
+    ``"ssh socket — stale"``, ``"dashboard down"``, ``"bad url"``.
+
+    Resolution: try direct HTTP first; if unreachable, fall back to SSH (which
+    is what reveals *why* — direct HTTP can't distinguish a firewall from a
+    dead dashboard, but the ssh attempt's stderr usually can).
     """
     counts = query_metrics(base_url, timeout=2)
     if counts is not None:
-        return counts
+        return counts, None
 
     host_match = re.match(r'https?://([^/:]+):(\d+)', base_url)
     if not host_match:
-        return None
+        return None, "bad url"
     host, port = host_match.group(1), host_match.group(2)
 
     try:
@@ -202,24 +272,33 @@ def query_metrics_remote(base_url, timeout=5):
             text=True,
             timeout=timeout + 3,
         )
-        if result.returncode != 0 or not result.stdout:
-            return None
-        text = result.stdout
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+    except subprocess.TimeoutExpired:
+        return None, "ssh timeout"
+    except OSError:
+        return None, "ssh error"
 
-    counts = {}
-    for m in TASK_METRIC_RE.finditer(text):
-        counts[m.group(1)] = int(float(m.group(2)))
-    worker_states = {}
-    for m in WORKER_METRIC_RE.finditer(text):
-        worker_states[m.group(1)] = int(float(m.group(2)))
-    if worker_states:
-        counts['workers'] = sum(worker_states.values())
-        counts['workers_busy'] = (worker_states.get('partially_saturated', 0)
-                                  + worker_states.get('saturated', 0))
-        counts['workers_paused'] = worker_states.get('paused', 0)
-    return counts if counts else None
+    # returncode 255 (or negative/signal) is an ssh-level failure; any other
+    # non-zero code is the *remote* command (curl) failing, i.e. the dashboard
+    # itself is unreachable on the scheduler node.
+    if result.returncode == 255 or result.returncode < 0:
+        return None, (_classify_ssh_failure(result.stderr) or "ssh failed")
+    if result.returncode != 0 or not result.stdout:
+        return None, "dashboard down"
+
+    counts = _parse_metrics(result.stdout)
+    return (counts, None) if counts else (None, "dashboard down")
+
+
+def query_metrics_remote(base_url, timeout=5):
+    """Like query_metrics but falls back to SSH when direct HTTP is unreachable.
+
+    On the first call to a given host, SSH opens a connection and keeps it
+    alive for 120 s (ControlPersist). Subsequent calls reuse that socket so
+    the SSH overhead is ~0 ms after the first query.
+
+    Requires: ssh access to worker nodes and curl installed there.
+    """
+    return query_metrics_remote_diag(base_url, timeout=timeout)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -512,12 +591,9 @@ def run(search_root="output/"):
                         job_state[name] = (None, False, None, True)
                         continue
 
-                dashboard_url = info.get('dashboard')
-
-                # Proxy URL (/proxy/PORT): reconstruct direct URL from scheduler host
-                if not dashboard_url and info.get('proxy_port') and info.get('scheduler'):
-                    host = info['scheduler'].split("://")[1].split(":")[0]
-                    dashboard_url = f"http://{host}:{info['proxy_port']}"
+                # Proxy URL (/proxy/PORT): reconstruct direct URL using the
+                # logged scheduler host (cross-node), tcp:// host, or localhost.
+                dashboard_url = dashboard_url_from_info(info)
 
                 # Fallback: connect to TCP scheduler to get dashboard URL
                 if not dashboard_url and not done and info.get('scheduler'):

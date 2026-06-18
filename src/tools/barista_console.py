@@ -33,7 +33,6 @@ from textual.widgets import Footer, Input, Label, ListView, Select, Static
 from snkmt.console.command import DatabaseSourceProvider, SelectDatabaseCommand
 from snkmt.console.widgets import (
     RuleTable,
-    StyledProgress,
     StyledStatus,
     WorkflowErrors,
     WorkflowTable,
@@ -46,7 +45,13 @@ from snkmt.version import VERSION
 
 # Monitoring logic from runner_monitor
 sys.path.insert(0, str(Path(__file__).parent))
-from runner_monitor import SNKMT_DB, condor_counts_for_jobs, query_metrics_remote, scan_logs  # noqa: E402
+from runner_monitor import (  # noqa: E402
+    SNKMT_DB,
+    condor_counts_for_jobs,
+    dashboard_url_from_info,
+    query_metrics_remote_diag,
+    scan_logs,
+)
 
 # ---------------------------------------------------------------------------
 # Progress bar (Rich markup version)
@@ -95,6 +100,11 @@ def _rich_bar(counts: dict) -> str:
 
 _HISTORY_MAXLEN = 60  # keep up to 60 samples (~60 s at 1 s poll rate)
 
+# Version marker — bump this whenever the bar-caching behaviour changes so
+# users can verify which copy of the file is actually running on each host.
+# Surfaced in the startup banner and logged once per session.
+DASK_PANEL_REV = "2026-05-20-f"  # DRY stale-mark helper; dropped _stale_carry
+
 
 def _throughput_eta(history: deque, counts: dict):
     """Return (rate_tasks_per_sec, eta_seconds) from a history deque.
@@ -142,21 +152,24 @@ def _fmt_eta(seconds: float) -> str:
 # ---------------------------------------------------------------------------
 
 def _running_job_logs(wf_id: str, db_path: str = SNKMT_DB) -> dict[str, str]:
-    """Return {log_path: status} for all jobs in the given workflow."""
+    """Return {log_path: status} for all jobs in the given workflow.
+    Raises on DB/FS errors so callers can distinguish a real "no jobs"
+    result ({}) from a transient outage; previously this swallowed
+    exceptions and returned {}, which made the console's progress
+    display flicker any time snkmt/NFS hiccuped."""
     # snkmt stores UUIDs without hyphens; row keys from WorkflowTable use str(uuid) with hyphens
     wf_id_bare = wf_id.replace("-", "")
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
-        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         rows = con.execute(
             """SELECT f.path, j.status
                FROM jobs j JOIN files f ON f.job_id = j.id
                WHERE j.workflow_id = ? AND f.file_type = 'LOG'""",
             (wf_id_bare,),
         ).fetchall()
+    finally:
         con.close()
-        return {path: status for path, status in rows}
-    except Exception:
-        return {}
+    return {path: status for path, status in rows}
 
 
 # ---------------------------------------------------------------------------
@@ -190,40 +203,169 @@ class DaskJobPanel(VerticalScroll):
         self._history = {}
         self._refresh_display()
 
+    def _mark_stale_all(self, now: float) -> None:
+        """Mark every cached entry with counts as stale-since-NOW so the
+        renderer keeps the bar on screen with an `unreachable Xs`
+        annotation.  Used when a wider failure (snkmt DB exception, empty
+        job_logs) prevents us from refreshing any single job — we never
+        wipe cached data, just annotate it as not-currently-confirmable."""
+        for info in self._metrics.values():
+            if info.get("counts") is not None and not info.get("stale_since"):
+                info["stale_since"] = now
+
     @work(exclusive=True, thread=True, exit_on_error=False)
     def _poll(self) -> None:
         if self.workflow_id is None:
             return
 
         try:
-            job_logs = _running_job_logs(self.workflow_id)
-            if not job_logs:
-                self._metrics = {}
+            try:
+                job_logs = _running_job_logs(self.workflow_id)
+            except Exception:
+                # snkmt DB read failed transiently (NFS blip, lock contention,
+                # etc.).  Don't wipe _metrics — mark existing entries stale
+                # and let the renderer keep cached bars on screen.
+                self._mark_stale_all(time.monotonic())
                 self.app.call_from_thread(self._refresh_display)
                 return
 
-            sample = next(iter(job_logs))
-            log_dir = str(Path(sample).parent)
+            if not job_logs:
+                # snkmt returned 0 rows — could be a legitimate finish or
+                # a transient gap between published states.  Same treatment
+                # as the DB-exception case: mark stale, keep bars visible.
+                self._mark_stale_all(time.monotonic())
+                self.app.call_from_thread(self._refresh_display)
+                return
 
-            scanned = scan_logs(log_dir)
+            # A single workflow can write job logs to more than one logs/
+            # directory (e.g. a mixeddata-prep stage in one output dir and the
+            # hist stage in another).  Scan EVERY distinct parent dir, not just
+            # the parent of the first row — otherwise running jobs that live in
+            # a different dir than job_logs' first entry are silently dropped.
+            log_dirs = {str(Path(p).parent) for p in job_logs}
+            scanned: dict = {}
+            for log_dir in log_dirs:
+                scanned.update(scan_logs(log_dir))
 
-            new_metrics: dict = {}
+            # Start `new_metrics` as a copy of the previous tick — anything
+            # we DON'T successfully re-poll this tick is kept (and marked
+            # stale later).  This protects against transient failures in
+            # `scan_logs` (filesystem race / NFS blip) where a job briefly
+            # disappears from the scan, AND against snkmt momentarily
+            # reporting a job in a non-RUNNING transitional state.  Entries
+            # are only positively *dropped* below when snkmt explicitly says
+            # the job is in a terminal state.
+            new_metrics: dict = dict(self._metrics)
+            seen_names: set = set()
+
             for name, info in scanned.items():
                 log_path = info.get("log_path", "")
                 status   = job_logs.get(log_path)
-                if status != "RUNNING":
+                # Per user preference: NEVER drop a cached entry. Once a bar
+                # has been shown, it stays.  If snkmt reports the job as no
+                # longer RUNNING (transitional or terminal), or the log says
+                # done, just skip refreshing this tick — the prior cached
+                # counts will be marked stale by the post-loop pass below
+                # and rendered with the `unreachable Xs` annotation.  This
+                # protects against snkmt's HTCondor state transitions
+                # (RUNNING → SUBMITTED → RUNNING during evictions/retries)
+                # that previously caused the bar to disappear.
+                if status != "RUNNING" or info.get("done"):
+                    # Job isn't actively running this tick.  Distinguish a
+                    # *terminal* finish (snkmt SUCCESS/ERROR or the log's
+                    # completion marker) from a transient non-RUNNING blip
+                    # (status None during an HTCondor state transition).  A
+                    # terminal job is marked `done` so the renderer shows it as
+                    # ✓ completed / ✗ failed instead of leaving the last bar to
+                    # be stale-marked as "unreachable" (which looked like it was
+                    # still running).  Transient blips fall through to the
+                    # post-loop stale pass, preserving the old behaviour.
+                    terminal = info.get("done") or status in ("SUCCESS", "ERROR")
+                    if terminal and name in new_metrics:
+                        new_metrics[name] = {
+                            **new_metrics[name],
+                            "done": True,
+                            "errored": status == "ERROR",
+                            "stale_since": None,
+                        }
                     continue
-                # Log file says done — snkmt hasn't caught up yet; skip
+
+                seen_names.add(name)
+
+                # Resolve the dashboard URL.  Condor logs emit only a proxy
+                # path (/proxy/PORT/status) with no host, so this uses the
+                # `Dask scheduler host:` line runner.py logs to build a URL
+                # reachable from a different node than the scheduler.  Falls
+                # back to a tcp:// scheduler host, then localhost.
+                dashboard_url = dashboard_url_from_info(info)
+
+                if dashboard_url:
+                    counts, reason = query_metrics_remote_diag(dashboard_url)
+                else:
+                    counts, reason = None, "no dashboard URL"
+                # All-zero counts (Dask scheduler responding but currently
+                # has no tasks counted — e.g. between waves of tasks, after
+                # a scheduler restart, mid-startup) render as dots via
+                # `_rich_bar`'s total==0 branch and look identical to a
+                # wipe.  Treat them as "no fresh data" so the carry-over
+                # below preserves the previously-shown bar.
+                if counts is not None:
+                    _total = (counts.get("memory", 0)
+                              + counts.get("processing", 0)
+                              + counts.get("erred", 0)
+                              + counts.get("waiting", 0))
+                    if _total == 0:
+                        counts = None
+                        reason = "reachable, no tasks yet"
+                if counts is None:
+                    # Probe failed (or zero-count response) — carry over
+                    # previous counts so the bar stays on screen.
+                    prev = self._metrics.get(name)
+                    if prev and prev.get("counts") is not None:
+                        new_metrics[name] = {
+                            **prev,
+                            "status": status,
+                            "has_dashboard": bool(dashboard_url),
+                            "log_path": log_path,
+                            "stale_since": prev.get("stale_since") or time.monotonic(),
+                            "reason": reason,
+                            "done": False,  # snkmt says RUNNING again (restart)
+                        }
+                        continue
+                    # First-ever observation failed — show the placeholder.
+                    new_metrics[name] = {
+                        "counts": None,
+                        "status": status,
+                        "has_dashboard": bool(dashboard_url),
+                        "log_path": log_path,
+                        "stale_since": None,
+                        "reason": reason,
+                    }
+                    continue
+
+                # Fresh good data — replace any prior entry (including stale).
+                new_metrics[name] = {
+                    "counts": counts,
+                    "status": status,
+                    "has_dashboard": bool(dashboard_url),
+                    "log_path": log_path,
+                    "stale_since": None,
+                    "reason": None,
+                }
+
+            # Any entry not refreshed this tick (snkmt status != RUNNING, log
+            # says done, scan_logs missed it, etc.) gets marked stale so the
+            # renderer adds an `unreachable Xs` annotation.  We never drop —
+            # the bar stays until `watch_workflow_id` clears it (user
+            # selects a different workflow) or the user restarts.
+            now_loop = time.monotonic()
+            for name, info in new_metrics.items():
+                if name in seen_names:
+                    continue
                 if info.get("done"):
-                    continue
-
-                dashboard_url = info.get("dashboard")
-                if not dashboard_url and info.get("proxy_port") and info.get("scheduler"):
-                    host = info["scheduler"].split("://")[1].split(":")[0]
-                    dashboard_url = f"http://{host}:{info['proxy_port']}"
-
-                counts = query_metrics_remote(dashboard_url) if dashboard_url else None
-                new_metrics[name] = {"counts": counts, "status": status, "has_dashboard": bool(dashboard_url)}
+                    continue  # finished — render as completed, never "unreachable"
+                if info.get("counts") is not None and not info.get("stale_since"):
+                    info["stale_since"] = now_loop
 
             # HTCondor worker counts (non-blocking; returns {} if condor_q unavailable)
             condor = condor_counts_for_jobs(scanned)
@@ -231,9 +373,15 @@ class DaskJobPanel(VerticalScroll):
                 if name in new_metrics:
                     new_metrics[name]["condor"] = cc
 
-            # Update per-job history for throughput/ETA
+            # Update per-job history for throughput/ETA.  Skip entries with
+            # `stale_since` set: their counts are a carried-over snapshot
+            # from an earlier successful tick, not fresh measurements.
+            # Appending them would dilute the rate calc with fake-zero
+            # progress; pausing keeps the last real rate visible.
             now = time.monotonic()
             for name, info in new_metrics.items():
+                if info.get("stale_since"):
+                    continue
                 mem = (info.get("counts") or {}).get("memory", 0)
                 if name not in self._history:
                     self._history[name] = deque(maxlen=_HISTORY_MAXLEN)
@@ -285,14 +433,38 @@ class DaskJobPanel(VerticalScroll):
         lines = []
         for name, info in sorted(self._metrics.items()):
             counts = info.get("counts")
-            n_erred = counts.get("erred", 0) if counts else 0
+            stale_since = info.get("stale_since")
+            stale_age = (time.monotonic() - stale_since) if stale_since else None
 
-            if counts is None:
+            n_erred = counts.get("erred", 0) if counts else 0
+            done = info.get("done")
+            reason = info.get("reason")
+
+            if done:
+                # Terminal job — show its final bar (if we ever got counts)
+                # tagged as completed/failed, so it's clearly distinct from a
+                # still-running or unreachable job.
+                tag = ("[bold red]✗ failed[/bold red]" if info.get("errored")
+                       else "[bold green]✓ completed[/bold green]")
+                bar = f"{_rich_bar(counts)}  {tag}" if counts else tag
+            elif counts is None:
+                # No cached data has ever arrived for this job.  Per user
+                # preference: NEVER render dots — they look like a wipe of
+                # cached progress.  Show a text-only placeholder instead.
                 if info.get("has_dashboard"):
-                    reason = "[yellow]unreachable (SSH/network)[/yellow]"
+                    why = f" ({reason})" if reason else " (SSH/network)"
+                    bar = (f"[yellow]unreachable{why} — "
+                           f"waiting for first response[/yellow]")
                 else:
-                    reason = "[dim]waiting for dashboard...[/dim]"
-                bar = f"[dim]{'·' * BAR_WIDTH}[/dim]  {reason}"
+                    bar = "[dim]waiting for dashboard…[/dim]"
+            elif stale_age is not None:
+                # Cached data, current probe failing — keep the bar exactly as
+                # it was, just annotate as unreachable with the reason.  No hard
+                # limit; the cache persists until snkmt reports the job is no
+                # longer running (which clears the entry naturally).
+                why = f": {reason}" if reason else ""
+                bar = (f"{_rich_bar(counts)}  "
+                       f"[yellow]unreachable {int(stale_age)}s{why}[/yellow]")
             else:
                 bar = _rich_bar(counts)
 
@@ -306,7 +478,9 @@ class DaskJobPanel(VerticalScroll):
             paused_str = f"\n  [bold yellow]⚠ {n_paused} worker{'s' if n_paused != 1 else ''} paused (memory pressure)[/bold yellow]" if n_paused else ""
 
             rate, eta = _throughput_eta(self._history.get(name, deque()), counts or {})
-            if rate is not None:
+            if done:
+                throughput_str = ""  # finished — no rate/ETA
+            elif rate is not None:
                 eta_str = f"  [dim]~{_fmt_eta(eta)} remaining[/dim]" if eta else "  [dim]nearly done[/dim]"
                 throughput_str = f"\n  [dim]{rate:.1f} tasks/s{eta_str}[/dim]"
             elif counts is not None:
@@ -314,7 +488,7 @@ class DaskJobPanel(VerticalScroll):
             else:
                 throughput_str = ""
 
-            condor = info.get("condor")
+            condor = None if done else info.get("condor")
             if condor:
                 idle, running, held = condor['idle'], condor['running'], condor['held']
                 held_str = f"[bold red]{held}H[/bold red]" if held else f"[dim]{held}H[/dim]"
@@ -558,8 +732,15 @@ class BaristaConsoleApp(App):
         ("shift+tab", "focus_previous", "Previous"),
     ]
 
-    def __init__(self, databases: list[str] | None = None) -> None:
+    def __init__(self, databases: list[str] | None = None,
+                 refresh_interval: float = 5.0) -> None:
         super().__init__()
+        # snkmt 0.4+ widgets read self.app.refresh_interval in on_mount to set
+        # up their own periodic update timers (workflow table, rule table).
+        # Older snkmt didn't have this attribute; the installed version on
+        # cmslpc does require it.  5 s is a sensible default; set to 0 to
+        # disable auto-refresh.
+        self.refresh_interval = refresh_interval
         self.current_source = databases[0] if databases else None
 
     def set_database_source(self, source: str) -> None:
