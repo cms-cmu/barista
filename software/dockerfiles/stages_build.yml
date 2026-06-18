@@ -7,8 +7,16 @@
     EXTRA_TAGS: "test"
     BUILD_ARGS: ""
   script:
-    - mkdir -p ${CI_PROJECT_DIR}/tmp
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
     - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export BUILDAH_FORMAT=docker
     - export STORAGE_DRIVER=vfs
@@ -80,8 +88,16 @@ deploy_container:
   stage: deploy
   image: quay.io/buildah/stable
   script:
-    - mkdir -p ${CI_PROJECT_DIR}/tmp
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
     - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
@@ -95,8 +111,16 @@ deploy_container_coffea0_7:
   stage: deploy
   image: quay.io/buildah/stable
   script:
-    - mkdir -p ${CI_PROJECT_DIR}/tmp
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
     - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG}
@@ -144,8 +168,16 @@ deploy_classifier_container:
   stage: deploy
   image: quay.io/buildah/stable
   script:
-    - mkdir -p ${CI_PROJECT_DIR}/tmp
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
     - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
