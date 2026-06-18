@@ -49,6 +49,11 @@ DASHBOARD_RE    = re.compile(r"Dask dashboard:\s+(http://\S+)")
 PROXY_RE        = re.compile(r"Dask dashboard:\s+/proxy/(\d+)")  # /proxy/PORT/status
 SCHEDULER_RE    = re.compile(r"'tcp://([^']+)'")   # matches tcp://host:port inside Client repr
 SCHED_HOST_RE   = re.compile(r"Dask scheduler host:\s+(\S+)")  # explicit host logged by runner.py
+# rich's log formatter right-aligns a source locator like "runner.py:500" and
+# wraps a long message's value onto the next line.  Used to reject that token
+# and to recognise a bare hostname on the wrapped continuation line.
+_SRC_LOC_RE     = re.compile(r"^\w+\.py:\d+$")
+_HOSTNAME_RE    = re.compile(r"^[A-Za-z0-9][\w.\-]*$")  # plausible bare hostname token
 COMPLETE_RE     = re.compile(r"JOB EXECUTION COMPLETED SUCCESSFULLY|Dask performance report saved")
 SMKLOG_RE       = re.compile(r"^\s+log:\s+(\S+\.log)")
 WORKER_LOG_DIR_RE = re.compile(r"Condor worker log directory: (\S+)")
@@ -72,6 +77,7 @@ def scan_logs(search_root):
     for path in sorted(glob.glob(pattern, recursive=True)):
         name = os.path.basename(path).replace(".log", "")
         info = {}
+        pending_host = False  # saw "Dask scheduler host:" whose value wrapped
         try:
             with open(path) as f:
                 for line in f:
@@ -90,7 +96,20 @@ def scan_logs(search_root):
                         info['scheduler'] = f"tcp://{m.group(1)}"
                     m = SCHED_HOST_RE.search(line)
                     if m:
-                        info['scheduler_host'] = m.group(1)
+                        val = m.group(1)
+                        if _SRC_LOC_RE.match(val):
+                            # rich wrapped the hostname onto the next line; the
+                            # token captured here is the "runner.py:NNN" source
+                            # locator.  Grab the real host from the next line.
+                            pending_host = True
+                        else:
+                            info['scheduler_host'] = val
+                            pending_host = False
+                    elif pending_host:
+                        tok = line.split()
+                        if tok and _HOSTNAME_RE.match(tok[0]) and not _SRC_LOC_RE.match(tok[0]):
+                            info['scheduler_host'] = tok[0]
+                        pending_host = False
                     m = WORKER_LOG_DIR_RE.search(line)
                     if m:
                         info['worker_log_dir'] = m.group(1)
