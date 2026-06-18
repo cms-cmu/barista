@@ -149,16 +149,16 @@ class Server:
                 except ConnectionRefusedError:
                     pass
             listener.close()
-            thread.join()
+            thread.join(timeout=1.0)
             # close runner
             self._jobs.put(Packet())
-            self._runner.join()
+            self._runner.join(timeout=1.0)
             # close connections
             for connection in self._connections:
                 _close_connection(connection)
             self._connections.clear()
             for handler in self._handlers:
-                handler.join()
+                handler.join(timeout=0.05)
             self._handlers.clear()
             return True
         return False

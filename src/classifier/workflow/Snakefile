@@ -29,18 +29,20 @@ CLASSIFIER_CONFIG_PATHS = config["classifier_config_paths"]
 WFS_BASE                = config["wfs_base"]
 OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
 PLOT_INPUTS             = bool(config.get("plot_inputs", False))
+PLOT_WEIGHTS            = bool(config.get("plot_weights", False))
 
 MODEL          = _r(config["model"])
 TRAIN_TEMPLATE = _r(config["train_template"])
 EVAL_TEMPLATE  = _r(config["eval_template"])
 METADATA       = config.get("metadata", "")
+FRIEND         = _r(config.get("friend", ""))
 
 PLOT_BASE = config["plot_base"]
 
 # ── Container images ──────────────────────────────────────────────────────────
 
-CLASSIFIER_GPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
-CLASSIFIER_CPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
+CLASSIFIER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
 
 INIT = "set -e && set +u && source /entrypoint.sh && set -u && export PYTHONUNBUFFERED=1"
 
@@ -57,6 +59,10 @@ def _all_targets():
             f"{OUTPUT_DIR}/plot_inputs_raw.done",
             f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
         ]
+    if PLOT_WEIGHTS:
+        targets += [
+            f"{OUTPUT_DIR}/plot_weights.done",
+        ]
     return targets
 
 
@@ -69,7 +75,7 @@ rule train:
         flag = f"{OUTPUT_DIR}/train.done",
     log:
         f"{OUTPUT_DIR}/train.log",
-    container: CLASSIFIER_GPU
+    container: CLASSIFIER
     resources:
         runtime = 240,
         mem_mb  = 32000,
@@ -102,7 +108,7 @@ rule analyze:
         flag = f"{OUTPUT_DIR}/analyze.done",
     log:
         f"{OUTPUT_DIR}/analyze.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
@@ -135,7 +141,7 @@ rule evaluate:
         flag = f"{OUTPUT_DIR}/evaluate.done",
     log:
         f"{OUTPUT_DIR}/evaluate.log",
-    container: CLASSIFIER_GPU
+    container: CLASSIFIER
     resources:
         runtime = 240,
         mem_mb  = 32000,
@@ -170,7 +176,7 @@ rule plot_inputs_raw:
         flag = f"{OUTPUT_DIR}/plot_inputs_raw.done",
     log:
         f"{OUTPUT_DIR}/plot_inputs_raw.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
@@ -202,7 +208,7 @@ rule plot_inputs_dataprep:
         flag = f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
     log:
         f"{OUTPUT_DIR}/plot_inputs_dataprep.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
@@ -223,3 +229,41 @@ rule plot_inputs_dataprep:
             2>&1 | tee -a {log}
         touch {output.flag}
         """
+
+
+rule plot_weights:
+    # Only targeted by rule all when plot_weights: true in workflow_config.yml.
+    # Requires metadata to be set. Running directly with metadata: "" will fail.
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        flag = f"{OUTPUT_DIR}/plot_weights.done",
+    log:
+        f"{OUTPUT_DIR}/plot_weights.log",
+    container: CLASSIFIER_CPU
+    resources:
+        runtime = 60,
+        mem_mb  = 8000,
+    threads: 1
+    params:
+        init         = INIT,
+        model        = MODEL,
+        metadata     = METADATA,
+        plot         = f"{PLOT_BASE}/{DATE}_{LABEL}/weights",
+        wfs_base     = WFS_BASE,
+        template_str = TRAIN_TEMPLATE,
+        friend_path  = FRIEND,
+    shell:
+        """
+        {params.init} && \
+        python src/classifier/plot_weights.py \
+            --checkpoint {params.model} \
+            --metadata {params.metadata} \
+            --output-dir {params.plot} \
+            --wfs-base {params.wfs_base} \
+            --template-str "{params.template_str}" \
+            --friend-path "{params.friend_path}" \
+            2>&1 | tee -a {log}
+        touch {output.flag}
+        """
+

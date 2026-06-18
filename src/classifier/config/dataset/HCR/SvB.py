@@ -52,8 +52,16 @@ class _mc_selection(_common_selection):
 
 
 def _remove_outlier(df: pd.DataFrame):
-    # TODO: This is a temporary solution triggered by events with huge weights:
-    return df.loc[df["weight"] < 1]
+    import logging
+    n_total = len(df)
+    n_neg = (df["weight"] < 0).sum()
+    n_pos = (df["weight"] >= 1).sum()
+    if n_neg > 0 or n_pos > 0:
+        logging.info(
+            f"Outlier removal: removing {n_neg} events with negative weights (< 0) and "
+            f"{n_pos} events with extreme weights (>= 1) out of {n_total} total events."
+        )
+    return df.loc[(df["weight"] >= 0) & (df["weight"] < 1)]
 
 
 class _Train(CommonTrain):

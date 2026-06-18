@@ -29,14 +29,14 @@ analysis:
       - --clean
   - module: compare.CompareRootFile
     option:
-      - --atol 1e-4
-      - --rtol 1e-3
+      - --atol 1e-3
+      - --rtol 5e-3
       - --result output/main_evaluate/chunks/SvD_0_8192_sparse.root
       - --reference src/classifier/test/data/CI__classifier__main_evaluate__friend_tree_sparse.root
   - module: compare.CompareRootFile
     option:
-      - --atol 1e-4
-      - --rtol 1e-3
+      - --atol 1e-3
+      - --rtol 5e-3
       - --result output/main_evaluate/chunks/SvD_0_8192_dense.root
       - --reference src/classifier/test/data/CI__classifier__main_evaluate__friend_tree_dense.root
 

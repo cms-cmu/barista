@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from copy import deepcopy
 from textwrap import indent
 from typing import (
@@ -343,12 +344,21 @@ else:
         categories: set[str]
 
 
+class _ThreadLocalCollectionDescriptor:
+    def __init__(self):
+        self._local = threading.local()
+    def __get__(self, instance, owner):
+        return getattr(self._local, "current", None)
+    def __set__(self, instance, value):
+        self._local.current = value
+
+
 class _Collection(Generic[HistType, FillType]):
     class __backend__:
         hist: type[HistType]
         fill: type[FillType]
 
-    current: Self
+    current = _ThreadLocalCollectionDescriptor()
 
     def __init__(self, **categories):
         self._fills: dict[str, list[str]] = {}

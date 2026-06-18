@@ -1,0 +1,26 @@
+{
+  "test": {
+    "data": [
+      [
+        {"path": "/some/path/sparse/picoAOD.root"},
+        [
+          {
+            "chunk": {
+              "path": "output/dataset/sparse.root"
+            }
+          }
+        ]
+      ],
+      [
+        {"path": "/some/path/dense/picoAOD.root"},
+        [
+          {
+            "chunk": {
+              "path": "output/dataset/dense.root"
+            }
+          }
+        ]
+      ]
+    ]
+  }
+}
