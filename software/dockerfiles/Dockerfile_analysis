@@ -61,13 +61,8 @@ USER root
 RUN mkdir -p /etc/grid-security && \
     ln -sf /opt/conda/etc/grid-security/certificates /etc/grid-security/certificates && \
     mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
-    mkdir -p /host && \
-    printf '%s\n' \
-        '"cms" "voms-cms-auth.app.cern.ch" "443" "/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch" "cms"' \
-        '"cms" "voms-cms-auth.cern.ch" "443" "/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch" "cms"' \
-        > /etc/vomses && \
-    mkdir -p /etc/grid-security/vomsdir/cms/ && printf '%s\n' \ 
-        '/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch' \
-        '/DC=ch/DC=cern/CN=CERN Grid Certification Authority' \
-        > /etc/grid-security/vomsdir/cms/voms-cms-auth.app.cern.ch.lsc && \
-    cp /etc/grid-security/vomsdir/cms/voms-cms-auth.app.cern.ch.lsc /etc/grid-security/vomsdir/cms/voms-cms-auth.cern.ch.lsc
+    mkdir -p /host
+
+# Copy VOMS configs from official coffea base image
+COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/vomses /etc/vomses
+COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/grid-security/vomsdir /etc/grid-security/vomsdir
