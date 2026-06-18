@@ -229,7 +229,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ubiquerg-0.9.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.7.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#04c0a3fb4d77f1fcffca1cf160925267b928388a
+      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#102efafa82293671820e1adc007b3f77c09da731
       - pypi: git+https://github.com/cademirch/snakemake-logger-plugin-snkmt#fccfe95232d84561b38eea8fb15a0454ad9c2ebb
       - pypi: https://files.pythonhosted.org/packages/04/9e/2669ac7d718539a3783c3a6c440b3440b68193b59d763d7f89d33c0b1e8e/questo-0.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl
@@ -468,7 +468,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ubiquerg-0.9.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.7.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#04c0a3fb4d77f1fcffca1cf160925267b928388a
+      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#102efafa82293671820e1adc007b3f77c09da731
       - pypi: git+https://github.com/cademirch/snakemake-logger-plugin-snkmt#fccfe95232d84561b38eea8fb15a0454ad9c2ebb
       - pypi: https://files.pythonhosted.org/packages/04/9e/2669ac7d718539a3783c3a6c440b3440b68193b59d763d7f89d33c0b1e8e/questo-0.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl
@@ -707,7 +707,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ubiquerg-0.9.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/urllib3-2.7.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
-      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#04c0a3fb4d77f1fcffca1cf160925267b928388a
+      - pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#102efafa82293671820e1adc007b3f77c09da731
       - pypi: git+https://github.com/cademirch/snakemake-logger-plugin-snkmt#fccfe95232d84561b38eea8fb15a0454ad9c2ebb
       - pypi: https://files.pythonhosted.org/packages/04/9e/2669ac7d718539a3783c3a6c440b3440b68193b59d763d7f89d33c0b1e8e/questo-0.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl
@@ -4318,7 +4318,7 @@ packages:
   - snakemake-executor-plugin-kubernetes>=0.1.3 ; python_full_version >= '3.11' and extra == 'all'
   - snakemake-storage-plugin-xrootd==1.0.0 ; python_full_version >= '3.11' and extra == 'all'
   requires_python: '>=3.8'
-- pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#04c0a3fb4d77f1fcffca1cf160925267b928388a
+- pypi: git+https://github.com/alefisico/snkmt?branch=feat-dask-condor-monitor#102efafa82293671820e1adc007b3f77c09da731
   name: snkmt
   version: 0.4.0
   requires_dist:
