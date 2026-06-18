@@ -821,7 +821,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/markdown-it-py-4.2.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mdurl-0.1.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nbformat-5.10.4-pyhd8ed1ab_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/packaging-26.2-pyhc364b38_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/packaging-25.0-pyh29332c3_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pephubclient-0.4.4-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/peppy-0.40.8-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/pip-26.1.2-pyh145f28c_0.conda
@@ -875,7 +875,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/15/aa/0aca39a37d3c7eb941ba736ede56d689e7be91cab5d9ca846bde3999eba6/isodate-0.7.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/19/4b/00bf246f3a3156f8c1e2b48cba1d99a5b4134ce6af8afe098fbcc9e3d5e3/gherkin_official-40.0.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/1a/62/c8d562e7766786ba6587d09c5a8ba9f718ed3fa8af7f4553e8f91c36f302/xlrd-2.0.2-py2.py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/1a/c7/e6e9ff155558b473f9eec20f7e35faa15dd6f3d03c4100f7609e44a8428f/snakemake_interface_common-1.19.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/26/99/fc813cd978842c26c82534010ea849eee9ab3a13ea2b74e95cb9c99e747b/amqp-5.3.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/29/92/da92898b2aab0da78207afc9c035a71bedef3544966374c44e9627d761c5/rdflib_jsonld-0.6.2-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/2a/7f/a946aa4f8752b37102b41e64dca18a1976ac705c3a0d1dfe74d820a02552/mistune-3.2.1-py3-none-any.whl
@@ -914,7 +913,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a1/a0/8866b4c6f894af0eb10e4964157f3241dd4117700fc010e7825471d51a13/bagit-1.9.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/a3/58/35da89ee790598a0700ea49b2a66594140f44dec458c07e8e3d4979137fc/ply-3.11-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a3/c4/bf4ad152c96adadbaa9cad87e3a6a4fdff1540bf4342187763e9b3512d07/checksumdir-1.1.9-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a6/76/dbe4a00b50385e40194231dcfe5a12c059de7cf90e89c83407d2b085b719/lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/f2/f20e5551bba33a076c9f83cb8934eb7a9d813e25a41374d8a1f6cb9c4a81/adage-0.11.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b0/0d/9feae160378a3553fa9a339b0e9c1a048e147a4127210e286ef18b730f03/durationpy-0.10-py3-none-any.whl
@@ -1034,6 +1032,8 @@ packages:
   - python >=3.8
   license: MIT
   license_family: MIT
+  purls:
+  - pkg:pypi/snakemake-interface-common?source=hash-mapping
   size: 22751
   timestamp: 1780096495612
 - conda: https://conda.anaconda.org/bioconda/noarch/snakemake-interface-executor-plugins-9.4.0-pyh84498cf_0.conda
@@ -3733,6 +3733,19 @@ packages:
   - pkg:pypi/nbformat?source=hash-mapping
   size: 100945
   timestamp: 1733402844974
+- conda: https://conda.anaconda.org/conda-forge/noarch/packaging-25.0-pyh29332c3_1.conda
+  sha256: 289861ed0c13a15d7bbb408796af4de72c2fe67e2bcb0de98f4c3fce259d7991
+  md5: 58335b26c38bf4a20f399384c33cbcf9
+  depends:
+  - python >=3.8
+  - python
+  license: Apache-2.0
+  license_family: APACHE
+  purls:
+  - pkg:pypi/packaging?source=hash-mapping
+  run_exports: {}
+  size: 62477
+  timestamp: 1745345660407
 - conda: https://conda.anaconda.org/conda-forge/noarch/packaging-26.2-pyhc364b38_0.conda
   sha256: 3906abfb6511a3bb309e39b9b1b7bc38f50a723971de2395489fd1f379255890
   md5: 4c06a92e74452cfa53623a81592e8934
@@ -4508,15 +4521,6 @@ packages:
   - pytest ; extra == 'test'
   - pytest-cov ; extra == 'test'
   requires_python: '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*'
-- pypi: https://files.pythonhosted.org/packages/1a/c7/e6e9ff155558b473f9eec20f7e35faa15dd6f3d03c4100f7609e44a8428f/snakemake_interface_common-1.19.2-py3-none-any.whl
-  name: snakemake-interface-common
-  version: 1.19.2
-  sha256: ed8b8e7f12857f662f234e63c743bf9dda4232d9e6e01aa241c4cc12b63b2aed
-  requires_dist:
-  - argparse-dataclass>=2.0.0
-  - configargparse>=1.7
-  - semver>=3.0,<4.0
-  requires_python: '>=3.8'
 - pypi: https://files.pythonhosted.org/packages/22/42/72571b24514b5f59c328f12e5294b246958951b889fac2bd5321e08a4bab/python_yakh-0.4.1-py3-none-any.whl
   name: python-yakh
   version: 0.4.1
@@ -5017,11 +5021,6 @@ packages:
   - pytest-regressions ; extra == 'testing'
   - pytest-timeout ; extra == 'testing'
   requires_python: '>=3.10'
-- pypi: https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl
-  name: semver
-  version: 3.0.4
-  sha256: 9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746
-  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/a6/76/dbe4a00b50385e40194231dcfe5a12c059de7cf90e89c83407d2b085b719/lxml-6.1.1-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl
   name: lxml
   version: 6.1.1
