@@ -19,12 +19,12 @@ workflow:
     # Run for merge requests
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       variables:
-        DEFAULT_ANALYSIS_IMAGE_TAG: "dev_coffea2025_latest"
+        DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
       when: always
     # Run for pushes to branches WITHOUT open merge requests
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS == null'
       variables:
-        DEFAULT_ANALYSIS_IMAGE_TAG: "dev_coffea2025_latest"
+        DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
       when: always
     # Run for scheduled pipelines
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
@@ -42,7 +42,6 @@ variables:
   RECREATE_CONTAINERS: "false"
   DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
   ANALYSIS_IMAGE_TAG: ${DEFAULT_ANALYSIS_IMAGE_TAG}
-  CLASSIFIER_IMAGE_TAG: "classifier_cpu_latest"
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_DEPTH: 1
   GIT_SUBMODULE_FORCE_HTTPS: "true"
@@ -75,6 +74,7 @@ stages:
   - build
   - setup
   - code 
+  - classifier
   - skimmer
   - friendtree
   - analysis
@@ -84,7 +84,6 @@ stages:
   - deploy
   - validation
   - pages
-  - classifier
 
 setup_coffea4bees:
   stage: setup
@@ -191,12 +190,11 @@ setup_bbreww:
 .base_classifier_barista:
   needs:
     - voms_proxy
-    - job: deploy_classifier_cpu_container
+    - job: build_container
       optional: true
       artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${CLASSIFIER_IMAGE_TAG}
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
-    - source /entrypoint.sh
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
   tags:

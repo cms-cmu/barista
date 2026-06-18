@@ -7,7 +7,6 @@ DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
-CLASSIFIER_CPU_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
@@ -17,7 +16,6 @@ if [ -d '/cvmfs/unpacked.cern.ch' ]; then
     COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
     SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
     CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
-    CLASSIFIER_CPU_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_CPU_IMAGE#docker://}"
     BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
 fi
 
@@ -94,8 +92,7 @@ Commands:
                         (Interactive shell is the only option to run on LPC HTCondor).
   dev [cmd...]          Run commands inside the dev/legacy coffea0.7 container (coffea 0.7.30, Python 3.10).
   combine [cmd...]      Run commands inside the combine container.
-  classifier [cmd...]   Run commands inside the classifier with GPU container.
-  classifier_cpu [cmd...] Run commands inside the classifier with CPU container.
+  classifier [cmd...]   Run commands inside the classifier (GPU) container.
   brilcalc [cmd...]     Run commands inside the brilcalc container.
   snakemake [opts]      Run snakemake using the local Pixi environment.
                         Use --reinstall to clean environment.
@@ -109,8 +106,7 @@ Examples:
   $0 combine             Open Combine container.
   $0 snakemake -s Snakefile
   $0 reana ls
-  $0 classifier          Run commands inside the classifier with GPU container.
-  $0 classifier_cpu      Run commands inside the classifier with CPU container.
+  $0 classifier          Run commands inside the classifier container.
 
 SLURM execution (falcon.phys.cmu.edu):
   On the falcon login node, passing --slurm to runner.py auto-submits the job
@@ -203,9 +199,7 @@ setup_host_env() {
         if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_latest.sif" ]; then
             CLASSIFIER_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_latest.sif"
         fi
-        if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_cpu_latest.sif" ]; then
-            CLASSIFIER_CPU_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_cpu_latest.sif"
-        fi
+
         if [ -f "${SHARED_IMAGE_DIR}/brilws-docker_latest.sif" ]; then
             BRILCALC_IMAGE="${SHARED_IMAGE_DIR}/brilws-docker_latest.sif"
         fi
@@ -242,6 +236,10 @@ setup_host_env() {
             if [ ! -d "$PIXI_DIR" ]; then
                 info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
             fi
+            CACHE_BASE="$HOME"
+            ;;
+        *falcon*|*rogue*)
+            CACHE_BASE="$HOME"
             ;;
         *runner*)
             PIXI_DIR="/tmp/pixi"
@@ -754,8 +752,7 @@ run_classifier() {
 
     local INIT_FILE="/entrypoint.sh"
     local USE_SLURM=false
-    local IS_CPU=false
-    local IMAGE="$CLASSIFIER_IMAGE"  # Default to GPU
+    local IMAGE="$CLASSIFIER_IMAGE"
     touch "$PWD/.python_history"
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv -B /tmp:/tmp
         --env PYTHONHISTFILE=/srv/.python_history
@@ -769,41 +766,11 @@ run_classifier() {
         info "FALCON cluster detected. Will submit jobs via SLURM."
     fi
 
-    # Handle CPU flag (passed from dispatcher as first arg if classifier_cpu)
-    if [[ "$1" == "cpu" ]]; then
-        info "Using CPU version of the classifier container..."
-        IMAGE="$CLASSIFIER_CPU_IMAGE"
-        IS_CPU=true
-        shift  # Remove "cpu" from args
-    else
-        info "Using GPU version of the classifier container..."
-    fi
-
-    # Collect remaining user arguments
+    # Collect user arguments
     local USER_CMD="$*"
 
-    # CPU: Handle FALCON / BRIDGES2 interactive session
-    if [ "$IS_CPU" = true ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
-        if [ -n "$SLURM_JOB_ID" ]; then
-            # Already inside a job
-            info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive CPU classifier shell..."
-        else
-            # Login node - submit interactive job
-            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
-                info "Not in a job. Launching interactive Slurm session..."
-                local ACCOUNT_ARG=()
-                [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" classifier_cpu
-            else
-                info "Not in a job. Launching interactive Slurm session..."
-                srun --pty --partition=work --time=04:00:00 --mem=4G "$0" classifier_cpu
-            fi
-            return
-        fi
-    fi
-
     # GPU: Handle FALCON / BRIDGES2 interactive session
-    if [ "$IS_CPU" = false ] && [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
+    if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
         if [ -n "$SLURM_JOB_ID" ]; then
             # Already inside a job
             info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
@@ -830,10 +797,7 @@ run_classifier() {
         local SLURM_CONF="${SLURM_CONF:-software/slurm/slurm.conf}"
         mkdir -p slurm_logs
         local CMD="source $INIT_FILE && export PYTHONUNBUFFERED=1 && $USER_CMD"
-        local SLURM_GRES_ARGS=()
-        if [ "$IS_CPU" = false ]; then
-            SLURM_GRES_ARGS=( --gres=mps:20 )
-        fi
+        local SLURM_GRES_ARGS=( --gres=mps:20 )
 
         info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
         { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "${APPTAINER_CMD:-apptainer} exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
@@ -841,7 +805,7 @@ run_classifier() {
         # Interactive (FALCON job or non-FALCON)
         APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
-        # CPU with command or non-FALCON GPU/CPU with command
+        # Command execution
         APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
     fi
 }
@@ -1051,7 +1015,6 @@ case "$1" in
     "snakemake")           run_snakemake "${@:2}" ;;
     "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
-    "classifier_cpu")      run_classifier "cpu" "${@:2}" ;;
     "pourover")            run_coffea "python coffea4bees/plots/pourOver.py --foreground ${@:2}" ;;
     "dev")                 run_coffea_dev "${@:2}" ;;
     *)                     run_coffea "$@" ;;

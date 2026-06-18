@@ -5,6 +5,8 @@ output_dir = "CI_output"
 outputs = [ 
     f"{output_dir}/code_hist_collection.log",
     f"{output_dir}/code_kappa_framework.log",
+    f"{output_dir}/skimmer_basic_test.log",
+    f"{output_dir}/classifier_friendtree.log",
 ]
 
 rule all:
@@ -26,11 +28,11 @@ rule code_kappa_framework:
 rule skimmer_basic_test:
     container: analysis_container
     log: f"{output_dir}/skimmer_basic_test.log"
-    output: f"{output_dir}/"
-    shell: "source src/scripts/skimmer-basic-test.sh --output-base {output_dir}/ 2>&1 | tee -a {log}"
+    output: directory(f"{output_dir}/skimmer_output")
+    shell: "source src/scripts/skimmer-basic-test.sh --output-base {output_dir}/skimmer_output/ 2>&1 | tee -a {log}"
 
 rule classifier_friendtree:
     container: analysis_container
     log: f"{output_dir}/classifier_friendtree.log"
     output: f"{output_dir}/classifier_friendtree/classifier_friendtree.yml"
-    shell: "source src/scripts/classifier-friendtree.sh --output-base {output_dir} 2>&1 | tee -a {log}"
+    shell: "DATASET=coffea4bees/metadata/datasets_HH4b_Run2/ source src/scripts/classifier-friendtree.sh --output-base {output_dir} 2>&1 | tee -a {log}"

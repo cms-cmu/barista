@@ -18,3 +18,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         from src.classifier.sysutils import recursive_interrupt
         recursive_interrupt()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
