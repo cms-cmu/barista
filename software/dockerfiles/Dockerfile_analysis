@@ -66,3 +66,9 @@ RUN mkdir -p /etc/grid-security && \
 COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/vomses /etc/vomses
 COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/grid-security/vomsdir /etc/grid-security/vomsdir
 COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /usr/local/etc/grid-security/certificates /etc/grid-security/certificates
+
+# Create a wrapper for voms-proxy-info to automatically append -dont-verify-ac
+RUN mv /opt/conda/bin/voms-proxy-info /opt/conda/bin/voms-proxy-info.real && \
+    echo '#!/bin/bash' > /opt/conda/bin/voms-proxy-info && \
+    echo 'exec /opt/conda/bin/voms-proxy-info.real -dont-verify-ac "$@"' >> /opt/conda/bin/voms-proxy-info && \
+    chmod +x /opt/conda/bin/voms-proxy-info
