@@ -2,6 +2,9 @@ FROM docker.io/mambaorg/micromamba:latest
 
 USER root
 
+# Add conda environment to PATH
+ENV PATH=/opt/conda/bin:$PATH
+
 # Install system dependencies (poppler-utils)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends poppler-utils && \
