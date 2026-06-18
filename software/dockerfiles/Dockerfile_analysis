@@ -1,3 +1,4 @@
+# Slimmer Analysis Container Build From Scratch
 FROM docker.io/mambaorg/micromamba:latest
 
 USER root
