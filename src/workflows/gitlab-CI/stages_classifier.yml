@@ -19,6 +19,9 @@ main_cache:
   extends: .base_classifier_barista
   needs:
     - generate_dataset
+    - job: build_container
+      optional: true
+      artifacts: true
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache.yml ${CLASSIFIER_WFS}/common.yml
     - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache_compare.yml ${CLASSIFIER_WFS}/common.yml
@@ -31,6 +34,9 @@ main_train:
   extends: .base_classifier_barista
   needs:
     - generate_dataset
+    - job: build_container
+      optional: true
+      artifacts: true
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/main_train.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
@@ -47,6 +53,9 @@ main_evaluate:
   needs:
     - generate_dataset
     - main_train
+    - job: build_container
+      optional: true
+      artifacts: true
   script:
     - ./src/pyml.py from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:

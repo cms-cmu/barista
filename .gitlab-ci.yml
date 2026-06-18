@@ -190,6 +190,9 @@ setup_bbreww:
 .base_classifier_barista:
   needs:
     - voms_proxy
+    - job: build_container
+      optional: true
+      artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
     - cd $CI_PROJECT_DIR/
