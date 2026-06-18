@@ -57,6 +57,7 @@
     #T: 0.6502
     L: 0.3
     M: 0.6
+    T: 0.8
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -133,6 +134,7 @@
     #T: 0.6377
     L: 0.3
     M: 0.6
+    T: 0.8
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -210,6 +212,7 @@
     #T: 0.7476
     L: 0.3
     M: 0.6
+    T: 0.8
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -287,6 +290,7 @@
     #T: 0.7100
     L: 0.3
     M: 0.6
+    T: 0.8
   btag_uncertainties:
     - cferr1
     - cferr2

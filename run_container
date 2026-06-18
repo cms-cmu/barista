@@ -4,7 +4,7 @@
 # Image Definitions
 COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
 DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_latest"
-COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0"
+COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
 CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
@@ -172,6 +172,9 @@ parse_apptainer_args() {
 }
 
 setup_host_env() {
+    # Compute workspace hash to isolate Dask schedulers per worktree/workspace
+    WORKSPACE_HASH=$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")
+
     local HOST
     HOST=$(hostname)
     CLUSTER_PROFILE=$(detect_cluster_profile)
@@ -190,8 +193,8 @@ setup_host_env() {
         if [ -f "${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif" ]; then
             DEV_COFFEA2025_IMAGE="${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif"
         fi
-        if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0.sif" ]; then
-            COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0.sif"
+        if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif" ]; then
+            COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif"
         fi
         if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_latest.sif" ]; then
             CLASSIFIER_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_latest.sif"
@@ -304,6 +307,104 @@ run_coffea() {
     local HOST
     HOST=$(hostname)
 
+    # Check if we need to start the shared Dask daemon
+    if [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--run-dask"* ]] && \
+       [[ " $* " != *" --start-cluster-daemon "* ]]; then
+        
+        # Determine scheduler JSON path and lock file path
+        local SCHEDULER_JSON="/tmp/barista_${USER}/dask_scheduler_${WORKSPACE_HASH}.json"
+        local SCHEDULER_LOCK="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.lock"
+        local DAEMON_LOG="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.log"
+        mkdir -p "/tmp/barista_${USER}"
+        
+        # Acquire lock to prevent race conditions during check & spawn
+        exec 9>"$SCHEDULER_LOCK"
+        if flock -x 9; then
+            # Check if daemon is responsive
+            if ! python3 -c "
+import os, json, socket
+if os.path.exists('$SCHEDULER_JSON'):
+    try:
+        with open('$SCHEDULER_JSON') as f:
+            addr = json.load(f)['address']
+        host, port = addr.replace('tcp://', '').split(':')
+        s = socket.create_connection((host, int(port)), timeout=2)
+        s.close()
+        exit(0)
+    except Exception:
+        pass
+exit(1)
+" 2>/dev/null; then
+                info "Shared Dask daemon not running or unresponsive. Spawning in background on host..."
+                # Remove stale JSON if any
+                rm -f "$SCHEDULER_JSON"
+                
+                # Reconstruct clean runner.py daemon command
+                local DASK_FLAG=""
+                local CONFIG_FILE=""
+                local TMP_DIR=""
+                
+                local i=1
+                while [ $i -le $# ]; do
+                    eval arg=\$\{$i\}
+                    case "$arg" in
+                        --condor) DASK_FLAG="--condor" ;;
+                        --slurm) DASK_FLAG="--slurm" ;;
+                        --run-dask) DASK_FLAG="--run-dask" ;;
+                        -c|--config|--configs)
+                            next_idx=$((i+1))
+                            eval CONFIG_FILE=\$\{$next_idx\}
+                            ;;
+                        --tmpdir)
+                            next_idx=$((i+1))
+                            eval TMP_DIR=\$\{$next_idx\}
+                            ;;
+                    esac
+                    i=$((i+1))
+                done
+                
+                # Spawn daemon in the background on the host
+                (
+                    exec 9>&-
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                )
+                
+                # Wait a few seconds for the daemon to start and write the JSON file
+                local count=0
+                while [ $count -lt 120 ]; do
+                    if [ -f "$SCHEDULER_JSON" ]; then
+                        # Check if it has become responsive
+                        if python3 -c "
+import os, json, socket
+try:
+    with open('$SCHEDULER_JSON') as f:
+        addr = json.load(f)['address']
+    host, port = addr.replace('tcp://', '').split(':')
+    s = socket.create_connection((host, int(port)), timeout=2)
+    s.close()
+    exit(0)
+except Exception:
+    exit(1)
+" 2>/dev/null; then
+                            info "Shared Dask daemon is now running and responsive."
+                            break
+                        fi
+                    fi
+                    sleep 1
+                    count=$((count+1))
+                done
+                if [ $count -eq 120 ]; then
+                    warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+                fi
+            else
+                info "Shared Dask daemon is already running and responsive."
+            fi
+            # Release lock
+            flock -u 9
+        fi
+        exec 9>&-
+    fi
+
     # 1. Base Flags
     touch "$PWD/.python_history"
     _write_pythonstartup "$PWD/.pythonstartup"
@@ -314,6 +415,7 @@ run_coffea() {
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
 
@@ -471,6 +573,7 @@ run_coffea_dev() {
         --env XRD_TIMEOUTRESOLUTION=15
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
+        --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
     )
     ulimit -n 65536
 
@@ -612,16 +715,18 @@ run_coffea_dev() {
 run_combine() {
     check_apptainer
     info "Running Combine container..."
-    local SETUP="source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_11_3_4/ && cmsenv && cd /home/cmsusr/barista/"
     touch "$PWD/.python_history"
     local FLAGS=( -B "${PWD}:/home/cmsusr/barista/" --pwd /home/cmsusr/barista/ -B /tmp:/tmp
+        -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh
+        --env BASH_ENV=/srv/apptainer_env.sh
+        --env ENV=/srv/apptainer_env.sh
         --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
     )
 
     if [ -z "$*" ]; then
-        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -i -c "$SETUP && bash"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash
     else
-        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$SETUP && $*"
+        "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash -c "$*"
     fi
 }
 
