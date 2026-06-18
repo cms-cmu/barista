@@ -1,11 +1,56 @@
-FROM docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12
+FROM docker.io/mambaorg/micromamba:latest
 
-RUN dnf install -y poppler-utils nodejs && \
-    dnf clean all && rm -rf /var/cache/dnf && \
-    pip install --no-cache-dir pycodestyle memory-profiler fsspec-xrootd omegaconf dbs3-client narwhals \
-                xgboost onnxruntime "tritonclient[grpc]" flask mplhep pytest \
-                awkward-pandas readchar pyvis
+USER root
 
-# 1. Create the specific directory Slurm expects for plugins (for falcon)
-RUN mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm
-RUN mkdir -p /host
+# Install system dependencies (poppler-utils)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends poppler-utils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch back to mambauser for conda installations
+USER mambauser
+
+# Install packages from conda-forge
+# Note: we need python, pip, coffea, uproot, awkward, vector, hist, dask, dask-jobqueue, dask-awkward, xrootd, voms, ca-policy-lcg, htcondor, nodejs, and pytorch
+RUN micromamba install -y -n base -c conda-forge \
+    python=3.12 \
+    pip \
+    coffea=2025.12.0 \
+    uproot \
+    awkward \
+    vector \
+    hist \
+    dask \
+    dask-jobqueue \
+    dask-awkward \
+    xrootd \
+    voms \
+    ca-policy-lcg \
+    htcondor \
+    nodejs \
+    pytorch \
+    && micromamba clean --all --yes
+
+# Install additional python packages via pip using micromamba run
+RUN micromamba run -n base python -m pip install --no-cache-dir \
+    pycodestyle \
+    memory-profiler \
+    fsspec-xrootd \
+    omegaconf \
+    dbs3-client \
+    narwhals \
+    xgboost \
+    onnxruntime \
+    "tritonclient[grpc]" \
+    flask \
+    mplhep \
+    pytest \
+    awkward-pandas \
+    readchar \
+    pyvis
+
+# Create directories as root
+USER root
+RUN mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
+    mkdir -p /host
