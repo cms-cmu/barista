@@ -88,8 +88,17 @@ RUN printf "try:\n\
                     safe_list.append(getattr(mod, attr))\n\
         except Exception:\n\
             pass\n\
-    for cls in [np.ndarray, np.dtype]:\n\
-        safe_list.append(cls)\n\
+    if hasattr(np, 'dtypes'):\n\
+        for attr in dir(np.dtypes):\n\
+            try:\n\
+                val = getattr(np.dtypes, attr)\n\
+                if isinstance(val, type): safe_list.append(val)\n\
+            except Exception: pass\n\
+    for attr in dir(np):\n\
+        try:\n\
+            val = getattr(np, attr)\n\
+            if isinstance(val, type): safe_list.append(val)\n\
+        except Exception: pass\n\
     unique_safe = list(set(safe_list))\n\
     if unique_safe and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
         torch.serialization.add_safe_globals(unique_safe)\n\
