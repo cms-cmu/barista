@@ -4,6 +4,7 @@ USER root
 
 # Add conda environment to PATH
 ENV PATH=/opt/conda/bin:$PATH
+ENV VOMS_PROXY_INIT_DONT_VERIFY_AC=1
 
 # Install system dependencies (poppler-utils)
 RUN apt-get update && \
@@ -60,4 +61,13 @@ USER root
 RUN mkdir -p /etc/grid-security && \
     ln -sf /opt/conda/etc/grid-security/certificates /etc/grid-security/certificates && \
     mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
-    mkdir -p /host
+    mkdir -p /host && \
+    printf '%s\n' \
+        '"cms" "voms-cms-auth.app.cern.ch" "443" "/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch" "cms"' \
+        '"cms" "voms-cms-auth.cern.ch" "443" "/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch" "cms"' \
+        > /etc/vomses && \
+    mkdir -p /etc/grid-security/vomsdir/cms/ && printf '%s\n' \ 
+        '/DC=ch/DC=cern/OU=computers/CN=cms-auth.web.cern.ch' \
+        '/DC=ch/DC=cern/CN=CERN Grid Certification Authority' \
+        > /etc/grid-security/vomsdir/cms/voms-cms-auth.app.cern.ch.lsc && \
+    cp /etc/grid-security/vomsdir/cms/voms-cms-auth.app.cern.ch.lsc /etc/grid-security/vomsdir/cms/voms-cms-auth.cern.ch.lsc
