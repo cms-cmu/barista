@@ -1,6 +1,6 @@
 FROM docker.io/condaforge/mambaforge:22.11.1-4
 
-ARG CUDA_VERSION="13.1"
+ARG CUDA_VERSION="12.6"
 ENV CONDA_OVERRIDE_CUDA=${CUDA_VERSION}
 
 # python
