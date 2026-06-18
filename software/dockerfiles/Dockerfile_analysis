@@ -7,9 +7,9 @@ USER root
 ENV PATH=/opt/conda/bin:$PATH
 ENV VOMS_PROXY_INIT_DONT_VERIFY_AC=1
 
-# Install system dependencies (poppler-utils)
+# Install system dependencies (poppler-utils, git, curl)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends poppler-utils && \
+    apt-get install -y --no-install-recommends poppler-utils git curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -17,7 +17,7 @@ RUN apt-get update && \
 USER mambauser
 
 # Install packages from conda-forge
-# Note: we need python, pip, coffea, uproot, awkward, vector, hist, dask, dask-jobqueue, dask-awkward, xrootd, voms, ca-policy-lcg, htcondor, nodejs, and pytorch
+# Note: we need python, pip, coffea, uproot, awkward, vector, hist, dask, dask-jobqueue, dask-awkward, xrootd, voms, htcondor, nodejs, and pytorch
 RUN micromamba install -y -n base -c conda-forge \
     python=3.12 \
     pip \
@@ -31,7 +31,6 @@ RUN micromamba install -y -n base -c conda-forge \
     dask-awkward \
     xrootd \
     voms \
-    ca-policy-lcg \
     htcondor \
     nodejs \
     pytorch \
@@ -60,10 +59,10 @@ RUN micromamba run -n base python -m pip install --no-cache-dir \
 # Create directories as root
 USER root
 RUN mkdir -p /etc/grid-security && \
-    ln -sf /opt/conda/etc/grid-security/certificates /etc/grid-security/certificates && \
     mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
     mkdir -p /host
 
-# Copy VOMS configs from official coffea base image
+# Copy VOMS and Grid Certificate configs from official coffea base image
 COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/vomses /etc/vomses
 COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /etc/grid-security/vomsdir /etc/grid-security/vomsdir
+COPY --from=docker.io/coffeateam/coffea-dask-almalinux9:2025.12.0-py3.12 /usr/local/etc/grid-security/certificates /etc/grid-security/certificates
