@@ -72,3 +72,26 @@ RUN mv /opt/conda/bin/voms-proxy-info /opt/conda/bin/voms-proxy-info.real && \
     echo '#!/bin/bash' > /opt/conda/bin/voms-proxy-info && \
     echo 'exec /opt/conda/bin/voms-proxy-info.real -dont-verify-ac "$@"' >> /opt/conda/bin/voms-proxy-info && \
     chmod +x /opt/conda/bin/voms-proxy-info
+
+# Create sitecustomize.py to allowlist numpy scalar and arrays in PyTorch 2.6+ safe unpickling
+RUN printf "try:\n\
+    import torch\n\
+    import numpy as np\n\
+    import sys\n\
+    safe_list = []\n\
+    for module_name in ['numpy.core.multiarray', 'numpy._core.multiarray']:\n\
+        try:\n\
+            __import__(module_name)\n\
+            mod = sys.modules[module_name]\n\
+            for attr in ['scalar', '_reconstruct']:\n\
+                if hasattr(mod, attr):\n\
+                    safe_list.append(getattr(mod, attr))\n\
+        except Exception:\n\
+            pass\n\
+    for cls in [np.ndarray, np.dtype]:\n\
+        safe_list.append(cls)\n\
+    unique_safe = list(set(safe_list))\n\
+    if unique_safe and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
+        torch.serialization.add_safe_globals(unique_safe)\n\
+except Exception:\n\
+    pass\n" > /opt/conda/lib/python3.12/site-packages/sitecustomize.py
