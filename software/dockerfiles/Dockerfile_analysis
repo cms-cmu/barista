@@ -33,6 +33,8 @@ RUN micromamba install -y -n base -c conda-forge \
     htcondor \
     nodejs \
     pytorch \
+    rucio-clients \
+    fastjet \
     && micromamba clean --all --yes
 
 # Install additional python packages via pip using micromamba run
@@ -55,5 +57,7 @@ RUN micromamba run -n base python -m pip install --no-cache-dir \
 
 # Create directories as root
 USER root
-RUN mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
+RUN mkdir -p /etc/grid-security && \
+    ln -sf /opt/conda/etc/grid-security/certificates /etc/grid-security/certificates && \
+    mkdir -p /usr/lib/x86_64-linux-gnu/slurm-wlm && \
     mkdir -p /host
