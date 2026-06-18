@@ -129,6 +129,7 @@ setup_bbreww:
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
+    - python -c "import sys, torch; print('[DEBUG] Python:', sys.executable); print('[DEBUG] Path:', sys.path); print('[DEBUG] Safe Globals:', torch.serialization.get_safe_globals())"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -145,6 +146,7 @@ setup_bbreww:
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
+    - python -c "import sys, torch; print('[DEBUG] Python:', sys.executable); print('[DEBUG] Path:', sys.path); print('[DEBUG] Safe Globals:', torch.serialization.get_safe_globals())"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -161,6 +163,7 @@ setup_bbreww:
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
+    - python -c "import sys, torch; print('[DEBUG] Python:', sys.executable); print('[DEBUG] Path:', sys.path); print('[DEBUG] Safe Globals:', torch.serialization.get_safe_globals())"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -195,6 +198,7 @@ setup_bbreww:
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
+    - python -c "import sys, torch; print('[DEBUG] Python:', sys.executable); print('[DEBUG] Path:', sys.path); print('[DEBUG] Safe Globals:', torch.serialization.get_safe_globals())"
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
   tags:
