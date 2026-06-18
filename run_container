@@ -319,11 +319,9 @@ run_coffea() {
         local DAEMON_LOG="/tmp/barista_${USER}/dask_daemon_${WORKSPACE_HASH}.log"
         mkdir -p "/tmp/barista_${USER}"
         
-        # Acquire lock to prevent race conditions during check & spawn
-        exec 9>"$SCHEDULER_LOCK"
-        if flock -x 9; then
-            # Check if daemon is responsive
-            if ! python3 -c "
+        # Helper: check if daemon JSON exists and scheduler is reachable
+        _daemon_responsive() {
+            python3 -c "
 import os, json, socket
 if os.path.exists('$SCHEDULER_JSON'):
     try:
@@ -336,16 +334,29 @@ if os.path.exists('$SCHEDULER_JSON'):
     except Exception:
         pass
 exit(1)
-" 2>/dev/null; then
+" 2>/dev/null
+        }
+
+        # Fast path: shared lock — multiple jobs can check simultaneously
+        exec 9>"$SCHEDULER_LOCK"
+        flock -s 9
+        local _daemon_ok=false
+        _daemon_responsive && _daemon_ok=true
+        flock -u 9
+
+        if ! $_daemon_ok; then
+            # Slow path: exclusive lock to spawn the daemon (only one job does this)
+            flock -x 9
+            # Re-check under exclusive lock in case another job just spawned it
+            if ! _daemon_responsive; then
                 info "Shared Dask daemon not running or unresponsive. Spawning in background on host..."
-                # Remove stale JSON if any
                 rm -f "$SCHEDULER_JSON"
-                
+
                 # Reconstruct clean runner.py daemon command
                 local DASK_FLAG=""
                 local CONFIG_FILE=""
                 local TMP_DIR=""
-                
+
                 local i=1
                 while [ $i -le $# ]; do
                     eval arg=\$\{$i\}
@@ -364,45 +375,32 @@ exit(1)
                     esac
                     i=$((i+1))
                 done
-                
+
                 # Spawn daemon in the background on the host
                 (
                     exec 9>&-
                     nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
                 )
-                
-                # Wait a few seconds for the daemon to start and write the JSON file
-                local count=0
-                while [ $count -lt 120 ]; do
-                    if [ -f "$SCHEDULER_JSON" ]; then
-                        # Check if it has become responsive
-                        if python3 -c "
-import os, json, socket
-try:
-    with open('$SCHEDULER_JSON') as f:
-        addr = json.load(f)['address']
-    host, port = addr.replace('tcp://', '').split(':')
-    s = socket.create_connection((host, int(port)), timeout=2)
-    s.close()
-    exit(0)
-except Exception:
-    exit(1)
-" 2>/dev/null; then
-                            info "Shared Dask daemon is now running and responsive."
-                            break
-                        fi
-                    fi
-                    sleep 1
-                    count=$((count+1))
-                done
-                if [ $count -eq 120 ]; then
-                    warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
-                fi
             else
                 info "Shared Dask daemon is already running and responsive."
             fi
-            # Release lock
             flock -u 9
+
+            # Wait outside the lock for the daemon to become responsive
+            local count=0
+            while [ $count -lt 120 ]; do
+                if _daemon_responsive; then
+                    info "Shared Dask daemon is now running and responsive."
+                    break
+                fi
+                sleep 1
+                count=$((count+1))
+            done
+            if [ $count -eq 120 ]; then
+                warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+            fi
+        else
+            info "Shared Dask daemon is already running and responsive."
         fi
         exec 9>&-
     fi
@@ -926,7 +924,18 @@ run_snakemake() {
         fi
     done
     if [ "$HAS_PROFILE" = false ]; then
+        # Use lpc_combine profile for combine/stat-analysis workflows; base profile for everything else.
         local AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}"
+        local IS_COMBINE=false
+        for arg in "${ARGS[@]}"; do
+            if [[ "$arg" == *combine.smk* || "$arg" == *stat_analysis* || "$arg" == *Snakefile_combine* ]]; then
+                IS_COMBINE=true
+                break
+            fi
+        done
+        if $IS_COMBINE && [ -d "${PROFILE_DIR}/${CLUSTER_PROFILE}_combine" ]; then
+            AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}_combine"
+        fi
         if [ -d "$AUTO_PROFILE" ]; then
             info "Auto-injecting Snakemake profile: $AUTO_PROFILE"
             ARGS=("--profile" "$AUTO_PROFILE" "${ARGS[@]}")

@@ -198,6 +198,8 @@ notes/
 .cmslpc-local.conf
 .claude/
 .gemini/
+.context/
 .pourover_*/
 pourover_output/
 .pytest*/
+apptainer_env.sh
