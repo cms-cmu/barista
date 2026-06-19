@@ -1151,9 +1151,17 @@ def setup_shared_dask_client(args, config_runner):
             time.sleep(1)
 
         if not data:
+            # Print daemon log to help diagnose why it failed to start
+            if os.path.exists(daemon_log_path):
+                try:
+                    with open(daemon_log_path) as f:
+                        tail = f.read()[-4000:]
+                    logging.error(f"Dask daemon log ({daemon_log_path}):\n{tail}")
+                except Exception:
+                    pass
             raise RuntimeError(
                 f"Dask scheduler connection file not found: {scheduler_json_path}. "
-                f"Make sure the daemon is running and has started successfully."
+                f"Check the daemon log at {daemon_log_path} for details."
             )
 
         address = data["address"]
