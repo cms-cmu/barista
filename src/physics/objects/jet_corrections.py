@@ -232,6 +232,7 @@ def apply_jerc_corrections_jsonpog(
     jet_type: str = "AK4PFchs",
     seeds=("JER",),
     jet_corr_factor: float = 1.0,
+    collection: str = "Jet",
 ):
     """Apply JEC/JER corrections from a CMS JSON-POG file via correctionlib.
 
@@ -269,6 +270,8 @@ def apply_jerc_corrections_jsonpog(
         jet_type:            Jet algorithm label, e.g. ``"AK4PFchs"``.
         seeds:               Seed sequence for the deterministic JER RNG.
         jet_corr_factor:     Multiplicative factor on raw pt/mass (default 1).
+        collection:          NanoAOD jet collection name (default ``"Jet"``; use
+                             ``"FatJet"`` for AK8 jets, etc.).
 
     Returns:
         Awkward array with the same structure as :func:`apply_jerc_corrections`.
@@ -311,9 +314,10 @@ def apply_jerc_corrections_jsonpog(
     key_suffix = f"_{jet_type}"
 
     # ── prepare raw quantities (identical to apply_jerc_corrections) ──────────
-    event["Jet", "pt_raw"]   = (1 - event.Jet.rawFactor) * event.Jet.pt   * jet_corr_factor
-    event["Jet", "mass_raw"] = (1 - event.Jet.rawFactor) * event.Jet.mass * jet_corr_factor
-    nominal_jet = event.Jet
+    jets = event[collection]
+    event[collection, "pt_raw"]   = (1 - jets.rawFactor) * jets.pt   * jet_corr_factor
+    event[collection, "mass_raw"] = (1 - jets.rawFactor) * jets.mass * jet_corr_factor
+    nominal_jet = event[collection]
     if isMC:
         nominal_jet["pt_gen"] = ak.values_astype(
             ak.fill_none(nominal_jet.matched_gen.pt, 0), np.float32

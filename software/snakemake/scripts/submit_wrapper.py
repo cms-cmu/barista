@@ -758,7 +758,7 @@ def main():
     if not (run_on_condor and rule in CONDOR_ELIGIBLE_RULES):
         print(f"[submit_wrapper] Running rule '{rule}' locally on login node (run_on_condor={run_on_condor})...", file=sys.stderr)
         try:
-            result = subprocess.run(["/bin/bash", jobscript])
+            result = subprocess.run(["/bin/bash", jobscript], stdout=sys.stderr)
             print(f"local_job_{rule}_{jobid}")
             sys.exit(result.returncode)
         except Exception as e:

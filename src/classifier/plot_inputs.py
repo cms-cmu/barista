@@ -27,6 +27,12 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+try:
+    import mplhep as hep
+    plt.style.use([hep.style.CMS, {"font.size": 16}])
+except ImportError:
+    print("Warning: mplhep not found. Using default matplotlib style.")
+
 
 
 # --------------------------------------------------------------------------- #
@@ -103,6 +109,10 @@ def parse_args():
     p.add_argument(
         "--metadata", required=True,
         help="path@@key to the metadata JSON (e.g. path/to/file.json@@HCR_input_lowpt)",
+    )
+    p.add_argument(
+        "--compare-metadata", default=None,
+        help="optional second path@@key to compare with the first metadata",
     )
     p.add_argument(
         "--output-dir", default="output/classifier_input_plots",
@@ -202,6 +212,287 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
 # --------------------------------------------------------------------------- #
 # main
 # --------------------------------------------------------------------------- #
+def plot_comparison_raw(args, saved, files_by_label, files_by_label_compare):
+    """Plot comparison of raw input branches between two datasets, split by label."""
+    labels = saved["label"]
+    input_cfg = saved["input"]
+    groups = _branch_groups(input_cfg)
+    all_branches = [b for bs in groups.values() for b in bs]
+    n_canjet = 4
+    n_notcanjet = input_cfg.get("n_NotCanJet", 8)
+
+    data_nom = {}
+    data_comp = {}
+
+    for label in labels:
+        paths_nom = files_by_label.get(label, [])
+        paths_comp = files_by_label_compare.get(label, [])
+
+        if not paths_nom and not paths_comp:
+            continue
+
+        if paths_nom:
+            print(f"Reading {len(paths_nom)} nominal files for {label}...")
+            data_nom[label] = read_branches(
+                paths_nom, all_branches, n_canjet=n_canjet, n_notcanjet=n_notcanjet
+            )
+        if paths_comp:
+            print(f"Reading {len(paths_comp)} comparison files for {label}...")
+            data_comp[label] = read_branches(
+                paths_comp, all_branches, n_canjet=n_canjet, n_notcanjet=n_notcanjet
+            )
+
+    raw_dir = os.path.join(args.output_dir, "raw")
+    if not raw_dir.startswith("root://"):
+        os.makedirs(raw_dir, exist_ok=True)
+
+    for label in labels:
+        if label not in data_nom and label not in data_comp:
+            continue
+        
+        # Ensure label directory exists
+        label_dir = os.path.join(raw_dir, label)
+        if not label_dir.startswith("root://"):
+            os.makedirs(label_dir, exist_ok=True)
+
+        for group_name, branches in groups.items():
+            for branch in branches:
+                if group_name == "CanJet":
+                    n_jets = n_canjet
+                elif group_name == "NotCanJet":
+                    n_jets = n_notcanjet
+                else:
+                    n_jets = 0
+
+                if n_jets > 0:
+                    for jet_idx in range(n_jets):
+                        vals_nom = np.array([])
+                        vals_comp = np.array([])
+
+                        if label in data_nom:
+                            arr = data_nom[label].get(branch, np.array([]))
+                            if arr.size > 0 and arr.ndim >= 2:
+                                vals_nom = arr[:, jet_idx]
+                                vals_nom = vals_nom[np.isfinite(vals_nom)]
+                                if group_name == "NotCanJet":
+                                    vals_nom = vals_nom[vals_nom != -1]
+
+                        if label in data_comp:
+                            arr = data_comp[label].get(branch, np.array([]))
+                            if arr.size > 0 and arr.ndim >= 2:
+                                vals_comp = arr[:, jet_idx]
+                                vals_comp = vals_comp[np.isfinite(vals_comp)]
+                                if group_name == "NotCanJet":
+                                    vals_comp = vals_comp[vals_comp != -1]
+
+                        if vals_nom.size == 0 and vals_comp.size == 0:
+                            continue
+
+                        # Compute shared bins
+                        bins = _shared_bins([vals_nom, vals_comp], args.nbins)
+
+                        # Clip values to bin boundaries to display underflow and overflow
+                        v_nom_plot = np.clip(vals_nom, bins[0], bins[-1]) if vals_nom.size > 0 else vals_nom
+                        v_comp_plot = np.clip(vals_comp, bins[0], bins[-1]) if vals_comp.size > 0 else vals_comp
+
+                        fig, ax = plt.subplots(figsize=(8, 6))
+                        if v_nom_plot.size > 0:
+                            ax.hist(
+                                v_nom_plot, bins=bins, histtype="step", density=True,
+                                label="Nominal", color="C0", linestyle="-", linewidth=2.0
+                            )
+                        if v_comp_plot.size > 0:
+                            ax.hist(
+                                v_comp_plot, bins=bins, histtype="step", density=True,
+                                label="Low-pt (Compare)", color="C1", linestyle="--", linewidth=2.0
+                            )
+                        ax.set_xlabel(f"{branch}[{jet_idx}]")
+                        ax.set_ylabel("Density")
+                        ax.set_title(f"{label} Raw: {branch} — jet {jet_idx}")
+                        ax.legend(loc="best")
+                        fig.tight_layout()
+                        _save_fig(fig, label_dir, f"{branch}_jet{jet_idx}.png")
+                        plt.close(fig)
+                        print(f"  Saved {label}/{branch}_jet{jet_idx}.png")
+                else:
+                    # Scalar branch
+                    vals_nom = np.array([])
+                    vals_comp = np.array([])
+
+                    if label in data_nom:
+                        arr = data_nom[label].get(branch, np.array([]))
+                        if arr.size > 0:
+                            vals_nom = arr[np.isfinite(arr)]
+
+                    if label in data_comp:
+                        arr = data_comp[label].get(branch, np.array([]))
+                        if arr.size > 0:
+                            vals_comp = arr[np.isfinite(arr)]
+
+                    if vals_nom.size == 0 and vals_comp.size == 0:
+                        continue
+
+                    bins = _shared_bins([vals_nom, vals_comp], args.nbins)
+
+                    v_nom_plot = np.clip(vals_nom, bins[0], bins[-1]) if vals_nom.size > 0 else vals_nom
+                    v_comp_plot = np.clip(vals_comp, bins[0], bins[-1]) if vals_comp.size > 0 else vals_comp
+
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    if v_nom_plot.size > 0:
+                        ax.hist(
+                            v_nom_plot, bins=bins, histtype="step", density=True,
+                            label="Nominal", color="C0", linestyle="-", linewidth=2.0
+                        )
+                    if v_comp_plot.size > 0:
+                        ax.hist(
+                            v_comp_plot, bins=bins, histtype="step", density=True,
+                            label="Low-pt (Compare)", color="C1", linestyle="--", linewidth=2.0
+                        )
+                    ax.set_xlabel(branch)
+                    ax.set_ylabel("Density")
+                    ax.set_title(f"{label} Raw: {branch}")
+                    ax.legend(loc="best")
+                    fig.tight_layout()
+                    _save_fig(fig, label_dir, f"{branch}.png")
+                    plt.close(fig)
+                    print(f"  Saved {label}/{branch}.png")
+
+
+def plot_comparison_dataprep(args, saved, files_by_label, files_by_label_compare):
+    """Run dataPrep on raw inputs and plot the comparison of transformed features."""
+    import torch
+
+    nn = _build_model(saved)
+    input_embed = nn.inputEmbed
+    labels = saved["label"]
+    input_cfg = saved["input"]
+    ancillary_names = list(input_cfg["feature_ancillary"])
+
+    # dataPrep output tensor descriptions
+    tensor_info = {
+        "j": ["log(1+pt)", "eta", "deltaPhi", "log(1+mass)"],
+        "d": ["log(1+pt)", "eta", "deltaPhi", "log(1+mass)"],
+        "q": ["log(1+pt)", "eta", "log(1+mass)"],
+        "a": [_ancillary_post_name(n) for n in ancillary_names],
+        "o": ["log(1+pt)", "eta", "log(1+mass)", "isSelJet/isCanJet"],
+    }
+
+    # Run dataPrep for both
+    res_nom = {}
+    res_comp = {}
+
+    for label in labels:
+        paths_nom = files_by_label.get(label, [])
+        paths_comp = files_by_label_compare.get(label, [])
+
+        if not paths_nom and not paths_comp:
+            continue
+
+        if paths_nom:
+            print(f"Building nominal tensors for {label} ({len(paths_nom)} files)...")
+            j_n, o_n, a_n = _build_tensors(paths_nom, input_cfg)
+            if j_n is not None:
+                print(f"  Running nominal dataPrep ({j_n.shape[0]} events)...")
+                with torch.no_grad():
+                    j_out, d_out, q_out, a_out, o_out, *_ = input_embed.dataPrep(j_n, o_n, a_n)
+                res_nom[label] = {
+                    "j": j_out.numpy(),
+                    "d": d_out.numpy(),
+                    "q": q_out.numpy(),
+                    "a": a_out.numpy(),
+                    "o": o_out.numpy() if o_out is not None else None,
+                }
+
+        if paths_comp:
+            print(f"Building comparison tensors for {label} ({len(paths_comp)} files)...")
+            j_c, o_c, a_c = _build_tensors(paths_comp, input_cfg)
+            if j_c is not None:
+                print(f"  Running comparison dataPrep ({j_c.shape[0]} events)...")
+                with torch.no_grad():
+                    j_out, d_out, q_out, a_out, o_out, *_ = input_embed.dataPrep(j_c, o_c, a_c)
+                res_comp[label] = {
+                    "j": j_out.numpy(),
+                    "d": d_out.numpy(),
+                    "q": q_out.numpy(),
+                    "a": a_out.numpy(),
+                    "o": o_out.numpy() if o_out is not None else None,
+                }
+
+    dp_dir = os.path.join(args.output_dir, "dataprep")
+    if not dp_dir.startswith("root://"):
+        os.makedirs(dp_dir, exist_ok=True)
+
+    for label in labels:
+        if label not in res_nom and label not in res_comp:
+            continue
+
+        label_dir = os.path.join(dp_dir, label)
+        if not label_dir.startswith("root://"):
+            os.makedirs(label_dir, exist_ok=True)
+
+        for tensor_name, feat_names in tensor_info.items():
+            for feat_idx, feat_name in enumerate(feat_names):
+                # Determine number of objects in the tensor
+                n_objs = 0
+                if label in res_nom and res_nom[label][tensor_name] is not None:
+                    n_objs = res_nom[label][tensor_name].shape[2]
+                elif label in res_comp and res_comp[label][tensor_name] is not None:
+                    n_objs = res_comp[label][tensor_name].shape[2]
+
+                for obj_idx in range(n_objs):
+                    vals_nom = np.array([])
+                    vals_comp = np.array([])
+
+                    if label in res_nom:
+                        tensor = res_nom[label][tensor_name]
+                        if tensor is not None and obj_idx < tensor.shape[2]:
+                            vals_nom = tensor[:, feat_idx, obj_idx]
+                            vals_nom = vals_nom[np.isfinite(vals_nom)]
+
+                    if label in res_comp:
+                        tensor = res_comp[label][tensor_name]
+                        if tensor is not None and obj_idx < tensor.shape[2]:
+                            vals_comp = tensor[:, feat_idx, obj_idx]
+                            vals_comp = vals_comp[np.isfinite(vals_comp)]
+
+                    if vals_nom.size == 0 and vals_comp.size == 0:
+                        continue
+
+                    bins = _shared_bins([vals_nom, vals_comp], args.nbins)
+
+                    v_nom_plot = np.clip(vals_nom, bins[0], bins[-1]) if vals_nom.size > 0 else vals_nom
+                    v_comp_plot = np.clip(vals_comp, bins[0], bins[-1]) if vals_comp.size > 0 else vals_comp
+
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    if v_nom_plot.size > 0:
+                        ax.hist(
+                            v_nom_plot, bins=bins, histtype="step", density=True,
+                            label="Nominal", color="C0", linestyle="-", linewidth=2.0
+                        )
+                    if v_comp_plot.size > 0:
+                        ax.hist(
+                            v_comp_plot, bins=bins, histtype="step", density=True,
+                            label="Low-pt (Compare)", color="C1", linestyle="--", linewidth=2.0
+                        )
+                    
+                    obj_label = f" (obj {obj_idx})" if n_objs > 1 else ""
+                    ax.set_xlabel(f"{tensor_name}[{feat_idx}]{obj_label}: {feat_name}")
+                    ax.set_ylabel("Density")
+                    ax.set_title(f"{label} dataPrep: {tensor_name} — {feat_name}{obj_label}")
+                    ax.legend(loc="best")
+                    fig.tight_layout()
+                    
+                    safe_name = feat_name.replace("(", "").replace(")", "").replace("+", "p").replace("/", "_").replace(" ", "_")
+                    if n_objs > 1:
+                        filename = f"{tensor_name}_{feat_idx}_{safe_name}_obj{obj_idx}.png"
+                    else:
+                        filename = f"{tensor_name}_{feat_idx}_{safe_name}.png"
+                        
+                    _save_fig(fig, label_dir, filename)
+                    plt.close(fig)
+                    print(f"  Saved {label}/{filename}")
+
+
 def main():
     args = parse_args()
     saved = load_checkpoint(args.checkpoint)
@@ -220,10 +511,24 @@ def main():
     for label, paths in files_by_label.items():
         print(f"  {label}: {len(paths)} files")
 
-    if args.mode == "raw":
-        plot_raw(args, saved, files_by_label)
+    if args.compare_metadata:
+        compare_path, compare_key = parse_metadata_arg(args.compare_metadata)
+        files_by_label_compare = load_friend_files_by_label(
+            compare_path, compare_key, labels, args.max_files, label_patterns
+        )
+        print("Comparison dataset files loaded:")
+        for label, paths in files_by_label_compare.items():
+            print(f"  {label}: {len(paths)} files")
+
+        if args.mode == "raw":
+            plot_comparison_raw(args, saved, files_by_label, files_by_label_compare)
+        else:
+            plot_comparison_dataprep(args, saved, files_by_label, files_by_label_compare)
     else:
-        plot_dataprep(args, saved, files_by_label)
+        if args.mode == "raw":
+            plot_raw(args, saved, files_by_label)
+        else:
+            plot_dataprep(args, saved, files_by_label)
 
 
 LABEL_COLORS = ["C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"]
@@ -513,6 +818,9 @@ def _build_model(saved):
     from src.classifier.ml.models.HCR import HCRArch
 
     arch = HCRArch.load(saved["arch"])
+    if "offsets" in saved["model"]:
+        from coffea4bees.classifier.model.HCR_lowpt import HCR_lowpt as HCRNet
+
     nn = HCRNet(
         dijetFeatures=arch.n_features,
         quadjetFeatures=arch.n_features,
