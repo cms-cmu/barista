@@ -490,6 +490,12 @@ def setup_condor_cluster(config_runner, tarball_path):
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
         cluster_args['log_directory'] = config_runner['worker_log_directory']
+    
+    if os.path.exists("barista.sif"):
+        logging.info("Local barista.sif detected in workspace. Configuring LPCCondorCluster to use and transfer it...")
+        cluster_args['image'] = 'barista.sif'
+        cluster_args['transfer_input_files'].append('barista.sif')
+
     logging.info("Cluster arguments: ")
     logging.info(pretty_repr(cluster_args))
 

@@ -33,7 +33,7 @@ RUN micromamba install -y -n base -c conda-forge \
     dask-awkward \
     xrootd \
     voms \
-    "htcondor=10.*" \
+    htcondor \
     nodejs \
     "pytorch=2.5.1" \
     rucio-clients \
@@ -119,3 +119,7 @@ RUN printf "try:\n\
         torch.serialization.add_safe_globals(safe_classes)\n\
 except Exception:\n\
     pass\n" > /opt/conda/lib/python3.12/site-packages/sitecustomize.py
+
+# Create htcondor->htcondor2 compatibility shim for lpcjobqueue
+RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor && \
+    echo "from htcondor2 import *; from htcondor2 import param, Schedd, Collector, Submit, JobEventLog, JobAction, DaemonType, AdTypes" > /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py
