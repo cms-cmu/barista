@@ -481,7 +481,6 @@ def setup_condor_cluster(config_runner, tarball_path):
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
-            f"--death-timeout {config_runner.get('death_timeout', 300)}",
         ],
         'job_extra_directives': {
             'leave_in_queue': 'False',
@@ -531,13 +530,25 @@ def setup_condor_cluster(config_runner, tarball_path):
             return None
 
         def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred" or worker is None:
+            if finish != "erred":
                 return
-            log_file = self._find_log(worker)
-            if log_file:
-                logging.error(f"Task permanently failed: {key} -> {log_file}")
-            else:
-                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+            exc = kwargs.get("exception")
+            exc_text = None
+            if exc is not None:
+                try:
+                    from distributed.protocol import deserialize
+                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
+                    exc_text = repr(err)
+                except Exception:
+                    exc_text = repr(exc)
+            if exc_text:
+                logging.error(f"Task failed: {key}: {exc_text}")
+            elif worker is not None:
+                log_file = self._find_log(worker)
+                if log_file:
+                    logging.error(f"Task permanently failed: {key} -> {log_file}")
+                else:
+                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
 
     client.register_plugin(WorkerLostLogger())
 
@@ -1013,19 +1024,6 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             # per worker, the in-process dict grows unboundedly and contributes
             # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
-
-        # SimpleCheckpointer wiring is opt-in via --checkpoint-dir.
-        # NOTE: not usable under --condor at LPC because workers can't write to
-        # the shared filesystem (only EOS would work for that). Auto-resubmit at
-        # the chunk level is handled by bbreww/scripts/submit_all_run3.sh
-        # instead. The flag is retained for local/futures runs.
-        if getattr(args, 'checkpoint_dir', None):
-            from coffea.processor import SimpleCheckpointer
-            os.makedirs(args.checkpoint_dir, exist_ok=True)
-            logging.info(f"Checkpointing enabled, checkpoint_dir={args.checkpoint_dir}")
-            runner_kwargs['checkpointer'] = SimpleCheckpointer(
-                checkpoint_dir=args.checkpoint_dir, verbose=True
-            )
         runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
@@ -1197,6 +1195,7 @@ def setup_shared_dask_client(args, config_runner):
             try:
                 client = Client(address, timeout="5s")
                 logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                logging.info(f"Dask dashboard: {client.dashboard_link}")
                 log_daemon_info(data)
                 return client, None
             except Exception as e:
@@ -1434,12 +1433,6 @@ if __name__ == '__main__':
         dest="scheduler_address",
         default=None,
         help='Address of an existing Dask scheduler to connect to (e.g. tcp://IP:PORT)'
-        '--checkpoint-dir',
-        dest="checkpoint_dir",
-        default=None,
-        help='Directory for SimpleCheckpointer to save/load chunk outputs (coffea_2025 only). '
-             'Reuse the same path to resume a crashed/killed run; use a fresh path for a new run. '
-             'If unset, no checkpointing is performed.'
     )
     # Debugging and quality control
     debug_group = parser.add_argument_group('Debugging and Quality Control')
@@ -1726,8 +1719,17 @@ if __name__ == '__main__':
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
-        with performance_report(filename=dask_report_file):
+        # Don't let the report's teardown RPC (which can hit a reset connection on
+        # a shared scheduler) crash an already-finished job.
+        _cm = performance_report(filename=dask_report_file)
+        _cm.__enter__()
+        try:
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        finally:
+            try:
+                _cm.__exit__(None, None, None)
+            except OSError as e:
+                logging.warning(f"Dask performance report failed (results unaffected): {e}")
 
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
