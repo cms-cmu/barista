@@ -33,7 +33,7 @@ RUN micromamba install -y -n base -c conda-forge \
     dask-awkward \
     xrootd \
     voms \
-    "htcondor<25" \
+    "htcondor=10.*" \
     nodejs \
     "pytorch=2.5.1" \
     rucio-clients \
