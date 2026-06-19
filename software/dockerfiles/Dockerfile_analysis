@@ -80,41 +80,40 @@ RUN printf "try:\n\
     import torch\n\
     import numpy as np\n\
     import sys\n\
-    safe_list = []\n\
+    safe_classes = []\n\
     for module_name in ['numpy.core.multiarray', 'numpy._core.multiarray']:\n\
+        for attr in ['scalar', '_reconstruct']:\n\
+            safe_classes.append(type(attr, (), {'__module__': module_name}))\n\
+    for attr in dir(np):\n\
         try:\n\
-            __import__(module_name)\n\
-            mod = sys.modules[module_name]\n\
-            for attr in ['scalar', '_reconstruct']:\n\
-                if hasattr(mod, attr):\n\
-                    safe_list.append(getattr(mod, attr))\n\
-        except Exception:\n\
-            pass\n\
+            val = getattr(np, attr)\n\
+            if isinstance(val, type):\n\
+                safe_classes.append(val)\n\
+                module = val.__module__\n\
+                if module:\n\
+                    if module.startswith('numpy._core'):\n\
+                        legacy_module = module.replace('numpy._core', 'numpy.core')\n\
+                        safe_classes.append(type(val.__name__, (), {'__module__': legacy_module}))\n\
+                    elif module.startswith('numpy.core'):\n\
+                        new_module = module.replace('numpy.core', 'numpy._core')\n\
+                        safe_classes.append(type(val.__name__, (), {'__module__': new_module}))\n\
+        except Exception: pass\n\
     if hasattr(np, 'dtypes'):\n\
         for attr in dir(np.dtypes):\n\
             try:\n\
                 val = getattr(np.dtypes, attr)\n\
-                if isinstance(val, type): safe_list.append(val)\n\
+                if isinstance(val, type):\n\
+                    safe_classes.append(val)\n\
+                    module = val.__module__\n\
+                    if module:\n\
+                        if module.startswith('numpy._core'):\n\
+                            legacy_module = module.replace('numpy._core', 'numpy.core')\n\
+                            safe_classes.append(type(val.__name__, (), {'__module__': legacy_module}))\n\
+                        elif module.startswith('numpy.core'):\n\
+                            new_module = module.replace('numpy.core', 'numpy._core')\n\
+                            safe_classes.append(type(val.__name__, (), {'__module__': new_module}))\n\
             except Exception: pass\n\
-    for attr in dir(np):\n\
-        try:\n\
-            val = getattr(np, attr)\n\
-            if isinstance(val, type): safe_list.append(val)\n\
-        except Exception: pass\n\
-    unique_safe = list(set(safe_list))\n\
-    final_safe = []\n\
-    for f in unique_safe:\n\
-        final_safe.append(f)\n\
-        if hasattr(f, '__module__') and hasattr(f, '__qualname__'):\n\
-            module = f.__module__\n\
-            name = f.__qualname__\n\
-            if module.startswith('numpy._core'):\n\
-                legacy_module = module.replace('numpy._core', 'numpy.core')\n\
-                final_safe.append((f, legacy_module + '.' + name))\n\
-            elif module.startswith('numpy.core'):\n\
-                new_module = module.replace('numpy.core', 'numpy._core')\n\
-                final_safe.append((f, new_module + '.' + name))\n\
-    if final_safe and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
-        torch.serialization.add_safe_globals(final_safe)\n\
+    if safe_classes and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
+        torch.serialization.add_safe_globals(safe_classes)\n\
 except Exception:\n\
     pass\n" > /opt/conda/lib/python3.12/site-packages/sitecustomize.py
