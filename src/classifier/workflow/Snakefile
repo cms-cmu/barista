@@ -41,8 +41,8 @@ PLOT_BASE = config["plot_base"]
 
 # ── Container images ──────────────────────────────────────────────────────────
 
-CLASSIFIER_GPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
-CLASSIFIER_CPU = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_cpu_latest"
+CLASSIFIER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
 
 INIT = "set -e && set +u && source /entrypoint.sh && set -u && export PYTHONUNBUFFERED=1"
 
@@ -75,7 +75,7 @@ rule train:
         flag = f"{OUTPUT_DIR}/train.done",
     log:
         f"{OUTPUT_DIR}/train.log",
-    container: CLASSIFIER_GPU
+    container: CLASSIFIER
     resources:
         runtime = 240,
         mem_mb  = 32000,
@@ -108,7 +108,7 @@ rule analyze:
         flag = f"{OUTPUT_DIR}/analyze.done",
     log:
         f"{OUTPUT_DIR}/analyze.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
@@ -141,7 +141,7 @@ rule evaluate:
         flag = f"{OUTPUT_DIR}/evaluate.done",
     log:
         f"{OUTPUT_DIR}/evaluate.log",
-    container: CLASSIFIER_GPU
+    container: CLASSIFIER
     resources:
         runtime = 240,
         mem_mb  = 32000,
@@ -176,7 +176,7 @@ rule plot_inputs_raw:
         flag = f"{OUTPUT_DIR}/plot_inputs_raw.done",
     log:
         f"{OUTPUT_DIR}/plot_inputs_raw.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
@@ -208,7 +208,7 @@ rule plot_inputs_dataprep:
         flag = f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
     log:
         f"{OUTPUT_DIR}/plot_inputs_dataprep.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,

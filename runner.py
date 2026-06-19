@@ -502,6 +502,11 @@ def setup_condor_cluster(config_runner, tarball_path):
     logging.info("Creating Dask client...")
     client = Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
+    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
+    # LPCCondorCluster, so it carries no host.  Log the scheduler host
+    # explicitly so monitors (barista_console / runner_monitor) can build a
+    # reachable URL when they run on a different node than the scheduler.
+    logging.info(f"Dask scheduler host: {socket.gethostname()}")
 
     log_dir = cluster_args['log_directory']
     logging.info(f"Condor worker log directory: {log_dir}")
@@ -601,6 +606,11 @@ def setup_slurm_cluster(config_runner):
 
     client = Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
+    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
+    # LPCCondorCluster, so it carries no host.  Log the scheduler host
+    # explicitly so monitors (barista_console / runner_monitor) can build a
+    # reachable URL when they run on a different node than the scheduler.
+    logging.info(f"Dask scheduler host: {socket.gethostname()}")
     logging.info(f"SLURM worker log directory: {log_dir}")
 
     logging.info("SLURM cluster setup complete!")
@@ -622,6 +632,11 @@ def setup_local_cluster(config_runner):
     cluster = LocalCluster(**cluster_args)
     client = Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
+    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
+    # LPCCondorCluster, so it carries no host.  Log the scheduler host
+    # explicitly so monitors (barista_console / runner_monitor) can build a
+    # reachable URL when they run on a different node than the scheduler.
+    logging.info(f"Dask scheduler host: {socket.gethostname()}")
     if dashboard_addr != 0:
         logging.info(f"  SSH tunnel:   ssh -L {dashboard_addr}:<compute_node>:{dashboard_addr} <login_node>")
     return client, cluster
@@ -1700,3 +1715,5 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
+    os._exit(0)
+

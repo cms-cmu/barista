@@ -7,6 +7,16 @@
     EXTRA_TAGS: "test"
     BUILD_ARGS: ""
   script:
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
+    - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export BUILDAH_FORMAT=docker
     - export STORAGE_DRIVER=vfs
@@ -81,9 +91,17 @@ build_container_coffea0_7:
 deploy_container:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_container
   script:
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
+    - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
@@ -99,9 +117,17 @@ deploy_container:
 deploy_container_coffea0_7:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_container_coffea0_7
   script:
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
+    - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG}
@@ -130,7 +156,7 @@ deploy_container_coffea0_7:
 #       - software/dockerfiles/Dockerfile_analysis
 
 
-build_classifier_gpu_container:
+build_classifier_container:
   extends:
     - .buildah
   before_script:
@@ -138,113 +164,46 @@ build_classifier_gpu_container:
     - echo $REGISTRY_IMAGE_PATH
     - cd software/dockerfiles/ml/
   variables:
-    DOCKER_FILE_NAME: "Dockerfile.ml_gpu"
+    DOCKER_FILE_NAME: "Dockerfile.ml"
     EXTRA_TAGS: "classifier_test"
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-      - software/dockerfiles/ml/Dockerfile.ml_gpu
-      - software/dockerfiles/ml/env_ml_gpu.yml
+      - software/dockerfiles/ml/Dockerfile.ml
+      - software/dockerfiles/ml/env_ml.yml
 
-deploy_classifier_gpu_container:
+deploy_classifier_container:
   stage: deploy
   image: quay.io/buildah/stable
-  needs:
-    - build_classifier_gpu_container
   script:
+    - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
+    - export TMPDIR=${CI_PROJECT_DIR}/tmp
+    - |
+      cat <<EOF > ${CI_PROJECT_DIR}/storage.conf
+      [storage]
+      driver = "vfs"
+      runroot = "${CI_PROJECT_DIR}/buildah_runroot"
+      graphroot = "${CI_PROJECT_DIR}/buildah_root"
+      EOF
+    - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
-    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_latest
-    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_latest
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_latest
+        buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_latest
+      else
+        buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_unify_test
+        buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_unify_test
+      fi
   rules:
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - software/dockerfiles/ml/Dockerfile.ml_gpu
-        - software/dockerfiles/ml/env_ml_gpu.yml
-
-build_classifier_cpu_container:
-  extends:
-    - .buildah
-  before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_cpu_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
-    - echo $REGISTRY_IMAGE_PATH
-    - cd software/dockerfiles/ml/
-  variables:
-    DOCKER_FILE_NAME: "Dockerfile.ml_cpu"
-    EXTRA_TAGS: "classifier_cpu_test"
-  after_script:
-    - echo "CLASSIFIER_IMAGE_TAG=classifier_cpu_test" > build_classifier.env
-  artifacts:
-    reports:
-      dotenv: build_classifier.env
-  rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-      - software/dockerfiles/ml/Dockerfile.ml_cpu
-      - software/dockerfiles/ml/env_ml_cpu.yml
-
-
-deploy_classifier_cpu_container:
-  stage: deploy
-  image: quay.io/buildah/stable
-  needs:
-    - build_classifier_cpu_container
-  script:
-    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-    - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_cpu_test
-    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_cpu_test ${CI_REGISTRY_IMAGE}:classifier_cpu_latest
-    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_cpu_latest
-  rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - software/dockerfiles/ml/Dockerfile.ml_cpu
-        - software/dockerfiles/ml/env_ml_cpu.yml
-
-build_classifier_gpu_container_lpc:
-  extends:
-    - .buildah
-  before_script:
-    - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
-    - echo $REGISTRY_IMAGE_PATH
-    - cd software/dockerfiles/ml/
-  variables:
-    DOCKER_FILE_NAME: "Dockerfile.ml_gpu"
-    EXTRA_TAGS: "classifier_test"
-    BUILD_ARGS: "CUDA_VERSION=12.6"
-  rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-      - software/dockerfiles/ml/Dockerfile.ml_gpu
-      - software/dockerfiles/ml/env_ml_gpu.yml
-
-
-deploy_classifier_gpu_container_lpc:
-  stage: deploy
-  image: quay.io/buildah/stable
-  needs:
-    - build_classifier_gpu_container_lpc
-  script:
-    - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-    - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
-    - buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_lpc_latest
-    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_lpc_latest
-  rules:
-    - if: $RECREATE_CONTAINERS == "true"
-    - if: $CI_COMMIT_BRANCH =~ /^container.*/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - software/dockerfiles/ml/Dockerfile.ml_gpu
-        - software/dockerfiles/ml/env_ml_gpu.yml
+        - software/dockerfiles/ml/Dockerfile.ml
+        - software/dockerfiles/ml/env_ml.yml
+    - if: $CI_COMMIT_BRANCH == "master"

@@ -28,14 +28,14 @@ dependencies:
   # benchmarks
   - scalene=1.5.51
   # Scikit-HEP
-  - uproot=5.7.3
-  - awkward=2.9.0
-  - awkward-pandas=2023.8.0
+  - uproot>=5.0
+  - awkward>=2.0
+  - awkward-pandas
   - hist=2.10.1
   - particle=0.26.1
   - correctionlib=2.8.0
   # machine learning
-  - pytorch-cpu=2.10.0
+  - pytorch-gpu=2.10.0
   - scikit-learn=1.8.0
   # grid certificate
   - ca-policy-lcg=1.139
@@ -52,8 +52,3 @@ dependencies:
       - pyvis==0.3.2
       - dbs3-client==4.0.19
       - rucio-clients==39.4.1
-  # test tools
-  - socat=1.8.1.1
-  - pyroute2=0.9.5
-  - libfaketime=0.9.8
-  - watchdog=6.0.0

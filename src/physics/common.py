@@ -64,7 +64,13 @@ def apply_btag_sf( jets,
                     ak.to_numpy(flat_jets.hadronFlavour),
                     ak.to_numpy(np.abs(flat_jets.eta)),
                     ak.to_numpy(flat_jets.pt),
-                    ak.to_numpy(flat_jets.btagScore)
+                    # Clamp the b-tag discriminant into the SF binning range. Some
+                    # selected jets carry the NanoAOD default btagPNetB = -1 (PNet
+                    # value unavailable); these sit below every working point (i.e.
+                    # untagged), so clamping to the 0 bin gives the consistent
+                    # untagged-region shape SF and avoids correctionlib raising
+                    # "Index below bounds in Binning for input argument 4".
+                    ak.to_numpy(np.clip(flat_jets.btagScore, 0.0, 1.0))
                 ),
                 ak.num(jets)
             ), axis=1
