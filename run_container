@@ -830,18 +830,17 @@ run_classifier() {
     )
     ulimit -n 65536
 
-<<<<<<< HEAD
     # Detect if on FALCON (auto-enable SLURM)
     local HOST=$(hostname)
     if [[ $HOST == *falcon* ]]; then
         USE_SLURM=true
         info "FALCON cluster detected. Will submit jobs via SLURM."
-=======
+    fi
+
     # Bind X509 proxy for XRootD authentication
     local PROXY="${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"
     if [ -f "$PROXY" ]; then
         FLAGS+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
->>>>>>> 34b7651a (update package versions)
     fi
 
     # Collect user arguments
