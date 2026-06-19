@@ -1165,6 +1165,13 @@ def setup_shared_dask_client(args, config_runner):
             try:
                 client = Client(address, timeout="5s")
                 logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                # This per-job process connects to a shared daemon's scheduler, so
+                # unlike the cluster-creating path it never logged the dashboard.
+                # Emit it here (plus the scheduler host) so monitors
+                # (barista_console / runner_monitor) can scan this log, build a
+                # reachable dashboard URL, and show live worker/task progress.
+                logging.info(f"Dask dashboard: {client.dashboard_link}")
+                logging.info(f"Dask scheduler host: {address.split('://')[1].split(':')[0]}")
                 log_daemon_info(data)
                 return client, None
             except Exception as e:
