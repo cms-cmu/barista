@@ -240,7 +240,7 @@ rule plot_weights:
         flag = f"{OUTPUT_DIR}/plot_weights.done",
     log:
         f"{OUTPUT_DIR}/plot_weights.log",
-    container: CLASSIFIER_CPU
+    container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
         mem_mb  = 8000,
