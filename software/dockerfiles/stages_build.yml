@@ -61,6 +61,8 @@ build_container:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - software/dockerfiles/Dockerfile_analysis
+    - if: $CI_COMMIT_BRANCH == "fix-analysis-deps"
+    - if: $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "fix-analysis-deps"
 
 
 build_container_coffea0_7:
