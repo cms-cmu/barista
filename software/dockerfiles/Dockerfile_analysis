@@ -122,4 +122,40 @@ except Exception:\n\
 
 # Create htcondor->htcondor2 compatibility shim for lpcjobqueue
 RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor && \
-    echo "from htcondor2 import *; from htcondor2 import param, Schedd, Collector, Submit, JobEventLog, JobAction, DaemonType, AdTypes" > /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py
+    printf "from htcondor2 import *\n\
+from htcondor2 import param, Schedd, Collector, Submit as _RealSubmit, JobEventLog, JobAction, DaemonType, AdTypes\n\
+_submit_results = {}\n\
+_real_submit = Schedd.submit\n\
+_real_spool = Schedd.spool\n\
+def patched_submit(self, submit_obj, *args, **kwargs):\n\
+    result = _real_submit(self, submit_obj, *args, **kwargs)\n\
+    try:\n\
+        cluster_id = result.cluster()\n\
+        _submit_results[cluster_id] = result\n\
+    except Exception: pass\n\
+    return result\n\
+def patched_spool(self, jobs_or_result):\n\
+    if isinstance(jobs_or_result, list) and len(jobs_or_result) > 0:\n\
+        first_job = jobs_or_result[0]\n\
+        cluster_id = None\n\
+        if hasattr(first_job, 'get'):\n\
+            cluster_id = first_job.get('ClusterId')\n\
+        elif isinstance(first_job, dict):\n\
+            cluster_id = first_job.get('ClusterId')\n\
+        if cluster_id is not None and cluster_id in _submit_results:\n\
+            result = _submit_results[cluster_id]\n\
+            return _real_spool(self, result)\n\
+        else:\n\
+            raise RuntimeError(f'Could not find SubmitResult for cluster ID {cluster_id}')\n\
+    else:\n\
+        return _real_spool(self, jobs_or_result)\n\
+Schedd.submit = patched_submit\n\
+Schedd.spool = patched_spool\n\
+class Submit(_RealSubmit):\n\
+    def jobs(self, clusterid=None):\n\
+        num_procs = 1\n\
+        try:\n\
+            if hasattr(self, 'procs'):\n\
+                num_procs = self.procs()\n\
+        except Exception: pass\n\
+        return [{'ClusterId': clusterid, 'ProcId': i} for i in range(num_procs)]\n" > /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py
