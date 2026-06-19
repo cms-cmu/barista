@@ -1715,3 +1715,5 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
+    os._exit(0)
+
