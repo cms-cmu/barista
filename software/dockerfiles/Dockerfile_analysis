@@ -36,6 +36,7 @@ RUN micromamba install -y -n base -c conda-forge \
     htcondor \
     nodejs \
     "pytorch=2.5.1" \
+    "scipy<1.14" \
     rucio-clients \
     fastjet \
     && micromamba clean --all --yes
