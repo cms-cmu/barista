@@ -486,6 +486,7 @@ def setup_condor_cluster(config_runner, tarball_path):
             'leave_in_queue': 'False',
             'periodic_remove': '(JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 300)'
         },
+        'env_extra': ['export PYTHONPATH=.:$PYTHONPATH'],
     }
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
@@ -496,17 +497,21 @@ def setup_condor_cluster(config_runner, tarball_path):
         cluster_args['image'] = 'barista.sif'
         cluster_args['transfer_input_files'].append('barista.sif')
 
+    if os.getenv("WORKER_IMAGE"):
+        logging.info(f"Overriding worker image with: {os.getenv('WORKER_IMAGE')}")
+        cluster_args['image'] = os.getenv("WORKER_IMAGE")
+
     logging.info("Cluster arguments: ")
     logging.info(pretty_repr(cluster_args))
 
     logging.info("Creating HTCondor cluster...")
     cluster = LPCCondorCluster(**cluster_args)
 
-    logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
-    cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
-
     logging.info("Creating Dask client...")
     client = Client(cluster)
+
+    logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
+    cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
     logging.info(f"Dask dashboard: {client.dashboard_link}")
     # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
     # LPCCondorCluster, so it carries no host.  Log the scheduler host
