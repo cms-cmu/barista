@@ -1751,17 +1751,23 @@ class InputEmbed(nn.Module):
         o = o.view(n, 5, -1)
         a = a.view(n, self.dA, 1)
 
-        # Apply log(n - offset) to all nSelJets* features
-        # offset = min_value - 1 so log(min) = log(1) = 0
-        if not hasattr(self, "_nSelJets_transforms"):
-            _offsets = {"nSelJets_lowpt": 0, "nSelJets_total": 4, "nSelJets": 3}
-            self._nSelJets_transforms = [
-                (idx, next(v for k, v in _offsets.items() if k == name))
-                for idx, name in enumerate(self.ancillaryFeatures)
-                if name in _offsets
-            ]
-        for idx, offset in self._nSelJets_transforms:
-            a[:, idx, :] = torch.log(a[:, idx, :] - offset)
+        # Apply log transform to nSelJets feature: log(nSelJets - offset)
+        # offset depends on the minimum expected value of the feature
+        if not hasattr(self, "_nSelJets_idx"):
+            self._nSelJets_idx = None
+            self._nSelJets_offset = 3  # default for nSelJets (minimum is 4)
+            for idx, name in enumerate(self.ancillaryFeatures):
+                if "nSelJets" in name:
+                    self._nSelJets_idx = idx
+                    if "lowpt" in name:
+                        self._nSelJets_offset = (
+                            0  # nSelJets_lowpt starts at 1, use log(n)
+                        )
+                    break
+        if self._nSelJets_idx is not None:
+            a[:, self._nSelJets_idx, :] = torch.log(
+                a[:, self._nSelJets_idx, :] - self._nSelJets_offset
+            )
 
         if self.store:
             self.storeData["canJets"] = j.detach().to("cpu").numpy()
