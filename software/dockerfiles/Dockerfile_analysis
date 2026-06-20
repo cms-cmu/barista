@@ -78,84 +78,8 @@ RUN mv /opt/conda/bin/voms-proxy-info /opt/conda/bin/voms-proxy-info.real && \
     chmod +x /opt/conda/bin/voms-proxy-info
 
 # Create sitecustomize.py to allowlist numpy scalar and arrays in PyTorch 2.6+ safe unpickling
-RUN printf "try:\n\
-    import torch\n\
-    import numpy as np\n\
-    import sys\n\
-    safe_classes = []\n\
-    for module_name in ['numpy.core.multiarray', 'numpy._core.multiarray']:\n\
-        for attr in ['scalar', '_reconstruct']:\n\
-            safe_classes.append(type(attr, (), {'__module__': module_name}))\n\
-    for attr in dir(np):\n\
-        try:\n\
-            val = getattr(np, attr)\n\
-            if isinstance(val, type):\n\
-                safe_classes.append(val)\n\
-                module = val.__module__\n\
-                if module:\n\
-                    if module.startswith('numpy._core'):\n\
-                        legacy_module = module.replace('numpy._core', 'numpy.core')\n\
-                        safe_classes.append(type(val.__name__, (), {'__module__': legacy_module}))\n\
-                    elif module.startswith('numpy.core'):\n\
-                        new_module = module.replace('numpy.core', 'numpy._core')\n\
-                        safe_classes.append(type(val.__name__, (), {'__module__': new_module}))\n\
-        except Exception: pass\n\
-    if hasattr(np, 'dtypes'):\n\
-        for attr in dir(np.dtypes):\n\
-            try:\n\
-                val = getattr(np.dtypes, attr)\n\
-                if isinstance(val, type):\n\
-                    safe_classes.append(val)\n\
-                    module = val.__module__\n\
-                    if module:\n\
-                        if module.startswith('numpy._core'):\n\
-                            legacy_module = module.replace('numpy._core', 'numpy.core')\n\
-                            safe_classes.append(type(val.__name__, (), {'__module__': legacy_module}))\n\
-                        elif module.startswith('numpy.core'):\n\
-                            new_module = module.replace('numpy.core', 'numpy._core')\n\
-                            safe_classes.append(type(val.__name__, (), {'__module__': new_module}))\n\
-            except Exception: pass\n\
-    if safe_classes and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
-        torch.serialization.add_safe_globals(safe_classes)\n\
-except Exception:\n\
-    pass\n" > /opt/conda/lib/python3.12/site-packages/sitecustomize.py
+COPY software/dockerfiles/sitecustomize.py /opt/conda/lib/python3.12/site-packages/sitecustomize.py
 
 # Create htcondor->htcondor2 compatibility shim for lpcjobqueue
-RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor && \
-    printf "from htcondor2 import *\n\
-from htcondor2 import param, Schedd, Collector, Submit as _RealSubmit, JobEventLog, JobAction, DaemonType, AdTypes\n\
-_submit_results = {}\n\
-_real_submit = Schedd.submit\n\
-_real_spool = Schedd.spool\n\
-def patched_submit(self, submit_obj, *args, **kwargs):\n\
-    result = _real_submit(self, submit_obj, *args, **kwargs)\n\
-    try:\n\
-        cluster_id = result.cluster()\n\
-        _submit_results[cluster_id] = result\n\
-    except Exception: pass\n\
-    return result\n\
-def patched_spool(self, jobs_or_result):\n\
-    if isinstance(jobs_or_result, list) and len(jobs_or_result) > 0:\n\
-        first_job = jobs_or_result[0]\n\
-        cluster_id = None\n\
-        if hasattr(first_job, 'get'):\n\
-            cluster_id = first_job.get('ClusterId')\n\
-        elif isinstance(first_job, dict):\n\
-            cluster_id = first_job.get('ClusterId')\n\
-        if cluster_id is not None and cluster_id in _submit_results:\n\
-            result = _submit_results[cluster_id]\n\
-            return _real_spool(self, result)\n\
-        else:\n\
-            raise RuntimeError(f'Could not find SubmitResult for cluster ID {cluster_id}')\n\
-    else:\n\
-        return _real_spool(self, jobs_or_result)\n\
-Schedd.submit = patched_submit\n\
-Schedd.spool = patched_spool\n\
-class Submit(_RealSubmit):\n\
-    def jobs(self, clusterid=None):\n\
-        num_procs = 1\n\
-        try:\n\
-            if hasattr(self, 'procs'):\n\
-                num_procs = self.procs()\n\
-        except Exception: pass\n\
-        return [{'ClusterId': clusterid, 'ProcId': i} for i in range(num_procs)]\n" > /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py
+RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor
+COPY software/dockerfiles/htcondor_shim.py /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py

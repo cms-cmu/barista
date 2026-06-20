@@ -492,11 +492,6 @@ def setup_condor_cluster(config_runner, tarball_path):
         # Do not pre-create — dask_jobqueue must create it fresh.
         cluster_args['log_directory'] = config_runner['worker_log_directory']
     
-    if os.path.exists("barista.sif"):
-        logging.info("Local barista.sif detected in workspace. Configuring LPCCondorCluster to use and transfer it...")
-        cluster_args['image'] = 'barista.sif'
-        cluster_args['transfer_input_files'].append('barista.sif')
-
     if os.getenv("WORKER_IMAGE"):
         logging.info(f"Overriding worker image with: {os.getenv('WORKER_IMAGE')}")
         cluster_args['image'] = os.getenv("WORKER_IMAGE")

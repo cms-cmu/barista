@@ -70,4 +70,4 @@ class _load_cache:
         import torch
 
         with fsspec.open(self.path, "rb", compression=self.compression) as f:
-            return torch.load(f, weights_only=False)
+            return torch.load(f)
