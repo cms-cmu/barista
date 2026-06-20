@@ -27,13 +27,16 @@ RUN micromamba install -y -n base -c conda-forge \
     vector \
     hist \
     dask \
+    distributed=2025.3.1 \
+    bokeh=3.8.2 \
     dask-jobqueue \
     dask-awkward \
     xrootd \
     voms \
     htcondor \
     nodejs \
-    pytorch \
+    "pytorch=2.5.1" \
+    "scipy<1.14" \
     rucio-clients \
     fastjet \
     && micromamba clean --all --yes
@@ -54,7 +57,9 @@ RUN micromamba run -n base python -m pip install --no-cache-dir \
     pytest \
     awkward-pandas \
     readchar \
-    pyvis
+    pyvis \
+    git+https://github.com/CoffeaTeam/lpcjobqueue.git@v0.5.0 \
+    conda-pack
 
 # Create directories as root
 USER root
@@ -74,45 +79,8 @@ RUN mv /opt/conda/bin/voms-proxy-info /opt/conda/bin/voms-proxy-info.real && \
     chmod +x /opt/conda/bin/voms-proxy-info
 
 # Create sitecustomize.py to allowlist numpy scalar and arrays in PyTorch 2.6+ safe unpickling
-RUN printf "try:\n\
-    import torch\n\
-    import numpy as np\n\
-    import sys\n\
-    safe_list = []\n\
-    for module_name in ['numpy.core.multiarray', 'numpy._core.multiarray']:\n\
-        try:\n\
-            __import__(module_name)\n\
-            mod = sys.modules[module_name]\n\
-            for attr in ['scalar', '_reconstruct']:\n\
-                if hasattr(mod, attr):\n\
-                    safe_list.append(getattr(mod, attr))\n\
-        except Exception:\n\
-            pass\n\
-    if hasattr(np, 'dtypes'):\n\
-        for attr in dir(np.dtypes):\n\
-            try:\n\
-                val = getattr(np.dtypes, attr)\n\
-                if isinstance(val, type): safe_list.append(val)\n\
-            except Exception: pass\n\
-    for attr in dir(np):\n\
-        try:\n\
-            val = getattr(np, attr)\n\
-            if isinstance(val, type): safe_list.append(val)\n\
-        except Exception: pass\n\
-    unique_safe = list(set(safe_list))\n\
-    final_safe = []\n\
-    for f in unique_safe:\n\
-        final_safe.append(f)\n\
-        if hasattr(f, '__module__') and hasattr(f, '__qualname__'):\n\
-            module = f.__module__\n\
-            name = f.__qualname__\n\
-            if module.startswith('numpy._core'):\n\
-                legacy_module = module.replace('numpy._core', 'numpy.core')\n\
-                final_safe.append((f, legacy_module + '.' + name))\n\
-            elif module.startswith('numpy.core'):\n\
-                new_module = module.replace('numpy.core', 'numpy._core')\n\
-                final_safe.append((f, new_module + '.' + name))\n\
-    if final_safe and hasattr(torch, 'serialization') and hasattr(torch.serialization, 'add_safe_globals'):\n\
-        torch.serialization.add_safe_globals(final_safe)\n\
-except Exception:\n\
-    pass\n" > /opt/conda/lib/python3.12/site-packages/sitecustomize.py
+COPY software/dockerfiles/sitecustomize.py /opt/conda/lib/python3.12/site-packages/sitecustomize.py
+
+# Create htcondor->htcondor2 compatibility shim for lpcjobqueue
+RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor
+COPY software/dockerfiles/htcondor_shim.py /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py

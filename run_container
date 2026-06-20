@@ -2,7 +2,7 @@
 
 # --- Configuration ---
 # Image Definitions
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
+COFFEA_IMAGE="${COFFEA_IMAGE:-docker://gitlab-registry.cern.ch/cms-cmu/barista:latest}"
 DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
@@ -11,12 +11,21 @@ BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
-    COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
-    DEV_COFFEA0_7_IMAGE="/cvmfs/unpacked.cern.ch/${DEV_COFFEA0_7_IMAGE#docker://}"
-    COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
-    SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
-    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
-    BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
+    _resolve_cvmfs() {
+        local img="$1"
+        local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
+        if [ -e "$cvmfs_path" ]; then
+            echo "$cvmfs_path"
+        else
+            echo "$img"
+        fi
+    }
+    COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
+    DEV_COFFEA0_7_IMAGE=$(_resolve_cvmfs "$DEV_COFFEA0_7_IMAGE")
+    COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
+    SNAKEMAKE_IMAGE=$(_resolve_cvmfs "$SNAKEMAKE_IMAGE")
+    CLASSIFIER_IMAGE=$(_resolve_cvmfs "$CLASSIFIER_IMAGE")
+    BRILCALC_IMAGE=$(_resolve_cvmfs "$BRILCALC_IMAGE")
 fi
 
 # --- Helpers ---
@@ -236,7 +245,8 @@ setup_host_env() {
             if [ ! -d "$PIXI_DIR" ]; then
                 info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
             fi
-            CACHE_BASE="$HOME"
+            CACHE_BASE="/uscms_data/d3/${USER}"
+            export APPTAINER_IGNORE_PROOT=1
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
@@ -255,7 +265,7 @@ setup_host_env() {
 
     # Cache Configuration
     export APPTAINER_CACHEDIR="${CACHE_BASE}/apptainer_cache"
-    export APPTAINER_TMPDIR="${CACHE_BASE}/.apptainer/"
+    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
     export MPLCONFIGDIR="${CACHE_BASE}/.config/matplotlib"
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
 }
@@ -396,6 +406,10 @@ exit(1)
             done
             if [ $count -eq 120 ]; then
                 warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+                if [ -f "$DAEMON_LOG" ]; then
+                    warning "Last 40 lines of daemon log ($DAEMON_LOG):"
+                    tail -40 "$DAEMON_LOG" >&2
+                fi
             fi
         else
             info "Shared Dask daemon is already running and responsive."
@@ -406,7 +420,7 @@ exit(1)
     # 1. Base Flags
     touch "$PWD/.python_history"
     _write_pythonstartup "$PWD/.pythonstartup"
-    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp -B /eos
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
