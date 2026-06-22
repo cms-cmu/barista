@@ -42,6 +42,23 @@ class Training(GlobalSetting):
     disable_benchmark: bool = False
     "disable unnecessary benchmark steps"
 
+    precision: str = ""
+    "mixed-precision mode on CUDA: '' (off, exact fp32), 'fp16', or 'bf16'. "
+    "Both halve activation memory (fit wider nets / larger batches in the 24 GB MPS "
+    "cap) and use tensor cores. fp16 needs a GradScaler and OVERFLOWS for very wide "
+    "nets (n_features>~60 diverges to nan); bf16 has the fp32 exponent range so it "
+    "does NOT overflow (use it for big nets) at the cost of a little mantissa "
+    "precision. NOTE: changes numerics at the ~1e-4 level, so do not mix precisions "
+    "in a comparison finer than that."
+
+    @classmethod
+    def set__precision(cls, value: str):
+        v = (value or "").lower()
+        if v in ("", "fp32", "none", "off"):
+            return ""
+        assert v in ("fp16", "bf16"), f"unknown precision {value!r} (use fp16/bf16)"
+        return v
+
 
 class SplitterKeys(GlobalSetting):
     "keys in the splitter output"

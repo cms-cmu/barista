@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import operator as op
+from fractions import Fraction
 from functools import partial, reduce
 from typing import TYPE_CHECKING
 
@@ -15,8 +16,19 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-def _reweight_bkg(df: pd.DataFrame):
-    df.loc[:, "weight"] *= df["FvT"]
+def _reweight_bkg(df: pd.DataFrame, branch: str = "FvT"):
+    """Scale the event weight by ``df[branch]``.
+
+    The background reweighting column is configurable (via functools.partial at
+    the call site) so variants can reweight by a different per-event weight
+    (e.g. MvD for the mixeddata_all background) instead of the default FvT.
+
+    IMPORTANT: this MUST stay a module-level function (used with partial), not a
+    closure. The loader sends per-group processors to a ProcessPoolExecutor,
+    which pickles them; a nested-function closure is not picklable and silently
+    hangs the loader's pool feeder during data loading.
+    """
+    df.loc[:, "weight"] *= df[branch]
     return df
 
 
@@ -51,6 +63,12 @@ class _mc_selection(_common_selection):
     ntags = "fourTag"
 
 
+class _mixed_selection(_common_selection):
+    # mixeddata_all background: 4-tag, and NO passHLT (mixeddata_all is already
+    # HLT-filtered upstream, unlike the 3-tag detector-data selection).
+    ntags = "fourTag"
+
+
 def _remove_outlier(df: pd.DataFrame):
     import logging
     n_total = len(df)
@@ -64,13 +82,47 @@ def _remove_outlier(df: pd.DataFrame):
     return df.loc[(df["weight"] >= 0) & (df["weight"] < 1)]
 
 
+def _subsample(df: pd.DataFrame, fraction: float, seed: int):
+    """Randomly keep ``fraction`` of the events (reproducible via ``seed``).
+
+    Used for the statistics studies (C3/C4): applied uniformly to every group
+    so signal, TT and data are all reduced by the same fraction, emulating a
+    lower integrated luminosity. ``fraction >= 1`` is a no-op (keeps all rows
+    unshuffled), so the nominal training is unaffected.
+
+    MUST stay a module-level function (used with functools.partial); a closure
+    would not pickle and would hang the loader's process pool.
+    """
+    if fraction >= 1.0:
+        return df
+    return df.sample(frac=fraction, random_state=seed)
+
+
 class _Train(CommonTrain):
+    # Background selection/reweighting knobs. Defaults reproduce the nominal
+    # detector-3b + FvT behavior exactly; subclasses (e.g. BackgroundMixed)
+    # override them for the mixeddata_all + MvD background.
+    _data_selection_cls: type[_common_selection] = _data_selection
+    _weight_branch: str = "FvT"
+
     argparser = ArgParser()
     argparser.add_argument(
         "--regions",
         nargs="+",
         default=["SR"],
         help="Dijet mass regions",
+    )
+    argparser.add_argument(
+        "--subsample",
+        default="1",
+        help="fraction of events to randomly keep per group (statistics study)."
+        " Accepts a float or fraction, e.g. 0.1 or 1/10. Default 1 = keep all.",
+    )
+    argparser.add_argument(
+        "--subsample-seed",
+        type=int,
+        default=0,
+        help="random seed for --subsample (reproducible subset)",
     )
 
     def __init__(self):
@@ -84,8 +136,8 @@ class _Train(CommonTrain):
             _group.regex(
                 "label:data",
                 [
-                    lambda: _data_selection(*self.opts.regions),
-                    lambda: _reweight_bkg,
+                    lambda: self._data_selection_cls(*self.opts.regions),
+                    lambda: partial(_reweight_bkg, branch=self._weight_branch),
                 ],
                 [
                     lambda: _mc_selection(*self.opts.regions),
@@ -100,6 +152,11 @@ class _Train(CommonTrain):
                 r"label:.*",
                 [
                     lambda: _remove_outlier,
+                    lambda: partial(
+                        _subsample,
+                        fraction=float(Fraction(self.opts.subsample)),
+                        seed=self.opts.subsample_seed,
+                    ),
                 ],
             ),
         ]
@@ -121,15 +178,29 @@ class Background(_picoAOD.Background, _Train):
 
         super().__init__()
         self.postprocessors.insert(0, partial(self.normalize, norm=self.opts.norm))
-        self.preprocessors.append(drop_columns("FvT"))
+        self.preprocessors.append(drop_columns(self._weight_branch))
 
     def other_branches(self):
-        return super().other_branches() | {"FvT"}
+        return super().other_branches() | {self._weight_branch}
 
     @staticmethod
     def normalize(df: pd.DataFrame, norm: float):
         df.loc[:, "weight"] /= df["weight"].sum() / norm
         return df
+
+
+class BackgroundMixed(Background):
+    """SvB background from mixeddata_all (4-tag) reweighted by MvD.
+
+    Differs from the nominal FvT-based ``Background`` only in the selection
+    (4-tag, no passHLT) and the per-event reweighting column (MvD). Everything
+    else — normalization to ``--norm``, region selection, outlier removal — is
+    inherited unchanged. Use with a train config that sets
+    ``--data-source mixed_all`` and supplies the MvD weight friend.
+    """
+
+    _data_selection_cls = _mixed_selection
+    _weight_branch = "MvD"
 
 
 def _norm(df: pd.DataFrame, norms: dict[int, float]):
