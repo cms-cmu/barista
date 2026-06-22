@@ -341,11 +341,8 @@
     jec_version: V4
     jer_campaign: Summer22_22Sep2023
     jer_version: JRV1
-    run_tags:
-      B: RunCD
-      C: RunCD
-      D: RunCD
-  jes_unc:  
+    #run_tags: not needed — JSON has per-era keys (no per-run split)
+  jes_unc:
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2025-09-23/jetid.json.gz'
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20/btagging.json.gz'
@@ -403,11 +400,8 @@
     jec_version: V4
     jer_campaign: Summer22EE_22Sep2023
     jer_version: JRV1
-    run_tags:
-      E: RunE
-      F: RunF
-      G: RunG
-  jes_unc:  
+    #run_tags: not needed — JSON has per-era keys (no per-run split)
+  jes_unc:
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-10-07/jetid.json.gz'
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20/btagging.json.gz'
