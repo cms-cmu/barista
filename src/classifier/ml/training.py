@@ -112,6 +112,9 @@ class TrainingStage(BenchmarkStage):
             "parameters": self.model.n_parameters,
         }
         opt = self.schedule.optimizer(self.model.parameters())
+        # GradScaler only for fp16 (bf16 has fp32 range, needs no loss scaling; off ->
+        # disabled). When disabled, the loop below takes the exact original fp32 path.
+        scaler = torch.amp.GradScaler("cuda", enabled=cfg.Training.precision == "fp16")
         lr = self.schedule.lr_scheduler(opt)
         bs = self.schedule.bs_scheduler(
             self.training,
@@ -137,8 +140,13 @@ class TrainingStage(BenchmarkStage):
             for i, batch in enumerate(bs.dataloader):
                 opt.zero_grad()
                 loss = self.model.train(batch)
-                loss.backward()
-                opt.step()
+                if scaler.is_enabled() and isinstance(loss, torch.Tensor):
+                    scaler.scale(loss).backward()
+                    scaler.step(opt)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    opt.step()
                 if isinstance(loss, torch.Tensor):
                     loss_val = loss.item()
                     p_batch.update(i + 1, ("batch", "training", f"loss={loss_val:.4g}"))
