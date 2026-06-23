@@ -65,7 +65,11 @@ from src.skimmer.picoaod import fetch_metadata, integrity_check, resize
 if TYPE_CHECKING:
     from src.data_formats.root import Friend
 
-dask.config.set({'logging.distributed': 'error'})
+dask.config.set({
+    'logging.distributed': 'error',
+    'distributed.comm.timeouts.connect': '180s',
+    'distributed.comm.timeouts.tcp': '180s',
+})
 
 NanoAODSchema.warn_missing_crossrefs = False
 if hasattr(NanoAODSchema, 'error_missing_event_ids'):
@@ -813,6 +817,7 @@ def setup_config_defaults(config_runner, args):
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'dask_retries': 3,
         'slurm_cores': 4,
         'slurm_partition': 'work',
         'slurm_qos': 'cpu_light',
@@ -843,6 +848,7 @@ def setup_executor(config_runner, args, client, pool):
             return processor.DaskExecutor(
                 client=client,
                 status=args.run_dask and not args.condor,
+                retries=config_runner['dask_retries'],
             ), runner_args
         else:
             logging.info("Running futures executor")
@@ -1723,13 +1729,17 @@ if __name__ == '__main__':
         # a shared scheduler) crash an already-finished job.
         _cm = performance_report(filename=dask_report_file)
         _cm.__enter__()
+        _exc = None
         try:
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        except BaseException as e:
+            _exc = e
+            raise
         finally:
             try:
-                _cm.__exit__(None, None, None)
-            except OSError as e:
-                logging.warning(f"Dask performance report failed (results unaffected): {e}")
+                _cm.__exit__(*(type(_exc), _exc, _exc.__traceback__) if _exc else (None, None, None))
+            except Exception as e:
+                logging.warning(f"Dask performance report teardown failed (does not change job outcome): {type(e).__name__}: {e}")
 
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
