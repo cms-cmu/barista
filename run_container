@@ -486,6 +486,7 @@ exit(1)
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
+        --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
     ulimit -n 65536
 
@@ -644,6 +645,7 @@ run_coffea_dev() {
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
+        --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
     ulimit -n 65536
 
