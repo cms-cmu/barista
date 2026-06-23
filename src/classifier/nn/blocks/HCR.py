@@ -1094,6 +1094,24 @@ class MultiHeadAttention(
         return q, q0
 
 
+class AttentionGate(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.linear1 = nn.Linear(in_features, in_features)
+        self.act = nn.SiLU()
+        self.linear2 = nn.Linear(in_features, out_features)
+        self.randomize()
+
+    def randomize(self):
+        nn.init.xavier_uniform_(self.linear1.weight)
+        nn.init.zeros_(self.linear1.bias)
+        nn.init.xavier_uniform_(self.linear2.weight)
+        nn.init.zeros_(self.linear2.bias)
+
+    def forward(self, x):
+        return self.linear2(self.act(self.linear1(x)))
+
+
 class MinimalAttention(
     nn.Module
 ):  # https://towardsdatascience.com/how-to-code-the-transformer-in-pytorch-24db27c8f9ec https://arxiv.org/pdf/1706.03762.pdf
@@ -1106,6 +1124,8 @@ class MinimalAttention(
         # iterations=2,
         phase_symmetric=True,
         do_qv=True,
+        use_attention_gate=False,
+        use_kv_proj=False,
         device="cuda",
     ):
         super().__init__()
@@ -1119,6 +1139,16 @@ class MinimalAttention(
         self.dh = self.d // self.h
         self.do_qv = do_qv
         # self.iter = iterations
+        self.use_attention_gate = use_attention_gate
+        self.use_kv_proj = use_kv_proj
+
+        if self.use_kv_proj:
+            # Option 2: Lightweight Bottleneck Key/Value Projections
+            self.dh_k = self.d // (2 * self.h)
+            self.dim_k = self.dh_k * self.h
+            self.q_proj = conv1d(self.d, out_channels=self.dim_k, kernel_size=1, bias=True, device=device)
+            self.k_proj = conv1d(self.d, out_channels=self.dim_k, kernel_size=1, bias=True, device=device)
+            self.v_proj = conv1d(self.d, out_channels=self.d, kernel_size=1, bias=True, device=device)
 
         self.q_GBN = GhostBatchNorm1d(self.d, name="attention q GBN", device=device)
         self.v_GBN = GhostBatchNorm1d(self.d, name="attention v GBN", device=device)
@@ -1126,8 +1156,10 @@ class MinimalAttention(
             self.qv_GBN = GhostBatchNorm1d(
                 self.d, name="attention qv GBN", device=device
             )
-        # self.origin = nn.Parameter(torch.zeros(1,self.h, self.dh,1,1))
-        # self.qv_ref = nn.Parameter(torch. ones(1,self.h, self.dh,1,1))
+            if self.use_attention_gate:
+                self.score_gate = AttentionGate(self.dh, 1).to(device)
+                self.value_gate = AttentionGate(self.dh, self.dh).to(device)
+
         self.score_GBN = GhostBatchNorm1d(
             self.h, name="attention score GBN", device=device
         )
@@ -1144,17 +1176,39 @@ class MinimalAttention(
         if layers:
             layers.addLayer(self.q_GBN, inputLayers)
             layers.addLayer(self.v_GBN, inputLayers)
-            layers.addLayer(self.qv_GBN, inputLayers)
-            layers.addLayer(self.score_GBN, inputLayers + [self.v_GBN])
+            if self.do_qv:
+                layers.addLayer(self.qv_GBN, inputLayers)
+                if self.use_attention_gate:
+                    layers.addLayer(self.score_gate, inputLayers + [self.qv_GBN])
+                    layers.addLayer(self.value_gate, inputLayers + [self.qv_GBN])
+            if self.use_kv_proj:
+                layers.addLayer(self.q_proj, inputLayers + [self.q_GBN])
+                layers.addLayer(self.k_proj, inputLayers + [self.v_GBN])
+                layers.addLayer(self.v_proj, inputLayers + [self.v_GBN])
+                layers.addLayer(self.score_GBN, inputLayers + [self.k_proj])
+            else:
+                layers.addLayer(self.score_GBN, inputLayers + [self.v_GBN])
             layers.addLayer(self.conv, inputLayers + [self.score_GBN])
 
-    def attention(self, q, v, mask, qv=None, debug=False):
+    def attention(self, q, v, mask, qv=None, debug=False, k=None):
         bs, qsl, vsl = q.shape[0], q.shape[3], v.shape[4]
 
-        # q,qv,v are (bs,h,dh,qsl,1),(bs,h,dh,qsl,vsl),(bs,h,dh,1,vsl)
-        score = (q * v).sum(dim=2)  # + (qv).sum(dim=2) # sum over feature space
+        # If key projection k is provided (use_kv_proj=True):
+        # q, k, v are (bs,h,dh_k,qsl,1), (bs,h,dh_k,1,vsl), (bs,h,dh,1,vsl)
+        # Else:
+        # q, v are (bs,h,dh,qsl,1), (bs,h,dh,1,vsl)
+        if k is not None:
+            score = (q * k).sum(dim=2)  # sum over dh_k (dim=2)
+        else:
+            score = (q * v).sum(dim=2)  # sum over dh (dim=2)
+
         if qv is not None:
-            score = score + (qv).sum(dim=2)
+            if self.use_attention_gate:
+                qv_perm = qv.permute(0, 1, 3, 4, 2)
+                score_offset = self.score_gate(qv_perm).squeeze(-1)
+                score = score + score_offset
+            else:
+                score = score + (qv).sum(dim=2)
         # score is (bs,h,qsl,vsl)
 
         # masked ghost batch normalization of score
@@ -1177,20 +1231,19 @@ class MinimalAttention(
         score = torch.sigmoid(score)
         v_weights = v_weights * score
 
-        # if mask is not None:
-        #     v_weights = v_weights.masked_fill(mask, 0) # make sure masked weights are zero (should be already because score was set to -infinity before softmax and sigmoid)
-
         if debug or self.debug:
             if mask is not None:
                 print("     mask\n", mask[0])
             print("    score\n", score[0])
             print("v_weights\n", v_weights[0])
 
-        # qv         is (bs, h, dh, qsl, vsl)
-        #  v         is (bs, h, dh,   1, vsl)
-        #  v_weights is (bs, h,  1, qsl, vsl)
         if qv is not None:
-            v = v + qv
+            if self.use_attention_gate:
+                qv_perm = qv.permute(0, 1, 3, 4, 2)
+                v_offset = self.value_gate(qv_perm).permute(0, 1, 4, 2, 3)
+                v = v + v_offset
+            else:
+                v = v + qv
         # mask is (bs, 1, 1, qsl, vsl)
         if mask is not None:
             v_weights = v_weights.masked_fill(
@@ -1237,18 +1290,37 @@ class MinimalAttention(
         q = self.q_GBN(q, q_mask)
         v = self.v_GBN(v, v_mask)
 
+        if self.use_kv_proj:
+            q_proj = self.q_proj(q)
+            k_proj = self.k_proj(v)
+            v_proj = self.v_proj(v)
+
         # print('q after GBN\n',q[0])
         # print('v after GBN\n',v[0])
 
         # broadcast mask over heads and features
         if mask is not None:
             mask = mask.view(bs, 1, 1, qsl, vsl)
-        q = q.view(
-            bs, self.h, self.dh, qsl, 1
-        )  # extra dim for broadcasting over values
-        v = v.view(
-            bs, self.h, self.dh, 1, vsl
-        )  # extra dim for broadcasting over queries
+        
+        if self.use_kv_proj:
+            q = q_proj.view(
+                bs, self.h, self.dh_k, qsl, 1
+            )  # extra dim for broadcasting over values
+            k = k_proj.view(
+                bs, self.h, self.dh_k, 1, vsl
+            )  # extra dim for broadcasting over queries
+            v = v_proj.view(
+                bs, self.h, self.dh, 1, vsl
+            )  # extra dim for broadcasting over queries
+        else:
+            q = q.view(
+                bs, self.h, self.dh, qsl, 1
+            )  # extra dim for broadcasting over values
+            k = None
+            v = v.view(
+                bs, self.h, self.dh, 1, vsl
+            )  # extra dim for broadcasting over queries
+            
         if qv is not None:
             qv = qv.view(bs, self.h, self.dh, qsl, vsl)
 
@@ -1258,7 +1330,7 @@ class MinimalAttention(
 
         # calculate attention
         q, v_weights = self.attention(
-            q, v, mask, qv, debug
+            q, v, mask, qv, debug, k=k
         )  # outputs a linear combination of values (v) given the overlap of the queries (q)
         # q is (bs, h, dh, qsl), v_weights is (bs, h,  1, qsl, vsl)
         q, v_weights = q.view(bs, self.d, qsl), v_weights.view(bs, self.h, qsl, vsl)
@@ -1989,6 +2061,8 @@ class HCR(nn.Module):
         device="cuda",
         nClasses=1,
         architecture="HCR",
+        use_attention_gate=False,
+        use_kv_proj=False,
     ):
         super(HCR, self).__init__()
         self.debug = False
@@ -2043,6 +2117,8 @@ class HCR(nn.Module):
                 phase_symmetric=self.phase_symmetric,
                 layers=self.layers,
                 inputLayers=[self.inputEmbed.othJetConv],
+                use_attention_gate=use_attention_gate,
+                use_kv_proj=use_kv_proj,
                 device=self.device,
             )
             self.attention_do = MinimalAttention(
@@ -2051,6 +2127,8 @@ class HCR(nn.Module):
                 phase_symmetric=self.phase_symmetric,
                 layers=self.layers,
                 inputLayers=[self.dijetResNetBlock.reinforce[-1]],
+                use_attention_gate=use_attention_gate,
+                use_kv_proj=use_kv_proj,
                 device=self.device,
             )
             # self.attention_oo.setGhostBatches(-1)

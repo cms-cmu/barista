@@ -478,7 +478,7 @@ exit(1)
     # 1. Base Flags
     touch "$PWD/.python_history"
     _write_pythonstartup "$PWD/.pythonstartup"
-    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp -B /eos
+    local FLAGS=( --contain -B "$PWD":/srv --pwd /srv/ -B /tmp:/tmp
         --env XRD_CONNECTIONRETRY=3
         --env XRD_REQUESTTIMEOUT=600
         --env XRD_STREAMTIMEOUT=300
@@ -488,6 +488,9 @@ exit(1)
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
         --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
+    if [ -d "/eos" ]; then
+        FLAGS+=( -B /eos )
+    fi
     ulimit -n 65536
 
     # LPC-Specific Environment Variable
