@@ -20,7 +20,7 @@ plt.rcParams["figure.figsize"] = [8,8]
 plt.rcParams["font.size"] = 18
 
 REGIONS = ("nominal_4j2b", "lowpt_4j2b", "incl_3j2b")
-DEFAULT_N_BINS = 30   # max / start of top-down n_bins scan (nq in the HH-combine procedure)
+DEFAULT_N_BINS = 50   # max / start of top-down n_bins scan (nq in the HH-combine procedure)
 DEFAULT_MIN_NEFF = 10.5  # minimum effective unweighted background events per bin
 # Filename pattern written by bbreww processor:
 #   phh_hist_{dataset}__{year}_{chunk_id}.pkl
