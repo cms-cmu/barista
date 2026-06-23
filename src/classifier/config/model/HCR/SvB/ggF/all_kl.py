@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.classifier.config.setting.cms import MC_HH_ggF
-from src.classifier.config.setting.HCR import Input, Output
+from src.classifier.config.setting.HCR import Input, MassRegion, Output
 from src.classifier.config.state.label import MultiClass
 from src.classifier.task import ArgParser
 
@@ -14,6 +14,26 @@ if TYPE_CHECKING:
 
 _BKG = ("multijet", "ttbar")
 _SIG = ("ZZ", "ZH", "ggF")
+
+
+def roc_sr_selection(batch: BatchType):
+    """Nominal background-vs-signal ROC restricted to SR events.
+
+    For an SR-only training this equals ``roc_nominal_selection`` (redundant);
+    for an SR+SB training it isolates the in-SR discrimination, which tells us
+    whether widening to SR+SB genuinely helps in the SR or merely pads the ROC
+    with easy SB background. ``MassRegion.SR`` is a bit (0b01) set for
+    ZZSR/ZHSR/HHSR but not SB (0b10), so ``region & SR`` selects the SR.
+
+    Module-level (picklable) — must NOT be a closure (benchmark selections are
+    pickled across processes; a closure would hang the pool).
+    """
+    sr = (batch[Input.region] & int(MassRegion.SR)) != 0
+    return {
+        "y_pred": batch[Output.class_prob][sr],
+        "y_true": batch[Input.label][sr],
+        "weight": batch[Input.weight][sr],
+    }
 
 
 class _roc_select_sig:
@@ -130,7 +150,15 @@ class Train(HCRTrain):
                 selection=roc_nominal_selection,
                 bins=ROC_BIN,
                 pos=_BKG,
-            )
+            ),
+            # SR-restricted twin (region & SR bit). Redundant for SR-only
+            # trainings; for SR+SB it gives the in-SR AUC.
+            ROC(
+                name="background vs signal (SR only)",
+                selection=roc_sr_selection,
+                bins=ROC_BIN,
+                pos=_BKG,
+            ),
         ]
         for sig in ("ZZ", "ZH", "ggF"):
             if sig in MultiClass.labels:

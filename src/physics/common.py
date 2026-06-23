@@ -57,6 +57,9 @@ def apply_btag_sf( jets,
 
     def get_sf(jets, sys):
         flat_jets = ak.flatten(jets)
+        bad = ak.to_numpy(flat_jets.btagScore) < 0
+        if bad.any():
+            logging.warning(f"btagScore<0 in {int(bad.sum())} jets (correction_file={correction_file}, type={correction_type}); clipping to 0")
         return np.prod(
             ak.unflatten(
                 btagSF.evaluate(
