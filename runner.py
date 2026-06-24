@@ -65,7 +65,11 @@ from src.skimmer.picoaod import fetch_metadata, integrity_check, resize
 if TYPE_CHECKING:
     from src.data_formats.root import Friend
 
-dask.config.set({'logging.distributed': 'error'})
+dask.config.set({
+    'logging.distributed': 'error',
+    'distributed.comm.timeouts.connect': '180s',
+    'distributed.comm.timeouts.tcp': '180s',
+})
 
 NanoAODSchema.warn_missing_crossrefs = False
 if hasattr(NanoAODSchema, 'error_missing_event_ids'):
@@ -530,13 +534,25 @@ def setup_condor_cluster(config_runner, tarball_path):
             return None
 
         def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred" or worker is None:
+            if finish != "erred":
                 return
-            log_file = self._find_log(worker)
-            if log_file:
-                logging.error(f"Task permanently failed: {key} -> {log_file}")
-            else:
-                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+            exc = kwargs.get("exception")
+            exc_text = None
+            if exc is not None:
+                try:
+                    from distributed.protocol import deserialize
+                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
+                    exc_text = repr(err)
+                except Exception:
+                    exc_text = repr(exc)
+            if exc_text:
+                logging.error(f"Task failed: {key}: {exc_text}")
+            elif worker is not None:
+                log_file = self._find_log(worker)
+                if log_file:
+                    logging.error(f"Task permanently failed: {key} -> {log_file}")
+                else:
+                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
 
     client.register_plugin(WorkerLostLogger())
 
@@ -801,6 +817,7 @@ def setup_config_defaults(config_runner, args):
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'dask_retries': 3,
         'slurm_cores': 4,
         'slurm_partition': 'work',
         'slurm_qos': 'cpu_light',
@@ -831,6 +848,7 @@ def setup_executor(config_runner, args, client, pool):
             return processor.DaskExecutor(
                 client=client,
                 status=args.run_dask and not args.condor,
+                retries=config_runner['dask_retries'],
             ), runner_args
         else:
             logging.info("Running futures executor")
@@ -1000,7 +1018,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
     if COFFEA_2025:
-        runner = processor.Runner(
+        runner_kwargs = dict(
             executor=executor,
             schema=executor_args['schema'],
             savemetrics=executor_args['savemetrics'],
@@ -1008,7 +1026,11 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             xrootdtimeout=executor_args['xrootdtimeout'],
             chunksize=executor_args['chunksize'],
             maxchunks=executor_args['maxchunks'],
+            # NOTE: do NOT set metadata_cache={} — under Condor with many chunks
+            # per worker, the in-process dict grows unboundedly and contributes
+            # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
+        runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
             treename='Events',
@@ -1186,6 +1208,7 @@ def setup_shared_dask_client(args, config_runner):
             try:
                 client = Client(address, timeout="5s")
                 logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                logging.info(f"Dask dashboard: {client.dashboard_link}")
                 log_daemon_info(data)
                 return client, None
             except Exception as e:
@@ -1709,8 +1732,21 @@ if __name__ == '__main__':
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
-        with performance_report(filename=dask_report_file):
+        # Don't let the report's teardown RPC (which can hit a reset connection on
+        # a shared scheduler) crash an already-finished job.
+        _cm = performance_report(filename=dask_report_file)
+        _cm.__enter__()
+        _exc = None
+        try:
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        except BaseException as e:
+            _exc = e
+            raise
+        finally:
+            try:
+                _cm.__exit__(*(type(_exc), _exc, _exc.__traceback__) if _exc else (None, None, None))
+            except Exception as e:
+                logging.warning(f"Dask performance report teardown failed (does not change job outcome): {type(e).__name__}: {e}")
 
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")

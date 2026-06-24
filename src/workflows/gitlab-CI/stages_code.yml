@@ -12,6 +12,13 @@ code_kappa_framework_barista:
   script:
     - source src/scripts/code-kappa-framework.sh
 
+code_friendtree_merge_barista:
+  stage: code
+  extends:
+    - .base_analysis_barista
+  script:
+    - source src/scripts/code-friendtree-merge.sh
+
 code_stat_analysis_combine:
   stage: code
   extends:

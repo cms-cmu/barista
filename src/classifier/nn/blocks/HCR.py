@@ -422,6 +422,7 @@ class GhostBatchNorm1d(
         # Replace non-finite values to avoid NaN propagation in forward pass
         m = torch.where(torch.isfinite(m), m, torch.zeros_like(m))
         s = torch.where(torch.isfinite(s) & (s > 0), s, torch.ones_like(s))
+        s = s.clamp(min=1e-4)
         self.m = m
         self.s = s
         self.initialized = True
