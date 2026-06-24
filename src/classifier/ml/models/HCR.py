@@ -58,6 +58,8 @@ class HCRArch:
     loss: Callable[[BatchType], Tensor] = None
     n_features: int = 8
     attention: bool = True
+    use_attention_gate: bool = False
+    use_kv_proj: bool = False
 
     @classmethod
     def load(cls, saved: dict[str]):
@@ -149,6 +151,8 @@ class HCRModel(Model):
             useOthJets=("attention" if arch.attention else ""),
             device=device,
             nClasses=MultiClass.n_trainable(),
+            use_attention_gate=arch.use_attention_gate,
+            use_kv_proj=arch.use_kv_proj,
         )
         self._benchmarks = benchmarks
 
@@ -363,6 +367,8 @@ class HCRModelEval(Model):
             useOthJets=("attention" if self._arch.attention else ""),
             device=device,
             nClasses=len(self._classes),
+            use_attention_gate=self._arch.use_attention_gate,
+            use_kv_proj=self._arch.use_kv_proj,
         )
         self._nn.load_state_dict(saved["model"])
 

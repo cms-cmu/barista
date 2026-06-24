@@ -481,7 +481,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'memory': config_runner['worker_memory'],
         'ship_env': False,
         'log_directory': config_runner.get('log_directory', _default_log_dir),
-        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}", 'port': 0},
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
@@ -1083,8 +1083,15 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
             scheduler_info = client.scheduler_info()
             
             # Count connected clients, excluding this daemon client itself
-            connected_clients = scheduler_info.get('clients', {})
-            active_clients = max(0, len(connected_clients) - 1)
+            try:
+                def get_active_clients(dask_scheduler):
+                    return [c for c in dask_scheduler.clients.keys() if c != 'fire-and-forget']
+                connected_clients = client.run_on_scheduler(get_active_clients)
+                active_clients = max(0, len(connected_clients) - 1)
+            except Exception as e:
+                logging.error(f"Error querying clients on scheduler: {e}")
+                connected_clients = scheduler_info.get('clients', {})
+                active_clients = max(0, len(connected_clients) - 1)
             
             # Query number of processing tasks
             processing_tasks = client.processing()
