@@ -808,7 +808,7 @@ def setup_config_defaults(config_runner, args):
         'worker_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
-        'max_workers': 400,
+        'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
         'workers': 2,
         'skipbadfiles': False,
         'dashboard_address': 10200,
@@ -1256,7 +1256,7 @@ def setup_shared_dask_client(args, config_runner):
         sys.exit(0)
 
 
-if __name__ == '__main__':
+def make_parser():
 
     # Configure argument parser
     parser = argparse.ArgumentParser(
@@ -1435,6 +1435,13 @@ if __name__ == '__main__':
         help=argparse.SUPPRESS
     )
     exec_group.add_argument(
+        '--shared-dask',
+        dest="shared_dask",
+        action="store_true",
+        default=False,
+        help='Use a shared Dask cluster daemon'
+    )
+    exec_group.add_argument(
         '--idle-timeout',
         dest="idle_timeout",
         type=int,
@@ -1478,6 +1485,11 @@ if __name__ == '__main__':
         default="",
         help='Override git diff for reproducibility tracking'
     )
+    return parser
+
+
+if __name__ == '__main__':
+    parser = make_parser()
 
     # Parse command line arguments
     args = parser.parse_args()
@@ -1502,6 +1514,7 @@ if __name__ == '__main__':
         if not 'config' in configs: configs['config'] = {}
         configs['config']['corrections_metadata'] = corrections_metadata
         config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+        args.shared_dask = True
         setup_config_defaults(config_runner, args)
         if args.dashboard_address is not None:
             config_runner['dashboard_address'] = args.dashboard_address
@@ -1665,9 +1678,26 @@ if __name__ == '__main__':
     cluster = None
 
     if args.condor or args.slurm or args.scheduler_address or args.run_dask:
-        logging.info("Configuring shared Dask cluster client...")
         args.run_dask = True
-        client, cluster = setup_shared_dask_client(args, config_runner)
+        if args.shared_dask:
+            logging.info("Configuring shared Dask cluster client...")
+            client, cluster = setup_shared_dask_client(args, config_runner)
+        else:
+            if args.scheduler_address:
+                logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
+                from distributed import Client
+                client = Client(args.scheduler_address)
+                cluster = None
+            elif args.condor:
+                logging.info("Configuring standalone LPCCondorCluster...")
+                tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
+                client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+            elif args.slurm:
+                logging.info("Configuring standalone SLURMCluster...")
+                client, cluster = setup_slurm_cluster(config_runner)
+            elif args.run_dask:
+                logging.info("Configuring standalone LocalCluster...")
+                client, cluster = setup_local_cluster(config_runner)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -1677,7 +1707,7 @@ if __name__ == '__main__':
 
 
     # Register worker plugin if using Dask and we did not connect to a shared daemon
-    if client is not None and (args.start_cluster_daemon or args.scheduler_address):
+    if client is not None and (not args.shared_dask or args.start_cluster_daemon or args.scheduler_address):
         logging.info("Registering worker plugin for Dask client...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)

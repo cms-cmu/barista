@@ -2,12 +2,22 @@
 # Source common functions
 source "src/scripts/common.sh"
 
-# Parse output base argument
-OUTPUT_BASE_DIR=$(parse_output_base_arg "output" "$@")
-if [ $? -ne 0 ]; then
-    echo "Error parsing output base argument. Use --output-base DIR to specify the output directory. Default DIR=output/"
-    exit 1
-fi
+# Parse output base argument and collect runner args
+OUTPUT_BASE_DIR="output"
+RUNNER_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --output-base)
+            OUTPUT_BASE_DIR="$2"
+            shift 2
+            ;;
+        *)
+            RUNNER_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
 
 display_section_header "THIS IS A FULL TEST OF THE SKIMMER"
 display_section_header "THE RESULTS MIGHT NOT BE RELEVANT"
@@ -83,7 +93,7 @@ cmd=(python runner.py -s \
     --friends ${OUTPUT_DIR}/friends_HH4b.yml \
     -o picoAOD_modify_branches.yml \
     -m ${OUTPUT_DIR}/datasets_HH4b.yml \
-    -t --debug)
+    -t "${RUNNER_ARGS[@]}")
 run_command "${cmd[@]}"
 ls -R $OUTPUT_DIR
 
@@ -105,6 +115,6 @@ cmd=(python runner.py \
     --friends ${OUTPUT_DIR}/friends_HH4b.yml \
     -o modify_branches.coffea \
     -m ${OUTPUT_DIR}/picoAOD_modify_branches.yml \
-    -t --debug)
+    -t "${RUNNER_ARGS[@]}")
 run_command "${cmd[@]}"
 ls -R ${OUTPUT_DIR}
