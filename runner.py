@@ -1512,6 +1512,8 @@ if __name__ == '__main__':
         logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
         configs = yaml.safe_load(open(args.configs, 'r'))
         if not 'config' in configs: configs['config'] = {}
+        with open("src/physics/corrections.yml", "r") as f:
+            corrections_metadata = yaml.safe_load(f)
         configs['config']['corrections_metadata'] = corrections_metadata
         config_runner = configs['runner'] if 'runner' in configs.keys() else {}
         args.shared_dask = True
@@ -1539,6 +1541,8 @@ if __name__ == '__main__':
     if not 'config' in configs: configs['config'] = {}
     # Add corrections_metadata to configs
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
+    with open("src/physics/corrections.yml", "r") as f:
+        corrections_metadata = yaml.safe_load(f)
     configs['config']['corrections_metadata'] = corrections_metadata
 
     if args.systematics:
