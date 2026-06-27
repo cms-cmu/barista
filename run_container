@@ -182,7 +182,7 @@ parse_apptainer_args() {
 
 setup_host_env() {
     # Compute workspace hash to isolate Dask schedulers per worktree/workspace
-    WORKSPACE_HASH=$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")
+    WORKSPACE_HASH="${BARISTA_WORKSPACE_HASH:-$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")}"
 
     local HOST
     HOST=$(hostname)
