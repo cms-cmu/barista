@@ -376,7 +376,8 @@ run_coffea() {
     HOST=$(hostname)
 
     # Check if we need to start the shared Dask daemon
-    if [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--run-dask"* ]] && \
+    if [[ " $* " == *"--shared-dask"* ]] && \
+       [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--dask"* ]] && \
        [[ " $* " != *" --start-cluster-daemon "* ]]; then
         
         # Determine scheduler JSON path and lock file path
@@ -429,7 +430,7 @@ exit(1)
                     case "$arg" in
                         --condor) DASK_FLAG="--condor" ;;
                         --slurm) DASK_FLAG="--slurm" ;;
-                        --run-dask) DASK_FLAG="--run-dask" ;;
+                        --run-dask|--dask) DASK_FLAG="--dask" ;;
                         -c|--config|--configs)
                             next_idx=$((i+1))
                             eval CONFIG_FILE=\$\{$next_idx\}
@@ -445,7 +446,7 @@ exit(1)
                 # Spawn daemon in the background on the host
                 (
                     exec 9>&-
-                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
                 )
             else
                 info "Shared Dask daemon is already running and responsive."

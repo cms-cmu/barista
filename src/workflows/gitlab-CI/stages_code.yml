@@ -19,6 +19,13 @@ code_friendtree_merge_barista:
   script:
     - source src/scripts/code-friendtree-merge.sh
 
+code_runner_barista:
+  stage: code
+  extends:
+    - .base_analysis_barista
+  script:
+    - source src/scripts/code-runner.sh
+
 code_stat_analysis_combine:
   stage: code
   extends:
