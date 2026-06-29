@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Iterable
 
@@ -11,7 +12,7 @@ import torch.nn.functional as F
 import torch.types as tt
 from src.classifier.config.scheduler import SkimStep
 from src.classifier.config.setting.HCR import Input, InputBranch, Output
-from src.classifier.config.setting.ml import SplitterKeys
+from src.classifier.config.setting.ml import SplitterKeys, Training
 from src.classifier.config.state.label import MultiClass
 from torch import Tensor
 
@@ -35,6 +36,21 @@ if TYPE_CHECKING:
     from src.storage.eos import PathLike
 
 
+def _amp_autocast(device):
+    """Mixed-precision autocast context, set by cfg.Training.precision on CUDA only.
+
+    '' (default) returns a nullcontext -> exact fp32 behaviour. 'fp16'/'bf16' wrap the
+    forward passes (train/validate/evaluate) to ~halve activation memory; the GBN
+    running-stats update (updateMeanStd) is intentionally left outside. bf16 keeps the
+    fp32 exponent range (no overflow) and is the choice for very wide nets.
+    """
+    p = Training.precision
+    if p in ("fp16", "bf16") and getattr(device, "type", str(device)) == "cuda":
+        dtype = torch.bfloat16 if p == "bf16" else torch.float16
+        return torch.autocast("cuda", dtype=dtype)
+    return nullcontext()
+
+
 @dataclass
 class HCRArch:
     __skip_save = frozenset(("loss",))
@@ -42,6 +58,8 @@ class HCRArch:
     loss: Callable[[BatchType], Tensor] = None
     n_features: int = 8
     attention: bool = True
+    use_attention_gate: bool = False
+    use_kv_proj: bool = False
 
     @classmethod
     def load(cls, saved: dict[str]):
@@ -133,6 +151,8 @@ class HCRModel(Model):
             useOthJets=("attention" if arch.attention else ""),
             device=device,
             nClasses=MultiClass.n_trainable(),
+            use_attention_gate=arch.use_attention_gate,
+            use_kv_proj=arch.use_kv_proj,
         )
         self._benchmarks = benchmarks
 
@@ -162,10 +182,11 @@ class HCRModel(Model):
         return self._nn
 
     def train(self, batch: BatchType) -> Tensor:
-        c, q = self._nn(*_HCRInput(batch, self._device))
-        batch[Output.quadjet_raw] = q
-        batch[Output.class_raw] = c
-        return self._loss(batch)
+        with _amp_autocast(self._device):
+            c, q = self._nn(*_HCRInput(batch, self._device))
+            batch[Output.quadjet_raw] = q
+            batch[Output.class_raw] = c
+            return self._loss(batch)
 
     def validate(self, batches: Iterable[BatchType]) -> dict[str]:
         weight = 0.0
@@ -173,7 +194,9 @@ class HCRModel(Model):
         scalar_funcs = self._benchmarks.scalars
         rocs = [r.copy() for r in self._benchmarks.rocs]
         for batch in batches:
-            c, q = self._nn(*_HCRInput(batch, self._device))
+            with _amp_autocast(self._device):
+                c, q = self._nn(*_HCRInput(batch, self._device))
+            c, q = c.float(), q.float()
             batch |= {
                 Output.quadjet_raw: q,
                 Output.class_raw: c,
@@ -344,6 +367,8 @@ class HCRModelEval(Model):
             useOthJets=("attention" if self._arch.attention else ""),
             device=device,
             nClasses=len(self._classes),
+            use_attention_gate=self._arch.use_attention_gate,
+            use_kv_proj=self._arch.use_kv_proj,
         )
         self._nn.load_state_dict(saved["model"])
 
@@ -354,7 +379,9 @@ class HCRModelEval(Model):
     def evaluate(self, batch: BatchType) -> BatchType:
         selection = self._splitter.split(batch)[SplitterKeys.validation]
         selector = Selector(selection)
-        c, q = self._nn(*_HCRInput(batch, self._device, selection))
+        with _amp_autocast(self._device):
+            c, q = self._nn(*_HCRInput(batch, self._device, selection))
+        c, q = c.float(), q.float()
         c_prob = F.softmax(c, dim=1).cpu()
         q_prob = F.softmax(q, dim=1).cpu()
         output = {
@@ -385,7 +412,7 @@ class HCREvaluation(Evaluation):
             load_kw = {}
             if self.device.type == "cpu":
                 load_kw["map_location"] = torch.device("cpu")
-            saved = torch.load(f, **load_kw, weights_only=False)
+            saved = torch.load(f, weights_only=False, **load_kw)
         self._HCR = HCRModelEval(
             device=self.device,
             saved=saved,

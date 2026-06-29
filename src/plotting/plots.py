@@ -49,6 +49,9 @@ def init_arg_parser():
     parser.add_argument('--signal', action="store_true", help='')
     parser.add_argument('--year',   help='')
     parser.add_argument('--combine_input_files', action="store_true", help='')
+    parser.add_argument('--category', default=None,
+                        help='Optional hist category selector (e.g. nominal, lowpt). '
+                             'Default None lets the caller plot all categories.')
 
     return parser
 

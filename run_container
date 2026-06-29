@@ -2,7 +2,7 @@
 
 # --- Configuration ---
 # Image Definitions
-COFFEA_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:latest"
+COFFEA_IMAGE="${COFFEA_IMAGE:-docker://gitlab-registry.cern.ch/cms-cmu/barista:latest}"
 DEV_COFFEA0_7_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:coffea0_7_latest"
 COMBINE_IMAGE="docker://gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0"
 SNAKEMAKE_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:reana_latest"   ### depracated, use local Pixi environment instead
@@ -11,12 +11,21 @@ BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
 if [ -d '/cvmfs/unpacked.cern.ch' ]; then
-    COFFEA_IMAGE="/cvmfs/unpacked.cern.ch/${COFFEA_IMAGE#docker://}"
-    DEV_COFFEA0_7_IMAGE="/cvmfs/unpacked.cern.ch/${DEV_COFFEA0_7_IMAGE#docker://}"
-    COMBINE_IMAGE="/cvmfs/unpacked.cern.ch/${COMBINE_IMAGE#docker://}"
-    SNAKEMAKE_IMAGE="/cvmfs/unpacked.cern.ch/${SNAKEMAKE_IMAGE#docker://}"
-    CLASSIFIER_IMAGE="/cvmfs/unpacked.cern.ch/${CLASSIFIER_IMAGE#docker://}"
-    BRILCALC_IMAGE="/cvmfs/unpacked.cern.ch/${BRILCALC_IMAGE#docker://}"
+    _resolve_cvmfs() {
+        local img="$1"
+        local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
+        if [ -e "$cvmfs_path" ]; then
+            echo "$cvmfs_path"
+        else
+            echo "$img"
+        fi
+    }
+    COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
+    DEV_COFFEA0_7_IMAGE=$(_resolve_cvmfs "$DEV_COFFEA0_7_IMAGE")
+    COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
+    SNAKEMAKE_IMAGE=$(_resolve_cvmfs "$SNAKEMAKE_IMAGE")
+    CLASSIFIER_IMAGE=$(_resolve_cvmfs "$CLASSIFIER_IMAGE")
+    BRILCALC_IMAGE=$(_resolve_cvmfs "$BRILCALC_IMAGE")
 fi
 
 # --- Helpers ---
@@ -236,13 +245,72 @@ setup_host_env() {
             if [ ! -d "$PIXI_DIR" ]; then
                 info "LPC environment detected. Pixi will be installed in ${PIXI_DIR}"
             fi
-            CACHE_BASE="$HOME"
+            CACHE_BASE="/uscms_data/d3/${USER}"
+            export APPTAINER_IGNORE_PROOT=1
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
             ;;
-        *runner*)
-            PIXI_DIR="/tmp/pixi"
+        *lxplus*)
+            export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
+            ;;
+        *falcon*|*rogue*)
+            # 1. Basic Mounts
+            if [[ $HOST == *falcon* ]]; then
+                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/"
+            else
+                export APPTAINER_BINDPATH="${COMMON_BINDS},/home/export/,/mnt/scratch/${USER}"
+            fi
+            
+            # 2. SLURM CONFIG, USERS, & MUNGE (CRITICAL FIX)
+            #    Added /run/munge and /var/run/munge so sbatch can authenticate
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/etc/slurm,/etc/passwd,/etc/group,/run/munge,/var/run/munge"
+
+            # 3. QUARANTINE BINDS
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr:/host/usr,/lib:/host/lib,/lib64:/host/lib64"
+
+            # 4. PLUGIN BIND
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},/usr/lib/x86_64-linux-gnu/slurm-wlm"
+
+            # 5. GENERATE WRAPPER (use shared filesystem so compute nodes can access it)
+            WRAPPER_DIR="$HOME/.cache/barista/slurm_wrappers"
+            mkdir -p "$WRAPPER_DIR"
+            
+            cat <<EOF > "${WRAPPER_DIR}/slurm_wrapper.sh"
+#!/bin/bash
+# Define Host Library Paths (Ubuntu/Debian specific)
+HOST_LIBS="/host/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu:/host/usr/lib/x86_64-linux-gnu/slurm-wlm:/host/lib64:/host/usr/lib64"
+
+# Define Host Loader
+if [ -f "/host/lib64/ld-linux-x86-64.so.2" ]; then
+    LOADER="/host/lib64/ld-linux-x86-64.so.2"
+else
+    LOADER="/host/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+fi
+
+# Target Binary
+NAME=\$(basename "\$0")
+BINARY="/host/usr/bin/\$NAME"
+
+# Execute
+exec "\$LOADER" --library-path "\$HOST_LIBS" "\$BINARY" "\$@"
+EOF
+            chmod +x "${WRAPPER_DIR}/slurm_wrapper.sh"
+
+            # Create Symlinks
+            for cmd in sbatch squeue scancel scontrol; do
+                ln -sf "${WRAPPER_DIR}/slurm_wrapper.sh" "${WRAPPER_DIR}/${cmd}"
+            done
+
+            # 6. Add wrappers to PATH (Must be FIRST)
+            export APPTAINER_BINDPATH="${APPTAINER_BINDPATH},${WRAPPER_DIR}:/opt/slurm_wrappers"
+            export APPTAINERENV_PATH="/opt/slurm_wrappers:\${PATH}"
+            export SINGULARITYENV_PATH="/opt/slurm_wrappers:\${PATH}"
+            
+            # 7. Enable Slurm Mode if we aren't already in a job
+            if [ -z "$SLURM_JOB_ID" ]; then
+                export USE_SLURM=true 
+            fi
             ;;
         *)
             if [ -z "$APPTAINER_ARGS" ]; then
@@ -255,7 +323,7 @@ setup_host_env() {
 
     # Cache Configuration
     export APPTAINER_CACHEDIR="${CACHE_BASE}/apptainer_cache"
-    export APPTAINER_TMPDIR="${CACHE_BASE}/.apptainer/"
+    export APPTAINER_TMPDIR="/tmp/$(whoami)/.apptainer/"
     export MPLCONFIGDIR="${CACHE_BASE}/.config/matplotlib"
     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$MPLCONFIGDIR"
 }
@@ -308,7 +376,8 @@ run_coffea() {
     HOST=$(hostname)
 
     # Check if we need to start the shared Dask daemon
-    if [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--run-dask"* ]] && \
+    if [[ " $* " == *"--shared-dask"* ]] && \
+       [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--dask"* ]] && \
        [[ " $* " != *" --start-cluster-daemon "* ]]; then
         
         # Determine scheduler JSON path and lock file path
@@ -361,7 +430,7 @@ exit(1)
                     case "$arg" in
                         --condor) DASK_FLAG="--condor" ;;
                         --slurm) DASK_FLAG="--slurm" ;;
-                        --run-dask) DASK_FLAG="--run-dask" ;;
+                        --run-dask|--dask) DASK_FLAG="--dask" ;;
                         -c|--config|--configs)
                             next_idx=$((i+1))
                             eval CONFIG_FILE=\$\{$next_idx\}
@@ -377,7 +446,7 @@ exit(1)
                 # Spawn daemon in the background on the host
                 (
                     exec 9>&-
-                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" --idle-timeout 3600 ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
                 )
             else
                 info "Shared Dask daemon is already running and responsive."
@@ -396,6 +465,10 @@ exit(1)
             done
             if [ $count -eq 120 ]; then
                 warning "Timed out waiting for Dask daemon to become responsive. Proceeding anyway..."
+                if [ -f "$DAEMON_LOG" ]; then
+                    warning "Last 40 lines of daemon log ($DAEMON_LOG):"
+                    tail -40 "$DAEMON_LOG" >&2
+                fi
             fi
         else
             info "Shared Dask daemon is already running and responsive."
@@ -414,7 +487,11 @@ exit(1)
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
+        --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
+    if [ -d "/eos" ]; then
+        FLAGS+=( -B /eos )
+    fi
     ulimit -n 65536
 
     # LPC-Specific Environment Variable
@@ -572,6 +649,7 @@ run_coffea_dev() {
         --env XRD_CONNECTIONWINDOW=30
         --env PYTHONSTARTUP=/srv/.pythonstartup
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
+        --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
     ulimit -n 65536
 
@@ -748,6 +826,7 @@ run_classifier() {
     check_apptainer
     info "Running Classifier container..."
 
+    CACHE_BASE="$HOME/.cache/barista"
     local INIT_FILE="/entrypoint.sh"
     local USE_SLURM=false
     local IMAGE="$CLASSIFIER_IMAGE"
@@ -762,6 +841,12 @@ run_classifier() {
     if [[ $HOST == *falcon* ]]; then
         USE_SLURM=true
         info "FALCON cluster detected. Will submit jobs via SLURM."
+    fi
+
+    # Bind X509 proxy for XRootD authentication
+    local PROXY="${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"
+    if [ -f "$PROXY" ]; then
+        FLAGS+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
     fi
 
     # Collect user arguments
