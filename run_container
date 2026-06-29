@@ -377,7 +377,7 @@ exit(1)
                 # Spawn daemon in the background on the host
                 (
                     exec 9>&-
-                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" -c "$CONFIG_FILE" --idle-timeout 3600 ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
                 )
             else
                 info "Shared Dask daemon is already running and responsive."
