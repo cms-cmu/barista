@@ -22,6 +22,6 @@ default-resources:
   runtime: "8h"
   mem_mb: 16000
   cpus_per_task: 4
-  tmpdir: "/tmp"
-  mpi: "none"
+  tmpdir: "'/tmp'"
+  mpi: "'none'"
   tasks: 2

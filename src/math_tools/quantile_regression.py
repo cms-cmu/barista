@@ -20,7 +20,8 @@ plt.rcParams["figure.figsize"] = [8,8]
 plt.rcParams["font.size"] = 18
 
 REGIONS = ("nominal_4j2b", "lowpt_4j2b", "incl_3j2b")
-DEFAULT_N_BINS = 5  # start of bottom-up n_bins scan
+DEFAULT_N_BINS = 50   # max / start of top-down n_bins scan (nq in the HH-combine procedure)
+DEFAULT_MIN_NEFF = 10.5  # minimum effective unweighted background events per bin
 # Filename pattern written by bbreww processor:
 #   phh_hist_{dataset}__{year}_{chunk_id}.pkl
 _PHH_FILE_RE = re.compile(r"^phh_hist_(?P<dataset>.+?)__(?P<year>.+)_(?P<chunk>[0-9a-f]{8})\.pkl$")
@@ -193,98 +194,82 @@ def _quantile_bin_edges(transformer, n_bins):
     return edges
 
 
-def compute_significance(sig_phh, sig_w, bkg_phh, bkg_w, bin_edges,
-                         min_unweighted_bkg=10):
-    """Asimov-style binned significance accounting for MC stat uncertainty:
+def count_underpopulated_bins(bkg_phh, bkg_w, bin_edges,
+                              min_neff_bkg=DEFAULT_MIN_NEFF):
+    """Count background bins whose effective unweighted count is below the floor.
 
-        Z = sqrt(sum_i s_i^2 / (b_i + sigma_b_i^2))
+    For each bin the effective number of unweighted background events is
 
-    where sigma_b_i^2 = sum of squared background weights in bin i (the
-    statistical uncertainty on the background prediction from finite MC).
-    Without this term, the score blows up in narrow bins where b is tiny
-    and biases the scan toward absurdly many bins.
+        n_eff_i = b_i^2 / sigma_b_i^2 = (sum w)^2 / (sum w^2)
 
-    Bins with unweighted background count below `min_unweighted_bkg` invalidate
-    the binning (returns (nan, n_bad)). Bins with b_i <= 0 are skipped.
+    where b_i = sum of background weights in the bin and sigma_b_i^2 = sum of
+    squared weights (the MC statistical variance). A bin is "underpopulated" if
+    n_eff_i < `min_neff_bkg`. A bin with zero background (sigma_b_i^2 == 0) has
+    n_eff = 0 and is therefore counted.
+
+    Returns
+    -------
+    int
+        Number of background bins failing n_eff >= min_neff_bkg.
     """
-    s, _     = np.histogram(sig_phh, bins=bin_edges, weights=sig_w)
     b, _     = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w)
     b_var, _ = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w ** 2)
-    b_raw, _ = np.histogram(bkg_phh, bins=bin_edges)
-    n_bad = int(np.sum(b_raw < min_unweighted_bkg))
-    if n_bad > 0:
-        return np.nan, n_bad
-    denom = b + b_var
-    valid = denom > 0
-    z2 = np.sum(np.where(valid, s ** 2 / np.where(valid, denom, 1.0), 0.0))
-    return float(np.sqrt(z2)), 0
+    n_eff = np.where(b_var > 0, b ** 2 / np.where(b_var > 0, b_var, 1.0), 0.0)
+    return int(np.sum(n_eff < min_neff_bkg))
 
 
-def stability_split_scan(transformer, sig_phh, sig_w, bkg_phh, bkg_w,
-                         n_bins_default, n_bins_max, min_unweighted_bkg):
-    """Run the bin scan on two independent halves (odd/even event index) of
-    signal AND background. If the 'best n_bins' is driven by real structure,
-    both halves should peak near the same n. If it's driven by statistical
-    fluctuations, the two halves will disagree.
+def optimize_n_bins(transformer, bkg_phh, bkg_w,
+                    n_bins_start=DEFAULT_N_BINS, min_neff_bkg=DEFAULT_MIN_NEFF):
+    """Choose the number of equal-signal-probability bins, top-down.
+
+    Implements the HH-combine quantile-rebinning procedure:
+
+        1. Start with `n_bins_start` quantile bins (equal signal yield per bin,
+           via the fitted `transformer`).
+        2. Rebin the background with those edges and check that every background
+           bin has n_eff = (sum w)^2/(sum w^2) >= `min_neff_bkg`.
+        3. If any bin fails, decrement n_bins by one and repeat from step 1.
+        4. Stop at the first (finest) n_bins where all bins pass, or at n_bins=1.
+
+    This is fully deterministic: the chosen binning is the finest one the
+    background MC statistics can support at the given floor. No significance or
+    other figure of merit is involved.
+
+    Returns
+    -------
+    dict
+        {'results': [(n_bins, n_bad), ...] from n_bins_start down to the chosen
+                     n (or 1), in descending order;
+         'n_bins_start': the starting n;
+         'best_n_bins': the chosen n_bins (None only if even n=1 fails)}
     """
-    results = {}
-    for label, idx_fn in (("halfA", lambda n: np.arange(n) % 2 == 0),
-                          ("halfB", lambda n: np.arange(n) % 2 == 1)):
-        s_mask = idx_fn(sig_phh.size)
-        b_mask = idx_fn(bkg_phh.size)
-        # scale weights by 2 so each half represents the full luminosity
-        scan = optimize_n_bins(transformer,
-                               sig_phh[s_mask], 2.0 * sig_w[s_mask],
-                               bkg_phh[b_mask], 2.0 * bkg_w[b_mask],
-                               n_bins_default=n_bins_default,
-                               n_bins_max=n_bins_max,
-                               min_unweighted_bkg=min_unweighted_bkg)
-        results[label] = scan
-    return results
-
-
-def optimize_n_bins(transformer, sig_phh, sig_w, bkg_phh, bkg_w,
-                    n_bins_default=DEFAULT_N_BINS, n_bins_max=50,
-                    min_unweighted_bkg=5):
-    """Scan n_bins from default to n_bins_max. Stop when the min-bkg floor is hit.
-
-    Returns dict with per-n_bins results and the best n_bins (max Z).
-    """
-    results = []  # list of (n_bins, Z, n_bad)
-    z_default = None
-    best_z = -np.inf
+    results = []  # list of (n_bins, n_bad), scanned high -> low
     best_n = None
-    stopped_at = None
-    for n in range(n_bins_default, n_bins_max + 1):
+    for n in range(n_bins_start, 0, -1):
         edges = _quantile_bin_edges(transformer, n)
-        z, n_bad = compute_significance(sig_phh, sig_w, bkg_phh, bkg_w, edges,
-                                        min_unweighted_bkg=min_unweighted_bkg)
-        results.append((n, z, n_bad))
-        if n == n_bins_default:
-            z_default = z
-        if np.isnan(z):
-            stopped_at = n
-            break
-        if z > best_z:
-            best_z = z
+        n_bad = count_underpopulated_bins(bkg_phh, bkg_w, edges,
+                                          min_neff_bkg=min_neff_bkg)
+        results.append((n, n_bad))
+        if n_bad == 0:
             best_n = n
+            break  # finest valid binning found (scanning downward)
     return {
         'results': results,
-        'n_bins_default': n_bins_default,
-        'z_default': z_default,
+        'n_bins_start': n_bins_start,
         'best_n_bins': best_n,
-        'best_z': best_z if best_n is not None else None,
-        'stopped_at': stopped_at,
     }
 
 
 def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
-                         n_bins_default=DEFAULT_N_BINS, n_bins_max=50,
-                         min_unweighted_bkg=5):
-    """End-to-end: load directory, split sig/bkg, fit transformer, scan bins.
+                         n_bins_start=DEFAULT_N_BINS,
+                         min_neff_bkg=DEFAULT_MIN_NEFF):
+    """End-to-end: load directory, split sig/bkg, fit transformer, choose bins.
 
-    Results are printed per region and the fitted transformer is saved (per
-    region) to `output_dir/quantiles_regressed_{region}.pkl`.
+    For each region the fitted quantile transformer is saved to
+    `output_dir/quantiles_regressed_{region}.pkl` and the chosen bin edges to
+    `output_dir/bin_edges_{region}.txt`. The number of bins is chosen by the
+    deterministic top-down procedure in `optimize_n_bins` (decrement from
+    `n_bins_start` until every background bin has n_eff >= `min_neff_bkg`).
     """
     os.makedirs(output_dir, exist_ok=True)
     grouped = load_phh_from_directory(input_dir)
@@ -308,52 +293,33 @@ def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
         transformer.save(os.path.join(output_dir,
                                       f"quantiles_regressed_{region}.pkl"))
 
-        scan = optimize_n_bins(transformer, s_phh, s_w, b_phh, b_w,
-                               n_bins_default=n_bins_default,
-                               n_bins_max=n_bins_max,
-                               min_unweighted_bkg=min_unweighted_bkg)
+        scan = optimize_n_bins(transformer, b_phh, b_w,
+                               n_bins_start=n_bins_start,
+                               min_neff_bkg=min_neff_bkg)
         summary[region] = scan
-
         best_n = scan['best_n_bins']
-        if best_n is not None:
-            edges = _quantile_bin_edges(transformer, best_n)
-            edges_path = os.path.join(output_dir, f"bin_edges_{region}.txt")
-            with open(edges_path, 'w') as f:
-                f.write(f"# region={region}  n_bins={best_n}  "
-                        f"Z={scan['best_z']:.4f}\n")
-                f.write(", ".join(f"{e:.6f}" for e in edges) + "\n")
-            print(f"  bin edges written to {edges_path}")
 
-        halves = stability_split_scan(transformer, s_phh, s_w, b_phh, b_w,
-                                      n_bins_default=n_bins_default,
-                                      n_bins_max=n_bins_max,
-                                      min_unweighted_bkg=min_unweighted_bkg)
-        print(f"  stability split (two independent halves, weights x2):")
-        for label, hscan in halves.items():
-            print(f"    {label}: best n_bins = {hscan['best_n_bins']}, "
-                  f"Z = {hscan['best_z']:.4f}"
-                  if hscan['best_n_bins'] is not None
-                  else f"    {label}: no valid binning")
+        # Report the top-down scan: n_bins tried (high -> low) and how many
+        # background bins were underpopulated at each.
+        print(f"  top-down scan from n_bins={n_bins_start} "
+              f"(stop when all bkg bins have n_eff >= {min_neff_bkg}):")
+        for n, n_bad in scan['results']:
+            print(f"    n_bins={n:3d}  n_underpopulated_bkg_bins={n_bad}")
 
-        print(f"  default n_bins = {scan['n_bins_default']}: "
-              f"Z = {scan['z_default']}")
-        if scan['stopped_at'] is not None:
-            print(f"  stopped at n_bins = {scan['stopped_at']}: "
-                  f"a background bin had < {min_unweighted_bkg} unweighted events")
-        if scan['best_n_bins'] is not None:
-            print(f"  best n_bins    = {scan['best_n_bins']}: "
-                  f"Z = {scan['best_z']:.4f}")
-        best_n = scan['best_n_bins']
-        if best_n is not None:
-            window = [(n, z, nb) for n, z, nb in scan['results']
-                      if abs(n - best_n) <= 10]
-            print(f"  scan (n_bins, Z, n_bad_bkg_bins) within +/-10 of best n={best_n}:")
-        else:
-            window = scan['results']
-            print(f"  scan (n_bins, Z, n_bad_bkg_bins):")
-        for n, z, nb in window:
-            z_s = f"{z:.4f}" if not np.isnan(z) else "NaN (stopped)"
-            print(f"    n_bins={n:3d}  Z={z_s}  n_bad_bkg_bins={nb}")
+        if best_n is None:
+            print(f"  NO valid binning: even n_bins=1 has a bkg bin with "
+                  f"n_eff < {min_neff_bkg}")
+            continue
+
+        print(f"  chosen n_bins = {best_n} "
+              f"(finest binning with all bkg bins n_eff >= {min_neff_bkg})")
+        edges = _quantile_bin_edges(transformer, best_n)
+        edges_path = os.path.join(output_dir, f"bin_edges_{region}.txt")
+        with open(edges_path, 'w') as f:
+            f.write(f"# region={region}  n_bins={best_n}  "
+                    f"min_neff_bkg={min_neff_bkg}\n")
+            f.write(", ".join(f"{e:.6f}" for e in edges) + "\n")
+        print(f"  bin edges written to {edges_path}")
     return summary
 
 
@@ -369,14 +335,19 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output folder for fitted quantile transformer", required=True)
     parser.add_argument("-n", "--n_quantiles", type=int, default=10000, help="Number of quantiles", required=False)
     parser.add_argument("-b", "--n_bins", type=int, default=DEFAULT_N_BINS,
-                        help="Default/starting number of equal-probability bins")
-    parser.add_argument("--n-bins-max", type=int, default=50,
-                        help="Upper end of the bin-count scan (--input-dir mode)")
-    parser.add_argument("--min-bkg", type=int, default=5,
-                        help="Minimum unweighted background events required per bin")
+                        help="Starting (largest) number of equal-probability bins "
+                             "for the top-down scan (--input-dir mode). "
+                             "The scan decrements from here until every "
+                             "background bin passes the n_eff floor.")
+    parser.add_argument("--min-neff", type=float, default=DEFAULT_MIN_NEFF,
+                        help="Minimum effective unweighted background events "
+                             "n_eff=(sum w)^2/(sum w^2) required per bin")
     parser.add_argument("-r", "--region", choices=list(REGIONS), default="nominal_4j2b",
                         nargs="+" , help="Region to use for fitting in legacy -i mode")
     args = parser.parse_args()
+
+    if args.n_bins < 1:
+        parser.error(f"-b/--n_bins must be >= 1, got {args.n_bins}")
 
     os.makedirs(args.output, exist_ok=True)
 
@@ -385,9 +356,8 @@ if __name__ == "__main__":
             input_dir=args.input_dir,
             output_dir=args.output,
             n_quantiles=args.n_quantiles,
-            n_bins_default=args.n_bins,
-            n_bins_max=args.n_bins_max,
-            min_unweighted_bkg=args.min_bkg,
+            n_bins_start=args.n_bins,
+            min_neff_bkg=args.min_neff,
         )
     else:
         # Legacy single-sample mode: `-i` files are assumed to be signal.

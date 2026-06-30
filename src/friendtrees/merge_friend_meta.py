@@ -8,13 +8,34 @@ from src.utils.argparser import DefaultFormatter
 from src.utils.json import DefaultEncoder
 
 
+_FRIEND_KEYS = {"name", "branches", "data"}
+
+
+def _iter_friend_dicts(obj):
+    """Recursively yield any dict shaped like a serialized Friend.
+
+    A Friend dict is one with the keys Friend.from_json consumes:
+    'name', 'branches', and 'data'.
+    """
+    if isinstance(obj, dict):
+        if _FRIEND_KEYS.issubset(obj.keys()):
+            yield obj
+            return
+        for v in obj.values():
+            yield from _iter_friend_dicts(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _iter_friend_dicts(v)
+
+
 def merge_friend_metas(output: PathLike, *metafiles: PathLike, cleanup: bool = True):
     merged: dict[str, Friend] = {}
     for metafile in metafiles:
         with fsspec.open(metafile) as f:
-            meta: dict[str, dict] = json.load(f)
-        for k, v in meta.items():
+            meta = json.load(f)
+        for v in _iter_friend_dicts(meta):
             friend = Friend.from_json(v)
+            k = friend.name
             if k in merged:
                 merged[k] += friend
             else:
