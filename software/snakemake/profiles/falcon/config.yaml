@@ -11,6 +11,10 @@ latency-wait: 60
 # `run_on_condor=False` on falcon. Override with `--config run_on_condor=True`.
 default-resources:
   slurm_partition: "work"
+  # Default QoS is 'light'. Per the CMS-CMU SLURM guide, jobs using >25 MPS/job
+  # must use 'medium' (or higher) — the admin reaps >25-MPS jobs left on 'light'
+  # (State 'CANCELLED by 0' at ~5 min). Set `resources: qos="medium"` per-rule on
+  # the GPU train rules (mps:30). https://cms-cmu.docs.cern.ch/computing/slurm_guide/
   # Snakemake parses bare numeric runtime values from profile YAML as SECONDS
   # via humanfriendly.parse_timespan (resources.py:860). A unit suffix forces
   # interpretation as minutes/hours. "8h" → 480 min, fits in the work partition's
