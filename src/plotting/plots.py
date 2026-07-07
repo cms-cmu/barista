@@ -4,6 +4,7 @@ import hist
 import yaml
 import copy
 import argparse
+import src.plotting.numpy2_pickle_compat  # noqa: F401  numpy._core alias for unpickling numpy>=2 files under numpy 1.x
 from coffea.util import load
 import src.plotting.iPlot_config as cfg
 import src.plotting.helpers as plot_helpers
