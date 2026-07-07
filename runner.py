@@ -65,7 +65,11 @@ from src.skimmer.picoaod import fetch_metadata, integrity_check, resize
 if TYPE_CHECKING:
     from src.data_formats.root import Friend
 
-dask.config.set({'logging.distributed': 'error'})
+dask.config.set({
+    'logging.distributed': 'error',
+    'distributed.comm.timeouts.connect': '180s',
+    'distributed.comm.timeouts.tcp': '180s',
+})
 
 NanoAODSchema.warn_missing_crossrefs = False
 if hasattr(NanoAODSchema, 'error_missing_event_ids'):
@@ -477,7 +481,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'memory': config_runner['worker_memory'],
         'ship_env': False,
         'log_directory': config_runner.get('log_directory', _default_log_dir),
-        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}", 'port': 0},
+        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
@@ -491,7 +495,7 @@ def setup_condor_cluster(config_runner, tarball_path):
     if config_runner.get('worker_log_directory'):
         # Do not pre-create — dask_jobqueue must create it fresh.
         cluster_args['log_directory'] = config_runner['worker_log_directory']
-    
+
     if os.getenv("WORKER_IMAGE"):
         logging.info(f"Overriding worker image with: {os.getenv('WORKER_IMAGE')}")
         cluster_args['image'] = os.getenv("WORKER_IMAGE")
@@ -530,13 +534,25 @@ def setup_condor_cluster(config_runner, tarball_path):
             return None
 
         def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred" or worker is None:
+            if finish != "erred":
                 return
-            log_file = self._find_log(worker)
-            if log_file:
-                logging.error(f"Task permanently failed: {key} -> {log_file}")
-            else:
-                logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+            exc = kwargs.get("exception")
+            exc_text = None
+            if exc is not None:
+                try:
+                    from distributed.protocol import deserialize
+                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
+                    exc_text = repr(err)
+                except Exception:
+                    exc_text = repr(exc)
+            if exc_text:
+                logging.error(f"Task failed: {key}: {exc_text}")
+            elif worker is not None:
+                log_file = self._find_log(worker)
+                if log_file:
+                    logging.error(f"Task permanently failed: {key} -> {log_file}")
+                else:
+                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
 
     client.register_plugin(WorkerLostLogger())
 
@@ -578,7 +594,7 @@ def setup_slurm_cluster(config_runner):
         partition = 'RM-shared'
 
     job_extra = list(config_runner.get('slurm_job_extra', []))
-    
+
     # If on Bridges 2 and billing account is specified in environment, inject it
     account = os.environ.get('SLURM_ACCOUNT')
     if is_bridges2 and account:
@@ -792,7 +808,7 @@ def setup_config_defaults(config_runner, args):
         'worker_memory': '4GB',
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
-        'max_workers': 400,
+        'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
         'workers': 2,
         'skipbadfiles': False,
         'dashboard_address': 10200,
@@ -801,6 +817,7 @@ def setup_config_defaults(config_runner, args):
         'friend_merge_step': 100_000,
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'dask_retries': 3,
         'slurm_cores': 4,
         'slurm_partition': 'work',
         'slurm_qos': 'cpu_light',
@@ -831,6 +848,7 @@ def setup_executor(config_runner, args, client, pool):
             return processor.DaskExecutor(
                 client=client,
                 status=args.run_dask and not args.condor,
+                retries=config_runner['dask_retries'],
             ), runner_args
         else:
             logging.info("Running futures executor")
@@ -1000,7 +1018,7 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     logging.debug(f'Running on fileset {pretty_repr(fileset)}')
 
     if COFFEA_2025:
-        runner = processor.Runner(
+        runner_kwargs = dict(
             executor=executor,
             schema=executor_args['schema'],
             savemetrics=executor_args['savemetrics'],
@@ -1008,7 +1026,11 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             xrootdtimeout=executor_args['xrootdtimeout'],
             chunksize=executor_args['chunksize'],
             maxchunks=executor_args['maxchunks'],
+            # NOTE: do NOT set metadata_cache={} — under Condor with many chunks
+            # per worker, the in-process dict grows unboundedly and contributes
+            # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
+        runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
             treename='Events',
@@ -1054,22 +1076,29 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
     """Monitor connected clients and active tasks, shut down when idle."""
     logging.info("Dask cluster daemon monitoring loop started.")
     idle_start = None
-    
+
     while True:
         try:
             # Query scheduler info
             scheduler_info = client.scheduler_info()
-            
+
             # Count connected clients, excluding this daemon client itself
-            connected_clients = scheduler_info.get('clients', {})
-            active_clients = max(0, len(connected_clients) - 1)
-            
+            try:
+                def get_active_clients(dask_scheduler):
+                    return [c for c in dask_scheduler.clients.keys() if c != 'fire-and-forget']
+                connected_clients = client.run_on_scheduler(get_active_clients)
+                active_clients = max(0, len(connected_clients) - 1)
+            except Exception as e:
+                logging.error(f"Error querying clients on scheduler: {e}")
+                connected_clients = scheduler_info.get('clients', {})
+                active_clients = max(0, len(connected_clients) - 1)
+
             # Query number of processing tasks
             processing_tasks = client.processing()
             n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
-            
+
             logging.debug(f"Daemon status: {active_clients} active clients, {n_tasks} tasks processing.")
-            
+
             if active_clients > 0 or n_tasks > 0:
                 if idle_start is not None:
                     logging.info("Cluster is active again. Resetting idle timer.")
@@ -1086,9 +1115,9 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
         except Exception as e:
             logging.error(f"Error in daemon monitoring loop: {e}")
             break
-            
+
         time.sleep(30)
-        
+
     # Shutdown logic
     # Immediately delete the JSON file so new clients do not try to connect to a dying scheduler
     try:
@@ -1115,7 +1144,7 @@ def setup_shared_dask_client(args, config_runner):
     import getpass
     import subprocess
     from distributed import Client
-    
+
     # 1. Determine namespaced file paths
     workspace_hash = os.environ.get("BARISTA_WORKSPACE_HASH")
     if not workspace_hash:
@@ -1126,13 +1155,13 @@ def setup_shared_dask_client(args, config_runner):
     os.makedirs(daemon_dir, exist_ok=True)
     scheduler_json_path = f"{daemon_dir}/dask_scheduler_{workspace_hash}.json"
     daemon_log_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.log"
-    
+
     # 2. Explicit scheduler address bypass
     if args.scheduler_address:
         logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
         client = Client(args.scheduler_address)
         return client, None
-        
+
     def log_daemon_info(data):
         if "daemon_log" in data:
             logging.info(f"Dask daemon log: {data['daemon_log']}")
@@ -1179,6 +1208,13 @@ def setup_shared_dask_client(args, config_runner):
             try:
                 client = Client(address, timeout="5s")
                 logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                # This per-job process connects to a shared daemon's scheduler, so
+                # unlike the cluster-creating path it never logged the dashboard.
+                # Emit it here (plus the scheduler host) so monitors
+                # (barista_console / runner_monitor) can scan this log, build a
+                # reachable dashboard URL, and show live worker/task progress.
+                logging.info(f"Dask dashboard: {client.dashboard_link}")
+                logging.info(f"Dask scheduler host: {address.split('://')[1].split(':')[0]}")
                 log_daemon_info(data)
                 return client, None
             except Exception as e:
@@ -1186,7 +1222,7 @@ def setup_shared_dask_client(args, config_runner):
                     raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 5 attempts: {e}")
                 logging.warning(f"Connection attempt {attempt}/5 failed: {e}. Retrying in 2 seconds...")
                 time.sleep(2)
-            
+
     # 5. Daemon setup logic (daemon process)
     else:
         logging.info("Initializing Dask cluster daemon...")
@@ -1204,7 +1240,7 @@ def setup_shared_dask_client(args, config_runner):
             client, cluster = setup_local_cluster(config_runner)
         else:
             raise ValueError("Daemon started without a valid cluster type flag (--condor, --slurm, or --dask)")
-            
+
         # Write info to JSON
         info_data = {
             "address": client.scheduler.address,
@@ -1215,18 +1251,18 @@ def setup_shared_dask_client(args, config_runner):
             info_data["worker_log_dir"] = log_dir
         with open(scheduler_json_path, "w") as f:
             json.dump(info_data, f)
-            
+
         # Register worker plugin
         logging.info("Registering worker plugin for Dask client in daemon...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
-        
+
         # Enter monitoring loop (exits process on timeout)
         run_daemon_monitoring_loop(client, cluster, scheduler_json_path, args.idle_timeout)
         sys.exit(0)
 
 
-if __name__ == '__main__':
+def make_parser():
 
     # Configure argument parser
     parser = argparse.ArgumentParser(
@@ -1405,6 +1441,13 @@ if __name__ == '__main__':
         help=argparse.SUPPRESS
     )
     exec_group.add_argument(
+        '--shared-dask',
+        dest="shared_dask",
+        action="store_true",
+        default=False,
+        help='Use a shared Dask cluster daemon'
+    )
+    exec_group.add_argument(
         '--idle-timeout',
         dest="idle_timeout",
         type=int,
@@ -1448,6 +1491,11 @@ if __name__ == '__main__':
         default="",
         help='Override git diff for reproducibility tracking'
     )
+    return parser
+
+
+if __name__ == '__main__':
+    parser = make_parser()
 
     # Parse command line arguments
     args = parser.parse_args()
@@ -1470,8 +1518,11 @@ if __name__ == '__main__':
         logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
         configs = yaml.safe_load(open(args.configs, 'r'))
         if not 'config' in configs: configs['config'] = {}
+        with open("src/physics/corrections.yml", "r") as f:
+            corrections_metadata = yaml.safe_load(f)
         configs['config']['corrections_metadata'] = corrections_metadata
         config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+        args.shared_dask = True
         setup_config_defaults(config_runner, args)
         if args.dashboard_address is not None:
             config_runner['dashboard_address'] = args.dashboard_address
@@ -1496,6 +1547,8 @@ if __name__ == '__main__':
     if not 'config' in configs: configs['config'] = {}
     # Add corrections_metadata to configs
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
+    with open("src/physics/corrections.yml", "r") as f:
+        corrections_metadata = yaml.safe_load(f)
     configs['config']['corrections_metadata'] = corrections_metadata
 
     if args.systematics:
@@ -1635,9 +1688,26 @@ if __name__ == '__main__':
     cluster = None
 
     if args.condor or args.slurm or args.scheduler_address or args.run_dask:
-        logging.info("Configuring shared Dask cluster client...")
         args.run_dask = True
-        client, cluster = setup_shared_dask_client(args, config_runner)
+        if args.shared_dask:
+            logging.info("Configuring shared Dask cluster client...")
+            client, cluster = setup_shared_dask_client(args, config_runner)
+        else:
+            if args.scheduler_address:
+                logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
+                from distributed import Client
+                client = Client(args.scheduler_address)
+                cluster = None
+            elif args.condor:
+                logging.info("Configuring standalone LPCCondorCluster...")
+                tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
+                client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+            elif args.slurm:
+                logging.info("Configuring standalone SLURMCluster...")
+                client, cluster = setup_slurm_cluster(config_runner)
+            elif args.run_dask:
+                logging.info("Configuring standalone LocalCluster...")
+                client, cluster = setup_local_cluster(config_runner)
     else:
         logging.info("Configuring local process pool execution...")
         # Setup process pool for futures executor
@@ -1647,7 +1717,7 @@ if __name__ == '__main__':
 
 
     # Register worker plugin if using Dask and we did not connect to a shared daemon
-    if client is not None and (args.start_cluster_daemon or args.scheduler_address):
+    if client is not None and (not args.shared_dask or args.start_cluster_daemon or args.scheduler_address):
         logging.info("Registering worker plugin for Dask client...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
@@ -1702,8 +1772,21 @@ if __name__ == '__main__':
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
-        with performance_report(filename=dask_report_file):
+        # Don't let the report's teardown RPC (which can hit a reset connection on
+        # a shared scheduler) crash an already-finished job.
+        _cm = performance_report(filename=dask_report_file)
+        _cm.__enter__()
+        _exc = None
+        try:
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        except BaseException as e:
+            _exc = e
+            raise
+        finally:
+            try:
+                _cm.__exit__(*(type(_exc), _exc, _exc.__traceback__) if _exc else (None, None, None))
+            except Exception as e:
+                logging.warning(f"Dask performance report teardown failed (does not change job outcome): {type(e).__name__}: {e}")
 
         # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
@@ -1730,4 +1813,3 @@ if __name__ == '__main__':
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
     os._exit(0)
-

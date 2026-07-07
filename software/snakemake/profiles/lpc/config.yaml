@@ -8,3 +8,7 @@ default-resources:
   - "tmpdir='/tmp'"
   - "mem_mb=4000"
 latency-wait: 60
+# Auto-retry failed jobs: covers the shared-Dask-daemon startup race (jobs that
+# start before the daemon writes its scheduler JSON) and transient HTCondor
+# KilledWorker/scheduler-lost flakiness. Overridable on the CLI with --retries N.
+retries: 2

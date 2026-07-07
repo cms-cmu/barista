@@ -14,7 +14,7 @@ class SimpleImporter:
                 self._cache[ext][file] = f.read()
         content = self._cache[ext][file]
         if kwargs:
-            kwargs = {"{{ " + k + " }}": v for k, v in kwargs.items()}
+            kwargs = {"{{ " + k + " }}": str(v) for k, v in kwargs.items()}
             content = re.sub(
                 "|".join(re.escape(k) for k in kwargs),
                 lambda match: kwargs.get(match.group(0)),

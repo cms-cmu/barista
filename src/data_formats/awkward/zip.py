@@ -15,7 +15,7 @@ class _Shape(IntEnum):
 
 
 class NanoAOD:
-    _count_pattern = re.compile(r"^n[A-Z]\w+$")
+    _count_pattern = re.compile(r"^n[A-Za-z]\w*$")
 
     def __init__(
         self,

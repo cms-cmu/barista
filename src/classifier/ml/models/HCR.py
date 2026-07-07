@@ -58,6 +58,8 @@ class HCRArch:
     loss: Callable[[BatchType], Tensor] = None
     n_features: int = 8
     attention: bool = True
+    use_attention_gate: bool = False
+    use_kv_proj: bool = False
 
     @classmethod
     def load(cls, saved: dict[str]):
@@ -146,9 +148,12 @@ class HCRModel(Model):
             dijetFeatures=arch.n_features,
             quadjetFeatures=arch.n_features,
             ancillaryFeatures=InputBranch.feature_ancillary,
+            canJetFeatures=InputBranch.feature_CanJet,
             useOthJets=("attention" if arch.attention else ""),
             device=device,
             nClasses=MultiClass.n_trainable(),
+            use_attention_gate=arch.use_attention_gate,
+            use_kv_proj=arch.use_kv_proj,
         )
         self._benchmarks = benchmarks
 
@@ -360,9 +365,12 @@ class HCRModelEval(Model):
             dijetFeatures=self._arch.n_features,
             quadjetFeatures=self._arch.n_features,
             ancillaryFeatures=InputBranch.feature_ancillary,
+            canJetFeatures=InputBranch.feature_CanJet,
             useOthJets=("attention" if self._arch.attention else ""),
             device=device,
             nClasses=len(self._classes),
+            use_attention_gate=self._arch.use_attention_gate,
+            use_kv_proj=self._arch.use_kv_proj,
         )
         self._nn.load_state_dict(saved["model"])
 
@@ -406,7 +414,7 @@ class HCREvaluation(Evaluation):
             load_kw = {}
             if self.device.type == "cpu":
                 load_kw["map_location"] = torch.device("cpu")
-            saved = torch.load(f, **load_kw, weights_only=False)
+            saved = torch.load(f, weights_only=False, **load_kw)
         self._HCR = HCRModelEval(
             device=self.device,
             saved=saved,
