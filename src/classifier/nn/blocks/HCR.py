@@ -1663,6 +1663,7 @@ class InputEmbed(nn.Module):
         dijetFeatures,
         quadjetFeatures,
         ancillaryFeatures=[],
+        canJetFeatures=("pt", "eta", "phi", "mass"),
         useOthJets="",
         layers=None,
         device="cuda",
@@ -1677,6 +1678,12 @@ class InputEmbed(nn.Module):
         self.dQ = quadjetFeatures
         self.dA = len(ancillaryFeatures)
         self.ancillaryFeatures = ancillaryFeatures
+        # First 4 CanJet features are the 4-vector (pt, eta, phi, mass) and feed
+        # the dijet/quadjet kinematic math. Anything beyond that is an extra
+        # per-jet feature carried on a parallel path straight into jetEmbed.
+        self.nj = len(canJetFeatures)
+        self.nExtra = self.nj - 4
+        assert self.nExtra >= 0, "feature_CanJet must start with pt,eta,phi,mass"
         self.device = device
         self.useOthJets = bool(useOthJets)
 
@@ -1697,7 +1704,7 @@ class InputEmbed(nn.Module):
 
         # embed inputs to dijetResNetBlock in target feature space
         self.jetEmbed = GhostBatchNorm1d(
-            4,
+            self.nj,
             features_out=self.dD,
             phase_symmetric=phase_symmetric,
             conv=True,
@@ -1820,9 +1827,15 @@ class InputEmbed(nn.Module):
         # a = a.clone()
 
         n = j.shape[0]
-        j = j.view(n, 4, 4)
+        j = j.view(n, self.nj, 4)
         o = o.view(n, 5, -1)
         a = a.view(n, self.dA, 1)
+        # Peel the extra per-jet features off the 4-vector channels. `je` keeps a
+        # reference to the original storage, so the in-place ops below on the
+        # kinematic slice (disjoint channels) don't touch it.
+        if self.nExtra:
+            je = j[:, 4:, :]
+            j = j[:, :4, :]
 
         # Apply log transform to nSelJets feature: log(nSelJets - offset)
         # offset depends on the minimum expected value of the feature
@@ -1937,6 +1950,14 @@ class InputEmbed(nn.Module):
         d[:, 2:3, (1, 3, 4)] = calcDeltaPhi(q, d[:, :, (1, 3, 5)])
 
         q = torch.cat((q[:, :2, :], q[:, 3:, :]), 1)  # remove phi from quadjet features
+
+        if self.nExtra:
+            # Mirror the jet-pairing expansion applied to `j` above
+            # (torch.cat([j, j[:, :, (0,2,1,3)], j[:, :, (0,3,1,2)]], 2)) so the
+            # extra features line up with the 12 jet-pair columns, then append
+            # them as additional channels. No log / ΔΦ — those are 4-vector only.
+            je = torch.cat([je, je[:, :, (0, 2, 1, 3)], je[:, :, (0, 3, 1, 2)]], 2)
+            j = torch.cat([j, je], 1)
 
         return j, d, q, a, o, ooMdPhi, doMdPhi, mask, mask_oo, mask_do
 
@@ -2057,6 +2078,7 @@ class HCR(nn.Module):
         dijetFeatures,
         quadjetFeatures,
         ancillaryFeatures,
+        canJetFeatures=("pt", "eta", "phi", "mass"),
         useOthJets="",
         device="cuda",
         nClasses=1,
@@ -2091,6 +2113,7 @@ class HCR(nn.Module):
             self.dD,
             self.dQ,
             ancillaryFeatures,
+            canJetFeatures=canJetFeatures,
             useOthJets=self.useOthJets,
             layers=self.layers,
             device=self.device,
