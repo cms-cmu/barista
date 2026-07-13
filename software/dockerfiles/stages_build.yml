@@ -53,6 +53,8 @@ build_container:
     reports:
       dotenv: build.env
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_COMMIT_BRANCH == "master"
@@ -78,6 +80,8 @@ build_container_coffea0_7:
     reports:
       dotenv: build_coffea0_7.env
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_COMMIT_BRANCH == "master"
@@ -108,6 +112,8 @@ deploy_container:
     - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "master"
       changes:
@@ -134,6 +140,8 @@ deploy_container_coffea0_7:
     - buildah tag ${CI_REGISTRY_IMAGE}:${COFFEA0_7_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:coffea0_7_latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:coffea0_7_latest
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true" && $CI_COMMIT_BRANCH == "master"
     - if: $CI_COMMIT_BRANCH == "master"
       changes:
@@ -167,6 +175,8 @@ build_classifier_container:
     DOCKER_FILE_NAME: "Dockerfile.ml"
     EXTRA_TAGS: "classifier_test"
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -200,6 +210,8 @@ deploy_classifier_container:
         buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_unify_test
       fi
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $RECREATE_CONTAINERS == "true"
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
