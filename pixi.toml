@@ -11,7 +11,7 @@ python = ">=3.11"
 pip = "*"
 
 # Snakemake and workflow tools
-snakemake = "*"
+snakemake = ">=9.22.0,<10"
 snakemake-executor-plugin-slurm = "*"
 snakemake-executor-plugin-htcondor = "*"
 snakemake-executor-plugin-cluster-generic = "*"
@@ -19,7 +19,7 @@ snakemake-executor-plugin-cluster-generic = "*"
 # System tools
 # Commenting out since they're typically available on target systems
 git = "*"
-graphviz = "*"
+graphviz = ">=14.1.2,<15"
 
 # libopenblas 0.3.30 crashes with SIGBUS on AMD EPYC (AVX-512 compiled, no AVX-512 CPU)
 # Pin to avoid the broken build until upstream fixes it
