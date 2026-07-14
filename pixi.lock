@@ -1594,7 +1594,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/greenlet?source=hash-mapping
+  - pkg:pypi/greenlet?source=compressed-mapping
   size: 263116
   timestamp: 1779292372878
 - conda: https://conda.anaconda.org/conda-forge/linux-64/gtk3-3.24.52-ha5ea40c_0.conda
@@ -1821,39 +1821,6 @@ packages:
   constrains:
   - boost-cpp <0.0a0
   license: BSL-1.0
-  purls: []
-  size: 3072984
-  timestamp: 1766347479317
-- conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-python-1.88.0-py313hfaae9d9_7.conda
-  sha256: 2dc359355c01b6b410572df440cd1d5022b9d591fcbd7d5f1ccef513ce0648e6
-  md5: 8d50c0fcc6f6cb7c0505342983a8f889
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libboost 1.88.0 hd24cca6_7
-  - libgcc >=14
-  - libstdcxx >=14
-  - numpy >=1.23,<3
-  - python >=3.13,<3.14.0a0
-  - python_abi 3.13.* *_cp313
-  constrains:
-  - py-boost <0.0a0
-  - boost <0.0a0
-  license: BSL-1.0
-  purls: []
-  size: 130496
-  timestamp: 1766348147704
-- conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.11.0-8_h0358290_openblas.conda
-  build_number: 8
-  sha256: 1a2bc77bb26520255904a3d9b1f40e6bf0bf9d8d3405c7709dd162282820915a
-  md5: 33a413f1095f8325e5c30fde3b0d2445
-  depends:
-  - libblas 3.11.0 8_h4a7cf45_openblas
-  constrains:
-  - blas 2.308   openblas
-  - liblapacke 3.11.0   8*_openblas
-  - liblapack  3.11.0   8*_openblas
-  license: BSD-3-Clause
-  license_family: BSD
   purls: []
   size: 3072984
   timestamp: 1766347479317
@@ -2648,7 +2615,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=compressed-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   size: 8864096
   timestamp: 1779169199037
 - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.3-h35e630c_0.conda
@@ -3608,6 +3575,7 @@ packages:
   - python >=3.10
   - python
   license: BSD-3-Clause
+  license_family: BSD
   purls:
   - pkg:pypi/idna?source=compressed-mapping
   size: 56858
@@ -4376,7 +4344,7 @@ packages:
   - aiosqlite>=0.21.0,<0.22
   - beaupy>=3.0.0,<4
   requires_python: '>=3.11'
-- pypi: git+https://github.com/cademirch/snakemake-logger-plugin-snkmt#fccfe95232d84561b38eea8fb15a0454ad9c2ebb
+- pypi: git+https://github.com/cademirch/snakemake-logger-plugin-snkmt.git#fccfe95232d84561b38eea8fb15a0454ad9c2ebb
   name: snakemake-logger-plugin-snkmt
   version: 0.1.6
   requires_dist:
