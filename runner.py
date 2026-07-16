@@ -1778,6 +1778,7 @@ if __name__ == '__main__':
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
     # Inject per-year weights as defaults if the processor accepts them
+    # Trigger new GitLab CI pipeline
     sig_params = inspect.signature(analysis_class.__init__).parameters
     weight_params = [k for k in ['JCM_file', 'SvB', 'SvB_MA', 'JCM', 'FvT'] if k in sig_params]
     if args.weights and weight_params:
