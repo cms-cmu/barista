@@ -758,7 +758,13 @@ def find_matching_dataset(dataset, metadata):
         return None
 
 
-def calculate_cross_section(matched_dataset, dataset_type, metadata):
+def get_run_from_year(year):
+    if year in ['2016', 'UL16_postVFP', 'UL16_preVFP', '2017', 'UL17', '2018', 'UL18']:
+        return 'Run2'
+    return 'Run3'
+
+
+def calculate_cross_section(matched_dataset, dataset_type, metadata, year=None):
     """Calculate cross-section for a given dataset."""
     # Data datasets should have xs=1
     if (dataset_type == 'data' or
@@ -767,6 +773,16 @@ def calculate_cross_section(matched_dataset, dataset_type, metadata):
         return 1.0
 
     xs = metadata['datasets'][matched_dataset]['xs']
+    if hasattr(xs, 'keys') or isinstance(xs, dict):
+        if year in xs:
+            xs = xs[year]
+        else:
+            run = get_run_from_year(year)
+            if run in xs:
+                xs = xs[run]
+            else:
+                raise KeyError(f"Cross-section for dataset {matched_dataset} not found for year {year} or run {run} in {xs}")
+
     return xs if isinstance(xs, float) else eval(xs)
 
 
@@ -1287,7 +1303,7 @@ def make_parser():
     io_group.add_argument(
         '-m', '--metadata',
         dest="metadata",
-        default="coffea4bees/metadata/datasets_HH4b.yml",
+        default="coffea4bees/metadata/datasets/",
         help='Path to the datasets metadata YAML file'
     )
     io_group.add_argument(
@@ -1628,7 +1644,7 @@ if __name__ == '__main__':
 
             # Determine dataset type and cross-section
             dataset_type = get_dataset_type(matched_dataset)
-            xsec = calculate_cross_section(matched_dataset, dataset_type, metadata)
+            xsec = calculate_cross_section(matched_dataset, dataset_type, metadata, year)
             logging.info(f"Dataset type: {dataset_type}, Cross-section: {xsec}")
 
 
