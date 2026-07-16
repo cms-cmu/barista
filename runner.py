@@ -1048,11 +1048,13 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             # per worker, the in-process dict grows unboundedly and contributes
             # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
+        processor_kwargs = configs.get('config', {}).copy()
+        processor_kwargs.pop('category', None)
         runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
+            processor_instance=analysis_class(**processor_kwargs),
         )
         if isinstance(result, tuple):
             output, metrics = result
