@@ -1329,6 +1329,7 @@ def make_parser():
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
+    # Central weights configuration path
     io_group.add_argument(
         '--weights',
         dest="weights",
