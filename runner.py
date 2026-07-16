@@ -1330,9 +1330,9 @@ def make_parser():
     io_group.add_argument(
         '--weights',
         dest="weights",
-        default="coffea4bees/metadata/weights_HH4b.yml",
+        default="auto",
         type=lambda x: None if x.lower() == 'none' else x,
-        help='Path to the per-year weights/models metadata YAML file (None to disable)'
+        help='Path to the per-year weights/models metadata YAML file (None to disable, auto to select based on category)'
     )
     io_group.add_argument(
         '-o', '--output',
@@ -1778,15 +1778,24 @@ if __name__ == '__main__':
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
     # Inject per-year weights as defaults if the processor accepts them
-    # Trigger new GitLab CI pipeline - take 2
     sig_params = inspect.signature(analysis_class.__init__).parameters
     weight_params = [k for k in ['JCM_file', 'SvB', 'SvB_MA', 'JCM', 'FvT'] if k in sig_params]
-    if args.weights and weight_params:
-        if os.path.exists(args.weights):
-            logging.info(f"Loading weights metadata from: {args.weights}")
-            weights_data = yaml.safe_load(open(args.weights, 'r'))
-            category = configs.get('config', {}).get('category', 'default')
-            category_weights = weights_data.get(category, {})
+    
+    weights_path = args.weights
+    category = configs.get('config', {}).get('category', 'default')
+    if weights_path == 'auto':
+        if category == 'lowpt':
+            weights_path = 'coffea4bees/metadata/weights_HH4b_lowpt.yml'
+        elif category == 'unsupervised':
+            weights_path = 'coffea4bees/metadata/weights_unsupervised.yml'
+        else:
+            weights_path = 'coffea4bees/metadata/weights_HH4b.yml'
+            
+    if weights_path and weight_params:
+        if os.path.exists(weights_path):
+            logging.info(f"Loading weights metadata from: {weights_path}")
+            weights_data = yaml.safe_load(open(weights_path, 'r'))
+            category_weights = weights_data.get('weights', {})
             
             injected_weights = {}
             for year in args.years:
@@ -1813,7 +1822,7 @@ if __name__ == '__main__':
                             config_block[k] = v
                             logging.info(f"Injected default weight for '{k}': {v}")
         else:
-            logging.warning(f"Weights metadata file '{args.weights}' not found. Skipping weight injection.")
+            logging.warning(f"Weights metadata file '{weights_path}' not found. Skipping weight injection.")
 
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
