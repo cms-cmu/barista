@@ -50,8 +50,7 @@ variables:
   MKDOCS_VERSION: '1.5.3'
   MATERIAL_VERSION: '9.5.3'
   RUN_PAGES: "false"  # Control whether to run the pages job
-  DATASET: coffea4bees/metadata/datasets_HH4b_Run2/
-  DATASET_RUN3: coffea4bees/metadata/datasets_HH4b_Run3/
+  DATASET: coffea4bees/metadata/datasets/
   CLASSIFIER_WFS: src/classifier/test/config/workflow/CI/
 
 include:

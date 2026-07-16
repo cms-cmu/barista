@@ -43,7 +43,18 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--add_to_dataset', dest="add_to_dataset", default="", help='String to add to dataset.')
     args = parser.parse_args()
 
-    main_file = yaml.safe_load(open(args.main_file, 'r'))
+    if os.path.isdir(args.main_file):
+        main_file = {'datasets': {}}
+        for f in sorted(os.listdir(args.main_file)):
+            if f.endswith(('.yml', '.yaml')):
+                content = yaml.safe_load(open(os.path.join(args.main_file, f), 'r'))
+                if content:
+                    if 'datasets' in content:
+                        main_file['datasets'].update(content['datasets'])
+                    else:
+                        main_file['datasets'].update(content)
+    else:
+        main_file = yaml.safe_load(open(args.main_file, 'r'))
 
     # Check if main_file has 'datasets' key (old format) or not (new format)
     if 'datasets' in main_file:
@@ -89,6 +100,9 @@ if __name__ == '__main__':
 
 
             if dataset not in datasets:
+                continue
+
+            if not year or year not in datasets[dataset]:
                 continue
 
             for field in _STRIP_FIELDS:
