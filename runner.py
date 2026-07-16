@@ -1581,6 +1581,8 @@ if __name__ == '__main__':
     else:
         #backward compatibility if .yml file is directly provided
         datasets = yaml.safe_load(open(args.metadata, 'r'))
+        if isinstance(datasets, dict) and 'datasets' not in datasets:
+            datasets = {'datasets': datasets}
 
 
     logging.info(f"Loading triggers metadata from: {args.triggers}")
