@@ -1809,7 +1809,7 @@ if __name__ == '__main__':
                         is_enabled = config_block.get('apply_FvT', False)
                         
                     if is_enabled:
-                        if k not in config_block or config_block[k] is None:
+                        if k not in config_block:
                             config_block[k] = v
                             logging.info(f"Injected default weight for '{k}': {v}")
         else:
