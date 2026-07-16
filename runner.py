@@ -1328,6 +1328,13 @@ def make_parser():
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
     io_group.add_argument(
+        '--weights',
+        dest="weights",
+        default="coffea4bees/metadata/weights_HH4b.yml",
+        type=lambda x: None if x.lower() == 'none' else x,
+        help='Path to the per-year weights/models metadata YAML file (None to disable)'
+    )
+    io_group.add_argument(
         '-o', '--output',
         dest="output_file",
         default="hists.coffea",
@@ -1769,6 +1776,43 @@ if __name__ == '__main__':
             existing_friends = configs.get('config', {}).get('friends') or {}
             configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
+
+    # Inject per-year weights as defaults if the processor accepts them
+    sig_params = inspect.signature(analysis_class.__init__).parameters
+    weight_params = [k for k in ['JCM_file', 'SvB', 'SvB_MA', 'JCM', 'FvT'] if k in sig_params]
+    if args.weights and weight_params:
+        if os.path.exists(args.weights):
+            logging.info(f"Loading weights metadata from: {args.weights}")
+            weights_data = yaml.safe_load(open(args.weights, 'r'))
+            category = configs.get('config', {}).get('category', 'default')
+            category_weights = weights_data.get(category, {})
+            
+            injected_weights = {}
+            for year in args.years:
+                for k in weight_params:
+                    val = category_weights.get(year, {}).get(k)
+                    if val is not None:
+                        if k in injected_weights and injected_weights[k] != val:
+                            logging.warning(f"Weights key '{k}' has conflicting values across years {args.years}; using value for {year}")
+                        injected_weights[k] = val
+            
+            if injected_weights:
+                config_block = configs.setdefault('config', {})
+                for k, v in injected_weights.items():
+                    is_enabled = False
+                    if k in ['JCM_file', 'JCM']:
+                        is_enabled = config_block.get('apply_JCM', False)
+                    elif k in ['SvB', 'SvB_MA']:
+                        is_enabled = config_block.get('run_SvB', False)
+                    elif k == 'FvT':
+                        is_enabled = config_block.get('apply_FvT', False)
+                        
+                    if is_enabled:
+                        if k not in config_block or config_block[k] is None:
+                            config_block[k] = v
+                            logging.info(f"Injected default weight for '{k}': {v}")
+        else:
+            logging.warning(f"Weights metadata file '{args.weights}' not found. Skipping weight injection.")
 
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
