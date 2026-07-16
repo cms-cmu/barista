@@ -783,7 +783,9 @@ def calculate_cross_section(matched_dataset, dataset_type, metadata, year=None):
             else:
                 raise KeyError(f"Cross-section for dataset {matched_dataset} not found for year {year} or run {run} in {xs}")
 
-    return xs if isinstance(xs, float) else eval(xs)
+    if isinstance(xs, str):
+        return eval(xs)
+    return float(xs)
 
 
 def setup_schema(config_runner):
@@ -1321,7 +1323,7 @@ def make_parser():
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default="coffea4bees/metadata/friends_HH4b.yml",
+        default="coffea4bees/metadata/friends/friends_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
