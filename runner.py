@@ -1331,7 +1331,7 @@ def make_parser():
     io_group.add_argument(
         '--weights',
         dest="weights",
-        default="coffea4bees/metadata/weights_HH4b.yml",
+        default="coffea4bees/metadata/weights/weights_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year weights/models metadata YAML file (None to disable)'
     )
@@ -1803,24 +1803,24 @@ if __name__ == '__main__':
                 for k, v in injected_weights.items():
                     # Case 1: Key is present in the config block
                     if k in config_block:
-                        # Only inject default weight if the user explicitly asked for default
+                        # Only inject default weight if the user explicitly asked for it
                         if config_block[k] in ['default', True, 'default_weights']:
                             config_block[k] = v
-                            logging.info(f"Resolved 'default' weight for '{k}' to: {v}")
+                            logging.info(f"Resolved default weight for '{k}' to: {v}")
                     # Case 2: Key is not present in the config block
                     else:
-                        k_clean = k.replace('_file', '').replace('_MA', '')
-                        possible_switches = [f"apply_{k_clean}", f"run_{k_clean}", f"apply_{k}", f"run_{k}"]
-                        switch_name = next((s for s in possible_switches if s in sig_params), None)
-                        
-                        is_enabled = False
-                        if switch_name:
-                            default_val = sig_params[switch_name].default if sig_params[switch_name].default is not inspect.Parameter.empty else False
-                            is_enabled = config_block.get(switch_name, default_val)
-                        
-                        if is_enabled:
-                            config_block[k] = v
-                            logging.info(f"Injected default weight for '{k}': {v} (triggered by switch '{switch_name}')")
+                        # Only auto-inject JCM files if apply_JCM is True; do not auto-inject ML models
+                        if k in ['JCM_file', 'JCM']:
+                            possible_switches = ["apply_JCM", "run_JCM"]
+                            switch_name = next((s for s in possible_switches if s in sig_params), None)
+                            is_enabled = False
+                            if switch_name:
+                                default_val = sig_params[switch_name].default if sig_params[switch_name].default is not inspect.Parameter.empty else False
+                                is_enabled = config_block.get(switch_name, default_val)
+                            
+                            if is_enabled:
+                                config_block[k] = v
+                                logging.info(f"Injected default weight for '{k}': {v} (triggered by switch '{switch_name}')")
         else:
             logging.warning(f"Weights metadata file '{weights_path}' not found. Skipping weight injection.")
 
