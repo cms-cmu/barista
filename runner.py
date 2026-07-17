@@ -1812,19 +1812,19 @@ if __name__ == '__main__':
             if injected_weights:
                 config_block = configs.setdefault('config', {})
                 for k, v in injected_weights.items():
-                    is_enabled = False
-                    if k in ['JCM_file', 'JCM']:
-                        is_enabled = config_block.get('apply_JCM', False)
-                    elif k in ['SvB', 'SvB_MA']:
-                        is_enabled = config_block.get('run_SvB', False)
-                    elif k == 'FvT':
-                        is_enabled = config_block.get('apply_FvT', False)
+                    # Case 1: Key is present in the config block
+                    if k in config_block:
+                        # Only inject default weight if the user explicitly asked for default
+                        if config_block[k] in ['default', True, 'default_weights']:
+                            config_block[k] = v
+                            logging.info(f"Resolved 'default' weight for '{k}' to: {v}")
+                    # Case 2: Key is not present in the config block
+                    else:
+                        is_enabled = False
+                        if k in ['JCM_file', 'JCM']:
+                            is_enabled = config_block.get('apply_JCM', False)
                         
-                    if is_enabled:
-                        if k in ['SvB', 'SvB_MA', 'FvT'] and k in year_friends:
-                            logging.info(f"Skipping default weight injection for '{k}' because it is provided by friend trees.")
-                            continue
-                        if k not in config_block:
+                        if is_enabled:
                             config_block[k] = v
                             logging.info(f"Injected default weight for '{k}': {v}")
         else:
