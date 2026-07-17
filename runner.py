@@ -1780,11 +1780,9 @@ if __name__ == '__main__':
 
     # Inject per-year weights as defaults if the processor accepts them
     sig_params = inspect.signature(analysis_class.__init__).parameters
-    weight_params = [k for k in ['JCM_file', 'SvB', 'SvB_MA', 'JCM', 'FvT'] if k in sig_params]
-    
     weights_path = args.weights
             
-    if weights_path and weight_params:
+    if weights_path:
         if os.path.exists(weights_path):
             logging.info(f"Loading weights metadata from: {weights_path}")
             weights_data = yaml.safe_load(open(weights_path, 'r'))
@@ -1793,12 +1791,12 @@ if __name__ == '__main__':
             injected_weights = {}
             for year in args.years:
                 year_weights = category_weights.get(year) or category_weights.get(int(year) if year.isdigit() else year, {})
-                for k in weight_params:
-                    val = year_weights.get(k)
-                    if val is not None:
-                        if k in injected_weights and injected_weights[k] != val:
-                            logging.warning(f"Weights key '{k}' has conflicting values across years {args.years}; using value for {year}")
-                        injected_weights[k] = val
+                for k, v in year_weights.items():
+                    if k in sig_params:
+                        if v is not None:
+                            if k in injected_weights and injected_weights[k] != v:
+                                logging.warning(f"Weights key '{k}' has conflicting values across years {args.years}; using value for {year}")
+                            injected_weights[k] = v
             
             if injected_weights:
                 config_block = configs.setdefault('config', {})
@@ -1811,14 +1809,18 @@ if __name__ == '__main__':
                             logging.info(f"Resolved 'default' weight for '{k}' to: {v}")
                     # Case 2: Key is not present in the config block
                     else:
+                        k_clean = k.replace('_file', '').replace('_MA', '')
+                        possible_switches = [f"apply_{k_clean}", f"run_{k_clean}", f"apply_{k}", f"run_{k}"]
+                        switch_name = next((s for s in possible_switches if s in sig_params), None)
+                        
                         is_enabled = False
-                        if k in ['JCM_file', 'JCM']:
-                            apply_JCM_default = sig_params['apply_JCM'].default if ('apply_JCM' in sig_params and sig_params['apply_JCM'].default is not inspect.Parameter.empty) else False
-                            is_enabled = config_block.get('apply_JCM', apply_JCM_default)
+                        if switch_name:
+                            default_val = sig_params[switch_name].default if sig_params[switch_name].default is not inspect.Parameter.empty else False
+                            is_enabled = config_block.get(switch_name, default_val)
                         
                         if is_enabled:
                             config_block[k] = v
-                            logging.info(f"Injected default weight for '{k}': {v}")
+                            logging.info(f"Injected default weight for '{k}': {v} (triggered by switch '{switch_name}')")
         else:
             logging.warning(f"Weights metadata file '{weights_path}' not found. Skipping weight injection.")
 
