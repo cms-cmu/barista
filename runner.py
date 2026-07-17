@@ -1331,7 +1331,7 @@ def make_parser():
     io_group.add_argument(
         '--weights',
         dest="weights",
-        default=None,
+        default="coffea4bees/metadata/weights_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year weights/models metadata YAML file (None to disable)'
     )
