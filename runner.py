@@ -1778,36 +1778,9 @@ if __name__ == '__main__':
             configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
-    # Inject per-year weights as defaults if the processor accepts them
-    injected_weights = {}
-    if args.weights and os.path.exists(args.weights) and any(k in inspect.signature(analysis_class.__init__).parameters for k in ['JCM_file', 'JCM', 'SvB', 'SvB_MA', 'FvT']):
-        logging.info(f"Loading weights metadata from: {args.weights}")
-        weights_by_year = yaml.safe_load(open(args.weights, 'r')).get('weights', {})
-        for year in args.years:
-            for k, v in weights_by_year.get(year, {}).items():
-                if k in inspect.signature(analysis_class.__init__).parameters:
-                    if k in injected_weights and injected_weights[k] != v:
-                        logging.warning(f"Weights key '{k}' has conflicting values across years {args.years}; using value for {year}")
-                    injected_weights[k] = v
-        if injected_weights:
-            config_block = configs.setdefault('config', {})
-            for k, v in injected_weights.items():
-                if k in config_block:
-                    if config_block[k] in ['default', True, 'default_weights']:
-                        config_block[k] = v
-                        logging.info(f"Resolved default weight for '{k}' to: {v}")
-                else:
-                    # For JCM, we also support auto-injection if apply_JCM is enabled
-                    if k in ['JCM_file', 'JCM']:
-                        possible_switches = ["apply_JCM", "run_JCM"]
-                        switch_name = next((s for s in possible_switches if s in inspect.signature(analysis_class.__init__).parameters), None)
-                        is_enabled = False
-                        if switch_name:
-                            default_val = inspect.signature(analysis_class.__init__).parameters[switch_name].default if inspect.signature(analysis_class.__init__).parameters[switch_name].default is not inspect.Parameter.empty else False
-                            is_enabled = config_block.get(switch_name, default_val)
-                        if is_enabled:
-                            config_block[k] = v
-                            logging.info(f"Injected default weight for '{k}': {v} (triggered by switch '{switch_name}')")
+    # Forward weights file path to processor if accepted
+    if args.weights and 'weights' in inspect.signature(analysis_class.__init__).parameters:
+        configs.setdefault('config', {})['weights'] = args.weights
 
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
