@@ -1886,5 +1886,5 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
-    # Trigger CI pipeline run: Explicit weight specification
+    # Trigger CI pipeline run: Option 2 implementation
     os._exit(0)
