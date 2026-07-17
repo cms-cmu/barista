@@ -1766,10 +1766,10 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends as defaults into config.friends if the processor accepts them
+    year_friends = {}
     if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
         friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
-        year_friends = {}
         for year in args.years:
             for k, v in friends_by_year.get(year, {}).items():
                 if k in year_friends and year_friends[k] != v:
@@ -1821,6 +1821,9 @@ if __name__ == '__main__':
                         is_enabled = config_block.get('apply_FvT', False)
                         
                     if is_enabled:
+                        if k in ['SvB', 'SvB_MA', 'FvT'] and k in year_friends:
+                            logging.info(f"Skipping default weight injection for '{k}' because it is provided by friend trees.")
+                            continue
                         if k not in config_block:
                             config_block[k] = v
                             logging.info(f"Injected default weight for '{k}': {v}")
