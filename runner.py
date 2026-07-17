@@ -1048,13 +1048,11 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             # per worker, the in-process dict grows unboundedly and contributes
             # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
         )
-        processor_kwargs = configs.get('config', {}).copy()
-        processor_kwargs.pop('category', None)
         runner = processor.Runner(**runner_kwargs)
         result = runner(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**processor_kwargs),
+            processor_instance=analysis_class(**configs.get('config', {})),
         )
         if isinstance(result, tuple):
             output, metrics = result
@@ -1333,9 +1331,9 @@ def make_parser():
     io_group.add_argument(
         '--weights',
         dest="weights",
-        default="auto",
+        default=None,
         type=lambda x: None if x.lower() == 'none' else x,
-        help='Path to the per-year weights/models metadata YAML file (None to disable, auto to select based on category)'
+        help='Path to the per-year weights/models metadata YAML file (None to disable)'
     )
     io_group.add_argument(
         '-o', '--output',
@@ -1785,14 +1783,6 @@ if __name__ == '__main__':
     weight_params = [k for k in ['JCM_file', 'SvB', 'SvB_MA', 'JCM', 'FvT'] if k in sig_params]
     
     weights_path = args.weights
-    category = configs.get('config', {}).get('category', 'default')
-    if weights_path == 'auto':
-        if category == 'lowpt':
-            weights_path = 'coffea4bees/metadata/weights_HH4b_lowpt.yml'
-        elif category == 'unsupervised':
-            weights_path = 'coffea4bees/metadata/weights_unsupervised.yml'
-        else:
-            weights_path = 'coffea4bees/metadata/weights_HH4b.yml'
             
     if weights_path and weight_params:
         if os.path.exists(weights_path):
