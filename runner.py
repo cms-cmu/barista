@@ -1802,8 +1802,9 @@ if __name__ == '__main__':
             
             injected_weights = {}
             for year in args.years:
+                year_weights = category_weights.get(year) or category_weights.get(int(year) if year.isdigit() else year, {})
                 for k in weight_params:
-                    val = category_weights.get(year, {}).get(k)
+                    val = year_weights.get(k)
                     if val is not None:
                         if k in injected_weights and injected_weights[k] != val:
                             logging.warning(f"Weights key '{k}' has conflicting values across years {args.years}; using value for {year}")
@@ -1822,7 +1823,8 @@ if __name__ == '__main__':
                     else:
                         is_enabled = False
                         if k in ['JCM_file', 'JCM']:
-                            is_enabled = config_block.get('apply_JCM', False)
+                            apply_JCM_default = sig_params['apply_JCM'].default if ('apply_JCM' in sig_params and sig_params['apply_JCM'].default is not inspect.Parameter.empty) else False
+                            is_enabled = config_block.get('apply_JCM', apply_JCM_default)
                         
                         if is_enabled:
                             config_block[k] = v
