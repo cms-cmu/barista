@@ -155,6 +155,8 @@ def _inject_tracker(module):
     tracker = get_tracker()
     _orig_init = cls.__init__
 
+    import functools
+    @functools.wraps(_orig_init)
     def _init_with_tracker(self, *args, **kwargs):
         kwargs.setdefault("tracker", tracker)
         _orig_init(self, *args, **kwargs)

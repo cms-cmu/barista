@@ -1778,9 +1778,8 @@ if __name__ == '__main__':
             configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
-    sig = inspect.signature(analysis_class.__init__)
-    has_weights = 'weights' in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
-    if args.weights and has_weights:
+    # Forward weights file path to processor if accepted
+    if args.weights and 'weights' in inspect.signature(analysis_class.__init__).parameters:
         configs.setdefault('config', {})['weights'] = args.weights
 
     # Log fileset information
