@@ -1894,4 +1894,5 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
+    # Trigger CI pipeline run for counts update
     os._exit(0)
