@@ -1327,6 +1327,14 @@ def make_parser():
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
+    # Central weights configuration path
+    io_group.add_argument(
+        '--weights',
+        dest="weights",
+        default="coffea4bees/metadata/weights/weights_HH4b.yml",
+        type=lambda x: None if x.lower() == 'none' else x,
+        help='Path to the per-year weights/models metadata YAML file (None to disable)'
+    )
     io_group.add_argument(
         '-o', '--output',
         dest="output_file",
@@ -1756,10 +1764,10 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends as defaults into config.friends if the processor accepts them
+    year_friends = {}
     if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
         friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
-        year_friends = {}
         for year in args.years:
             for k, v in friends_by_year.get(year, {}).items():
                 if k in year_friends and year_friends[k] != v:
@@ -1769,6 +1777,10 @@ if __name__ == '__main__':
             existing_friends = configs.get('config', {}).get('friends') or {}
             configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
+
+    # Forward weights file path to processor if accepted
+    if args.weights and 'weights' in inspect.signature(analysis_class.__init__).parameters:
+        configs.setdefault('config', {})['weights'] = args.weights
 
     # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
@@ -1832,4 +1844,5 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
+    # Trigger CI pipeline run: Option 2 implementation
     os._exit(0)
