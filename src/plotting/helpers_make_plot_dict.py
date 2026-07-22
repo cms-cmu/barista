@@ -168,13 +168,10 @@ def _select_hist(
 
 
 def _squeeze_hist(selected_hist: hist.Hist, do2d: bool) -> hist.Hist:
-    """Collapse any extra leading dimension left after process/year selection."""
-    if do2d:
-        if len(selected_hist.shape) == 3:
-            return selected_hist[sum, :, :]
-    else:
-        if len(selected_hist.shape) == 2:
-            return selected_hist[sum, :]
+    """Collapse any extra leading dimensions left after process/year selection."""
+    target_dim = 2 if do2d else 1
+    while len(selected_hist.shape) > target_dim:
+        selected_hist = selected_hist[sum, ...]
     return selected_hist
 
 
@@ -739,7 +736,10 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
 
     if cut:
         _bare_cut = cut.lstrip("~")
-        if _bare_cut not in cfg.cutList:
+        valid_cuts = cfg.cutList
+        if isinstance(valid_cuts, dict):
+            valid_cuts = valid_cuts.get("hists", [])
+        if _bare_cut not in valid_cuts:
             raise AttributeError(f"{cut} not in cutList {cfg.cutList}")
 
     plot_data = _create_base_plot_dict(var, cut, axis_opts, **kwargs)

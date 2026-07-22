@@ -827,7 +827,7 @@ def setup_config_defaults(config_runner, args):
         'condor_transfer_input_files': ['coffea4bees/', 'src/'],
         'min_workers': 1,
         'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
-        'workers': 2,
+        'workers': 1,
         'skipbadfiles': False,
         'dashboard_address': 10200,
         'friend_base': None,
@@ -859,8 +859,8 @@ def setup_executor(config_runner, args, client, pool):
             'chunksize': config_runner['chunksize'],
             'maxchunks': config_runner['maxchunks'],
         }
-        if args.debug:
-            logging.info("Running iterative executor in debug mode")
+        if args.debug or config_runner['workers'] <= 1:
+            logging.info("Running iterative executor")
             return processor.IterativeExecutor(), runner_args
         elif args.condor or args.run_dask:
             return processor.DaskExecutor(
@@ -878,8 +878,8 @@ def setup_executor(config_runner, args, client, pool):
             'skipbadfiles': config_runner['skipbadfiles'],
             'xrootdtimeout': 900,
         }
-        if args.debug:
-            logging.info("Running iterative executor in debug mode")
+        if args.debug or config_runner['workers'] <= 1:
+            logging.info("Running iterative executor")
             return processor.iterative_executor, executor_args
         elif args.condor or args.run_dask:
             executor_args.update({
@@ -1737,11 +1737,15 @@ if __name__ == '__main__':
                 logging.info("Configuring standalone LocalCluster...")
                 client, cluster = setup_local_cluster(config_runner)
     else:
-        logging.info("Configuring local process pool execution...")
-        # Setup process pool for futures executor
-        worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
-        pool = ProcessPoolExecutor(max_workers=config_runner['workers'], initializer=worker_initializer.setup)
-        logging.info(f"Process pool created with {config_runner['workers']} workers")
+        if args.debug or config_runner['workers'] <= 1:
+            logging.info("Iterative execution: skipping process pool creation.")
+            pool = None
+        else:
+            logging.info("Configuring local process pool execution...")
+            # Setup process pool for futures executor
+            worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
+            pool = ProcessPoolExecutor(max_workers=config_runner['workers'], initializer=worker_initializer.setup)
+            logging.info(f"Process pool created with {config_runner['workers']} workers")
 
 
     # Register worker plugin if using Dask and we did not connect to a shared daemon

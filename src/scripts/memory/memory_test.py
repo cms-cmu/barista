@@ -29,6 +29,21 @@ if result.returncode != 0:
     print("Error running mprof:", result.stderr)
     sys.exit(1)
 
+# Clean the .dat file from any malformed lines
+dat_filepath = f'{args.output}.dat'
+if os.path.exists(dat_filepath):
+    with open(dat_filepath, 'r') as f:
+        lines = f.readlines()
+    cleaned_lines = []
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) >= 2:
+            cleaned_lines.append(line)
+        else:
+            print(f"Skipping malformed line in .dat file: {line.strip()}")
+    with open(dat_filepath, 'w') as f:
+        f.writelines(cleaned_lines)
+
 # Generate the memory usage plot
 result = subprocess.run(['mprof', 'plot', '-o', f'{args.output}.png', f'{args.output}.dat'], capture_output=True, text=True)
 if result.returncode != 0:
