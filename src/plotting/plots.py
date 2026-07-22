@@ -17,9 +17,9 @@ def init_arg_parser():
 
     parser = argparse.ArgumentParser(description='plots', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument(dest="inputFile",
-                        default='hists.pkl', nargs='+',
-                        help='Input File. Default: hists.pkl')
+    parser.add_argument('-i', '--input', dest="inputFile",
+                        default=['output/full_run/output_merged.coffea'], nargs='+',
+                        help='Input file(s).')
 
     parser.add_argument('-l', '--labelNames', dest="fileLabels",
                         default=["fileA", "fileB"], nargs='+',
