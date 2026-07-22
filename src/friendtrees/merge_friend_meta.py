@@ -29,17 +29,34 @@ def _iter_friend_dicts(obj):
 
 
 def merge_friend_metas(output: PathLike, *metafiles: PathLike, cleanup: bool = True):
-    merged: dict[str, Friend] = {}
-    for metafile in metafiles:
+    with fsspec.open(metafiles[0]) as f:
+        merged = json.load(f)
+    anchors: dict[str, tuple[dict, Friend]] = {}
+    for v in _iter_friend_dicts(merged):
+        friend = Friend.from_json(v)
+        if friend.name not in anchors:
+            anchors[friend.name] = (v, friend)
+    if not anchors:
+        raise ValueError(f'no friends found in "{metafiles[0]}"')
+    updated: set[str] = set()
+    for metafile in metafiles[1:]:
         with fsspec.open(metafile) as f:
             meta = json.load(f)
-        for v in _iter_friend_dicts(meta):
-            friend = Friend.from_json(v)
-            k = friend.name
-            if k in merged:
-                merged[k] += friend
-            else:
-                merged[k] = friend
+        friends = [Friend.from_json(v) for v in _iter_friend_dicts(meta)]
+        names = {friend.name for friend in friends}
+        if names != anchors.keys():
+            raise ValueError(
+                f'friends in "{metafile}" {sorted(names)} do not match'
+                f' those in "{metafiles[0]}" {sorted(anchors)}'
+            )
+        for friend in friends:
+            anchor = anchors[friend.name][1]
+            anchor += friend
+            updated.add(friend.name)
+    for name in updated:
+        v, friend = anchors[name]
+        v.clear()
+        v.update(friend.to_json())
     output = EOS(output)
     tmp = output.local_temp(dir=".")
     try:
