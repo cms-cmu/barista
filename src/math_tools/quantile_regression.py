@@ -12,7 +12,16 @@ import argparse
 import numpy as np
 import awkward as ak
 from scipy.stats import norm
-from sklearn.base import BaseEstimator, TransformerMixin
+try:
+    # sklearn only supplies the (optional) estimator/transformer mixins; none of
+    # the math below depends on it, so fall back to plain object if it's absent
+    # (e.g. the bare coffea container, which has no sklearn).
+    from sklearn.base import BaseEstimator, TransformerMixin
+except ModuleNotFoundError:
+    class BaseEstimator:  # noqa: D401 - minimal stand-in
+        pass
+    class TransformerMixin:  # noqa: D401 - minimal stand-in
+        pass
 import matplotlib.pyplot as plt
 import mplhep as hep
 plt.style.use(hep.style.CMS)
@@ -20,8 +29,9 @@ plt.rcParams["figure.figsize"] = [8,8]
 plt.rcParams["font.size"] = 18
 
 REGIONS = ("nominal_4j2b", "lowpt_4j2b", "incl_3j2b")
-DEFAULT_N_BINS = 50   # max / start of top-down n_bins scan (nq in the HH-combine procedure)
-DEFAULT_MIN_NEFF = 10.5  # minimum effective unweighted background events per bin
+DEFAULT_N_BINS = 50   # starting number of equal-signal-yield bins (rescanned down)
+DEFAULT_MIN_NEFF = 10  # minimum effective unweighted background events per bin
+
 # Filename pattern written by bbreww processor:
 #   phh_hist_{dataset}__{year}_{chunk_id}.pkl
 _PHH_FILE_RE = re.compile(r"^phh_hist_(?P<dataset>.+?)__(?P<year>.+)_(?P<chunk>[0-9a-f]{8})\.pkl$")
@@ -260,16 +270,19 @@ def optimize_n_bins(transformer, bkg_phh, bkg_w,
     }
 
 
+
 def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
                          n_bins_start=DEFAULT_N_BINS,
                          min_neff_bkg=DEFAULT_MIN_NEFF):
     """End-to-end: load directory, split sig/bkg, fit transformer, choose bins.
 
-    For each region the fitted quantile transformer is saved to
-    `output_dir/quantiles_regressed_{region}.pkl` and the chosen bin edges to
-    `output_dir/bin_edges_{region}.txt`. The number of bins is chosen by the
-    deterministic top-down procedure in `optimize_n_bins` (decrement from
-    `n_bins_start` until every background bin has n_eff >= `min_neff_bkg`).
+    Flat equal-signal-yield binning (`optimize_n_bins`): start from
+    `n_bins_start` equal-signal-probability bins and rescan the whole binning
+    with one fewer bin until every background bin has
+    n_eff = (sum w)^2/(sum w^2) >= `min_neff_bkg`. The finest such binning is
+    kept. The fitted transformer is saved to
+    `output_dir/quantiles_regressed_{region}.pkl` and the chosen edges to
+    `output_dir/bin_edges_{region}.txt`.
     """
     os.makedirs(output_dir, exist_ok=True)
     grouped = load_phh_from_directory(input_dir)
@@ -279,7 +292,7 @@ def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
     for region in REGIONS:
         s_phh, s_w = sig[region]['phh'], sig[region]['weight']
         b_phh, b_w = bkg[region]['phh'], bkg[region]['weight']
-        if s_phh.size == 0 or b_phh.size == 0:
+        if s_phh.size == 0 or b_w.sum() == 0:
             print(f"[{region}] no signal or background events — skipping")
             continue
         print(f"\n=== {region} ===")
@@ -293,31 +306,27 @@ def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
         transformer.save(os.path.join(output_dir,
                                       f"quantiles_regressed_{region}.pkl"))
 
-        scan = optimize_n_bins(transformer, b_phh, b_w,
-                               n_bins_start=n_bins_start,
-                               min_neff_bkg=min_neff_bkg)
-        summary[region] = scan
-        best_n = scan['best_n_bins']
+        res = optimize_n_bins(transformer, b_phh, b_w,
+                              n_bins_start=n_bins_start,
+                              min_neff_bkg=min_neff_bkg)
+        summary[region] = res
 
-        # Report the top-down scan: n_bins tried (high -> low) and how many
-        # background bins were underpopulated at each.
-        print(f"  top-down scan from n_bins={n_bins_start} "
-              f"(stop when all bkg bins have n_eff >= {min_neff_bkg}):")
-        for n, n_bad in scan['results']:
-            print(f"    n_bins={n:3d}  n_underpopulated_bkg_bins={n_bad}")
+        print(f"  n_bins scan (n_bins, n_underpopulated) from {n_bins_start} down:")
+        for n, n_bad in res['results']:
+            print(f"    n_bins={n:3d}  n_bad={n_bad}")
 
+        best_n = res['best_n_bins']
         if best_n is None:
-            print(f"  NO valid binning: even n_bins=1 has a bkg bin with "
-                  f"n_eff < {min_neff_bkg}")
+            print(f"  NO valid binning even at n_bins=1 (background too sparse)")
             continue
+        print(f"  chosen n_bins = {best_n} (finest with all bins "
+              f"n_eff >= {min_neff_bkg})")
 
-        print(f"  chosen n_bins = {best_n} "
-              f"(finest binning with all bkg bins n_eff >= {min_neff_bkg})")
         edges = _quantile_bin_edges(transformer, best_n)
         edges_path = os.path.join(output_dir, f"bin_edges_{region}.txt")
         with open(edges_path, 'w') as f:
             f.write(f"# region={region}  n_bins={best_n}  "
-                    f"min_neff_bkg={min_neff_bkg}\n")
+                    f"min_neff_bkg={min_neff_bkg}  n_bins_start={n_bins_start}\n")
             f.write(", ".join(f"{e:.6f}" for e in edges) + "\n")
         print(f"  bin edges written to {edges_path}")
     return summary
@@ -335,10 +344,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output folder for fitted quantile transformer", required=True)
     parser.add_argument("-n", "--n_quantiles", type=int, default=10000, help="Number of quantiles", required=False)
     parser.add_argument("-b", "--n_bins", type=int, default=DEFAULT_N_BINS,
-                        help="Starting (largest) number of equal-probability bins "
-                             "for the top-down scan (--input-dir mode). "
-                             "The scan decrements from here until every "
-                             "background bin passes the n_eff floor.")
+                        help="Starting number of equal-signal-yield bins "
+                             "(--input-dir mode); the binning is rescanned with "
+                             "one fewer bin until every bin passes the n_eff floor")
     parser.add_argument("--min-neff", type=float, default=DEFAULT_MIN_NEFF,
                         help="Minimum effective unweighted background events "
                              "n_eff=(sum w)^2/(sum w^2) required per bin")
