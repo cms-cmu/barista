@@ -281,10 +281,14 @@ def get_dataset_type(dataset_name):
         return 'mixeddata_4b_pz'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
-    elif dataset_name == 'synthetic_data':
-        return 'synthetic_data'
-    elif dataset_name == 'synthetic_data_noTT':
+    elif dataset_name.startswith('synthetic_data_noTT'):
+        # startswith (not ==) so suffixed variants from the declustering
+        # workflow (e.g. synthetic_data_noTT_ns5) hit the multi-sample path,
+        # mirroring the mixeddata_all handling above. noTT is checked before
+        # the plain synthetic_data prefix so it wins.
         return 'synthetic_data_noTT'
+    elif dataset_name.startswith('synthetic_data'):
+        return 'synthetic_data'
     elif dataset_name == 'data_3b_for_mixed':
         return 'data_for_mix'
     elif dataset_name in ['TTToHadronic_for_mixed', 'TTToSemiLeptonic_for_mixed', 'TTTo2L2Nu_for_mixed']:
