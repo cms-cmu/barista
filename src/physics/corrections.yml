@@ -330,7 +330,7 @@
   JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V2_MC.tar.gz'
   JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
-    B: &2022_B 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
+    B: &2022_B 'src/data/JEC/regJet_jerc_2022_preEE.json.gz' 
     C: *2022_B
     D: *2022_B
   JES_uncertainties:
