@@ -534,7 +534,7 @@ def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt
     fig, main_ax, grid = _setup_figure(do_ratio, opts)
 
     year_str = plot_helpers.get_year_str(year=opts.year_str if opts.year_str is not None else opts.year)
-    hep.cms.label(opts.CMSText, data=True, year=year_str, loc=0, ax=main_ax)
+    hep.cms.label(opts.CMSText, data=True, year=year_str, loc=0, ax=main_ax, com=13.6)
 
     if opts.do_title and "region" in plot_data["axis_opts"]:
         main_ax.set_title(plot_helpers.get_axis_str(plot_data["axis_opts"]["region"]))
