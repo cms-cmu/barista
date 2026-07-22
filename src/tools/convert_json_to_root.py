@@ -73,7 +73,9 @@ def json_to_TH1(hist_dict, name, rebin=1):
     values    = hist_dict['values']
     variances = hist_dict['variances']
 
-    rHist = ROOT.TH1F(name, name, len(centers), edges[0], edges[-1])
+    # Variable-edge constructor: faithful to the JSON binning also when the
+    # edges are non-uniform (a uniform axis would distort bin positions).
+    rHist = ROOT.TH1F(name, name, len(centers), array.array('d', edges))
     rHist.Sumw2()
 
     # underflow
