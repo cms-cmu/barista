@@ -120,6 +120,729 @@ def cleanup_temp_condor_dir():
             shutil.rmtree(_temp_condor_dir)
         except OSError as e:
             logging.error(f"Error cleaning up Condor directory: {e}")
+            s.bind(('', preferred))
+        except OSError:
+            s.bind(('', 0))
+        return s.getsockname()[1]
+
+
+def setup_config_defaults(config_runner, args):
+    """Set up all configuration defaults in one place."""
+    defaults = {
+        'data_tier': 'picoAOD',
+        'chunksize': 1_000 if args.test else 100_000,
+        'maxchunks': 1 if args.test else None,
+        'schema': NanoAODSchema,
+        'test_files': 5,
+        'allowlist_sites': ['T3_US_FNALLPC'],
+        'blocklist_sites': [''],
+        'rucio_regex_sites': "T[23]",
+        'class_name': 'analysis',
+        'condor_cores': 2,
+        'worker_memory': '4GB',
+        'condor_transfer_input_files': ['coffea4bees/', 'src/'],
+        'min_workers': 1,
+        'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
+        'workers': 2,
+        'skipbadfiles': False,
+        'dashboard_address': 10200,
+        'friend_base': None,
+        'friend_base_argname': "make_classifier_input",
+        'friend_merge_step': 100_000,
+        'write_coffea_output': True,
+        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
+        'dask_retries': 3,
+        'slurm_cores': 4,
+        'slurm_partition': 'work',
+        'slurm_qos': 'cpu_light',
+        'slurm_walltime': '08:00:00',
+        'slurm_log_directory': 'slurm_logs',
+        'slurm_job_extra': [],
+    }
+
+    for key, default_value in defaults.items():
+        config_runner.setdefault(key, default_value)
+
+
+def setup_executor(config_runner, args, client, pool):
+    """Setup processor executor based on configuration."""
+    if COFFEA_2025:
+        runner_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 600,
+            'chunksize': config_runner['chunksize'],
+            'maxchunks': config_runner['maxchunks'],
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.IterativeExecutor(), runner_args
+        elif args.condor or args.run_dask:
+            return processor.DaskExecutor(
+                client=client,
+                status=args.run_dask and not args.condor,
+                retries=config_runner['dask_retries'],
+            ), runner_args
+        else:
+            logging.info("Running futures executor")
+            return processor.FuturesExecutor(workers=config_runner['workers']), runner_args
+    else:
+        executor_args = {
+            'schema': config_runner['schema'],
+            'savemetrics': True,
+            'skipbadfiles': config_runner['skipbadfiles'],
+            'xrootdtimeout': 900,
+        }
+        if args.debug:
+            logging.info("Running iterative executor in debug mode")
+            return processor.iterative_executor, executor_args
+        elif args.condor or args.run_dask:
+            executor_args.update({
+                "client": client,
+                "align_clusters": False,
+                "status": args.run_dask and not args.condor,
+            })
+            return processor.dask_executor, executor_args
+        else:
+            logging.info("Running futures executor")
+            executor_args.update({
+                "pool": pool,
+                "workers": config_runner['workers'],
+            })
+            return processor.futures_executor, executor_args
+
+
+def process_skimming_output(output, fileset, configs, config_runner, args, client):
+    """Process output for skimming jobs."""
+    # Check integrity of the output
+    output, complete = integrity_check(fileset, output)
+    if not complete and (config_runner["maxchunks"] is None) and not args.test:
+        logging.error("The jobs above failed. Merging is skipped.")
+        return output
+
+    # Prepare resize arguments
+    kwargs = {
+        'base_path': configs["config"]["base_path"],
+        'output': output,
+        'step': config_runner.get("basketsize", configs["config"]["step"]),
+        'chunk_size': config_runner.get("picosize", config_runner["chunksize"]),
+    }
+
+    # Add pico_base_name if needed
+    if (pico_base_name := setup_pico_base_name(configs)) is not None:
+        kwargs["pico_base_name"] = pico_base_name
+
+    # Resize output
+    output = compute_with_client(client, resize, **kwargs)
+
+    # Keep only file names for each chunk
+    for dataset, chunks in output.items():
+        chunks['files'] = [str(f.path) for f in chunks['files']]
+        if output[dataset].get("missing", {}).get("file_missing"):
+            logging.info(f'Merging completed successfully for "{dataset}" — ignore the missing file warnings above, some files had zero selected events or failed silently.')
+
+    return output
+
+
+def process_metadata_output(output, fileset, config_runner, args, client):
+    """Process and save metadata for skimming jobs."""
+    metadata = compute_with_client(client, fetch_metadata, fileset)
+    metadata = processor.accumulate(metadata)
+
+    for ikey in metadata:
+        if ikey in output:
+            metadata[ikey].update(output[ikey])
+            metadata[ikey]['reproducible'] = create_reproducible_info(args)
+
+            if (config_runner["data_tier"] in ['picoAOD'] and
+                "genEventSumw" in fileset[ikey]["metadata"]):
+                metadata[ikey]["sumw"] = fileset[ikey]["metadata"]["genEventSumw"]
+
+    # Save metadata file
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+    output_file = ('picoaod_datasets.yml' if args.output_file.endswith('coffea')
+                   else args.output_file)
+    dfile = f'{args.output_path}/{output_file}'
+    yaml.dump(metadata, open(dfile, 'w'), default_flow_style=False)
+    logging.info(f'Saving metadata file {dfile}')
+
+
+def process_analysis_output(output, args):
+    """Process output for analysis jobs."""
+    output['reproducible'] = {
+        args.output_file: create_reproducible_info(args)
+    }
+
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+
+
+def process_friend_trees(output, config_runner, configs, args, client, fileset=None):
+    """Process friend tree metadata if it exists."""
+    friend_base = (config_runner["friend_base"] or
+                   configs.get("config", {}).get(config_runner["friend_base_argname"], None))
+    friends = output.get("friends", None)
+
+    if friend_base is not None and friends is not None:
+        from src.data_formats.awkward.zip import NanoAOD
+
+        # Build reverse mapping: parent dir name (path1) -> dataset key
+        # This allows the naming function to use the dataset key as the output
+        # subdirectory even when input files live in era-named subdirs (e.g. mixeddata_all)
+        path1_to_dataset = {}
+        if fileset:
+            for dataset_key, dataset_info in fileset.items():
+                for f in dataset_info["files"]:
+                    parent_dir = f.rstrip('/').split('/')[-2]
+                    path1_to_dataset[parent_dir] = dataset_key
+
+        def _merge_naming(path0, path1, name, **_):
+            dir_name = path1_to_dataset.get(path1, path1)
+            return f'{dir_name}/{path0.replace("picoAOD", name)}'
+
+        merge_kw = {
+            'step': config_runner["friend_merge_step"],
+            'base_path': friend_base,
+            'naming': _merge_naming,
+            'transform': NanoAOD(regular=False, jagged=True),
+        }
+
+        if args.run_dask:
+            merged_friends = client.compute(
+                {k: friends[k].merge(**merge_kw, clean=False, dask=True)
+                 for k in friends},
+                sync=True,
+                retries=3,
+            )
+            for v in friends.values():
+                v.reset(confirm=False)
+            friends = merged_friends
+        else:
+            for k, v in friends.items():
+                friends[k] = v.merge(**merge_kw)
+
+        from src.storage.eos import EOS
+        from src.utils.json import DefaultEncoder
+
+        metafile = (EOS(args.output_path) / str(args.output_file)).with_suffix(".json")
+        with fsspec.open(metafile, "wt") as f:
+            json.dump(friends, f, cls=DefaultEncoder)
+
+        logging.info("The following friends trees are created:")
+        logging.info(pretty_repr([*friends.keys()]))
+        logging.info(f"Saved friend tree metadata to {metafile}")
+
+
+def save_coffea_output(output, config_runner, args):
+    """Save the final coffea output file."""
+    if config_runner['write_coffea_output']:
+        hfile = f'{args.output_path}/{args.output_file}'
+        logging.info(f'Saving file {hfile}')
+        save(output, hfile)
+
+
+@profile
+def run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart):
+    """Run the main processing job."""
+    # Get the processor instance
+    processor_name = args.processor.split('.')[0].replace("/", '.')
+    analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
+    logging.debug(f'Running on fileset {pretty_repr(fileset)}')
+
+    if COFFEA_2025:
+        runner_kwargs = dict(
+            executor=executor,
+            schema=executor_args['schema'],
+            savemetrics=executor_args['savemetrics'],
+            skipbadfiles=executor_args['skipbadfiles'],
+            xrootdtimeout=executor_args['xrootdtimeout'],
+            chunksize=executor_args['chunksize'],
+            maxchunks=executor_args['maxchunks'],
+            # NOTE: do NOT set metadata_cache={} — under Condor with many chunks
+            # per worker, the in-process dict grows unboundedly and contributes
+            # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
+        )
+        runner = processor.Runner(**runner_kwargs)
+        result = runner(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+        )
+        if isinstance(result, tuple):
+            output, metrics = result
+        else:
+            output = result
+            metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
+    else:
+        output, metrics = processor.run_uproot_job(
+            fileset,
+            treename='Events',
+            processor_instance=analysis_class(**configs.get('config', {})),
+            executor=executor,
+            executor_args=executor_args,
+            chunksize=config_runner['chunksize'],
+            maxchunks=config_runner['maxchunks'],
+        )
+    elapsed = time.time() - tstart
+    nEvent = metrics.get('entries', 0)
+    logging.info(f'Metrics:')
+    logging.info(pretty_repr(metrics))
+    logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
+
+    # Process output based on job type
+    if args.skimming:
+        output = process_skimming_output(output, fileset, configs, config_runner, args, client)
+
+        # Log performance again after processing
+        elapsed = time.time() - tstart
+        nEvent = metrics['entries']
+        logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
+
+        process_metadata_output(output, fileset, config_runner, args, client)
+    else:
+        process_analysis_output(output, args)
+        process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
+        save_coffea_output(output, config_runner, args)
+
+def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout):
+    """Monitor connected clients and active tasks, shut down when idle."""
+    logging.info("Dask cluster daemon monitoring loop started.")
+    idle_start = None
+
+    while True:
+        try:
+            # Query scheduler info
+            scheduler_info = client.scheduler_info()
+
+            # Count connected clients, excluding this daemon client itself
+            try:
+                def get_active_clients(dask_scheduler):
+                    return [c for c in dask_scheduler.clients.keys() if c != 'fire-and-forget']
+                connected_clients = client.run_on_scheduler(get_active_clients)
+                active_clients = max(0, len(connected_clients) - 1)
+            except Exception as e:
+                logging.error(f"Error querying clients on scheduler: {e}")
+                connected_clients = scheduler_info.get('clients', {})
+                active_clients = max(0, len(connected_clients) - 1)
+
+            # Query number of processing tasks
+            processing_tasks = client.processing()
+            n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
+
+            logging.debug(f"Daemon status: {active_clients} active clients, {n_tasks} tasks processing.")
+
+            if active_clients > 0 or n_tasks > 0:
+                seen_client = True
+                if idle_start is not None:
+                    logging.info("Cluster is active again. Resetting idle timer.")
+                idle_start = None
+            elif not seen_client:
+                # No job has connected yet; the scheduler is warming up, not idle.
+                # Backstop: if no client ever connects, shut down so we don't hold
+                # Condor workers forever (e.g. job crashed before connecting).
+                if time.time() >= startup_deadline:
+                    logging.info("No client connected before startup deadline. Shutting down.")
+                    break
+            else:
+                if idle_start is None:
+                    idle_start = time.time()
+                    logging.info(f"Cluster is idle. Starting countdown to shutdown (timeout: {idle_timeout}s)...")
+                else:
+                    elapsed = time.time() - idle_start
+                    if elapsed >= idle_timeout:
+                        logging.info(f"Cluster idle timeout reached ({idle_timeout}s). Shutting down.")
+                        break
+        except Exception as e:
+            logging.error(f"Error in daemon monitoring loop: {e}")
+            break
+
+        time.sleep(30)
+
+    # Shutdown logic
+    # Immediately delete the JSON file so new clients do not try to connect to a dying scheduler
+    try:
+        if os.path.exists(scheduler_json_path):
+            os.remove(scheduler_json_path)
+    except OSError:
+        pass
+
+    logging.info("Shutting down Dask cluster and workers...")
+    try:
+        client.close()
+    except Exception:
+        pass
+    try:
+        cluster.close()
+    except Exception:
+        pass
+    logging.info("Daemon shutdown complete. Exiting.")
+
+
+def setup_shared_dask_client(args, config_runner):
+    """Check for/connect to an existing cluster daemon, or spawn one if needed."""
+    import hashlib
+    import getpass
+    import subprocess
+    from distributed import Client
+
+    # 1. Determine namespaced file paths
+    workspace_hash = os.environ.get("BARISTA_WORKSPACE_HASH")
+    if not workspace_hash:
+        workspace_path = os.path.abspath(os.path.dirname(__file__))
+        workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
+    username = getpass.getuser()
+    daemon_dir = f"/tmp/barista_{username}"
+    os.makedirs(daemon_dir, exist_ok=True)
+    scheduler_json_path = f"{daemon_dir}/dask_scheduler_{workspace_hash}.json"
+    daemon_log_path = f"{daemon_dir}/dask_daemon_{workspace_hash}.log"
+
+    # 2. Explicit scheduler address bypass
+    if args.scheduler_address:
+        logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
+        client = Client(args.scheduler_address)
+        return client, None
+
+    def log_daemon_info(data):
+        if "daemon_log" in data:
+            logging.info(f"Dask daemon log: {data['daemon_log']}")
+        if "worker_log_dir" in data:
+            logging.info(f"Condor worker log directory: {data['worker_log_dir']}")
+
+    # 3. Connection retry / reuse logic (client process)
+    if not args.start_cluster_daemon:
+        # Wait up to 15 seconds for the scheduler JSON to appear and be readable
+        # (to handle shared filesystem sync/latency)
+        start_wait = time.time()
+        data = None
+        while time.time() - start_wait < 15:
+            if os.path.exists(scheduler_json_path):
+                try:
+                    with open(scheduler_json_path, "r") as f:
+                        data = json.load(f)
+                    if data and "address" in data:
+                        break
+                except Exception:
+                    pass
+            time.sleep(1)
+
+        if not data:
+            # Print daemon log to help diagnose why it failed to start
+            if os.path.exists(daemon_log_path):
+                try:
+                    with open(daemon_log_path) as f:
+                        tail = f.read()[-4000:]
+                    logging.error(f"Dask daemon log ({daemon_log_path}):\n{tail}")
+                except Exception:
+                    pass
+            raise RuntimeError(
+                f"Dask scheduler connection file not found: {scheduler_json_path}. "
+                f"Check the daemon log at {daemon_log_path} for details."
+            )
+
+        address = data["address"]
+        logging.info(f"Connecting to shared Dask scheduler at {address}...")
+
+        # Retry connecting to the Dask scheduler to handle high load / slow startup
+        client = None
+        for attempt in range(1, 6):
+            try:
+                client = Client(address, timeout="180s")
+                logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                # This per-job process connects to a shared daemon's scheduler, so
+                # unlike the cluster-creating path it never logged the dashboard.
+                # Emit it here (plus the scheduler host) so monitors
+                # (barista_console / runner_monitor) can scan this log, build a
+                # reachable dashboard URL, and show live worker/task progress.
+                logging.info(f"Dask dashboard: {client.dashboard_link}")
+                logging.info(f"Dask scheduler host: {address.split('://')[1].split(':')[0]}")
+                log_daemon_info(data)
+                return client, None
+            except Exception as e:
+                if attempt == 5:
+                    raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 5 attempts: {e}")
+                logging.warning(f"Connection attempt {attempt}/5 failed: {e}. Retrying in 2 seconds...")
+                time.sleep(2)
+
+    # 5. Daemon setup logic (daemon process)
+    else:
+        logging.info("Initializing Dask cluster daemon...")
+        global _temp_condor_dir
+        log_dir = None
+        if args.condor:
+            logging.info("Configuring LPCCondorCluster daemon...")
+            tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
+            client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+        elif args.slurm:
+            logging.info("Configuring SLURMCluster daemon...")
+            client, cluster = setup_slurm_cluster(config_runner)
+        elif args.run_dask:
+            logging.info("Configuring LocalCluster daemon...")
+            client, cluster = setup_local_cluster(config_runner)
+        else:
+            raise ValueError("Daemon started without a valid cluster type flag (--condor, --slurm, or --dask)")
+
+        # Write info to JSON
+        info_data = {
+            "address": client.scheduler.address,
+            "pid": os.getpid(),
+            "daemon_log": daemon_log_path,
+        }
+        if log_dir is not None:
+            info_data["worker_log_dir"] = log_dir
+        with open(scheduler_json_path, "w") as f:
+            json.dump(info_data, f)
+
+        # Register worker plugin
+        logging.info("Registering worker plugin for Dask client in daemon...")
+        worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
+        client.register_plugin(worker_initializer)
+
+        # Enter monitoring loop (exits process on timeout)
+        run_daemon_monitoring_loop(client, cluster, scheduler_json_path, args.idle_timeout)
+        sys.exit(0)
+
+
+def make_parser():
+
+    # Configure argument parser
+    parser = argparse.ArgumentParser(
+        description='Run coffea processor for high-energy physics analysis',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    # Input/Output files and paths
+    io_group = parser.add_argument_group('Input/Output Configuration')
+    io_group.add_argument(
+        '-p', '--processor',
+        dest="processor",
+        default="coffea4bees/analysis/processors/processor_HH4b.py",
+        help='Path to the processor Python file'
+    )
+    io_group.add_argument(
+        '-c', '--configs',
+        dest="configs",
+        default="coffea4bees/analysis/metadata/HH4b.yml",
+        help='Path to the main configuration YAML file'
+    )
+    io_group.add_argument(
+        '-m', '--metadata',
+        dest="metadata",
+        default="coffea4bees/metadata/datasets/",
+        help='Path to the datasets metadata YAML file'
+    )
+    io_group.add_argument(
+        '--triggers',
+        dest="triggers",
+        default="coffea4bees/metadata/triggers_HH4b.yml",
+        help='Path to the triggers metadata YAML file'
+    )
+    io_group.add_argument(
+        '-l', '--luminosities',
+        dest="luminosities",
+        default="coffea4bees/metadata/luminosities_HH4b.yml",
+        help='Path to the luminosities metadata YAML file'
+    )
+    io_group.add_argument(
+        '--friends',
+        dest="friends",
+        default="coffea4bees/metadata/friends/friends_HH4b.yml",
+        type=lambda x: None if x.lower() == 'none' else x,
+        help='Path to the per-year friends metadata YAML file (None to disable)'
+    )
+    # Central weights configuration path
+    io_group.add_argument(
+        '--weights',
+        dest="weights",
+        default="coffea4bees/metadata/weights/weights_HH4b.yml",
+        type=lambda x: None if x.lower() == 'none' else x,
+        help='Path to the per-year weights/models metadata YAML file (None to disable)'
+    )
+    io_group.add_argument(
+        '-o', '--output',
+        dest="output_file",
+        default="hists.coffea",
+        help='Name of the output file'
+    )
+    io_group.add_argument(
+        '-op', '--output-path',
+        dest="output_path",
+        default="hists/",
+        help='Directory path where output files will be saved'
+    )
+    io_group.add_argument(
+        '--dashboard-address',
+        dest="dashboard_address",
+        default=None,
+        type=int,
+        metavar='PORT',
+        help='Port for the Dask dashboard (default: 10200). Use 0 to let the OS pick a free port, e.g. when running many parallel jobs.'
+    )
+    io_group.add_argument(
+        '--storage-remap',
+        dest="storage_remap",
+        default=None,
+        metavar='FILE',
+        help='Path to a YAML file defining storage prefix remappings (e.g. FNAL EOS -> CMU EOS). '
+             'Applied to all file paths in the datasets metadata at load time.'
+    )
+
+    # Load corrections metadata and extract year keys
+    with open('src/physics/corrections.yml', 'r') as f:
+        corrections_metadata = yaml.safe_load(f)
+    year_choices = list(corrections_metadata.keys())
+
+    # Data selection options
+    data_group = parser.add_argument_group('Data Selection')
+    data_group.add_argument(
+        '-y', '--years',
+        nargs='+',
+        dest='years',
+        default=['UL18'],
+        choices=year_choices,
+        help=f"Year(s) of data to process (as in src/physics/corrections.yml). Choices: {', '.join(year_choices)}. Examples: --years UL17 UL18"
+    )
+    data_group.add_argument(
+        '-d', '--datasets',
+        nargs='+',
+        dest='datasets',
+        default=['HH4b', 'ZZ4b', 'ZH4b'],
+        help='Dataset name(s) to process. Examples: --datasets HH4b ZZ4b'
+    )
+    data_group.add_argument(
+        '-e', '--eras',
+        nargs='+',
+        dest='era',
+        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2', 'I2', 'I3' ],
+        help='Data era(s) to process (data only). Examples: --eras A B C.'
+    )
+
+    # Processing mode options
+    mode_group = parser.add_argument_group('Processing Mode')
+    mode_group.add_argument(
+        '-s', '--skimming',
+        dest="skimming",
+        action="store_true",
+        default=False,
+        help='Run in skimming mode instead of analysis mode'
+    )
+    mode_group.add_argument(
+        '-t', '--test',
+        dest="test",
+        action="store_true",
+        default=False,
+        help='Run in test mode with limited number of files'
+    )
+    mode_group.add_argument(
+        '--systematics',
+        nargs='+',
+        dest="systematics",
+        default=None,
+        help='List of systematics to apply (e.g., "others jes all")'
+    )
+
+    # Execution environment options
+    exec_group = parser.add_argument_group('Execution Environment')
+    exec_group.add_argument(
+        '--dask',
+        dest="run_dask",
+        action="store_true",
+        default=False,
+        help='Use Dask for distributed processing'
+    )
+    exec_group.add_argument(
+        '--condor',
+        dest="condor",
+        action="store_true",
+        default=False,
+        help='Submit jobs to HTCondor cluster'
+    )
+    exec_group.add_argument(
+        '--slurm',
+        dest="slurm",
+        action="store_true",
+        default=False,
+        help='Submit Dask workers as SLURM jobs (for falcon compute cluster)'
+    )
+    exec_group.add_argument(
+        '--worker-memory',
+        dest="worker_memory",
+        default=None,
+        help='Override worker memory (e.g. 8GB). Overrides the value in the config file.'
+    )
+    exec_group.add_argument(
+        '--slurm-qos',
+        dest="slurm_qos",
+        default=None,
+        help='Override SLURM QoS for worker jobs (e.g. cpu_light, cpu_medium, cpu_heavy). Overrides slurm_qos in the config file.'
+    )
+    exec_group.add_argument(
+        '--tmpdir',
+        dest="tmpdir",
+        default=None,
+        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+    )
+    exec_group.add_argument(
+        '--start-cluster-daemon',
+        dest="start_cluster_daemon",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS
+    )
+    exec_group.add_argument(
+        '--shared-dask',
+        dest="shared_dask",
+        action="store_true",
+        default=False,
+        help='Use a shared Dask cluster daemon'
+    )
+    exec_group.add_argument(
+        '--idle-timeout',
+        dest="idle_timeout",
+        type=int,
+        default=600,
+        help='Time in seconds to wait before shutting down an idle cluster (default: 600s / 10m)'
+    )
+    exec_group.add_argument(
+        '--scheduler-address',
+        dest="scheduler_address",
+        default=None,
+        help='Address of an existing Dask scheduler to connect to (e.g. tcp://IP:PORT)'
+    )
+    # Debugging and quality control
+    debug_group = parser.add_argument_group('Debugging and Quality Control')
+    debug_group.add_argument(
+        '--debug',
+        dest="debug",
+        action="store_true",
+        default=False,
+        help='Enable debug mode with verbose logging'
+    )
+    debug_group.add_argument(
+        '--check-input-files',
+        dest="check_input_files",
+        action="store_true",
+        default=False,
+        help='Check input files for corruption before processing'
+    )
+
+    # Reproducibility options
+    repro_group = parser.add_argument_group('Reproducibility')
+    repro_group.add_argument(
+        '--githash',
+        dest="githash",
+        default="",
+        help='Override git hash for reproducibility tracking'
+    )
+    repro_group.add_argument(
+        '--gitdiff',
+        dest="gitdiff",
+        default="",
+        help='Override git diff for reproducibility tracking'
+    )
+    return parser
+>>>>>>> 2a1a4038 (increase timeout for shared cluster)
 
 from src.runner.logging import CustomFormatter
 
