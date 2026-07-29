@@ -8,7 +8,7 @@ generate_dataset:
   stage: classifier
   extends: .base_classifier_barista
   script:
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
+    - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
       - output/dataset/sparse.root
@@ -23,8 +23,8 @@ main_cache:
       optional: true
       artifacts: true
   script:
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache.yml ${CLASSIFIER_WFS}/common.yml
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_cache_compare.yml ${CLASSIFIER_WFS}/common.yml
+    - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/main_cache.yml ${CLASSIFIER_WFS}/common.yml
+    - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/main_cache_compare.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
       - output/main_cache/diagnostics/logs.html
@@ -38,7 +38,7 @@ main_train:
       optional: true
       artifacts: true
   script:
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_train.yml ${CLASSIFIER_WFS}/common.yml
+    - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/main_train.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
       - output/main_train/result.json
@@ -57,7 +57,7 @@ main_evaluate:
       optional: true
       artifacts: true
   script:
-    - ./src/pyml.py from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
+    - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/main_evaluate.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
     paths:
       - output/main_evaluate/diagnostics/logs.html
