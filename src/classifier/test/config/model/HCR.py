@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.classifier.config.model.HCR._HCR import (
-    ROC_BIN,
-    HCRTrain,
-    HCREval,
-    roc_nominal_selection,
-)
+try:
+    from coffea4bees.classifier.config.model.HCR._HCR import (
+        ROC_BIN,
+        HCRTrain,
+        HCREval,
+        roc_nominal_selection,
+    )
+except ImportError:
+    from src.classifier.config.model.HCR._HCR import (
+        ROC_BIN,
+        HCRTrain,
+        HCREval,
+        roc_nominal_selection,
+    )
 from src.classifier.config.setting.HCR import Input, Output
 
 if TYPE_CHECKING:

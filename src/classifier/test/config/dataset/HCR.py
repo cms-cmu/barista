@@ -1,7 +1,10 @@
 from functools import cache, cached_property
 
 from src.classifier.config.dataset._root import LoadGroupedRoot
-from src.classifier.config.dataset.HCR._group import add_single_label
+try:
+    from coffea4bees.classifier.config.dataset.HCR._group import add_single_label
+except ImportError:
+    from src.classifier.config.dataset.HCR._group import add_single_label
 from src.classifier.config.setting.df import Columns
 from src.classifier.config.setting.HCR import Input, InputBranch
 from src.classifier.config.setting.ml import KFold
