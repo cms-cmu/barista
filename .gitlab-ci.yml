@@ -189,22 +189,6 @@ setup_bbreww:
     - k8s-cvmfs
   retry: 2
 
-.base_classifier_barista:
-  needs:
-    - setup_coffea4bees
-    - job: build_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
-  before_script:
-    - cd $CI_PROJECT_DIR/
-    - export CLASSIFIER_CONFIG_PATHS="coffea4bees"
-    - pwd && ls -la
-  tags:
-    - k8s-cvmfs
-  artifacts:
-    when: always
-    expire_in: 1 day
 
 validation:
   before_script:

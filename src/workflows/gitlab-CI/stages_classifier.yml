@@ -1,6 +1,6 @@
 config_dependencies:
   stage: classifier
-  extends: .base_classifier_barista
+  extends: .base_analysis_barista
   before_script:
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
@@ -9,7 +9,7 @@ config_dependencies:
 
 generate_dataset:
   stage: classifier
-  extends: .base_classifier_barista
+  extends: .base_analysis_barista
   script:
     - python -m src.classifier.task.main from ${CLASSIFIER_WFS}/generate_dataset.yml ${CLASSIFIER_WFS}/common.yml
   artifacts:
@@ -19,7 +19,7 @@ generate_dataset:
 
 main_cache:
   stage: classifier
-  extends: .base_classifier_barista
+  extends: .base_analysis_barista
   needs:
     - setup_coffea4bees
     - generate_dataset
@@ -35,7 +35,7 @@ main_cache:
 
 main_train:
   stage: classifier
-  extends: .base_classifier_barista
+  extends: .base_analysis_barista
   needs:
     - setup_coffea4bees
     - generate_dataset
@@ -54,7 +54,7 @@ main_train:
 
 main_evaluate:
   stage: classifier
-  extends: .base_classifier_barista
+  extends: .base_analysis_barista
   needs:
     - setup_coffea4bees
     - generate_dataset
