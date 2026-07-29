@@ -1323,7 +1323,7 @@ def make_parser():
     io_group.add_argument(
         '--friends',
         dest="friends",
-        default="coffea4bees/metadata/friends/friends_HH4b.yml",
+        default="coffea4bees/metadata/friends_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
         help='Path to the per-year friends metadata YAML file (None to disable)'
     )
