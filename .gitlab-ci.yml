@@ -21,6 +21,9 @@ workflow:
       variables:
         DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
       when: always
+    # Do not run push pipelines if there is an open merge request
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
     # Run for pushes to feature branches (with or without open merge requests)
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
       variables:
