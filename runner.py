@@ -1305,7 +1305,7 @@ def make_parser():
     io_group.add_argument(
         '-m', '--metadata',
         dest="metadata",
-        default="coffea4bees/metadata/datasets/",
+        default="coffea4bees/metadata/datasets_HH4b_Run2/",
         help='Path to the datasets metadata YAML file'
     )
     io_group.add_argument(
