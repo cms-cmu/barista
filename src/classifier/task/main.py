@@ -360,3 +360,8 @@ class Main(Task):
 
     @interface
     def run(self, parser: EntryPoint) -> Optional[dict[str]]: ...
+
+
+if __name__ == "__main__":
+    EntryPoint().run()
+
