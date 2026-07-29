@@ -189,7 +189,6 @@ setup_bbreww:
 .base_classifier_barista:
   needs:
     - setup_coffea4bees
-    - voms_proxy
     - job: build_container
       optional: true
       artifacts: true
