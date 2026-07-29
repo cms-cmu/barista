@@ -1,8 +1,0 @@
-config_dependencies:
-  stage: classifier
-  extends: .base_analysis_barista
-  before_script:
-    - cd $CI_PROJECT_DIR/
-    - pwd && ls -la
-  script:
-    - python -m src.classifier.test.check_configs
