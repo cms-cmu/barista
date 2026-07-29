@@ -18,6 +18,7 @@ main_cache:
   stage: classifier
   extends: .base_classifier_barista
   needs:
+    - setup_coffea4bees
     - generate_dataset
     - job: build_container
       optional: true
@@ -33,6 +34,7 @@ main_train:
   stage: classifier
   extends: .base_classifier_barista
   needs:
+    - setup_coffea4bees
     - generate_dataset
     - job: build_container
       optional: true
@@ -51,6 +53,7 @@ main_evaluate:
   stage: classifier
   extends: .base_classifier_barista
   needs:
+    - setup_coffea4bees
     - generate_dataset
     - main_train
     - job: build_container
