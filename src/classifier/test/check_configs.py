@@ -7,15 +7,19 @@ from .utils.import_check import ImportTracker, walk_packages
 
 
 def walk_configs():
+    import os
     failed = False
     with import_checker() as _import_checker:
         checkers = [_import_checker]
-        # Construct paths for both normal and test configs
-        config_paths = [
-            "src/classifier/config",  # Normal config path
-            "src/classifier/test/config",  # Test config path
-        ]
+        ext_env = os.environ.get("CLASSIFIER_CONFIG_PATHS", "")
+        config_paths = ["src/classifier/config", "src/classifier/test/config"]
+        if ext_env:
+            for ext in ext_env.split(":"):
+                if ext:
+                    config_paths.insert(0, f"{ext}/classifier/config")
         for config_path in config_paths:
+            if not os.path.exists(config_path):
+                continue
             for module in walk_packages(config_path):
                 logging.info(f'Checking "{module}"')
                 for checker in checkers:
