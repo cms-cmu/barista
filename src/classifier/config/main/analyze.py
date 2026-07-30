@@ -64,8 +64,6 @@ def run_analyzer(parser: EntryPoint, results: list[dict]):
     if cfg.Analysis.max_workers == 1:
         outputs = []
         for analyzer in analyzers:
-            if status.initializer is not None:
-                status.initializer()
             outputs.append(_analyze(analyzer))
     else:
         with (
