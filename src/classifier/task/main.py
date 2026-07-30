@@ -345,6 +345,8 @@ class EntryPoint:
             serialized = json.dumps(result, cls=DefaultEncoder)
             with fsspec.open(cfg.IO.result, "wt") as f:
                 f.write(serialized)
+        import os
+        os._exit(0)
 
 
 # main
