@@ -82,23 +82,33 @@ class Main(SelectDevice, main.Main):
         )
         # evaluate models in parallel
         timer = datetime.now()
-        with (
-            ProcessPoolExecutor(
-                max_workers=self.opts.max_evaluators,
-                mp_context=status.context,
-                initializer=status.initializer,
-            ) as executor,
-            Progress.new(
+        if self.opts.max_evaluators == 1:
+            with Progress.new(
                 total=len(evaluators), msg=("models", "Evaluating")
-            ) as progress,
-        ):
-            results = [
-                *pool.map_async(
-                    executor,
-                    _eval_model(self.device, dataset),
-                    evaluators,
-                    callbacks=[lambda _: progress_advance(progress)],
-                )
-            ]
+            ) as progress:
+                results = []
+                eval_func = _eval_model(self.device, dataset)
+                for evaluator in evaluators:
+                    results.append(eval_func(evaluator))
+                    progress_advance(progress)(None)
+        else:
+            with (
+                ProcessPoolExecutor(
+                    max_workers=self.opts.max_evaluators,
+                    mp_context=status.context,
+                    initializer=status.initializer,
+                ) as executor,
+                Progress.new(
+                    total=len(evaluators), msg=("models", "Evaluating")
+                ) as progress,
+            ):
+                results = [
+                    *pool.map_async(
+                        executor,
+                        _eval_model(self.device, dataset),
+                        evaluators,
+                        callbacks=[lambda _: progress_advance(progress)],
+                    )
+                ]
         logging.info(f"Evaluated {len(evaluators)} models in {datetime.now() - timer}")
         return {ResultKey.predictions: results}
