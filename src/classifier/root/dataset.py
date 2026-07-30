@@ -31,6 +31,7 @@ class FriendTreeEvalDataset(EvalDataset[Friend]):
         dump_naming: str | NameMapping = ...,
     ):
         self.__chunks = [*chunks]
+        print(f"DEBUG_PRINT: FriendTreeEvalDataset __init__ chunks count = {len(self.__chunks)}: {self.__chunks}")
         self.__loader = _chunk_loader(method=load_method)
         self.__dumper = _chunk_dumper(
             method=numpy_dumper if dump_method is ... else dump_method,
@@ -39,7 +40,9 @@ class FriendTreeEvalDataset(EvalDataset[Friend]):
         )
 
     def batches(self, batch_size: int, name: str, **_):
+        print(f"DEBUG_PRINT: FriendTreeEvalDataset.batches: batch_size = {batch_size}, name = {name}")
         for chunk in Chunk.balance(batch_size, *self.__chunks):
+            print(f"DEBUG_PRINT: FriendTreeEvalDataset.batches yielding chunk: {chunk}")
             yield self.__dumper.new(chunk, name), self.__loader.new(chunk)
 
 
