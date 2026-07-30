@@ -148,24 +148,33 @@ def _find_models(args: list[list[str]], no_kfold: bool = False) -> list[dict]:
     from src.classifier.ml.skimmer import KFold, RandomKFold
 
     models = []
+    print(f"DEBUG_PRINT: _find_models called with args={args}, no_kfold={no_kfold}")
     for arg in args:
         name = arg[0]
         paths = arg[1:]
+        print(f"DEBUG_PRINT: Processing arg name={name}, paths={paths}")
         for path in paths:
             with fsspec.open(path, "rt") as f:
-                results: list[dict[str, dict]] = json.load(f).get(ResultKey.models, [])
+                data = json.load(f)
+                results: list[dict[str, dict]] = data.get(ResultKey.models, [])
+                print(f"DEBUG_PRINT: Loaded path={path}, results count={len(results)}")
             for result in results:
                 metadata = result.get("metadata", {})
+                print(f"DEBUG_PRINT: result name={result.get('name')}, metadata={metadata}, history stages={[s.get('stage') for s in result.get('history', [])]}")
                 m_path = None
                 for stage in result.get("history", [])[::-1]:
+                    print(f"DEBUG_PRINT: checking stage={stage}")
                     if (stage.get("stage") == "Output") and (stage.get("name") == name):
                         m_path = stage["path"]
                         if stage.get("relative", False):
                             m_path = EOS(path).parent / m_path
+                        print(f"DEBUG_PRINT: MATCHED stage! m_path={m_path}")
                         break
                 if m_path is None:
+                    print(f"DEBUG_PRINT: m_path is None, skipping result")
                     continue
                 if ("kfolds" not in metadata) or ("offset" not in metadata):
+                    print(f"DEBUG_PRINT: kfolds or offset not in metadata: {metadata}")
                     continue
                 kwargs = {
                     "kfolds": metadata["kfolds"],
