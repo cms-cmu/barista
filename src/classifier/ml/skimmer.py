@@ -99,10 +99,6 @@ class KFold(Splitter):
         offset = self._get_offset(batch)
         validation_np = (offset % self._k) == self._i
         validation = torch.from_numpy(validation_np)
-        print(f"DEBUG_PRINT: KFold.split: kfolds={self._k}, offset={self._i}, batch_len={len(offset)}, offset_dtype={offset.dtype}, offset_min={offset.min() if len(offset) > 0 else None}, offset_max={offset.max() if len(offset) > 0 else None}")
-        print(f"DEBUG_PRINT: KFold.split: validation True count={validation_np.sum()}, False count={len(validation_np) - validation_np.sum()}")
-        if validation_np.sum() > 0:
-            print(f"DEBUG_PRINT: KFold.split: first 10 True offsets={offset[validation_np][:10]}")
         return {
             cfg.SplitterKeys.training: ~validation,
             cfg.SplitterKeys.validation: validation,

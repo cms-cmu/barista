@@ -31,7 +31,6 @@ class FriendTreeEvalDataset(EvalDataset[Friend]):
         dump_naming: str | NameMapping = ...,
     ):
         self.__chunks = [*chunks]
-        print(f"DEBUG_PRINT: FriendTreeEvalDataset __init__ chunks count = {len(self.__chunks)}: {self.__chunks}")
         self.__loader = _chunk_loader(method=load_method)
         self.__dumper = _chunk_dumper(
             method=numpy_dumper if dump_method is ... else dump_method,
@@ -40,9 +39,7 @@ class FriendTreeEvalDataset(EvalDataset[Friend]):
         )
 
     def batches(self, batch_size: int, name: str, **_):
-        print(f"DEBUG_PRINT: FriendTreeEvalDataset.batches: batch_size = {batch_size}, name = {name}")
         for chunk in Chunk.balance(batch_size, *self.__chunks):
-            print(f"DEBUG_PRINT: FriendTreeEvalDataset.batches yielding chunk: {chunk}")
             yield self.__dumper.new(chunk, name), self.__loader.new(chunk)
 
 
@@ -70,13 +67,10 @@ class _chunk_dumper:
         return len(self.chunk)
 
     def __call__(self, batch: BatchType) -> Friend:
-        print(f"DEBUG_PRINT: _chunk_dumper: chunk={self.chunk}, base_path={self.base_path}, naming={self.naming}, name={self.name}")
-        print(f"DEBUG_PRINT: _chunk_dumper: batch keys={list(batch.keys())}, shapes={[getattr(v, 'shape', None) for v in batch.values()]}")
         with Friend(name=self.name).auto_dump(
             base_path=self.base_path, naming=self.naming
         ) as friend:
             data = self.method(batch)
-            print(f"DEBUG_PRINT: _chunk_dumper: data keys={list(data.keys())}, shapes={[getattr(v, 'shape', None) for v in data.values()]}")
             friend.add(self.chunk, data)
             return friend
 
