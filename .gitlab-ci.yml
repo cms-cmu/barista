@@ -1,4 +1,4 @@
-# Trigger pipeline rerun for latest subproject commits
+# Trigger pipeline rerun for latest subproject commits - force push
 workflow:
   rules:
     # Do not run if only markdown files changed
