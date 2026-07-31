@@ -145,6 +145,10 @@ class _friend_dump_job:
     data: RecordLike
 
     def __call__(self):
+        print(f"DEBUG_PRINT: _friend_dump_job: path={self.path}, data keys={list(self.data.keys()) if isinstance(self.data, dict) else None}, data type={type(self.data)}")
+        if isinstance(self.data, dict):
+            for k, v in self.data.items():
+                print(f"DEBUG_PRINT: _friend_dump_job: branch={k}, type={type(v)}, shape={getattr(v, 'shape', None)}, len={len(v)}")
         with TreeWriter(**self.writer)(self.path) as f:
             f.extend(self.data)
         return f.tree
