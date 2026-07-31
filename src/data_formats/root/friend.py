@@ -703,6 +703,7 @@ class Friend(Configurable, namespace="root.Friend"):
             >>>     return f'{kwargs["path0"][:3]}_{kwargs["tree"]}_{kwargs["start"]}_{kwargs["stop"]}.root'.lower()
             >>> friend.dump(filename)
         """
+        print(f"DEBUG_PRINT: Friend.dump: self._has_dump={self._has_dump}, len(self.__dump)={len(self.__dump) if hasattr(self, '_Friend__dump') else 0}")
         if self._has_dump:
             if base_path is not ...:
                 base_path = EOS(base_path)
@@ -715,11 +716,14 @@ class Friend(Configurable, namespace="root.Friend"):
                 else:
                     path = base_path
                 path = path / apply_naming(naming, self._name_dump(target, item))
+                print(f"DEBUG_PRINT: Friend.dump: target={target}, path={path}, item.chunk type={type(item.chunk)}")
                 job = _friend_dump_job(path, opts, item.chunk)
                 callback = _friend_dump_callback(self, item)
                 if executor is None:
+                    print("DEBUG_PRINT: Friend.dump: executing job synchronously")
                     callback(job())
                 else:
+                    print("DEBUG_PRINT: Friend.dump: submitting job to executor")
                     executor.submit(job).add_done_callback(callback)
             self.__dump.clear()
 
