@@ -41,6 +41,7 @@ workflow:
       when: always
 
 variables:
+  # Trigger pipeline run for latest subproject commits
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
   DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
@@ -129,6 +130,9 @@ setup_bbreww:
       optional: true
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "coffea4bees"
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -145,6 +149,9 @@ setup_bbreww:
       optional: true
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "bbreww"
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
