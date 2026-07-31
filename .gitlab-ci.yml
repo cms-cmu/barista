@@ -1,4 +1,3 @@
-# Trigger pipeline rerun for latest subproject commits - force push
 workflow:
   rules:
     # Do not run if only markdown files changed
@@ -42,6 +41,7 @@ workflow:
       when: always
 
 variables:
+  # Trigger pipeline run for latest subproject commits
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
   DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
