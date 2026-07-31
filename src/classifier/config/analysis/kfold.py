@@ -90,21 +90,29 @@ def _load_friends(stage: str, results: list[dict]):
     from src.data_formats.root import Friend
 
     kfolds: list[Friend] = []
+    print(f"DEBUG_PRINT: _load_friends: stage={stage}, results count={len(results)}")
     for result in results:
         predictions: list[dict] = result.get(ResultKey.predictions)
         if predictions is None:
+            print("DEBUG_PRINT: _load_friends: predictions is None!")
             continue
+        print(f"DEBUG_PRINT: _load_friends: predictions count={len(predictions)}")
         for prediction in predictions:
             outputs: list[dict] = prediction.get("outputs")
             if not isinstance(outputs, Iterable):
+                print(f"DEBUG_PRINT: _load_friends: outputs not iterable: {type(outputs)}")
                 continue
+            print(f"DEBUG_PRINT: _load_friends: outputs count={len(outputs)}")
             for output in outputs:
+                print(f"DEBUG_PRINT: _load_friends: output keys={output.keys()}, stage={output.get('stage')}, name={output.get('name')}")
                 if (output.get("stage") != "Evaluation") or (
                     (stage is not ...) and (output.get("name") != stage)
                 ):
+                    print("DEBUG_PRINT: _load_friends: stage mismatch or name mismatch, skipping")
                     continue
                 friends: dict = output.get("output")
                 if not isinstance(friends, Iterable):
+                    print(f"DEBUG_PRINT: _load_friends: friends not iterable: {type(friends)}")
                     continue
                 datasets: dict[str, list[Friend]] = defaultdict(list)
                 for friend in friends:
@@ -114,7 +122,8 @@ def _load_friends(stage: str, results: list[dict]):
                     else:
                         try:
                             dataset = Friend.from_json(friend)
-                        except Exception:
+                        except Exception as e:
+                            print(f"DEBUG_PRINT: _load_friends: Friend.from_json failed: {e}")
                             ...
                     if dataset is not None:
                         datasets[dataset.name].append(dataset)
