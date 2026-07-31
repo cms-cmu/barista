@@ -50,8 +50,13 @@ class _merge_worker:
         return replace(self, chunk=chunk)
 
     def __call__(self) -> Friend:
+        print(f"DEBUG_PRINT: _merge_worker: chunk={self.chunk}")
         chain = self.chain.copy().add_chunk(self.chunk)
+        print(f"DEBUG_PRINT: _merge_worker: chain copy chunk count={len(chain._chunks)}, friends={list(chain._friends.keys())}")
         data = chain.concat(library="pd", friend_only=True)
+        print(f"DEBUG_PRINT: _merge_worker: chain.concat output type={type(data)}, length={len(data) if data is not None else 0}")
+        if data is not None and len(data) > 0:
+            print(f"DEBUG_PRINT: _merge_worker: data index={data.index[:10]}, columns={data.columns}")
         merged: dict[str, np.ndarray] = {}
         for k in data.columns.get_level_values(0):
             array = data.loc[:, k]
@@ -128,7 +133,9 @@ class merge_kfolds:
     def __call__(self):
         # assume all friend trees have the same structure
         targets = [*self._friends[0].targets]
+        print(f"DEBUG_PRINT: merge_kfolds.__call__: targets count={len(targets)}, targets={targets}")
         n_entries = self._friends[0].n_entries
+        print(f"DEBUG_PRINT: merge_kfolds.__call__: n_entries={n_entries}")
         result = _update_friend()
         with (
             ProcessPoolExecutor(
