@@ -70,10 +70,14 @@ class _chunk_dumper:
         return len(self.chunk)
 
     def __call__(self, batch: BatchType) -> Friend:
+        print(f"DEBUG_PRINT: _chunk_dumper: chunk={self.chunk}, base_path={self.base_path}, naming={self.naming}, name={self.name}")
+        print(f"DEBUG_PRINT: _chunk_dumper: batch keys={list(batch.keys())}, shapes={[getattr(v, 'shape', None) for v in batch.values()]}")
         with Friend(name=self.name).auto_dump(
             base_path=self.base_path, naming=self.naming
         ) as friend:
-            friend.add(self.chunk, self.method(batch))
+            data = self.method(batch)
+            print(f"DEBUG_PRINT: _chunk_dumper: data keys={list(data.keys())}, shapes={[getattr(v, 'shape', None) for v in data.values()]}")
+            friend.add(self.chunk, data)
             return friend
 
     def new(self, chunk: Chunk, name: str):
