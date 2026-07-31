@@ -1,3 +1,4 @@
+import logging
 import operator as op
 import sys
 from collections import defaultdict
@@ -66,7 +67,7 @@ class Merge(Analysis):
         from src.classifier.root.kfold import MergeMean, MergeStd, merge_kfolds
 
         kfolds = _load_friends(self.opts.stage, results)
-        print(f"DEBUG_PRINT: analyze: kfolds count={len(kfolds)}, content={[f.name for f in kfolds]}")
+        logging.debug(f"analyze: kfolds count={len(kfolds)}, content={[f.name for f in kfolds]}")
         if len(kfolds) > 1:
             methods = [MergeMean]
             if self.opts.std:
@@ -91,32 +92,32 @@ def _load_friends(stage: str, results: list[dict]):
     from src.data_formats.root import Friend
 
     kfolds: list[Friend] = []
-    print(f"DEBUG_PRINT: _load_friends: stage={stage}, results count={len(results)}")
+    logging.debug(f"_load_friends: stage={stage}, results count={len(results)}")
     for result in results:
         predictions: list[dict] = result.get(ResultKey.predictions)
         if predictions is None:
-            print("DEBUG_PRINT: _load_friends: predictions is None!")
+            logging.debug("_load_friends: predictions is None!")
             continue
-        print(f"DEBUG_PRINT: _load_friends: predictions count={len(predictions)}")
+        logging.debug(f"_load_friends: predictions count={len(predictions)}")
         for prediction in predictions:
             outputs: list[dict] = prediction.get("outputs")
             if not isinstance(outputs, Iterable):
-                print(f"DEBUG_PRINT: _load_friends: outputs not iterable: {type(outputs)}")
+                logging.debug(f"_load_friends: outputs not iterable: {type(outputs)}")
                 continue
-            print(f"DEBUG_PRINT: _load_friends: outputs count={len(outputs)}")
+            logging.debug(f"_load_friends: outputs count={len(outputs)}")
             for output in outputs:
-                print(f"DEBUG_PRINT: _load_friends: output keys={output.keys()}, stage={output.get('stage')}, name={output.get('name')}")
+                logging.debug(f"_load_friends: output keys={output.keys()}, stage={output.get('stage')}, name={output.get('name')}")
                 if (output.get("stage") != "Evaluation") or (
                     (stage is not ...) and (output.get("name") != stage)
                 ):
-                    print("DEBUG_PRINT: _load_friends: stage mismatch or name mismatch, skipping")
+                    logging.debug("_load_friends: stage mismatch or name mismatch, skipping")
                     continue
                 friends: dict = output.get("output")
                 if not isinstance(friends, Iterable):
-                    print(f"DEBUG_PRINT: _load_friends: friends not iterable: {type(friends)}")
+                    logging.debug(f"_load_friends: friends not iterable: {type(friends)}")
                     continue
                 datasets: dict[str, list[Friend]] = defaultdict(list)
-                print(f"DEBUG_PRINT: _load_friends: looping over friends (count={len(friends)})")
+                logging.debug(f"_load_friends: looping over friends (count={len(friends)})")
                 for friend in friends:
                     dataset = None
                     if isinstance(friend, Friend):
@@ -125,15 +126,15 @@ def _load_friends(stage: str, results: list[dict]):
                         try:
                             dataset = Friend.from_json(friend)
                         except Exception as e:
-                            print(f"DEBUG_PRINT: _load_friends: Friend.from_json failed: {e}")
+                            logging.debug(f"_load_friends: Friend.from_json failed: {e}")
                             ...
                     if dataset is not None:
-                        print(f"DEBUG_PRINT: _load_friends: found dataset: name={dataset.name}, branches={dataset._branches}, n_entries={dataset.n_entries}, fragments={dataset.n_fragments}")
+                        logging.debug(f"_load_friends: found dataset: name={dataset.name}, branches={dataset._branches}, n_entries={dataset.n_entries}, fragments={dataset.n_fragments}")
                         datasets[dataset.name].append(dataset)
-                print(f"DEBUG_PRINT: _load_friends: datasets keys={list(datasets.keys())}")
+                logging.debug(f"_load_friends: datasets keys={list(datasets.keys())}")
                 for k, v in datasets.items():
-                    print(f"DEBUG_PRINT: _load_friends: dataset name={k}, count of friends={len(v)}")
+                    logging.debug(f"_load_friends: dataset name={k}, count of friends={len(v)}")
                     merged = reduce(op.add, v)
-                    print(f"DEBUG_PRINT: _load_friends: merged friend: name={merged.name}, branches={merged._branches}, n_entries={merged.n_entries}, fragments={merged.n_fragments}")
+                    logging.debug(f"_load_friends: merged friend: name={merged.name}, branches={merged._branches}, n_entries={merged.n_entries}, fragments={merged.n_fragments}")
                     kfolds.append(merged)
     return kfolds

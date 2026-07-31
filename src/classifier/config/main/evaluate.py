@@ -70,12 +70,12 @@ class Main(SelectDevice, main.Main):
         timer = datetime.now()
         datasets = [*chain(*(t.evaluate() for t in tasks))]
         dataset: EvalDatasetLike = reduce(op.add, datasets)
-        print(f"DEBUG_PRINT: Initialized {len(datasets)} datasets in {datetime.now() - timer}, type={type(dataset)}")
+        logging.info(f"Initialized {len(datasets)} datasets in {datetime.now() - timer}, type={type(dataset)}")
         # initialize models
         models: list[Model] = parser.tasks[TaskOptions.model.name]
         timer = datetime.now()
         evaluators = [*chain(*(m.evaluate() for m in models))]
-        print(f"DEBUG_PRINT: Initialized {len(evaluators)} models in {datetime.now() - timer}, evaluators={evaluators}")
+        logging.info(f"Initialized {len(evaluators)} models in {datetime.now() - timer}, evaluators={evaluators}")
         # evaluate models in parallel
         timer = datetime.now()
         if self.opts.max_evaluators == 1:
