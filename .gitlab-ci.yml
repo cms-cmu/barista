@@ -1,3 +1,4 @@
+# Trigger pipeline rerun for latest subproject commits
 workflow:
   rules:
     # Do not run if only markdown files changed
