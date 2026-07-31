@@ -489,6 +489,24 @@ exit(1)
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
         --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
+    if [ -L "coffea4bees" ]; then
+        local TARGET_COFFEA
+        TARGET_COFFEA=$(readlink coffea4bees)
+        if [[ "$TARGET_COFFEA" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f coffea4bees):/${TARGET_COFFEA#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f coffea4bees):/srv/coffea4bees" )
+        fi
+    fi
+    if [ -L "bbreww" ]; then
+        local TARGET_BBREWW
+        TARGET_BBREWW=$(readlink bbreww)
+        if [[ "$TARGET_BBREWW" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f bbreww):/${TARGET_BBREWW#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f bbreww):/srv/bbreww" )
+        fi
+    fi
     if [ -d "/eos" ]; then
         FLAGS+=( -B /eos )
     fi
@@ -651,6 +669,24 @@ run_coffea_dev() {
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
         --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
+    if [ -L "coffea4bees" ]; then
+        local TARGET_COFFEA
+        TARGET_COFFEA=$(readlink coffea4bees)
+        if [[ "$TARGET_COFFEA" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f coffea4bees):/${TARGET_COFFEA#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f coffea4bees):/srv/coffea4bees" )
+        fi
+    fi
+    if [ -L "bbreww" ]; then
+        local TARGET_BBREWW
+        TARGET_BBREWW=$(readlink bbreww)
+        if [[ "$TARGET_BBREWW" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f bbreww):/${TARGET_BBREWW#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f bbreww):/srv/bbreww" )
+        fi
+    fi
     ulimit -n 65536
 
     # LPC-Specific Environment Variable
@@ -834,6 +870,24 @@ run_classifier() {
     local FLAGS=( -B "$PWD":/srv --nv --pwd /srv -B /tmp:/tmp
         --env PYTHONHISTFILE=/srv/.python_history
     )
+    if [ -L "coffea4bees" ]; then
+        local TARGET_COFFEA
+        TARGET_COFFEA=$(readlink coffea4bees)
+        if [[ "$TARGET_COFFEA" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f coffea4bees):/${TARGET_COFFEA#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f coffea4bees):/srv/coffea4bees" )
+        fi
+    fi
+    if [ -L "bbreww" ]; then
+        local TARGET_BBREWW
+        TARGET_BBREWW=$(readlink bbreww)
+        if [[ "$TARGET_BBREWW" == ../* ]]; then
+            FLAGS+=( -B "$(readlink -f bbreww):/${TARGET_BBREWW#../}" )
+        else
+            FLAGS+=( -B "$(readlink -f bbreww):/srv/bbreww" )
+        fi
+    fi
     ulimit -n 65536
 
     # Detect if on FALCON (auto-enable SLURM)
