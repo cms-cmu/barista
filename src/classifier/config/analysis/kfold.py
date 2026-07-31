@@ -66,6 +66,7 @@ class Merge(Analysis):
         from src.classifier.root.kfold import MergeMean, MergeStd, merge_kfolds
 
         kfolds = _load_friends(self.opts.stage, results)
+        print(f"DEBUG_PRINT: analyze: kfolds count={len(kfolds)}, content={[f.name for f in kfolds]}")
         if len(kfolds) > 1:
             methods = [MergeMean]
             if self.opts.std:
@@ -115,6 +116,7 @@ def _load_friends(stage: str, results: list[dict]):
                     print(f"DEBUG_PRINT: _load_friends: friends not iterable: {type(friends)}")
                     continue
                 datasets: dict[str, list[Friend]] = defaultdict(list)
+                print(f"DEBUG_PRINT: _load_friends: looping over friends (count={len(friends)})")
                 for friend in friends:
                     dataset = None
                     if isinstance(friend, Friend):
@@ -126,6 +128,12 @@ def _load_friends(stage: str, results: list[dict]):
                             print(f"DEBUG_PRINT: _load_friends: Friend.from_json failed: {e}")
                             ...
                     if dataset is not None:
+                        print(f"DEBUG_PRINT: _load_friends: found dataset: name={dataset.name}, branches={dataset._branches}, n_entries={dataset.n_entries}, fragments={dataset.n_fragments}")
                         datasets[dataset.name].append(dataset)
-                kfolds.extend(reduce(op.add, v) for v in datasets.values())
+                print(f"DEBUG_PRINT: _load_friends: datasets keys={list(datasets.keys())}")
+                for k, v in datasets.items():
+                    print(f"DEBUG_PRINT: _load_friends: dataset name={k}, count of friends={len(v)}")
+                    merged = reduce(op.add, v)
+                    print(f"DEBUG_PRINT: _load_friends: merged friend: name={merged.name}, branches={merged._branches}, n_entries={merged.n_entries}, fragments={merged.n_fragments}")
+                    kfolds.append(merged)
     return kfolds
