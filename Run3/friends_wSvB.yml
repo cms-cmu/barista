@@ -1,0 +1,33 @@
+friends:
+  UL16_preVFP: &friends_Run2
+    trigWeight: "coffea4bees/metadata/datasets_HH4b_Run2/trigweights_2024_v1p2.json@@trigWeight"
+    #FvT: root://cmseos.fnal.gov//store/user/chuyuanl/HH4b/friend/FvT/baseline_legacy/JCM/mixed-0/result.json@@analysis.0.merged    
+    #FvT_3bDvTMix4bDvT_v{mix}_newSBDef:
+    #  path: root://cmseos.fnal.gov//store/user/chuyuanl/HH4b/friend/FvT/baseline_legacy/JCM/mixed-{mix}/result.json@@analysis.0.merged
+    #  keys: "[{'mix': i } for i in range(15)]"
+  UL16_postVFP: *friends_Run2
+  UL17: *friends_Run2
+  UL18: *friends_Run2
+
+  2022_preEE: &friends_Run3
+    trigWeight: "coffea4bees/metadata/datasets_HH4b_Run3/trigger_weights_TTbar_friends.json@@trigWeight"
+    FvT: root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_v2/friend/FvT/result.json@@analysis.0.merged
+    #MvD: root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_v2/friend/MvD/result.json@@analysis.0.merged
+    SvB: "coffea4bees/metadata/datasets_HH4b_Run3/SvBfriend_mixeddata_data.json@@SvB"
+    SvB_MA: coffea4bees/metadata/datasets_HH4b_Run3/SvBfriend_mixeddata_data.json@@SvB_MA
+    SvB_FeynNet: "coffea4bees/metadata/datasets_HH4b_Run3/SvBFeynNetfriend_mixeddata_data.json@@SvB_FeynNet"
+    # 5 signal-vs-mixed×MvD SvB classifiers (rank0_0), cover signal + detector data
+    SvB_mixedMvD_kin:          root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_SRSB_30x/result.json@@analysis.0.merged
+    SvB_mixedMvD_btag:         root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_btag_SRSB_30x/result.json@@analysis.0.merged
+    SvB_mixedMvD_c5b:          root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_c5b_SRSB_30x/result.json@@analysis.0.merged
+    SvB_mixedMvD_c6_norawF:    root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_c6_norawF_SRSB_30x/result.json@@analysis.0.merged
+    SvB_mixedMvD_c6_noPNetRes: root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_c6_noPNetRes_SRSB_30x/result.json@@analysis.0.merged
+    # kine C2 1x, SR+SB training; and SR-only C2 1x (mixed)
+    SvB_mixedMvD_SRSB:         root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_SRSB/result.json@@analysis.0.merged
+    SvB_mixedMvD_SRonly:       root://cmseos.fnal.gov//store/user/jda102/HH4b_Run3_quadjet_run2/friend/SvB_mixedMvD_rank0_0_SRonly/result.json@@analysis.0.merged
+  2022_EE: *friends_Run3
+  2023_preBPix:
+    <<: *friends_Run3
+    is_parking: "coffea4bees/metadata/datasets_HH4b_Run3/isParkingfriend_2023_preBPix.json@@is_parking"
+  2023_BPix: *friends_Run3
+  '2024': *friends_Run3
