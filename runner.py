@@ -369,4 +369,5 @@ if __name__ == '__main__':
 
     # Sync and sleep to flush NFS writes before exiting
     sync_nfs_writes()
+    # Trigger CI pipeline rerun
     os._exit(0)
