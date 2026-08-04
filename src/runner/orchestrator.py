@@ -9,11 +9,13 @@ import yaml
 from copy import copy
 from datetime import datetime
 from rich.pretty import pretty_repr
-import fsspec
-
 from coffea import processor
 from coffea.util import save
+import fsspec
+
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
+if hasattr(NanoAODSchema, 'error_missing_event_ids'):
+    NanoAODSchema.error_missing_event_ids = False
 
 from src.compat import COFFEA_2025
 from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
