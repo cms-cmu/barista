@@ -20,6 +20,8 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       variables:
         DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
+        COFFEA4BEES_BRANCH: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+        BBREWW_BRANCH: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
       when: always
     # Run for pushes to branches WITHOUT open merge requests
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS == null'
