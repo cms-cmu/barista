@@ -14,6 +14,54 @@ from rich.logging import RichHandler
 from rich.pretty import pretty_repr
 from omegaconf import OmegaConf
 
+# Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
+try:
+    from coffea.dataset_tools import rucio_utils
+    def patched_get_xrootd_sites_map():
+        import json, os, time
+        from collections import defaultdict
+        sites_xrootd_access = defaultdict(dict)
+        cache_valid = False
+        if os.path.exists(".sites_map.json"):
+            file_time = os.path.getmtime(".sites_map.json")
+            if file_time > time.time() - 600:
+                cache_valid = True
+        if not os.path.exists(".sites_map.json") or not cache_valid:
+            siteconf_dir = "/cvmfs/cms.cern.ch/SITECONF/"
+            if os.path.exists(siteconf_dir):
+                sites = [
+                    (s, os.path.join(siteconf_dir, s, "storage.json"))
+                    for s in os.listdir(siteconf_dir)
+                    if s.startswith("T")
+                ]
+                for site_name, conf in sites:
+                    if not os.path.exists(conf):
+                        continue
+                    try:
+                        data = json.load(open(conf))
+                    except Exception:
+                        continue
+                    for site in data:
+                        if site.get("type") != "DISK":
+                            continue
+                        if site.get("rse") is None:
+                            continue
+                        for proc in site.get("protocols", []):
+                            if proc.get("protocol") == "XRootD":
+                                if proc.get("access") not in ["global-ro", "global-rw"]:
+                                    continue
+                                if "prefix" not in proc:
+                                    if "rules" in proc:
+                                        for rule in proc["rules"]:
+                                            sites_xrootd_access[site["rse"]][rule["lfn"]] = rule["pfn"]
+                                else:
+                                    sites_xrootd_access[site["rse"]] = proc["prefix"]
+            json.dump(sites_xrootd_access, open(".sites_map.json", "w"))
+        return json.load(open(".sites_map.json"))
+    rucio_utils.get_xrootd_sites_map = patched_get_xrootd_sites_map
+except Exception:
+    pass
+
 from coffea import processor
 from dask.distributed import performance_report
 
