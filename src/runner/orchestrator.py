@@ -136,6 +136,25 @@ def setup_pico_base_name(configs):
     config_config = configs.get("config", {})
     config_runner = configs.get("runner", {})
 
+    # Check for explicit pico_base_name first
+    if (pico_base_name := config_config.get("pico_base_name")) is not None:
+        return pico_base_name
+
+    # Check for special configurations
+    if "declustering_rand_seed" in config_config:
+        return f'picoAOD_seed{config_config["declustering_rand_seed"]}'
+
+    class_name = config_runner.get("class_name")
+    if class_name == "SubSampler":
+        return 'picoAOD_PSData'
+    elif class_name == "HemiMixer":
+        return 'picoAOD_mixed_all'
+    elif class_name == "MixedDataSplitter":
+        return f'picoAOD_mixed_v{config_config.get("mixed_subsample")}'
+    elif class_name == "Skimmer" and config_config.get("skim4b", False):
+        return 'picoAOD_fourTag'
+
+    # Check for classifier based configurations (lowpt-run3)
     if config_runner.get("run_SvB", False) and config_runner.get("run_FeynNet", False):
         return "picoAOD_SvB_FeynNet"
     elif config_runner.get("run_SvB", False):
@@ -146,6 +165,7 @@ def setup_pico_base_name(configs):
         return "picoAOD_dilep"
     elif config_runner.get("skimming", False):
         return "picoAOD"
+
     return None
 
 def setup_executor(config_runner, args, client, pool):

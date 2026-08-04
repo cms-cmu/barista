@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from rich.pretty import pretty_repr
 
 import dask
-from dask.distributed import Client, WorkerPlugin, SchedulerPlugin
+from dask.distributed import WorkerPlugin, SchedulerPlugin
+import dask.distributed
+import distributed
 
 @dataclass
 class WorkerInitializer(WorkerPlugin):
@@ -118,7 +120,7 @@ def setup_condor_cluster(config_runner, tarball_path):
     cluster = LPCCondorCluster(**cluster_args)
 
     logging.info("Creating Dask client...")
-    client = Client(cluster)
+    client = dask.distributed.Client(cluster)
 
     logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
     cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
@@ -224,7 +226,7 @@ def setup_slurm_cluster(config_runner):
         maximum=config_runner['max_workers'],
     )
 
-    client = Client(cluster)
+    client = dask.distributed.Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
     logging.info(f"Dask scheduler host: {socket.gethostname()}")
     logging.info(f"SLURM worker log directory: {log_dir}")
@@ -245,7 +247,7 @@ def setup_local_cluster(config_runner):
         'scheduler_port': 0 if dashboard_addr == 0 else 8786,
     }
     cluster = LocalCluster(**cluster_args)
-    client = Client(cluster)
+    client = dask.distributed.Client(cluster)
     logging.info(f"Dask dashboard: {client.dashboard_link}")
     logging.info(f"Dask scheduler host: {socket.gethostname()}")
     if dashboard_addr != 0:
@@ -329,7 +331,7 @@ def setup_shared_dask_client(args, config_runner):
 
     if args.scheduler_address:
         logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
-        client = Client(args.scheduler_address)
+        client = distributed.Client(args.scheduler_address)
         return client, None
 
     def log_daemon_info(data):
@@ -371,7 +373,7 @@ def setup_shared_dask_client(args, config_runner):
         client = None
         for attempt in range(1, 6):
             try:
-                client = Client(address, timeout="5s")
+                client = distributed.Client(address, timeout="5s")
                 logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
                 logging.info(f"Dask dashboard: {client.dashboard_link}")
                 logging.info(f"Dask scheduler host: {address.split('://')[1].split(':')[0]}")

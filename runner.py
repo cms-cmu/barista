@@ -18,7 +18,7 @@ from coffea import processor
 from dask.distributed import performance_report
 
 # Import from our modular sub-package
-from src.runner.cli import parse_args
+from src.runner.cli import parse_args, make_parser
 from src.runner.env import setup_environment, print_reproducibility_info, check_and_setup_proxy, sync_nfs_writes
 from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster, WorkerInitializer
 from src.runner.dataset import (
@@ -27,7 +27,7 @@ from src.runner.dataset import (
     process_data_dataset, add_fvt_metadata
 )
 from src.runner.orchestrator import (
-    setup_schema, setup_executor, run_job, find_free_port, setup_config_defaults
+    setup_schema, setup_executor, run_job, find_free_port, setup_config_defaults, setup_pico_base_name
 )
 
 # Global variable to track temp directory for cleanup (Condor)
