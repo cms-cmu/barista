@@ -19,7 +19,9 @@ workflow:
     # Run for merge requests
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       variables:
-        DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+        COFFEA4BEES_BRANCH: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+        BBREWW_BRANCH: "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
       when: always
     # Do not run push pipelines if there is an open merge request
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
@@ -27,7 +29,7 @@ workflow:
     # Run for pushes to feature branches (with or without open merge requests)
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
       variables:
-        DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
       when: always
     # Run for scheduled pipelines
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
