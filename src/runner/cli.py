@@ -224,6 +224,20 @@ def make_parser() -> argparse.ArgumentParser:
         default=False,
         help='Check input files for corruption before processing'
     )
+    debug_group.add_argument(
+        '--not-do-proxy',
+        dest="not_do_proxy",
+        action="store_true",
+        default=False,
+        help='Skip grid proxy setup and validation'
+    )
+    debug_group.add_argument(
+        '--run-performance',
+        dest="run_performance",
+        action="store_true",
+        default=False,
+        help='Enable memory profiling using mprof'
+    )
 
     # Reproducibility options
     repro_group = parser.add_argument_group('Reproducibility')
@@ -244,20 +258,30 @@ def make_parser() -> argparse.ArgumentParser:
 def parse_args() -> argparse.Namespace:
     parser = make_parser()
     
-    # Check if we were passed a single configuration YAML file
-    if len(sys.argv) == 2 and (sys.argv[1].endswith('.yml') or sys.argv[1].endswith('.yaml')) and os.path.exists(sys.argv[1]):
-        with open(sys.argv[1], 'r') as f:
+    yaml_path = None
+    remaining_args = []
+    args_to_parse = sys.argv[1:]
+    
+    for i, arg in enumerate(args_to_parse):
+        if not arg.startswith('-') and (arg.endswith('.yml') or arg.endswith('.yaml')) and os.path.exists(arg):
+            yaml_path = arg
+            remaining_args = args_to_parse[:i] + args_to_parse[i+1:]
+            break
+            
+    if yaml_path:
+        with open(yaml_path, 'r') as f:
             yaml_config = yaml.safe_load(f)
             
-        # Parse standard defaults first
-        args = parser.parse_args([])
+        # Parse defaults first
+        default_args = parser.parse_args([])
         
-        # Merge YAML properties into namespace
+        # Merge YAML properties
         for key, val in yaml_config.items():
-            setattr(args, key, val)
+            setattr(default_args, key, val)
             
-        # Store path to the job configuration
-        args.job_yaml_path = sys.argv[1]
+        # Parse remaining args on top of the YAML-defined namespace
+        args = parser.parse_args(remaining_args, namespace=default_args)
+        args.job_yaml_path = yaml_path
         return args
     else:
         args = parser.parse_args()

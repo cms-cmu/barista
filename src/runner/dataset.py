@@ -145,7 +145,7 @@ def process_mc_dataset(dataset, year, metadata, metadata_dataset, fileset, args,
 
     dataset_key = f"{dataset}_{year}"
     fileset[dataset_key] = create_fileset_entry(dataset_key, meta_files, metadata_dataset[dataset], args, config_runner)
-    logging.info(f'Dataset {dataset_key} with {len(fileset[dataset_key]["files"])} files')
+    logging.debug(f'Dataset {dataset_key} with {len(fileset[dataset_key]["files"])} files')
 
 def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metadata, metadata_dataset, fileset, args, config_runner, extra_metadata_fn=None):
     """Process datasets that create multiple samples (mixed, synthetic, etc.)."""
@@ -175,7 +175,7 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
         logging.debug(f"samples_files is {sample_files}")
         logging.debug(f"files_template is {sample_config['files_template']}")
         fileset[idataset] = create_fileset_entry(idataset, sample_files, metadata_dataset[idataset], args, config_runner)
-        logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
+        logging.debug(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
         logging.debug(f'metadata_dataset is')
         logging.debug(f'idataset is {idataset}')
         logging.debug(pretty_repr(metadata_dataset))
@@ -226,7 +226,7 @@ def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, arg
     ]
 
     fileset[idataset] = create_fileset_entry(idataset, data_3b_mix_config['files'], metadata_dataset[idataset], args, config_runner)
-    logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
+    logging.debug(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
 
 def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process TT for mixed dataset configuration."""
@@ -249,7 +249,7 @@ def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, arg
     metadata_dataset[idataset]['genEventSumw'] = TT_3b_mix_config['sumw']
 
     fileset[idataset] = create_fileset_entry(idataset, TT_3b_mix_config['files'], metadata_dataset[idataset], args, config_runner)
-    logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
+    logging.debug(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
 
 def process_data_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process regular data dataset configuration."""
@@ -262,7 +262,7 @@ def process_data_dataset(dataset, year, metadata, metadata_dataset, fileset, arg
         files = ifile['files'] if config_runner['data_tier'].startswith('pico') else ifile
         fileset[idataset] = create_fileset_entry(idataset, files, meta, args, config_runner)
         metadata_dataset[idataset] = meta
-        logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
+        logging.debug(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
 
 def add_fvt_metadata(meta, config, v):
     """Helper function to add FvT metadata for mixed data."""
@@ -312,3 +312,29 @@ def calculate_cross_section(matched_dataset, dataset_type, metadata, year=None):
     if isinstance(xs, str):
         return eval(xs)
     return float(xs)
+
+def apply_datasets_filter(datasets, filter_cfg):
+    """Exclude specific dataset paths from the datasets metadata dictionary."""
+    if not filter_cfg or 'exclude' not in filter_cfg:
+        return datasets
+
+    exclude_paths = filter_cfg['exclude']
+    for path in exclude_paths:
+        parts = path.split('.')
+        # Navigate and delete
+        d = datasets.get('datasets', datasets)
+        parent = None
+        last_key = None
+        found = True
+        for part in parts:
+            if isinstance(d, dict) and part in d:
+                parent = d
+                last_key = part
+                d = d[part]
+            else:
+                found = False
+                break
+        if found and parent is not None and last_key is not None:
+            logging.info(f"  Filtering datasets: excluded path '{path}'")
+            del parent[last_key]
+    return datasets

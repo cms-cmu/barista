@@ -42,13 +42,17 @@ class TestRunner(unittest.TestCase):
             "--condor",
             "--debug",
             "-y", "UL18", "UL17",
-            "-d", "GluGluToHHTo4B_cHHH1"
+            "-d", "GluGluToHHTo4B_cHHH1",
+            "--not-do-proxy",
+            "--run-performance"
         ])
         self.assertTrue(args.shared_dask)
         self.assertTrue(args.condor)
         self.assertTrue(args.debug)
         self.assertEqual(args.years, ["UL18", "UL17"])
         self.assertEqual(args.datasets, ["GluGluToHHTo4B_cHHH1"])
+        self.assertTrue(args.not_do_proxy)
+        self.assertTrue(args.run_performance)
 
     def test_make_parser_invalid_args(self):
         """Test that invalid argument combinations cause SystemExit."""

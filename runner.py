@@ -13,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from rich.logging import RichHandler
 from rich.pretty import pretty_repr
 from omegaconf import OmegaConf
+import copy
 
 # Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
 try:
@@ -72,7 +73,7 @@ from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, s
 from src.runner.dataset import (
     apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
-    process_data_dataset, add_fvt_metadata
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter
 )
 from src.runner.orchestrator import (
     setup_schema, setup_executor, run_job, find_free_port, setup_config_defaults, setup_pico_base_name
@@ -91,6 +92,28 @@ def cleanup_temp_condor_dir():
             shutil.rmtree(_temp_condor_dir)
         except OSError as e:
             logging.error(f"Error cleaning up Condor directory: {e}")
+class CustomFormatter(logging.Formatter):
+    COLORS = {
+        'DEBUG': '\033[36m',    # Cyan
+        'INFO': '\033[32m',     # Green
+        'WARNING': '\033[33m',  # Yellow
+        'ERROR': '\033[31m',    # Red
+        'CRITICAL': '\033[41m', # Red background
+    }
+    RESET = '\033[0m'
+
+    def format(self, record):
+        # Format time to matches the exact user timestamp style
+        asctime = self.formatTime(record, "%y/%m/%d %H:%M:%S")
+        use_color = sys.stdout.isatty()
+        color = self.COLORS.get(record.levelname, '') if use_color else ''
+        reset = self.RESET if use_color else ''
+        colored_level = f"{color}{record.levelname:<8}{reset}" if color else f"{record.levelname:<8}"
+        
+        source = f"{record.filename}:{record.lineno}"
+        header = f"[{asctime}] {colored_level} {source}"
+        message = record.getMessage()
+        return f"{header}\n{message}"
 
 if __name__ == '__main__':
     # 1. Parse arguments (supports both standard arguments and loading from YAML config)
@@ -98,15 +121,53 @@ if __name__ == '__main__':
 
     # 2. Configure logging
     logging_level = logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
+    handler = RichHandler(level=logging_level, show_time=False, show_level=False, show_path=False, markup=False)
+    handler.setFormatter(CustomFormatter())
     logging.basicConfig(
         level=logging_level,
-        handlers=[RichHandler(level=logging_level, markup=True)],
-        format="%(message)s",
+        handlers=[handler],
+        force=True,
     )
     # Disable verbose logging from third-party libraries
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
     logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
+
+    # Re-execute under mprof if requested and not already running under it
+    if getattr(args, 'run_performance', False) and not os.environ.get("RUNNER_MPROF_ACTIVE"):
+        os.environ["RUNNER_MPROF_ACTIVE"] = "1"
+        import shutil
+        mprof_cmd = shutil.which("mprof")
+        if not mprof_cmd:
+            logging.error("mprof command not found! Cannot run memory profiling. Please ensure memory_profiler is installed.")
+            sys.exit(1)
+        
+        output_dir = getattr(args, 'output_path', 'output/')
+        output_file = getattr(args, 'output_file', 'test.coffea')
+        os.makedirs(output_dir, exist_ok=True)
+        
+        username = os.environ.get("USER", "barista")
+        dat_dir = f"/tmp/{username}"
+        os.makedirs(dat_dir, exist_ok=True)
+        base_name = os.path.splitext(output_file)[0]
+        mprofile_dat = os.path.join(dat_dir, f"mprofile_{base_name}.dat")
+        mprofile_png = os.path.join(output_dir, "performance", f"mprofile_{base_name}.png")
+        os.makedirs(os.path.dirname(mprofile_png), exist_ok=True)
+        
+        clean_argv = [arg for arg in sys.argv if arg != "--run-performance"]
+        run_cmd = [mprof_cmd, "run", "-C", "-o", mprofile_dat, sys.executable] + clean_argv
+        
+        logging.info(f"Running performance profiling: {' '.join(run_cmd)}")
+        import subprocess
+        res = subprocess.run(run_cmd)
+        
+        if res.returncode == 0 and os.path.exists(mprofile_dat):
+            logging.info("Generating performance plot...")
+            plot_cmd = [mprof_cmd, "plot", "-o", mprofile_png, mprofile_dat]
+            subprocess.run(plot_cmd)
+            logging.info(f"Performance plot created successfully: {mprofile_png}")
+            
+        sys.exit(res.returncode)
 
     # 3. Setup environment and check proxy (porting functionalities from run-analysis-processor.sh)
     setup_environment(args)
@@ -148,7 +209,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     # 5. Load configuration and metadata files
-    logging.info("############### Checking and creating output directory")
+    logging.info(">>> Checking and creating output directory")
     logging.info(f"Output directory: {args.output_path}")
     if args.output_path and not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
@@ -157,8 +218,18 @@ if __name__ == '__main__':
     logging.info(f"Loading configs from: {args.configs}")
     configs = yaml.safe_load(open(args.configs, 'r'))
 
-    logging.info("############### Modifying config")
-    logging.info(yaml.dump(configs, default_flow_style=False))
+    # Apply config overrides
+    if getattr(args, 'config_overrides', None):
+        logging.info(">>> Applying config overrides")
+        if not 'config' in configs:
+            configs['config'] = {}
+        for key, val in args.config_overrides.items():
+            orig_val = configs['config'].get(key, '<Not Set>')
+            configs['config'][key] = val
+            print(f"  Override: config.{key} = {val} (original: {orig_val})")
+
+    logging.info(">>> Modifying config")
+    print(yaml.dump(configs, default_flow_style=False))
 
     if not 'config' in configs:
         configs['config'] = {}
@@ -178,15 +249,44 @@ if __name__ == '__main__':
         logging.info(f"Systematics to run: {args.systematics}")
         configs['config']['run_systematics'] = args.systematics
 
-    # Load datasets metadata
-    logging.info(f"Loading datasets metadata from: {args.metadata}")
-    if os.path.isdir(args.metadata):
-        files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
-        datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
+    # Load datasets metadata (supports multiple files merging)
+    if getattr(args, 'datasets_metadata_files', None):
+        logging.info(">>> Merging datasets metadata files")
+        merged_datasets = {}
+        for fpath in args.datasets_metadata_files:
+            print(f"  Loading: {fpath}")
+            with open(fpath, 'r') as f:
+                f_data = yaml.safe_load(f)
+                if isinstance(f_data, dict):
+                    if 'datasets' in f_data:
+                        merged_datasets.update(f_data['datasets'])
+                    else:
+                        merged_datasets.update(f_data)
+        datasets = {'datasets': merged_datasets}
+        print(f"Merged datasets metadata: loaded {len(merged_datasets)} top-level dataset keys.")
     else:
-        datasets = yaml.safe_load(open(args.metadata, 'r'))
-        if isinstance(datasets, dict) and 'datasets' not in datasets:
-            datasets = {'datasets': datasets}
+        logging.info(f"Loading datasets metadata from: {args.metadata}")
+        if os.path.isdir(args.metadata):
+            files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
+            datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
+        else:
+            datasets = yaml.safe_load(open(args.metadata, 'r'))
+            if isinstance(datasets, dict) and 'datasets' not in datasets:
+                datasets = {'datasets': datasets}
+
+    # Apply dataset exclusions/filters
+    if getattr(args, 'datasets_filter', None):
+        logging.info(">>> Applying dataset exclusions")
+        datasets = apply_datasets_filter(datasets, args.datasets_filter)
+        logging.info(">>> Modified Datasets Structure:")
+        summary_lines = []
+        for k, v in datasets.get('datasets', {}).items():
+            if isinstance(v, dict):
+                years = [y for y in v.keys() if y not in ['xs', 'nSamples', 'type', 'label', 'xsec', 'color']]
+                summary_lines.append(f"  - {k}: years={years}")
+            else:
+                summary_lines.append(f"  - {k}: {type(v)}")
+        print("\n".join(summary_lines))
 
     # Load triggers and luminosities metadata
     logging.info(f"Loading triggers metadata from: {args.triggers}")
@@ -364,8 +464,7 @@ if __name__ == '__main__':
         configs.setdefault('config', {})['weights'] = args.weights
 
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
-    for dataset_key in sorted(fileset.keys()):
-        logging.info(f"  - {dataset_key}: {len(fileset[dataset_key]['files'])} files")
+    print("\n".join(f"  - {dk}: {len(fileset[dk]['files'])} files" for dk in sorted(fileset.keys())))
 
     # 10. Execute the job
     logging.info("=" * 60)
