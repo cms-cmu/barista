@@ -264,6 +264,11 @@ def parse_args() -> argparse.Namespace:
     
     for i, arg in enumerate(args_to_parse):
         if not arg.startswith('-') and (arg.endswith('.yml') or arg.endswith('.yaml')) and os.path.exists(arg):
+            # Check if this file is the value of a preceding option flag
+            if i > 0 and args_to_parse[i-1].startswith('-'):
+                boolean_flags = ('-t', '--test', '--condor', '--slurm', '--shared-dask', '--debug', '--check-input-files', '--not-do-proxy', '--run-performance')
+                if args_to_parse[i-1] not in boolean_flags:
+                    continue
             yaml_path = arg
             remaining_args = args_to_parse[:i] + args_to_parse[i+1:]
             break

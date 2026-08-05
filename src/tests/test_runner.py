@@ -63,6 +63,14 @@ class TestRunner(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     parser.parse_args(["--invalid-flag-xyz"])
 
+    @patch("sys.argv", ["runner.py", "-c", "coffea4bees/analysis/metadata/HH4b.yml"])
+    def test_parse_args_with_c_option(self):
+        """Test that the parser does not treat a file passed to -c as a positional YAML config."""
+        from src.runner.cli import parse_args
+        args = parse_args()
+        self.assertEqual(args.configs, "coffea4bees/analysis/metadata/HH4b.yml")
+        self.assertIsNone(args.job_yaml_path)
+
     def test_setup_config_defaults_standalone(self):
         """Test that setup_config_defaults sets correct workers for standalone mode."""
         args = MagicMock()
