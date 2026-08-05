@@ -96,7 +96,9 @@ class KFold(Splitter):
         self._i = offset
 
     def split(self, batch: BatchType):
-        validation = torch.from_numpy((self._get_offset(batch) % self._k) == self._i)
+        offset = self._get_offset(batch)
+        validation_np = (offset % self._k) == self._i
+        validation = torch.from_numpy(validation_np)
         return {
             cfg.SplitterKeys.training: ~validation,
             cfg.SplitterKeys.validation: validation,

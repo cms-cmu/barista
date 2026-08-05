@@ -53,11 +53,12 @@ class _merge_worker:
         chain = self.chain.copy().add_chunk(self.chunk)
         data = chain.concat(library="pd", friend_only=True)
         merged: dict[str, np.ndarray] = {}
-        for k in data.columns.get_level_values(0):
-            array = data.loc[:, k]
-            for method in self.methods:
-                merged |= method(k, array)
-        del data
+        if data is not None:
+            for k in data.columns.get_level_values(0):
+                array = data.loc[:, k]
+                for method in self.methods:
+                    merged |= method(k, array)
+            del data
         with Friend(name=self.name).auto_dump(
             base_path=self.base_path, naming=self.naming
         ) as friend:

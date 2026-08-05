@@ -345,6 +345,8 @@ class EntryPoint:
             serialized = json.dumps(result, cls=DefaultEncoder)
             with fsspec.open(cfg.IO.result, "wt") as f:
                 f.write(serialized)
+        import os
+        os._exit(0)
 
 
 # main
@@ -360,3 +362,8 @@ class Main(Task):
 
     @interface
     def run(self, parser: EntryPoint) -> Optional[dict[str]]: ...
+
+
+if __name__ == "__main__":
+    EntryPoint().run()
+
