@@ -17,7 +17,13 @@ default-resources:
 set-resources:
   train:
     slurm_partition: "GPU-shared"
-    gres: "gpu:v100-16:1"
+    gres: "gpu:1"
+    mem_mb: 20000
   evaluate:
     slurm_partition: "GPU-shared"
-    gres: "gpu:v100-16:1"
+    gres: "gpu:1"
+    mem_mb: 20000
+  plot_inputs_raw:
+    mem_mb: 3800
+  plot_inputs_dataprep:
+    mem_mb: 3800
