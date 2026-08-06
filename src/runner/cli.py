@@ -138,6 +138,13 @@ def make_parser() -> argparse.ArgumentParser:
         default=None,
         help='List of systematics to apply (e.g., "others jes all")'
     )
+    mode_group.add_argument(
+        '--blind',
+        dest="blind",
+        action="store_true",
+        default=False,
+        help='Run in blind mode, blinding the signal region'
+    )
 
     # Execution environment options
     exec_group = parser.add_argument_group('Execution Environment')

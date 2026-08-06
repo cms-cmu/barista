@@ -10,7 +10,6 @@ import importlib
 import inspect
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
-from rich.logging import RichHandler
 from rich.pretty import pretty_repr
 from omegaconf import OmegaConf
 import copy
@@ -64,12 +63,40 @@ except Exception:
     pass
 
 from coffea import processor
-from dask.distributed import performance_report
+from dask.distributed import performance_report, WorkerPlugin
+from dataclasses import dataclass
+
+# Defined here (in __main__) so cloudpickle serializes it by value, not by
+# module reference. Workers need to deserialize this before the code tarball
+# is extracted, so it cannot live in src.runner.cluster.
+@dataclass
+class WorkerInitializer(WorkerPlugin):
+    uproot_xrootd_retry_delays: list[float] = None
+
+    def setup(self, worker=None):
+        self.worker = worker
+        import os, tarfile, sys, logging
+        if os.path.exists("code_barista.tar.gz"):
+            if not os.path.exists(".code_extracted"):
+                logging.info("Extracting code_barista.tar.gz on worker...")
+                with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
+                    tar.extractall()
+                with open(".code_extracted", "w") as f:
+                    f.write("extracted\n")
+                logging.info("Code package extracted successfully")
+        if os.getcwd() not in sys.path:
+            sys.path.insert(0, os.getcwd())
+        if delays := self.uproot_xrootd_retry_delays:
+            from src.data_formats.root.patch import uproot_XRootD_retry
+            uproot_XRootD_retry(len(delays) + 1, delays)
+
+    def transition(self, key, start, finish, **kwargs):
+        pass
 
 # Import from our modular sub-package
 from src.runner.cli import parse_args, make_parser
 from src.runner.env import setup_environment, print_reproducibility_info, check_and_setup_proxy, sync_nfs_writes
-from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster, WorkerInitializer
+from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster
 from src.runner.dataset import (
     apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
@@ -121,7 +148,8 @@ if __name__ == '__main__':
 
     # 2. Configure logging
     logging_level = logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
-    handler = RichHandler(level=logging_level, show_time=False, show_level=False, show_path=False, markup=False)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging_level)
     handler.setFormatter(CustomFormatter())
     logging.basicConfig(
         level=logging_level,
@@ -205,7 +233,7 @@ if __name__ == '__main__':
         setup_schema(config_runner)
 
         args.run_dask = True
-        client, cluster = setup_shared_dask_client(args, config_runner)
+        client, cluster = setup_shared_dask_client(args, config_runner, WorkerInitializer)
         sys.exit(0)
 
     # 5. Load configuration and metadata files
@@ -403,7 +431,7 @@ if __name__ == '__main__':
         args.run_dask = True
         if getattr(args, 'shared_dask', False):
             logging.info("Configuring shared Dask cluster client...")
-            client, cluster = setup_shared_dask_client(args, config_runner)
+            client, cluster = setup_shared_dask_client(args, config_runner, WorkerInitializer)
         else:
             if getattr(args, 'scheduler_address', None):
                 logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")

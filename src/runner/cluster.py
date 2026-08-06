@@ -8,48 +8,12 @@ import logging
 import getpass
 import uuid
 import hashlib
-from dataclasses import dataclass
 from rich.pretty import pretty_repr
 
 import dask
-from dask.distributed import WorkerPlugin, SchedulerPlugin
+from dask.distributed import SchedulerPlugin
 import dask.distributed
 import distributed
-
-@dataclass
-class WorkerInitializer(WorkerPlugin):
-    uproot_xrootd_retry_delays: list[float] = None
-
-    def setup(self, worker=None):
-        self.worker = worker
-        import os
-        import tarfile
-        import sys
-
-        # Unpack code package if present (for HTCondor jobs)
-        if os.path.exists("code_barista.tar.gz"):
-            if not os.path.exists(".code_extracted"):
-                logging.info("Extracting code_barista.tar.gz on worker...")
-                with tarfile.open("code_barista.tar.gz", "r:gz") as tar:
-                    tar.extractall()
-                with open(".code_extracted", "w") as f:
-                    f.write("extracted\n")
-                logging.info("Code package extracted successfully")
-            else:
-                logging.info("Code package already extracted, skipping")
-
-        # Add current directory to Python path so imports work
-        if os.getcwd() not in sys.path:
-            sys.path.insert(0, os.getcwd())
-            logging.info(f"Added {os.getcwd()} to sys.path")
-
-        if delays := self.uproot_xrootd_retry_delays:
-            from src.data_formats.root.patch import uproot_XRootD_retry
-            uproot_XRootD_retry(len(delays) + 1, delays)
-
-    def transition(self, key, start, finish, **kwargs):
-        if finish == "executing":
-            worker_name = self.worker.name if self.worker else "unknown"
 
 def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     """Create a tarball of code in a temporary directory.
@@ -314,7 +278,7 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
         pass
     logging.info("Daemon shutdown complete. Exiting.")
 
-def setup_shared_dask_client(args, config_runner):
+def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
     """Check for/connect to an existing cluster daemon, or spawn one if needed."""
     # We import internally to keep imports clean
     global _temp_condor_dir
