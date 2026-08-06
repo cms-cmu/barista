@@ -21,8 +21,11 @@ workflow:
       variables:
         DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
       when: always
-    # Run for pushes to branches WITHOUT open merge requests
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS == null'
+    # Do not run push pipelines if there is an open merge request
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    # Run for pushes to feature branches (with or without open merge requests)
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
       variables:
         DEFAULT_ANALYSIS_IMAGE_TAG: "20260618_6a93b6c4"
       when: always
@@ -38,6 +41,7 @@ workflow:
       when: always
 
 variables:
+  # Trigger pipeline run for latest subproject commits
   CONTAINER_HOST: cms-cmu
   RECREATE_CONTAINERS: "false"
   DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
@@ -59,7 +63,6 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
-  - local: "src/workflows/gitlab-CI/stages_classifier.yml"
   - project: 'cms-cmu/bbreww'
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
@@ -127,6 +130,9 @@ setup_bbreww:
       optional: true
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "coffea4bees"
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -143,6 +149,9 @@ setup_bbreww:
       optional: true
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "bbreww"
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
@@ -186,21 +195,6 @@ setup_bbreww:
     - k8s-cvmfs
   retry: 2
 
-.base_classifier_barista:
-  needs:
-    - voms_proxy
-    - job: build_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
-  before_script:
-    - cd $CI_PROJECT_DIR/
-    - pwd && ls -la
-  tags:
-    - k8s-cvmfs
-  artifacts:
-    when: always
-    expire_in: 1 day
 
 validation:
   before_script:
