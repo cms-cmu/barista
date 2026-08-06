@@ -43,58 +43,50 @@ The classifier runs in dedicated Apptainer containers with different modes for G
 - **GPU Container** (`classifier`): For training and GPU-accelerated inference
 - **CPU Container** (`classifier_cpu`): For data processing, evaluation, and CPU-only tasks
 
-##### Cluster-Specific Behavior
+##### Cluster-Specific Behavior & Container Resolution
 
-**On FALCON cluster:**
+- **FALCON cluster (`falcon.phys.cmu.edu`)**:
+  - Automatically resolves unpacked container images directly from CVMFS (`/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest`).
+  - Snakemake orchestrator runs on the login node and uses `snakemake-executor-plugin-slurm` to submit GPU and CPU rules to SLURM queues.
+- **PSC Bridges-2 cluster (`bridges2.psc.edu`)**:
+  - Since `/cvmfs` is not mounted on Bridges-2, containers resolve to pre-extracted SIF images (`/ocean/projects/phy260026p/shared/images/barista_latest.sif`) or Apptainer image cache.
+  - Executing `./run_container snakemake ...` on the login node automatically allocates an interactive CPU session (`srun` on `RM-shared`) for the Snakemake controller, which then submits worker jobs to SLURM.
 
-- All jobs with commands automatically submit to SLURM batch queue
-- Interactive shells (CPU only) launch in an interactive SLURM session (`srun`)
+#### Running Classifier Snakemake Workflows
 
-**On other clusters (LPC, lxplus, etc.):**
-
-- Jobs run locally in the container without SLURM submission
-
-##### Usage Examples
-
-**GPU Container**
+##### On FALCON
 
 ```bash
-# Run training script (submits to SLURM on FALCON, runs locally elsewhere)
-./run_container classifier python train_model.py
-
-# GPU interactive mode is NOT supported (security restriction)
+./run_container snakemake \
+    --profile software/snakemake/profiles/falcon \
+    --snakefile src/classifier/workflow/Snakefile \
+    --configfile coffea4bees/classifier/config/workflows/HH4b_2024_v2/SvB/workflow_config.yml \
+    --jobs 5 \
+    --use-apptainer -p
 ```
 
-!!! warning "GPU Interactive Mode"
-    Interactive shells are disabled for the GPU container to prevent accidental resource consumption on GPU nodes.
-
-**CPU Container**
+##### On PSC Bridges-2
 
 ```bash
-# Run processing script (submits to SLURM on FALCON, runs locally elsewhere)
-./run_container classifier_cpu python process_data.py
-
-# Interactive shell on FALCON (auto-submits interactive SLURM job)
-./run_container classifier_cpu
-
-# Interactive shell on other clusters (opens immediately)
-./run_container classifier_cpu
+./run_container snakemake \
+    --profile software/snakemake/profiles/bridges2 \
+    --snakefile src/classifier/workflow/Snakefile \
+    --configfile coffea4bees/classifier/config/workflows/HH4b_2024_v2/SvB/workflow_config.yml \
+    --jobs 5 \
+    --use-apptainer -p
 ```
 
-!!! tip "Checking Interactive Mode"
-    When in an interactive SLURM session on FALCON, check the job ID:
-    ```bash
-    echo $SLURM_JOB_ID  # Non-empty = you're in a SLURM job
-    ```
+!!! note "PSC Bridges-2 Resource Allocation Rules"
+    - **GPU partition (`GPU-shared`)**: Maximum memory per allocated GPU is **22,750 MB (22.75 GB)**. Ensure `mem_mb` in `bridges2` profile is $\le 20000$.
+    - **CPU partition (`RM-shared`)**: Enforces a strict **2,000 MB (2 GB) memory per core** limit. CPU rules (e.g., input plotting) must not request more memory per core than allocated (e.g. `mem_mb: 3800` for 2 CPUs).
 
-#### Slurm Behavior and Job Monitoring (on Falcon)
+#### Slurm Behavior and Job Monitoring
 
-* to check status of the job, use squeue
-* the slurm configuration is inside `barista/software/slurm/slurm.conf` if you need to request more resources
-* to check the progress of the submitted job:
+* To check status of jobs in queue: `squeue --me`
+* To monitor logs of submitted jobs:
 
-```
-tail -f slurm_logs/classifier_batch_<job_id>.out
+```bash
+tail -f slurm_logs/rule_train/<job_id>.log
 ```
 
 ## Command-line Interface
