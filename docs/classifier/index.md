@@ -49,7 +49,7 @@ The classifier runs in dedicated Apptainer containers with different modes for G
   - Automatically resolves unpacked container images directly from CVMFS (`/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest`).
   - Snakemake orchestrator runs on the login node and uses `snakemake-executor-plugin-slurm` to submit GPU and CPU rules to SLURM queues.
 - **PSC Bridges-2 cluster (`bridges2.psc.edu`)**:
-  - Since `/cvmfs` is not mounted on Bridges-2, containers resolve to pre-extracted SIF images (`/ocean/projects/phy260026p/shared/images/barista_latest.sif`) or Apptainer image cache.
+  - `/cvmfs` is mounted on compute nodes (`srun` / `sbatch` worker nodes), allowing worker jobs to resolve unpacked images directly from CVMFS (`/cvmfs/unpacked.cern.ch/...`). On login nodes where `/cvmfs` is unmounted, containers fall back to pre-extracted SIF images (`/ocean/projects/phy260026p/shared/images/barista_latest.sif`) or Apptainer image cache.
   - Executing `./run_container snakemake ...` on the login node automatically allocates an interactive CPU session (`srun` on `RM-shared`) for the Snakemake controller, which then submits worker jobs to SLURM.
 
 #### Running Classifier Snakemake Workflows
