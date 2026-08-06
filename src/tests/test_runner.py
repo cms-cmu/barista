@@ -42,13 +42,17 @@ class TestRunner(unittest.TestCase):
             "--condor",
             "--debug",
             "-y", "UL18", "UL17",
-            "-d", "GluGluToHHTo4B_cHHH1"
+            "-d", "GluGluToHHTo4B_cHHH1",
+            "--not-do-proxy",
+            "--run-performance"
         ])
         self.assertTrue(args.shared_dask)
         self.assertTrue(args.condor)
         self.assertTrue(args.debug)
         self.assertEqual(args.years, ["UL18", "UL17"])
         self.assertEqual(args.datasets, ["GluGluToHHTo4B_cHHH1"])
+        self.assertTrue(args.not_do_proxy)
+        self.assertTrue(args.run_performance)
 
     def test_make_parser_invalid_args(self):
         """Test that invalid argument combinations cause SystemExit."""
@@ -58,6 +62,14 @@ class TestRunner(unittest.TestCase):
             with patch('sys.stderr', devnull):
                 with self.assertRaises(SystemExit):
                     parser.parse_args(["--invalid-flag-xyz"])
+
+    @patch("sys.argv", ["runner.py", "-c", "coffea4bees/analysis/metadata/HH4b.yml"])
+    def test_parse_args_with_c_option(self):
+        """Test that the parser does not treat a file passed to -c as a positional YAML config."""
+        from src.runner.cli import parse_args
+        args = parse_args()
+        self.assertEqual(args.configs, "coffea4bees/analysis/metadata/HH4b.yml")
+        self.assertIsNone(args.job_yaml_path)
 
     def test_setup_config_defaults_standalone(self):
         """Test that setup_config_defaults sets correct workers for standalone mode."""

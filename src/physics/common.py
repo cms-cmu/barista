@@ -3,6 +3,26 @@ import logging
 import pickle
 import warnings
 
+class WorkerFormatter(logging.Formatter):
+    def format(self, record):
+        asctime = self.formatTime(record, "%y/%m/%d %H:%M:%S")
+        use_color = sys.stdout.isatty()
+        color = '\033[33m' if (use_color and record.levelname == 'WARNING') else ''
+        reset = '\033[0m' if use_color else ''
+        colored_level = f"{color}{record.levelname:<8}{reset}" if color else f"{record.levelname:<8}"
+        source = f"{record.filename}:{record.lineno}"
+        header = f"[{asctime}] {colored_level} {source}"
+        message = record.getMessage()
+        return f"{header}\n{message}"
+
+# If root logger is in worker process (empty or default stderr handler), apply custom handler
+root_logger = logging.getLogger()
+if not root_logger.handlers or (len(root_logger.handlers) == 1 and isinstance(root_logger.handlers[0], logging.StreamHandler) and root_logger.handlers[0].stream == sys.stderr):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(WorkerFormatter())
+    root_logger.handlers = [handler]
+    root_logger.setLevel(logging.INFO)
+
 import awkward as ak
 import numpy as np
 import correctionlib
@@ -25,8 +45,8 @@ def mask_event_decision(event, decision='OR', branch='HLT', list_to_mask=[''], l
             if i in event[branch].fields:
                 tmp_list.append( event[branch][i] )
             elif i in list_to_skip: continue
-            else: logging.warning(f'\n{i} branch not in {branch} for event.')
-    else: logging.warning(f'\n{branch} branch not in event.')
+            else: logging.warning(f'{i} branch not in {branch} for event.')
+    else: logging.warning(f'{branch} branch not in event.')
     if not tmp_list:
         tmp_list = [np.zeros(len(event), dtype=bool)]
         logging.warning(f'No {list_to_mask} branches found in event. Returning empty mask.')
