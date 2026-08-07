@@ -87,6 +87,7 @@ stages:
   - cutflow
   - deploy
   - validation
+  - workflows
   - pages
 
 setup_coffea4bees:
