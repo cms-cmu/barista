@@ -73,6 +73,10 @@ rdflib-jsonld = ">=0.6.0"
 [feature.reana.activation.env]
 PYTHONNOUSERSITE = "1"
 
+[feature.ci.dependencies]
+python = ">=3.11"
+snakemake = "*"
+
 [environments]
 # Default environment includes all base dependencies
 default = {features = [], solve-group = "default"}
@@ -82,3 +86,5 @@ dev = {features = ["dev"], solve-group = "default"}
 hepdata = {features = ["hepdata"], solve-group = "hepdata"}
 # REANA client
 reana = {features = ["reana"], solve-group = "reana", no-default-feature = true}
+# CI lightweight workflow validation
+ci = {features = ["ci"], no-default-feature = true}
