@@ -115,7 +115,8 @@ def _find_hist_obj(
         except Exception:
             avail = None
         avail_str = f" (available processes: {avail})" if avail is not None else f" (var '{var}' not found in {hist_key})"
-        raise ValueError(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs{avail_str}")
+        logger.info(f"get_hist_data Could not find histogram for var {var} with process {process} in inputs{avail_str}")
+        return None
     return hist_obj
 
 
@@ -250,6 +251,8 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Option
 
     hist_opts, cut_dict = _build_hist_opts(process, year, config, axis_opts, cut, cfg, debug)
     hist_obj             = _find_hist_obj(cfg, var, process, hist_opts, file_index)
+    if hist_obj is None:
+        return None
     _apply_intcategory_compat(hist_obj, hist_opts, axis_opts, cfg, config)
     _remove_missing_cut_keys(hist_obj, hist_opts, cut_dict, debug)
     selected_hist        = _select_hist(hist_obj, hist_opts, rebin, do2d, debug)
@@ -300,6 +303,8 @@ def get_hist_data_list(*, proc_list: List[str], cfg: Any, config: Dict, var: str
             _selected_hist = get_hist_data(process=_proc, cfg=cfg, config=config, var=var,
                                            cut=cut, rebin=rebin, year=year, axis_opts=axis_opts, do2d=do2d, file_index=file_index, debug=debug)
 
+        if _selected_hist is None:
+            continue
         if selected_hist is None:
             selected_hist = _selected_hist
         else:
@@ -323,6 +328,9 @@ def add_hist_data(*, cfg, config, var, cut, rebin, year, axis_opts, do2d=False, 
 
     selected_hist = get_hist_data_list(proc_list=proc_list, cfg=cfg, config=config, var=var,
                                        cut=cut, rebin=rebin, year=year, do2d=do2d, axis_opts=axis_opts, file_index=file_index, debug=debug)
+
+    if selected_hist is None:
+        return False
 
     if do2d:
 
@@ -357,7 +365,7 @@ def add_hist_data(*, cfg, config, var, cut, rebin, year, axis_opts, do2d=False, 
 
     if debug: print(f"Leaving add_hist_data\n")
 
-    return
+    return True
 
 
 
@@ -413,10 +421,11 @@ def _load_hists(plot_data: Dict, cfg: Any, entries: List[LoadSpec], *,
     for entry in entries:
         if entry.hist_key_override is not None:
             cfg.set_hist_key(entry.hist_key_override)
-        add_hist_data(cfg=cfg, config=entry.config, var=entry.var, cut=entry.cut,
+        success = add_hist_data(cfg=cfg, config=entry.config, var=entry.var, cut=entry.cut,
                       rebin=rebin, year=entry.year, axis_opts=entry.axis_opts,
                       do2d=do2d, file_index=entry.file_index, debug=debug)
-        plot_data["hists"][entry.key] = entry.config
+        if success:
+            plot_data["hists"][entry.key] = entry.config
 
 
 def _entries_overlay(
@@ -657,10 +666,11 @@ def load_stack_config(*, cfg: Any, stack_config: Dict, var: str, cut: str, axis_
             print(f"stack_process is {_proc_name} var is {var_to_plot}")
 
         if proc_config.get("process", None):
-            add_hist_data(cfg=cfg, config=proc_config,
-                         var=var_to_plot, cut=cut, rebin=rebin, year=year,
-                         axis_opts=axis_opts, do2d=do2d, debug=debug)
-            stack_dict[_proc_name] = proc_config
+            success = add_hist_data(cfg=cfg, config=proc_config,
+                          var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                          axis_opts=axis_opts, do2d=do2d, debug=debug)
+            if success:
+                stack_dict[_proc_name] = proc_config
         elif proc_config.get("sum", None):
             _handle_stack_sum(proc_config=proc_config, cfg=cfg, var_to_plot=var_to_plot, cut=cut, rebin=rebin, year=year, axis_opts=axis_opts, do2d=do2d, debug=debug, var_over_ride=var_over_ride)
             stack_dict[_proc_name] = proc_config
@@ -673,20 +683,25 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
                      cut: str, rebin: int, year: str, axis_opts: Dict, do2d: bool, debug: bool,
                      var_over_ride: Dict) -> None:
     """Handle stack components that are sums of processes."""
+    valid_sums = {}
     for sum_proc_name, sum_proc_config in proc_config["sum"].items():
         sum_proc_config["year"] = proc_config["year"]
         var_to_plot = var_over_ride.get(sum_proc_name, var_to_plot)
 
-        add_hist_data(cfg=cfg, config=sum_proc_config,
+        success = add_hist_data(cfg=cfg, config=sum_proc_config,
                      var=var_to_plot, cut=cut, rebin=rebin, year=year,
                      axis_opts=axis_opts, do2d=do2d, debug=debug)
+        if success:
+            valid_sums[sum_proc_name] = sum_proc_config
 
-    # Combine  and variances
-    stack_values = [v["values"] for _, v in proc_config["sum"].items()]
-    proc_config["values"] = np.sum(stack_values, axis=0).tolist()
+    if valid_sums:
+        proc_config["sum"] = valid_sums
+        # Combine  and variances
+        stack_values = [v["values"] for _, v in proc_config["sum"].items()]
+        proc_config["values"] = np.sum(stack_values, axis=0).tolist()
 
-    stack_variances = [v["variances"] for _, v in proc_config["sum"].items()]
-    proc_config["variances"] = np.sum(stack_variances, axis=0).tolist()
+        stack_variances = [v["variances"] for _, v in proc_config["sum"].items()]
+        proc_config["variances"] = np.sum(stack_variances, axis=0).tolist()
 
     # Copy metadata from first sum component
     first_sum_entry = next(iter(proc_config["sum"].values()))
@@ -820,10 +835,11 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
         proc_config["name"] = _proc_name
         var_to_plot = var_over_ride.get(_proc_name, var)
 
-        add_hist_data(cfg=cfg, config=proc_config,
-                     var=var_to_plot, cut=cut, rebin=rebin, year=year,
-                     axis_opts=axis_opts, do2d=do2d, debug=debug)
-        plot_data["hists"][_proc_name] = proc_config
+        success = add_hist_data(cfg=cfg, config=proc_config,
+                      var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                      axis_opts=axis_opts, do2d=do2d, debug=debug)
+        if success:
+            plot_data["hists"][_proc_name] = proc_config
 
     # Process stack configuration
     stack_config = cfg.plotConfig.get("stack", {})

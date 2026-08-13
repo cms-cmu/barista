@@ -598,7 +598,6 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                 # Construct output path
                 try:
                     output_path = [opts.outputFolder, opts.year]
-                    cut_folder = "cut_sum"
                     if plot_data.get("cut") is not None:
                         cut_val = plot_data["cut"]
                         if isinstance(cut_val, str) and cut_val:
@@ -608,7 +607,9 @@ def make_plot_from_dict(plot_data: Dict[str, Any], *, do2d: bool = False) -> Tup
                                 cut_folder = "cut_" + cut_val.replace("~", "fail_")
                             else:
                                 cut_folder = f"cut_{cut_val}"
-                    output_path.append(cut_folder)
+                            output_path.append(cut_folder)
+                        elif isinstance(cut_val, list):
+                            output_path.append(cut_val)
 
                     for k in sorted(plot_data["axis_opts"].keys()):
                         if k in ["name"]:
