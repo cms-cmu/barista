@@ -50,11 +50,14 @@ def check_and_setup_proxy(args) -> None:
     os.environ["X509_USER_PROXY"] = proxy_path
     logging.info(">>> Checking proxy")
     
-    # Run voms-proxy-info
+    # Run voms-proxy-info to display info and check if the proxy is valid and not expired
     try:
         subprocess.run(["voms-proxy-info"], check=True)
+        subprocess.run(["voms-proxy-info", "-exists", "-valid", "0:10"], check=True)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error checking proxy: {e}")
+        logging.error(f"Error checking proxy or proxy is expired/invalid: {e}")
+        logging.error("Please renew your proxy by running manually:")
+        logging.error("voms-proxy-init -rfc -voms cms --valid 168:00 -out ./proxy/x509_proxy")
         sys.exit(1)
 
 def sync_nfs_writes() -> None:

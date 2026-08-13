@@ -430,3 +430,92 @@ class TestSqueezeHist:
         h = self._hist_2d()          # shape (3, 10)
         result = _squeeze_hist(h, do2d=False)
         assert result.shape[0] == 10  # x axis preserved
+
+
+# ---------------------------------------------------------------------------
+# get_plot_dict_from_list
+# ---------------------------------------------------------------------------
+
+class TestGetPlotDictFromList:
+    def test_get_plot_dict_from_list_default_process(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.plotting.helpers_make_plot_dict.add_hist_data",
+            lambda **kwargs: None
+        )
+
+        cfg = MagicMock()
+        cfg.plotConfig = {
+            "hists": {
+                "ttHbb": {"process": "ttHbb", "label": "ttHbb", "fillcolor": "red"}
+            },
+            "stack": {
+                "TTbar": {"process": "TTbar", "label": "TTbar", "fillcolor": "blue"}
+            }
+        }
+        cfg.hists = [MagicMock()]
+        cfg.combine_input_files = True
+
+        from src.plotting.helpers_make_plot_dict import get_plot_dict_from_list
+
+        # When process is None, it should default to all processes in hists & stack
+        # and support cut as a list
+        plot_data = get_plot_dict_from_list(
+            cfg=cfg,
+            var="jet_pt",
+            cut=["SR", "SB"],
+            axis_opts={},
+            process=None,
+            doRatio=False,
+        )
+
+        assert "ttHbb" in plot_data["process"]
+        assert "TTbar" in plot_data["process"]
+        
+        # Check that we have entries for all processes x cuts
+        hists_keys = list(plot_data["hists"].keys())
+        assert any("ttHbb" in k and "SR" in k for k in hists_keys)
+        assert any("ttHbb" in k and "SB" in k for k in hists_keys)
+        assert any("TTbar" in k and "SR" in k for k in hists_keys)
+        assert any("TTbar" in k and "SB" in k for k in hists_keys)
+
+
+class TestGetHistDataListCuts:
+    def test_get_hist_data_sums_list_of_cuts(self, monkeypatch):
+        mock_hist1 = MagicMock()
+        mock_hist2 = MagicMock()
+        mock_sum = MagicMock()
+        mock_hist1.__add__.return_value = mock_sum
+        mock_hist1.__iadd__.return_value = mock_sum
+        mock_hist1.__imul__.return_value = mock_hist1
+        mock_hist2.__imul__.return_value = mock_hist2
+
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._build_hist_opts", lambda process, year, config, axis_opts, cut, cfg, debug: ({"cut": cut}, {}))
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._find_hist_obj", lambda *a, **k: MagicMock())
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._apply_intcategory_compat", lambda *a, **k: None)
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._remove_missing_cut_keys", lambda *a, **k: None)
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._squeeze_hist", lambda h, *a, **k: h)
+
+        def mock_select_hist(hist_obj, hist_opts, rebin, do2d, debug):
+            if hist_opts.get("cut") == "cut1":
+                return mock_hist1
+            elif hist_opts.get("cut") == "cut2":
+                return mock_hist2
+            return MagicMock()
+
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._select_hist", mock_select_hist)
+
+        from src.plotting.helpers_make_plot_dict import get_hist_data
+
+        cfg = MagicMock()
+        cfg.plotConfig = {}
+        config = {"scalefactor": 1.0}
+
+        result = get_hist_data(
+            process="ttbar", cfg=cfg, config=config, var="jet_pt",
+            cut=["cut1", "cut2"], rebin=1, year="UL18", axis_opts={},
+        )
+
+        assert result == mock_sum
+        mock_hist1.__iadd__.assert_called_once_with(mock_hist2)
+
+

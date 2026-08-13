@@ -133,6 +133,11 @@ def _apply_intcategory_compat(
                     hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
                 elif region_val and region_val not in ("sum", sum):
                     hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region_val])
+        
+        # Convert any "sum" value in hist_opts to the built-in sum to project over the axis
+        for axis in hist_obj.axes:
+            if axis.name in hist_opts and hist_opts[axis.name] == "sum":
+                hist_opts[axis.name] = sum
     except (KeyError, AttributeError) as e:
         raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
 
@@ -167,8 +172,17 @@ def _select_hist(
         )
 
 
-def _squeeze_hist(selected_hist: hist.Hist, do2d: bool) -> hist.Hist:
+def _squeeze_hist(selected_hist: hist.Hist, do2d: bool, cfg: Any = None) -> hist.Hist:
     """Collapse any extra leading dimension left after process/year selection."""
+    plotted_axes = [selected_hist.axes[-1].name]
+    if do2d:
+        plotted_axes = [selected_hist.axes[-2].name, selected_hist.axes[-1].name]
+
+    for ax in list(selected_hist.axes):
+        if ax.name not in plotted_axes:
+            if isinstance(ax, hist.axis.Boolean) or (cfg is not None and hasattr(cfg, 'cutList') and ax.name in cfg.cutList) or ax.name == "process" or ax.name == "year":
+                selected_hist = selected_hist[{ax.name: sum}]
+
     if do2d:
         if len(selected_hist.shape) == 3:
             return selected_hist[sum, :, :]
@@ -210,8 +224,21 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Option
         raise TypeError(f"get_hist_data::process must be a string, got {type(process)}")
     if not isinstance(var, str):
         raise TypeError(f"get_hist_data::var must be a string, got {type(var)} = {var}")
+    if isinstance(cut, list):
+        selected_hist = None
+        for c in cut:
+            _selected_hist = get_hist_data(
+                process=process, cfg=cfg, config=config, var=var,
+                cut=c, rebin=rebin, year=year, axis_opts=axis_opts,
+                do2d=do2d, file_index=file_index, debug=debug
+            )
+            if selected_hist is None:
+                selected_hist = _selected_hist
+            else:
+                selected_hist += _selected_hist
+        return selected_hist
     if cut is not None and not isinstance(cut, str):
-        raise TypeError(f"get_hist_data::cut must be a string or None, got {type(cut)}")
+        raise TypeError(f"get_hist_data::cut must be a string, list, or None, got {type(cut)}")
     if not isinstance(rebin, int):
         raise TypeError(f"get_hist_data::rebin must be an integer, got {type(rebin)}")
     if rebin < 1:
@@ -226,7 +253,7 @@ def get_hist_data(*, process: str, cfg: Any, config: Dict, var: str, cut: Option
     _apply_intcategory_compat(hist_obj, hist_opts, axis_opts, cfg, config)
     _remove_missing_cut_keys(hist_obj, hist_opts, cut_dict, debug)
     selected_hist        = _select_hist(hist_obj, hist_opts, rebin, do2d, debug)
-    selected_hist        = _squeeze_hist(selected_hist, do2d)
+    selected_hist        = _squeeze_hist(selected_hist, do2d, cfg)
     selected_hist       *= config.get("scalefactor", 1.0)
 
     if debug:
@@ -408,6 +435,7 @@ def _entries_overlay(
     set_edge_color: bool = False,
     label_override: Optional[List[str]] = None,
     hist_key_list: Optional[List[str]] = None,
+    color_start_index: int = 0,
 ) -> List[LoadSpec]:
     """Core loop shared by all single-process, iterate-one-dimension overlay builders.
 
@@ -418,7 +446,7 @@ def _entries_overlay(
     proc_id = _get_proc_id(process_config)
     entries = []
     for i, item in enumerate(items):
-        _config     = _setup_overlay_config(process_config, label_fn(item), i, label_override, set_edge_color)
+        _config     = _setup_overlay_config(process_config, label_fn(item), color_start_index + i, label_override, set_edge_color)
         _var        = item if item_is_var  else base_var
         _cut        = item if item_is_cut  else base_cut
         _year       = item if item_is_year else base_year
@@ -436,31 +464,55 @@ def _entries_overlay(
     return entries
 
 
-def _entries_cut_list(*, process_config: Dict, var_to_plot: str, axis_opts: Dict,
+def _entries_cut_list(*, process_config: Any, var_to_plot: str, axis_opts: Dict,
                       cut_list: List[str], year: str,
                       label_override: Optional[List[str]] = None,
                       hist_key_list: Optional[List[str]] = None,
                       debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of cuts (one hist per cut)."""
-    return _entries_overlay(
-        process_config=process_config, items=cut_list,
-        base_var=var_to_plot, base_cut=None, base_year=year, base_axis_opts=axis_opts,
-        label_fn=plot_helpers.cut_to_label, item_is_cut=True,
-        label_override=label_override, hist_key_list=hist_key_list,
-    )
+    if isinstance(process_config, list):
+        entries = []
+        for idx, p_cfg in enumerate(process_config):
+            entries.extend(_entries_overlay(
+                process_config=p_cfg, items=cut_list,
+                base_var=var_to_plot, base_cut=None, base_year=year, base_axis_opts=axis_opts,
+                label_fn=plot_helpers.cut_to_label, item_is_cut=True,
+                label_override=label_override, hist_key_list=hist_key_list,
+                color_start_index=idx * len(cut_list),
+            ))
+        return entries
+    else:
+        return _entries_overlay(
+            process_config=process_config, items=cut_list,
+            base_var=var_to_plot, base_cut=None, base_year=year, base_axis_opts=axis_opts,
+            label_fn=plot_helpers.cut_to_label, item_is_cut=True,
+            label_override=label_override, hist_key_list=hist_key_list,
+        )
 
 
-def _entries_axis_opts_list(*, process_config: Dict, var_to_plot: str, cut: Any,
+def _entries_axis_opts_list(*, process_config: Any, var_to_plot: str, cut: Any,
                             axis_list_name: str, axis_list_values: List, axis_opts: Dict,
                             year: str, label_override: Optional[List[str]] = None,
                             debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of axis_opts values (one hist per value)."""
-    return _entries_overlay(
-        process_config=process_config, items=axis_list_values,
-        base_var=var_to_plot, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
-        axis_opt_key=axis_list_name,
-        label_override=label_override,
-    )
+    if isinstance(process_config, list):
+        entries = []
+        for idx, p_cfg in enumerate(process_config):
+            entries.extend(_entries_overlay(
+                process_config=p_cfg, items=axis_list_values,
+                base_var=var_to_plot, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+                axis_opt_key=axis_list_name,
+                label_override=label_override,
+                color_start_index=idx * len(axis_list_values),
+            ))
+        return entries
+    else:
+        return _entries_overlay(
+            process_config=process_config, items=axis_list_values,
+            base_var=var_to_plot, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+            axis_opt_key=axis_list_name,
+            label_override=label_override,
+        )
 
 def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """
@@ -476,7 +528,7 @@ def _add_ratio_plots(plot_data: Dict, **kwargs) -> None:
     else:
         _add_1d_ratio_plots(plot_data, **kwargs)
 
-def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, process: Any, **kwargs) -> PlotData:
+def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, process: Any = None, **kwargs) -> PlotData:
     """Create a plot dictionary from lists of processes, cuts, axis_opts, etc."""
     debug = kwargs.get("debug", False)
     rebin = kwargs.get("rebin", 1)
@@ -486,6 +538,14 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
     year = kwargs.get("year", "RunII")
     file_labels = kwargs.get("fileLabels", [])
     hist_key_list = kwargs.get("hist_key_list", None)
+
+    if process is None:
+        process = []
+        for key in ["hists", "stack"]:
+            if key in cfg.plotConfig:
+                for p in cfg.plotConfig[key].keys():
+                    if p not in process:
+                        process.append(p)
 
     plot_data = _create_base_plot_dict(var, cut, axis_opts, **kwargs)
     plot_data["process"] = process
@@ -738,9 +798,11 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     var_over_ride = kwargs.get("var_over_ride", {})
 
     if cut:
-        _bare_cut = cut.lstrip("~")
-        if _bare_cut not in cfg.cutList:
-            raise AttributeError(f"{cut} not in cutList {cfg.cutList}")
+        cuts_to_check = cut if isinstance(cut, list) else [cut]
+        for c in cuts_to_check:
+            _bare_cut = c.lstrip("~")
+            if _bare_cut not in cfg.cutList:
+                raise AttributeError(f"{c} not in cutList {cfg.cutList}")
 
     plot_data = _create_base_plot_dict(var, cut, axis_opts, **kwargs)
     if do2d:
@@ -859,29 +921,53 @@ def _entries_process_list_multi_file(*, process_config: List[Dict], cfg: Any, va
         ))
     return entries
 
-def _entries_var_list(*, process_config: Dict, var_list: List[str], axis_opts: Dict,
+def _entries_var_list(*, process_config: Any, var_list: List[str], axis_opts: Dict,
                       cut: Any, year: str, label_override: Optional[List[str]] = None,
                       debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of variables (one hist per variable)."""
-    return _entries_overlay(
-        process_config=process_config, items=var_list,
-        base_var=None, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
-        item_is_var=True, set_edge_color=True,
-        label_override=label_override,
-    )
+    if isinstance(process_config, list):
+        entries = []
+        for idx, p_cfg in enumerate(process_config):
+            entries.extend(_entries_overlay(
+                process_config=p_cfg, items=var_list,
+                base_var=None, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+                item_is_var=True, set_edge_color=True,
+                label_override=label_override,
+                color_start_index=idx * len(var_list),
+            ))
+        return entries
+    else:
+        return _entries_overlay(
+            process_config=process_config, items=var_list,
+            base_var=None, base_cut=cut, base_year=year, base_axis_opts=axis_opts,
+            item_is_var=True, set_edge_color=True,
+            label_override=label_override,
+        )
 
 
-def _entries_year_list(*, process_config: Dict, var: str, axis_opts: Dict,
+def _entries_year_list(*, process_config: Any, var: str, axis_opts: Dict,
                        cut: Any, year_list: List[str],
                        label_override: Optional[List[str]] = None,
                        debug: bool = False) -> List[LoadSpec]:
     """Build LoadSpec entries for a list of years (one hist per year)."""
-    return _entries_overlay(
-        process_config=process_config, items=year_list,
-        base_var=var, base_cut=cut, base_year=None, base_axis_opts=axis_opts,
-        item_is_year=True, set_edge_color=True,
-        label_override=label_override,
-    )
+    if isinstance(process_config, list):
+        entries = []
+        for idx, p_cfg in enumerate(process_config):
+            entries.extend(_entries_overlay(
+                process_config=p_cfg, items=year_list,
+                base_var=var, base_cut=cut, base_year=None, base_axis_opts=axis_opts,
+                item_is_year=True, set_edge_color=True,
+                label_override=label_override,
+                color_start_index=idx * len(year_list),
+            ))
+        return entries
+    else:
+        return _entries_overlay(
+            process_config=process_config, items=year_list,
+            base_var=var, base_cut=cut, base_year=None, base_axis_opts=axis_opts,
+            item_is_year=True, set_edge_color=True,
+            label_override=label_override,
+        )
 
 def _add_2d_ratio_plots(plot_data: Dict, **kwargs) -> None:
     """Populate plot_data["ratio_specs"] for a 2-D ratio plot.
