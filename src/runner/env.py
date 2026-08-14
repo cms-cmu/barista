@@ -50,12 +50,19 @@ def check_and_setup_proxy(args) -> None:
     os.environ["X509_USER_PROXY"] = proxy_path
     logging.info(">>> Checking proxy")
     
-    # Run voms-proxy-info
-    try:
-        subprocess.run(["voms-proxy-info"], check=True)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error checking proxy: {e}")
-        sys.exit(1)
+    import shutil
+    voms_cmd = shutil.which("voms-proxy-info")
+    if voms_cmd:
+        try:
+            subprocess.run([voms_cmd], check=True)
+            subprocess.run([voms_cmd, "-exists", "-valid", "0:10"], check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error checking proxy or proxy is expired/invalid: {e}")
+            logging.error("Please renew your proxy by running manually:")
+            logging.error("voms-proxy-init -rfc -voms cms --valid 168:00 -out ./proxy/x509_proxy")
+            sys.exit(1)
+    else:
+        logging.warning("voms-proxy-info command not found. Skipping proxy validity checks.")
 
 def sync_nfs_writes() -> None:
     # Mimic flush NFS writes and sleep to sync files

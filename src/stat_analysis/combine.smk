@@ -50,6 +50,11 @@ if targets and is_standalone:
         input: targets
 
 def get_channel_by_signal(wildcards):
+    path = getattr(wildcards, 'path', None)
+    if path:
+        path_channel = os.path.basename(path)
+        if path_channel in config.get("channels", {}):
+            return path_channel
     signallabel = wildcards.signallabel
     for channel, ch_config in config.get("channels", {}).items():
         if ch_config.get("signallabel") == signallabel or channel == signallabel:
@@ -65,45 +70,69 @@ def get_workspace_input(wildcards):
     if os.path.exists(default_input):
         return default_input
     signallabel = wildcards.signallabel
-    for channel, ch_config in config.get("channels", {}).items():
-        if ch_config.get("signallabel") == signallabel or channel == signallabel:
-            # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
-            case_dc_name = f"datacard__{channel}"
-            for case_key, case_info in config.get("cases", {}).items():
-                if case_info.get("datacard"):
-                    case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
-                    if case_key.upper() in channel.upper() or channel.upper() in case_key.upper():
-                        case_dc_name = case_dc
-                        break
+    
+    channel_to_use = None
+    path_channel = os.path.basename(wildcards.path)
+    if path_channel in config.get("channels", {}):
+        channel_to_use = path_channel
+    else:
+        for channel, ch_config in config.get("channels", {}).items():
+            if ch_config.get("signallabel") == signallabel or channel == signallabel:
+                channel_to_use = channel
+                break
+                
+    if channel_to_use:
+        # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
+        case_dc_name = f"datacard__{channel_to_use}"
+        for case_key, case_info in config.get("cases", {}).items():
+            if case_info.get("datacard"):
+                case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
+                if case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper():
+                    case_dc_name = case_dc
+                    break
 
-            # If imported as a module, return the planned consolidated path to link the DAG.
-            is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
-            if not is_standalone:
-                return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
-
-            # Check 1: new consolidated location (e.g. out_base/datacards/)
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(wildcards.path, "datacards", f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            # Check 2: workspace folder directly
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(wildcards.path, "workspace", f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            # Check 3: old location (2 levels up fallback)
-            parent_dir = os.path.dirname(os.path.dirname(out_base))
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(parent_dir, "datacards", channel, f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            
-            # Default fallback
+        # If imported as a module, return the planned consolidated path to link the DAG.
+        is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+        if not is_standalone:
             return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
+
+        # Check 1: new consolidated location (e.g. out_base/datacards/)
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(wildcards.path, "datacards", f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        # Check 2: workspace folder directly
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(wildcards.path, "workspace", f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        # Check 3: old location (2 levels up fallback)
+        parent_dir = os.path.dirname(os.path.dirname(out_base))
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(parent_dir, "datacards", channel_to_use, f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        
+        # Default fallback
+        return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
     return default_input
 
 def get_poi_maps_dynamic(wildcards):
     signallabel = wildcards.signallabel
+    path = getattr(wildcards, 'path', None)
+    channel_to_use = None
+    if path:
+        path_channel = os.path.basename(path)
+        if path_channel in config.get("channels", {}):
+            channel_to_use = path_channel
+    
+    if channel_to_use:
+        ch_config = config["channels"][channel_to_use]
+        actual_signal = ch_config.get("signallabel", channel_to_use)
+        signals = [actual_signal] + ch_config.get("othersignal", "").split()
+        poi_ranges = config.get("poi_ranges", "1,-10,10")
+        return make_poi_maps(signals=signals, poi_ranges=poi_ranges)
+        
     for channel, ch_config in config.get("channels", {}).items():
         if ch_config.get("signallabel") == signallabel or channel == signallabel:
             actual_signal = ch_config.get("signallabel", channel)
@@ -149,7 +178,7 @@ for ext in ["*.txt", "*.root"]:
     for f in glob.glob(os.path.join(in_dir, ext)):
         dest = os.path.join(out_dir, os.path.basename(f))
         if os.path.exists(dest):
-            if os.path.getsize(f) == os.path.getsize(dest):
+            if os.path.getmtime(f) == os.path.getmtime(dest) and os.path.getsize(f) == os.path.getsize(dest):
                 continue
         tmp_fd, tmp_path = tempfile.mkstemp(dir=out_dir)
         try:
@@ -993,16 +1022,16 @@ rule fit_diagnostics_sb:
 rule postfit:
     input:
         workspace = "{path}/workspace/datacard__{signallabel}.root",
-        fit_result = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root"
+        fit_result = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
+        plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py")
     output: "{path}/postfit/datacard_postfit__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         channel = lambda wildcards: wildcards.path.rstrip('/').split('/')[-1],
         signal = "{signallabel}",
-        ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1] == "HH4b" else "",
-        plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py"),
-        metadata_template = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")
+        ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
+        metadata = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml").format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
     shell:
         """
@@ -1018,8 +1047,8 @@ rule postfit:
         mkdir -p $(dirname $OUT_FILE)
         (
         # Run the plotting script from the Snakemake workspace root (not inside the datacard subfolder)
-        METADATA_FILE=$(echo "{params.metadata_template}" | sed "s|{{channel}}|{params.channel}|g")
-        python3 {params.plot_script} \
+        METADATA_FILE="{params.metadata}"
+        python3 {input.plot_script} \
             -i {input.fit_result} \
             -o $OUT_DIR/plots/ \
             -c {params.channel} \
@@ -1031,13 +1060,15 @@ rule postfit:
         """
 
 rule pdf_to_png:
-    input: "{path}.pdf"
+    input:
+        pdf = "{path}.pdf",
+        script = "src/plotting/pb_pdf_to_png.py"
     output: "{path}.png"
     log: f"{log_dir}/pdf_to_png_{{path}}.log"
     shell:
         """
         . /srv/apptainer_env.sh || true
-        python3 src/plotting/pb_pdf_to_png.py {input} > {log} 2>&1
+        python3 {input.script} {input.pdf} > {log} 2>&1
         """
 
 rule split_impacts:

@@ -49,6 +49,7 @@ BUILTIN_LABEL_MAPS = {
         (r"^ZZ4b",               "ZZ"),
         (r"^(ZH4b|ggZH4b)",     "ZH"),
         (r"^GluGluToHHTo4B",     "ggF"),
+        (r"^ttH",                "ttHbb"),
     ],
 }
 
@@ -814,7 +815,10 @@ def _build_tensors(file_paths, input_cfg):
 def _build_model(saved):
     """Reconstruct HCR model from checkpoint, return the nn module."""
     import torch
-    from src.classifier.nn.blocks.HCR import HCR as HCRNet
+    try:
+        from coffea4bees.classifier.nn.blocks.HCR import HCR as HCRNet
+    except ImportError:
+        from src.classifier.nn.blocks.HCR import HCR as HCRNet
     from src.classifier.ml.models.HCR import HCRArch
 
     arch = HCRArch.load(saved["arch"])
@@ -828,6 +832,8 @@ def _build_model(saved):
         useOthJets="attention" if arch.attention else "",
         device="cpu",
         nClasses=len(saved["label"]),
+        use_attention_gate=getattr(arch, "use_attention_gate", False),
+        use_kv_proj=getattr(arch, "use_kv_proj", False),
     )
     nn.load_state_dict(saved["model"])
     nn.eval()
