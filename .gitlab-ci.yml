@@ -69,7 +69,7 @@ include:
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'cms-cmu/coffea4bees'
-    ref: 'master'
+    ref: 'ci-lowpt-workflow'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
@@ -92,7 +92,7 @@ stages:
 
 setup_coffea4bees:
   stage: setup
-  image: alpine/git:latest
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
   needs:
     - voms_proxy
   script:
@@ -102,15 +102,23 @@ setup_coffea4bees:
     - echo "Cloning coffea4bees from branch '$COFFEA4BEES_BRANCH'"
     - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME_COFFEA4BEES}:${DEPLOY_TOKEN_PASSWORD_COFFEA4BEES}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees/
     - ls coffea4bees/
+    # Bootstrap Pixi environment
+    - echo "Installing Pixi and dependencies"
+    - export PIXI_NO_PATH_UPDATE=1
+    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
+    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
+    - pixi install
   artifacts:
     paths:
       - coffea4bees/
       - proxy/
+      - .pixi/
+      - .pixi-bin/
     expire_in: 4 hours
 
 setup_bbreww:
   stage: setup
-  image: alpine/git:latest
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
   needs:
     - voms_proxy
   script:
@@ -120,10 +128,18 @@ setup_bbreww:
     - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
     - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
     - ls bbreww/
+    # Bootstrap Pixi environment
+    - echo "Installing Pixi and dependencies"
+    - export PIXI_NO_PATH_UPDATE=1
+    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
+    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
+    - pixi install
   artifacts:
     paths:
       - bbreww/
       - proxy/
+      - .pixi/
+      - .pixi-bin/
     expire_in: 4 hours
 
 .base_analysis_coffea4bees:
@@ -137,6 +153,11 @@ setup_bbreww:
     CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
     CLASSIFIER_CONFIG_PATHS: "coffea4bees"
   before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -156,6 +177,11 @@ setup_bbreww:
     CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
     CLASSIFIER_CONFIG_PATHS: "bbreww"
   before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -172,6 +198,11 @@ setup_bbreww:
       artifacts: true
   image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"

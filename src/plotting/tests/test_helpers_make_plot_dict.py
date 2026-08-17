@@ -440,7 +440,7 @@ class TestGetPlotDictFromList:
     def test_get_plot_dict_from_list_default_process(self, monkeypatch):
         monkeypatch.setattr(
             "src.plotting.helpers_make_plot_dict.add_hist_data",
-            lambda **kwargs: None
+            lambda **kwargs: True
         )
 
         cfg = MagicMock()
