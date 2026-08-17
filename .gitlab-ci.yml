@@ -69,7 +69,7 @@ include:
     ref: 'master'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'cms-cmu/coffea4bees'
-    ref: 'master'
+    ref: 'ci-lowpt-workflow'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
