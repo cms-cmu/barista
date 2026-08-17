@@ -287,6 +287,18 @@ def parse_args() -> argparse.Namespace:
         # Parse defaults first
         default_args = parser.parse_args([])
         
+        # Standardize aliases if present
+        if 'friend_file' in yaml_config and 'friends' not in yaml_config:
+            default_args.friends = yaml_config['friend_file']
+        if 'weights_file' in yaml_config and 'weights' not in yaml_config:
+            default_args.weights = yaml_config['weights_file']
+        if 'dataset_location' in yaml_config and 'metadata' not in yaml_config:
+            default_args.metadata = yaml_config['dataset_location']
+        if 'analysis_config' in yaml_config and 'configs' not in yaml_config:
+            default_args.configs = yaml_config['analysis_config']
+        elif 'configs' not in yaml_config:
+            default_args.configs = yaml_path
+
         # Merge YAML properties
         for key, val in yaml_config.items():
             setattr(default_args, key, val)
