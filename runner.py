@@ -119,38 +119,19 @@ def cleanup_temp_condor_dir():
             shutil.rmtree(_temp_condor_dir)
         except OSError as e:
             logging.error(f"Error cleaning up Condor directory: {e}")
-class CustomFormatter(logging.Formatter):
-    COLORS = {
-        'DEBUG': '\033[36m',    # Cyan
-        'INFO': '\033[32m',     # Green
-        'WARNING': '\033[33m',  # Yellow
-        'ERROR': '\033[31m',    # Red
-        'CRITICAL': '\033[41m', # Red background
-    }
-    RESET = '\033[0m'
 
-    def format(self, record):
-        # Format time to matches the exact user timestamp style
-        asctime = self.formatTime(record, "%y/%m/%d %H:%M:%S")
-        use_color = sys.stdout.isatty()
-        color = self.COLORS.get(record.levelname, '') if use_color else ''
-        reset = self.RESET if use_color else ''
-        colored_level = f"{color}{record.levelname:<8}{reset}" if color else f"{record.levelname:<8}"
-        
-        source = f"{record.filename}:{record.lineno}"
-        header = f"[{asctime}] {colored_level} {source}"
-        message = record.getMessage()
-        return f"{header}\n{message}"
+from src.runner.logging import CustomFormatter
 
 if __name__ == '__main__':
     # 1. Parse arguments (supports both standard arguments and loading from YAML config)
     args = parse_args()
 
     # 2. Configure logging
+    use_color = not getattr(args, 'no_color', False) and os.environ.get("NO_COLOR") not in ("1", "true", "True")
     logging_level = logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging_level)
-    handler.setFormatter(CustomFormatter())
+    handler.setFormatter(CustomFormatter(use_color=use_color))
     logging.basicConfig(
         level=logging_level,
         handlers=[handler],

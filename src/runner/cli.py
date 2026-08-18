@@ -245,6 +245,13 @@ def make_parser() -> argparse.ArgumentParser:
         default=False,
         help='Enable memory profiling using mprof'
     )
+    debug_group.add_argument(
+        '--no-color',
+        dest="no_color",
+        action="store_true",
+        default=False,
+        help='Disable ANSI color formatting in logging'
+    )
 
     # Reproducibility options
     repro_group = parser.add_argument_group('Reproducibility')
@@ -273,7 +280,7 @@ def parse_args() -> argparse.Namespace:
         if not arg.startswith('-') and (arg.endswith('.yml') or arg.endswith('.yaml')) and os.path.exists(arg):
             # Check if this file is the value of a preceding option flag
             if i > 0 and args_to_parse[i-1].startswith('-'):
-                boolean_flags = ('-t', '--test', '--condor', '--slurm', '--shared-dask', '--debug', '--check-input-files', '--not-do-proxy', '--run-performance')
+                boolean_flags = ('-t', '--test', '--condor', '--slurm', '--shared-dask', '--debug', '--check-input-files', '--not-do-proxy', '--run-performance', '--no-color')
                 if args_to_parse[i-1] not in boolean_flags:
                     continue
             yaml_path = arg
