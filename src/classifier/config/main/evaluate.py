@@ -70,35 +70,41 @@ class Main(SelectDevice, main.Main):
         timer = datetime.now()
         datasets = [*chain(*(t.evaluate() for t in tasks))]
         dataset: EvalDatasetLike = reduce(op.add, datasets)
-        logging.info(
-            f"Initialized {len(datasets)} datasets in {datetime.now() - timer}"
-        )
+        logging.info(f"Initialized {len(datasets)} datasets in {datetime.now() - timer}, type={type(dataset)}")
         # initialize models
         models: list[Model] = parser.tasks[TaskOptions.model.name]
         timer = datetime.now()
         evaluators = [*chain(*(m.evaluate() for m in models))]
-        logging.info(
-            f"Initialized {len(evaluators)} models in {datetime.now() - timer}"
-        )
+        logging.info(f"Initialized {len(evaluators)} models in {datetime.now() - timer}, evaluators={evaluators}")
         # evaluate models in parallel
         timer = datetime.now()
-        with (
-            ProcessPoolExecutor(
-                max_workers=self.opts.max_evaluators,
-                mp_context=status.context,
-                initializer=status.initializer,
-            ) as executor,
-            Progress.new(
+        if self.opts.max_evaluators == 1:
+            with Progress.new(
                 total=len(evaluators), msg=("models", "Evaluating")
-            ) as progress,
-        ):
-            results = [
-                *pool.map_async(
-                    executor,
-                    _eval_model(self.device, dataset),
-                    evaluators,
-                    callbacks=[lambda _: progress_advance(progress)],
-                )
-            ]
+            ) as progress:
+                results = []
+                eval_func = _eval_model(self.device, dataset)
+                for evaluator in evaluators:
+                    results.append(eval_func(evaluator))
+                    progress_advance(progress)(None)
+        else:
+            with (
+                ProcessPoolExecutor(
+                    max_workers=self.opts.max_evaluators,
+                    mp_context=status.context,
+                    initializer=status.initializer,
+                ) as executor,
+                Progress.new(
+                    total=len(evaluators), msg=("models", "Evaluating")
+                ) as progress,
+            ):
+                results = [
+                    *pool.map_async(
+                        executor,
+                        _eval_model(self.device, dataset),
+                        evaluators,
+                        callbacks=[lambda _: progress_advance(progress)],
+                    )
+                ]
         logging.info(f"Evaluated {len(evaluators)} models in {datetime.now() - timer}")
         return {ResultKey.predictions: results}

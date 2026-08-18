@@ -1,155 +1,81 @@
 from __future__ import annotations
 
-
-import argparse
-import inspect
-import sys
-from pathlib import Path
-
-import yaml
-import importlib
-import json
 import logging
 import os
+import sys
 import time
-import warnings
-from memory_profiler import profile
-from copy import copy
-from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
-from datetime import datetime
-from typing import TYPE_CHECKING
-
-import socket
-
-import dask
-import uproot
-import fsspec
-import psutil
-import yaml
-import tempfile
 import atexit
-import shutil
-from omegaconf import OmegaConf
-from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
-from coffea import processor
-from coffea.dataset_tools import rucio_utils
-from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
-
-# Patch for SITECONF storage.json entries that use 'site' instead of 'rse'
-# (seen after a SITECONF format change; coffea's get_xrootd_sites_map assumes 'rse' always present)
-_orig_get_xrootd_sites_map = rucio_utils.get_xrootd_sites_map
-def _patched_get_xrootd_sites_map():
-    import coffea.dataset_tools.rucio_utils as _ru
-    _orig_json_load = _ru.json.load
-    def _safe_json_load(f):
-        data = _orig_json_load(f)
-        for entry in data:
-            if 'rse' not in entry and 'site' in entry:
-                entry['rse'] = entry['site']
-        return data
-    _ru.json.load = _safe_json_load
-    try:
-        return _orig_get_xrootd_sites_map()
-    finally:
-        _ru.json.load = _orig_json_load
-rucio_utils.get_xrootd_sites_map = _patched_get_xrootd_sites_map
-
-from coffea.util import save
-from dask.distributed import performance_report
-from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
-from rich.logging import RichHandler
+import yaml
+import importlib
+import inspect
+from datetime import datetime
+from concurrent.futures import ProcessPoolExecutor
 from rich.pretty import pretty_repr
-from src.skimmer.picoaod import fetch_metadata, integrity_check, resize
+from omegaconf import OmegaConf
+import copy
 
-if TYPE_CHECKING:
-    from src.data_formats.root import Friend
+# Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
+try:
+    from coffea.dataset_tools import rucio_utils
+    def patched_get_xrootd_sites_map():
+        import json, os, time
+        from collections import defaultdict
+        sites_xrootd_access = defaultdict(dict)
+        cache_valid = False
+        if os.path.exists(".sites_map.json"):
+            file_time = os.path.getmtime(".sites_map.json")
+            if file_time > time.time() - 600:
+                cache_valid = True
+        if not os.path.exists(".sites_map.json") or not cache_valid:
+            siteconf_dir = "/cvmfs/cms.cern.ch/SITECONF/"
+            if os.path.exists(siteconf_dir):
+                sites = [
+                    (s, os.path.join(siteconf_dir, s, "storage.json"))
+                    for s in os.listdir(siteconf_dir)
+                    if s.startswith("T")
+                ]
+                for site_name, conf in sites:
+                    if not os.path.exists(conf):
+                        continue
+                    try:
+                        data = json.load(open(conf))
+                    except Exception:
+                        continue
+                    for site in data:
+                        if site.get("type") != "DISK":
+                            continue
+                        if site.get("rse") is None:
+                            continue
+                        for proc in site.get("protocols", []):
+                            if proc.get("protocol") == "XRootD":
+                                if proc.get("access") not in ["global-ro", "global-rw"]:
+                                    continue
+                                if "prefix" not in proc:
+                                    if "rules" in proc:
+                                        for rule in proc["rules"]:
+                                            sites_xrootd_access[site["rse"]][rule["lfn"]] = rule["pfn"]
+                                else:
+                                    sites_xrootd_access[site["rse"]] = proc["prefix"]
+            json.dump(sites_xrootd_access, open(".sites_map.json", "w"))
+        return json.load(open(".sites_map.json"))
+    rucio_utils.get_xrootd_sites_map = patched_get_xrootd_sites_map
+except Exception:
+    pass
 
-dask.config.set({
-    'logging.distributed': 'error',
-    'distributed.comm.timeouts.connect': '180s',
-    'distributed.comm.timeouts.tcp': '180s',
-})
+from coffea import processor
+from dask.distributed import performance_report, WorkerPlugin
+from dataclasses import dataclass
 
-NanoAODSchema.warn_missing_crossrefs = False
-if hasattr(NanoAODSchema, 'error_missing_event_ids'):
-    NanoAODSchema.error_missing_event_ids = False
-warnings.filterwarnings("ignore")
-
-from src.compat import COFFEA_2025
-
-# Global variable to track temp directory for cleanup
-_temp_condor_dir = None
-
-def create_code_tarball(condor_transfer_input_files, tmpdir=None):
-    """Create a tarball of code in a temporary directory.
-
-    Each job gets a unique temporary directory to avoid conflicts
-    between concurrent jobs on shared clusters.
-
-    Args:
-        condor_transfer_input_files: List of paths to include in tarball
-        tmpdir: Parent directory for the temp dir. Defaults to the LPC
-                3DayLifetime scratch area. Override if running elsewhere.
-
-    Returns:
-        Tuple of  (tarball_path, temp_dir_path) for cleanup later
-    """
-    import tarfile
-    import os
-
-    # Create unique temporary directory with descriptive prefix
-    # Format: <tmpdir>/barista_condor_USERID_TIMESTAMP_RANDOMID/
-    import getpass
-    username = getpass.getuser()
-    if tmpdir is None:
-        lpc_default = f"/uscmst1b_scratch/lpc1/3DayLifetime/{username}/"
-        # Use LPC scratch when on LPC; otherwise fall back to $TMPDIR (or /tmp)
-        tmpdir = lpc_default if os.path.isdir("/uscmst1b_scratch") else tempfile.gettempdir()
-    os.makedirs(tmpdir, exist_ok=True)
-    temp_dir = tempfile.mkdtemp(prefix=f'barista_condor_{username}_', dir=tmpdir)
-    tarball_path = os.path.join(temp_dir, 'code_barista.tar.gz')
-
-    logging.info(f"Creating tarball in temporary directory: {temp_dir}")
-    logging.info(f"Including {len(condor_transfer_input_files)} path(s)")
-
-    with tarfile.open(tarball_path, "w:gz") as tar:
-        for path in condor_transfer_input_files:
-            if os.path.exists(path):
-                # Add with arcname to preserve directory structure
-                tar.add(path, arcname=path)
-                logging.info(f"  ✓ Added {path}")
-            else:
-                logging.warning(f"  ✗ Path not found: {path}")
-
-    tarball_size_mb = os.path.getsize(tarball_path) / (1024 * 1024)
-    logging.info(f"Tarball created: {tarball_path} ({tarball_size_mb:.2f} MB)")
-    return tarball_path, temp_dir
-
-def cleanup_temp_condor_dir():
-    """Clean up temporary condor directory at program exit."""
-    global _temp_condor_dir
-    if _temp_condor_dir and os.path.exists(_temp_condor_dir):
-        try:
-            logging.info(f"Cleaning up temporary directory: {_temp_condor_dir}")
-            shutil.rmtree(_temp_condor_dir)
-            logging.info("Temporary directory cleaned up successfully")
-        except Exception as e:
-            logging.warning(f"Error cleaning up temporary directory {_temp_condor_dir}: {e}")
-    _temp_condor_dir = None
-
-
+# Defined here (in __main__) so cloudpickle serializes it by value, not by
+# module reference. Workers need to deserialize this before the code tarball
+# is extracted, so it cannot live in src.runner.cluster.
 @dataclass
 class WorkerInitializer(WorkerPlugin):
     uproot_xrootd_retry_delays: list[float] = None
 
     def setup(self, worker=None):
         self.worker = worker
-        import os
-        import tarfile
-        import sys
-
-        # Unpack code package if present (for HTCondor jobs)
+        import os, tarfile, sys, logging
         if os.path.exists("code_barista.tar.gz"):
             if not os.path.exists(".code_extracted"):
                 logging.info("Extracting code_barista.tar.gz on worker...")
@@ -158,695 +84,50 @@ class WorkerInitializer(WorkerPlugin):
                 with open(".code_extracted", "w") as f:
                     f.write("extracted\n")
                 logging.info("Code package extracted successfully")
-            else:
-                logging.info("Code package already extracted, skipping")
-
-        # Add current directory to Python path so imports work
         if os.getcwd() not in sys.path:
             sys.path.insert(0, os.getcwd())
-            logging.info(f"Added {os.getcwd()} to sys.path")
-
         if delays := self.uproot_xrootd_retry_delays:
             from src.data_formats.root.patch import uproot_XRootD_retry
             uproot_XRootD_retry(len(delays) + 1, delays)
 
     def transition(self, key, start, finish, **kwargs):
-        if finish == "executing":
-            worker_name = self.worker.name if self.worker else "unknown"
-            logging.info(f"[{worker_name}] running task: {key}")
-
-def checking_input_files(outfiles):
-    '''Check if the input files are corrupted'''
-    logging.info(f"Checking {len(outfiles)} input files for corruption...")
-
-    good_files = []
-    corrupted_count = 0
-
-    for outfile in outfiles:
-            try:
-                # Attempt to open the file with uproot to check for corruption
-                uproot.open(outfile + ":Events")
-                good_files.append(outfile)
-            except Exception as e:
-                corrupted_count += 1
-                logging.error(f"Error opening file {outfile}: {e}")
-                logging.error(f"Skipping corrupted file {outfile}")
-
-    logging.info(f"File check complete: {len(good_files)} good files, {corrupted_count} corrupted files")
-    return good_files
-
-
-def list_of_files(
-    ifile,
-    allowlist_sites: list = ['T3_US_FNALLPC'],
-    blocklist_sites: list = [''],
-    rucio_regex_sites: str = 'T[23]',
-    test: bool = False,
-    test_files: int = 5,
-    check_input_files: bool = False
-    ):
-    '''Check if ifile is root file or dataset to check in rucio'''
-
-    if isinstance(ifile, list):
-        ifile = checking_input_files(ifile) if check_input_files else ifile
-        return ifile[:(test_files if test else None)]
-    elif ifile.endswith('.txt'):
-        file_list = [
-            jfile.rstrip() if jfile.startswith(('root','file')) else f'root://cmseos.fnal.gov/{jfile.rstrip()}' for jfile in open(ifile).readlines()]
-        file_list = checking_input_files(file_list) if check_input_files else file_list
-        return file_list[:(test_files if test else None)]
-    else:
-        rucio_client = rucio_utils.get_rucio_client()
-        outfiles, outsite, sites_counts = rucio_utils.get_dataset_files_replicas(
-            ifile, client=rucio_client, regex_sites=fr"{rucio_regex_sites}", mode="first", allowlist_sites=allowlist_sites, blocklist_sites=blocklist_sites)
-        good_files = checking_input_files(outfiles) if check_input_files else outfiles
-        return good_files[:(test_files if test else None)]
-
-
-def _friend_merge_name(path1: str, path0: str, name: str, **_):
-    return f'{path1}/{path0.replace("picoAOD", name)}'
-
-# inner psutil function
-def process_memory():
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    return mem_info.rss
-
-# decorator function
-def profile(func):
-    def wrapper(*args, **kwargs):
-
-        mem_before = process_memory()
-        result = func(*args, **kwargs)
-        mem_after = process_memory()
-        logging.info("{}:consumed memory (before, after, diff): {:,}".format(
-            func.__name__,
-            mem_before, mem_after, mem_after - mem_before))
-
-        return result
-    return wrapper
-
-
-def apply_storage_remap(obj, remaps):
-    """
-    Recursively walk a nested dict/list structure and replace string prefixes
-    according to the remaps list, where each entry is {'from': str, 'to': str}.
-    Only strings that start with a 'from' prefix are modified.
-    """
-    if isinstance(obj, str):
-        for remap in remaps:
-            if obj.startswith(remap['from']):
-                return remap['to'] + obj[len(remap['from']):]
-        return obj
-    elif isinstance(obj, dict):
-        return {k: apply_storage_remap(v, remaps) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [apply_storage_remap(item, remaps) for item in obj]
-    return obj
-
-
-# Dataset processing helper functions
-def get_dataset_type(dataset_name):
-    """Determine the type of dataset based on its name."""
-
-    if dataset_name == 'mixeddata':
-        return 'mixed_data'
-    if dataset_name == 'mixeddata_4b':
-        return 'mixeddata_4b'
-    elif dataset_name in ['mixeddata_4b_noTT']:
-        return 'mixeddata_4b_noTT'
-    elif dataset_name.startswith('mixeddata_all'):
-        return 'mixeddata_all'
-    elif dataset_name in ['mixeddata_4b_pz']:
-        return 'mixeddata_4b_pz'
-    elif dataset_name == 'datamixed':
-        return 'data_mixed'
-    elif dataset_name.startswith('synthetic_data_noTT'):
-        # startswith (not ==) so suffixed variants from the declustering
-        # workflow (e.g. synthetic_data_noTT_ns5) hit the multi-sample path,
-        # mirroring the mixeddata_all handling above. noTT is checked before
-        # the plain synthetic_data prefix so it wins.
-        return 'synthetic_data_noTT'
-    elif dataset_name.startswith('synthetic_data'):
-        return 'synthetic_data'
-    elif dataset_name == 'data_3b_for_mixed':
-        return 'data_for_mix'
-    elif dataset_name in ['TTToHadronic_for_mixed', 'TTToSemiLeptonic_for_mixed', 'TTTo2L2Nu_for_mixed']:
-        return 'tt_for_mixed'
-    elif dataset_name == 'data' or dataset_name.startswith('data__'):
-        return 'data'
-    else:
-        return 'mc'
-
-
-def create_fileset_entry(dataset_key, files, metadata_entry, args, config_runner):
-    """Create a standardized fileset entry."""
-    return {
-        'files': list_of_files(
-            files,
-            test=args.test,
-            test_files=config_runner['test_files'],
-            allowlist_sites=config_runner['allowlist_sites'],
-            blocklist_sites=config_runner['blocklist_sites'],
-            rucio_regex_sites=config_runner['rucio_regex_sites']
-        ),
-        'metadata': metadata_entry
-    }
-
-
-def process_mc_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
-    """Process MC dataset configuration."""
-    logging.info("Config MC")
-    if config_runner['data_tier'].startswith('pico'):
-        if 'data' not in dataset:
-            metadata_dataset[dataset]['genEventSumw'] = metadata['datasets'][dataset][year][config_runner['data_tier']]['sumw']
-        meta_files = metadata['datasets'][dataset][year][config_runner['data_tier']]['files']
-    else:
-        metadata_dataset[dataset]['genEventSumw'] = 1
-        meta_files = metadata['datasets'][dataset][year][config_runner['data_tier']]
-
-    dataset_key = f"{dataset}_{year}"
-    fileset[dataset_key] = create_fileset_entry(dataset_key, meta_files, metadata_dataset[dataset], args, config_runner)
-    logging.info(f'Dataset {dataset_key} with {len(fileset[dataset_key]["files"])} files')
-
-
-def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metadata, metadata_dataset, fileset, args, config_runner, extra_metadata_fn=None):
-    """Process datasets that create multiple samples (mixed, synthetic, etc.)."""
-    type_names = {
-        'mixed_data': 'Mixed Data',
-        'mixeddata_4b': 'New Mixed Data',
-        'data_mixed': 'Data Mixed',
-        'synthetic_data': 'Synthetic Data'
-    }
-    logging.info(f"Config {type_names.get(dataset_type, dataset_type.title())}")
-
-    nSamples = metadata['datasets'][dataset]["nSamples"]
-    sample_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
-    logging.info(f"Number of samples is {nSamples}")
-
-    for v in range(nSamples):
-        sample_name = f"{name_prefix}_v{v}"
-        idataset = f'{sample_name}_{year}'
-
-        metadata_dataset[idataset] = copy(metadata_dataset[dataset])
-        metadata_dataset[idataset]['processName'] = sample_name
-
-        # Apply extra metadata if provided
-        if extra_metadata_fn:
-            extra_metadata_fn(metadata_dataset[idataset], sample_config, v)
-
-        sample_files = [f.replace("XXX", str(v)) for f in sample_config['files_template']]
-        logging.debug(f"samples_files is {sample_files}")
-        logging.debug(f"files_template is {sample_config['files_template']}")
-        fileset[idataset] = create_fileset_entry(idataset, sample_files, metadata_dataset[idataset], args, config_runner)
-        logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
-        logging.debug(f'metadata_dataset is')
-        logging.debug(f'idataset is {idataset}')
-        logging.debug(pretty_repr(metadata_dataset))
-
-
-def process_data_for_mix(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
-    """Process data for mixed dataset configuration."""
-    logging.info("Config Data for Mixed")
-
-    nMixedSamples = metadata['datasets'][dataset]["nSamples"]
-    use_kfold = config_runner.get("use_kfold", False)
-    use_ZZinSB = config_runner.get("use_ZZinSB", False)
-    use_ZZandZHinSB = config_runner.get("use_ZZandZHinSB", False)
-    data_3b_mix_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
-
-    logging.info(f"Number of mixed samples is {nMixedSamples}")
-    logging.info(f"Using kfolding? {use_kfold}")
-    logging.info(f"Using ZZinSB? {use_ZZinSB}")
-    logging.info(f"Using ZZandZHinSB? {use_ZZandZHinSB}")
-
-    idataset = f'{dataset}_{year}'
-    metadata_dataset[idataset] = copy(metadata_dataset[dataset])
-    metadata_dataset[idataset]['JCM_loads'] = [
-        data_3b_mix_config['JCM_load_template'].replace("XXX", str(v))
-        for v in range(nMixedSamples)
-    ]
-
-    # Select appropriate template based on configuration
-    template_mapping = {
-        'use_kfold': ('FvT_file_kfold_template', 'FvT_name_kfold_template'),
-        'use_ZZinSB': ('FvT_file_ZZinSB_template', 'FvT_name_ZZinSB_template'),
-        'use_ZZandZHinSB': ('FvT_file_ZZandZHinSB_template', 'FvT_name_ZZandZHinSB_template')
-    }
-
-    file_template, name_template = None, None
-    for flag, (f_tmpl, n_tmpl) in template_mapping.items():
-        if config_runner.get(flag, False):
-            file_template, name_template = f_tmpl, n_tmpl
-            break
-    else:
-        file_template, name_template = 'FvT_file_template', 'FvT_name_template'
-
-    metadata_dataset[idataset]['FvT_files'] = [
-        data_3b_mix_config[file_template].replace("XXX", str(v))
-        for v in range(nMixedSamples)
-    ]
-    metadata_dataset[idataset]['FvT_names'] = [
-        data_3b_mix_config[name_template].replace("XXX", str(v))
-        for v in range(nMixedSamples)
-    ]
-
-    fileset[idataset] = create_fileset_entry(idataset, data_3b_mix_config['files'], metadata_dataset[idataset], args, config_runner)
-    logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
-
-
-def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
-    """Process TT for mixed dataset configuration."""
-    logging.info("Config TT for Mixed")
-
-    nMixedSamples = metadata['datasets'][dataset]["nSamples"]
-    TT_3b_mix_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
-    logging.info(f"Number of mixed samples is {nMixedSamples}")
-
-    idataset = f'{dataset}_{year}'
-    metadata_dataset[idataset] = copy(metadata_dataset[dataset])
-    metadata_dataset[idataset]['FvT_files'] = [
-        TT_3b_mix_config['FvT_file_template'].replace("XXX", str(v))
-        for v in range(nMixedSamples)
-    ]
-    metadata_dataset[idataset]['FvT_names'] = [
-        TT_3b_mix_config['FvT_name_template'].replace("XXX", str(v))
-        for v in range(nMixedSamples)
-    ]
-    metadata_dataset[idataset]['genEventSumw'] = TT_3b_mix_config['sumw']
-
-    fileset[idataset] = create_fileset_entry(idataset, TT_3b_mix_config['files'], metadata_dataset[idataset], args, config_runner)
-    logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
-
-
-def process_data_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
-    """Process regular data dataset configuration.
-
-    Supports datasets named like 'data', 'data_Muon', 'data_Electron', etc.
-    Structure: datasets[dataset][year][data_tier] -> eras
-    """
-    for iera, ifile in metadata['datasets'][dataset][year][config_runner['data_tier']].items():
-        if iera not in args.era:
-            continue
-        idataset = f'{dataset}_{year}{iera}'
-        meta = copy(metadata_dataset[dataset])
-        meta['era'] = iera
-        files = ifile['files'] if config_runner['data_tier'].startswith('pico') else ifile
-        fileset[idataset] = create_fileset_entry(idataset, files, meta, args, config_runner)
-        metadata_dataset[idataset] = meta
-        logging.info(f'Dataset {idataset} with {len(fileset[idataset]["files"])} files')
-
-
-def add_fvt_metadata(meta, config, v):
-    """Helper function to add FvT metadata for mixed data."""
-    meta['FvT_name'] = config['FvT_name_template'].replace("XXX", str(v))
-    meta['FvT_file'] = config['FvT_file_template'].replace("XXX", str(v))
-
-
-def setup_condor_cluster(config_runner, tarball_path):
-    """Setup Condor cluster configuration."""
-    from distributed import Client
-    from lpcjobqueue import LPCCondorCluster
-    import getpass
-    import uuid
-
-    logging.info("Initializing HTCondor cluster configuration...")
-
-    # Each runner.py invocation needs a unique log_directory: dask_jobqueue calls
-    # os.makedirs() without exist_ok=True, so it crashes if the directory already
-    # exists (e.g. from a previous run or a simultaneous parallel Snakemake job).
-    _log_base = f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}/condor_logs'
-    _default_log_dir = f'{_log_base}_{uuid.uuid4().hex[:8]}'
-
-    cluster_args = {
-        'transfer_input_files': [tarball_path],
-        'shared_temp_directory': '/tmp',
-        'cores': config_runner['condor_cores'],
-        'memory': config_runner['worker_memory'],
-        'ship_env': False,
-        'log_directory': config_runner.get('log_directory', _default_log_dir),
-        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
-        'worker_extra_args': [
-            f"--worker-port 10000:10100",
-            f"--nanny-port 10100:10200",
-        ],
-        'job_extra_directives': {
-            'leave_in_queue': 'False',
-            'periodic_remove': '(JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 300)'
-        },
-        'env_extra': ['export PYTHONPATH=.:$PYTHONPATH'],
-    }
-    if config_runner.get('worker_log_directory'):
-        # Do not pre-create — dask_jobqueue must create it fresh.
-        cluster_args['log_directory'] = config_runner['worker_log_directory']
-
-    if os.getenv("WORKER_IMAGE"):
-        logging.info(f"Overriding worker image with: {os.getenv('WORKER_IMAGE')}")
-        cluster_args['image'] = os.getenv("WORKER_IMAGE")
-
-    logging.info("Cluster arguments: ")
-    logging.info(pretty_repr(cluster_args))
-
-    logging.info("Creating HTCondor cluster...")
-    cluster = LPCCondorCluster(**cluster_args)
-
-    logging.info("Creating Dask client...")
-    client = Client(cluster)
-
-    logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
-    cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
-    logging.info(f"Dask dashboard: {client.dashboard_link}")
-    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
-    # LPCCondorCluster, so it carries no host.  Log the scheduler host
-    # explicitly so monitors (barista_console / runner_monitor) can build a
-    # reachable URL when they run on a different node than the scheduler.
-    logging.info(f"Dask scheduler host: {socket.gethostname()}")
-
-    log_dir = cluster_args['log_directory']
-    logging.info(f"Condor worker log directory: {log_dir}")
-
-    class WorkerLostLogger(SchedulerPlugin):
-        def _find_log(self, worker_addr):
-            import glob
-            try:
-                for path in glob.glob(f"{log_dir}/worker-*.err"):
-                    with open(path) as f:
-                        if worker_addr in f.read():
-                            return path
-            except OSError:
-                pass
-            return None
-
-        def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred":
-                return
-            exc = kwargs.get("exception")
-            exc_text = None
-            if exc is not None:
-                try:
-                    from distributed.protocol import deserialize
-                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
-                    exc_text = repr(err)
-                except Exception:
-                    exc_text = repr(exc)
-            if exc_text:
-                logging.error(f"Task failed: {key}: {exc_text}")
-            elif worker is not None:
-                log_file = self._find_log(worker)
-                if log_file:
-                    logging.error(f"Task permanently failed: {key} -> {log_file}")
-                else:
-                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
-
-    client.register_plugin(WorkerLostLogger())
-
-    logging.info('HTCondor cluster setup complete!')
-    return client, cluster, log_dir
-
-
-def setup_slurm_cluster(config_runner):
-    """Setup Dask SLURMCluster for falcon compute nodes."""
-    from dask.distributed import Client
-    from dask_jobqueue import SLURMCluster
-    import uuid
-    import socket
-
-    log_base = config_runner.get('slurm_log_directory', 'slurm_logs')
-    log_dir = os.path.abspath(os.path.join(log_base, uuid.uuid4().hex[:8]))
-    os.makedirs(log_dir, exist_ok=True)
-
-    barista_root = os.path.dirname(os.path.abspath(__file__))
-    bin_dir = os.path.join(barista_root, 'software', 'slurm')
-    worker_python = os.path.join(bin_dir, 'dask-worker-python')
-
-    if not os.access(worker_python, os.X_OK):
-        raise FileNotFoundError(f"dask worker wrapper not found or not executable: {worker_python}")
-
-    # Detect if running on Bridges 2
-    hostname = socket.gethostname()
-    is_bridges2 = 'bridges2' in hostname or 'psc' in hostname
-
-    # Prepend bin/ to PATH so SLURMCluster picks up the bin/sbatch wrapper that
-    # can call the host sbatch from inside the Apptainer container on falcon.
-    # On Bridges 2, we bypass the falcon sbatch wrapper because sbatch runs natively.
-    if not is_bridges2:
-        os.environ['PATH'] = bin_dir + os.pathsep + os.environ.get('PATH', '')
-
-    default_partition = 'RM-shared' if is_bridges2 else 'work'
-    partition = config_runner.get('slurm_partition', default_partition)
-    if partition == 'work' and is_bridges2:
-        partition = 'RM-shared'
-
-    job_extra = list(config_runner.get('slurm_job_extra', []))
-
-    # If on Bridges 2 and billing account is specified in environment, inject it
-    account = os.environ.get('SLURM_ACCOUNT')
-    if is_bridges2 and account:
-        job_extra.append(f"-A {account}")
-
-    cluster_args = {
-        'cores': config_runner['slurm_cores'],
-        'memory': config_runner['worker_memory'],
-        'walltime': config_runner.get('slurm_walltime', '08:00:00'),
-        'queue': partition,
-        'job_extra_directives': job_extra,
-        'log_directory': log_dir,
-        'python': worker_python,
-        'scheduler_options': {'dashboard_address': f":{config_runner['dashboard_address']}"},
-    }
-    if is_bridges2:
-        cluster_args['processes'] = 1
-    if config_runner.get('slurm_qos') and not is_bridges2:
-        cluster_args['job_extra_directives'] = (
-            list(cluster_args['job_extra_directives']) + [f"--qos={config_runner['slurm_qos']}"]
-        )
-
-    logging.info("Creating SLURMCluster with args:")
-    logging.info(pretty_repr(cluster_args))
-
-    cluster = SLURMCluster(**cluster_args)
-    cluster.adapt(
-        minimum=config_runner['min_workers'],
-        maximum=config_runner['max_workers'],
-    )
-
-    client = Client(cluster)
-    logging.info(f"Dask dashboard: {client.dashboard_link}")
-    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
-    # LPCCondorCluster, so it carries no host.  Log the scheduler host
-    # explicitly so monitors (barista_console / runner_monitor) can build a
-    # reachable URL when they run on a different node than the scheduler.
-    logging.info(f"Dask scheduler host: {socket.gethostname()}")
-    logging.info(f"SLURM worker log directory: {log_dir}")
-
-    logging.info("SLURM cluster setup complete!")
-    return client, cluster
-
-
-def setup_local_cluster(config_runner):
-    """Setup local Dask cluster configuration."""
-    from dask.distributed import Client, LocalCluster
-
-    dashboard_addr = config_runner['dashboard_address']
-    cluster_args = {
-        'n_workers': config_runner['workers'],
-        'memory_limit': config_runner['worker_memory'],
-        'threads_per_worker': 1,
-        'dashboard_address': f":{dashboard_addr}",
-        'scheduler_port': 0 if dashboard_addr == 0 else 8786,
-    }
-    cluster = LocalCluster(**cluster_args)
-    client = Client(cluster)
-    logging.info(f"Dask dashboard: {client.dashboard_link}")
-    # The dashboard_link is a proxy-relative path (/proxy/PORT/status) under
-    # LPCCondorCluster, so it carries no host.  Log the scheduler host
-    # explicitly so monitors (barista_console / runner_monitor) can build a
-    # reachable URL when they run on a different node than the scheduler.
-    logging.info(f"Dask scheduler host: {socket.gethostname()}")
-    if dashboard_addr != 0:
-        logging.info(f"  SSH tunnel:   ssh -L {dashboard_addr}:<compute_node>:{dashboard_addr} <login_node>")
-    return client, cluster
-
-
-def setup_pico_base_name(configs):
-    """Determine the pico base name based on configuration."""
-    config_config = configs.get("config", {})
-    config_runner = configs.get("runner", {})
-
-    # Check for explicit pico_base_name first
-    if (pico_base_name := config_config.get("pico_base_name")) is not None:
-        return pico_base_name
-
-    # Check for special configurations
-    if "declustering_rand_seed" in config_config:
-        return f'picoAOD_seed{config_config["declustering_rand_seed"]}'
-
-    class_name = config_runner.get("class_name")
-    if class_name == "SubSampler":
-        return 'picoAOD_PSData'
-    elif class_name == "HemiMixer":
-        return 'picoAOD_mixed_all'
-    elif class_name == "MixedDataSplitter":
-        return f'picoAOD_mixed_v{config_config.get("mixed_subsample")}'
-    elif class_name == "Skimmer" and config_config.get("skim4b", False):
-        return 'picoAOD_fourTag'
-
-    return None
-
-
-def create_reproducible_info(args):
-    """Create reproducible information dictionary for both barista and processor repositories."""
-    info = {
-        'date': datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
-        'args': str(args),
-    }
-
-    # Get barista (current directory) git info
-    barista_root = os.getcwd()
-    if args.githash or args.gitdiff:
-        # Use override values if provided
-        info['barista'] = {
-            'hash': args.githash if args.githash else get_git_revision_hash(barista_root),
-            'diff': args.gitdiff if args.gitdiff else str(get_git_diff(barista_root)),
-        }
-    else:
-        info['barista'] = {
-            'hash': get_git_revision_hash(barista_root),
-            'diff': str(get_git_diff(barista_root)),
-        }
-
-    # Get processor repository git info from processor path
-    # Extract repo name from first folder in processor path
-    processor_path = args.processor
-    processor_repo_name = processor_path.split('/')[0] if '/' in processor_path else 'processor'
-    processor_repo_root = find_git_root(processor_path)
-
-    if processor_repo_root and processor_repo_root != barista_root:
-        info[processor_repo_name] = {
-            'hash': get_git_revision_hash(processor_repo_root),
-            'diff': str(get_git_diff(processor_repo_root)),
-        }
-    else:
-        # If processor is not a separate git repo or same as barista
-        info[processor_repo_name] = {
-            'hash': 'Same repository as barista' if processor_repo_root == barista_root else 'Not a git repository',
-            'diff': '',
-        }
-    return info
-
-
-def compute_with_client(client, func, *args, **kwargs):
-    """Helper to compute with or without dask client."""
-    if client is not None:
-        return client.compute(func(*args, dask=True, **kwargs), sync=True, retries=3)
-    else:
-        return func(*args, dask=False, **kwargs)
-
-
-def find_matching_dataset(dataset, metadata):
-    """Find matching dataset in metadata, supporting substring matching."""
-    if dataset in metadata['datasets']:
-        return dataset
-
-    # Look for a key that contains the dataset name
-    matching_keys = [key for key in metadata['datasets'].keys() if dataset in key]
-    if len(matching_keys) == 1:
-        matched_dataset = matching_keys[0]
-        logging.info(f"Found matching dataset: '{matched_dataset}' for input '{dataset}'")
-        return matched_dataset
-    elif len(matching_keys) > 1:
-        logging.error(f"Multiple matches found for '{dataset}': {matching_keys}. Please be more specific.")
-        return None
-    else:
-        logging.error(f"{dataset} name not found in metadatafile")
-        return None
-
-
-def get_run_from_year(year):
-    if year in ['2016', 'UL16_postVFP', 'UL16_preVFP', '2017', 'UL17', '2018', 'UL18']:
-        return 'Run2'
-    return 'Run3'
-
-
-def calculate_cross_section(matched_dataset, dataset_type, metadata, year=None):
-    """Calculate cross-section for a given dataset."""
-    # Data datasets should have xs=1
-    if (dataset_type == 'data' or
-        matched_dataset in ['mixeddata', 'datamixed', 'data_3b_for_mixed', 'synthetic_data', 'synthetic_data_noTT'] or
-        'xs' not in metadata['datasets'][matched_dataset]):
-        return 1.0
-
-    xs = metadata['datasets'][matched_dataset]['xs']
-    if hasattr(xs, 'keys') or isinstance(xs, dict):
-        if year in xs:
-            xs = xs[year]
-        else:
-            run = get_run_from_year(year)
-            if run in xs:
-                xs = xs[run]
-            else:
-                raise KeyError(f"Cross-section for dataset {matched_dataset} not found for year {year} or run {run} in {xs}")
-
-    if isinstance(xs, str):
-        return eval(xs)
-    return float(xs)
-
-
-def setup_schema(config_runner):
-    """Convert string schema names to actual schema classes."""
-    if isinstance(config_runner['schema'], str):
-        schema_mapping = {
-            "NanoAODSchema": NanoAODSchema,
-            "PFNanoAODSchema": PFNanoAODSchema
-        }
-        if config_runner['schema'] not in schema_mapping:
-            raise ValueError(f"Unknown schema: {config_runner['schema']}")
-        config_runner['schema'] = schema_mapping[config_runner['schema']]
-
-
-def find_free_port(preferred: int) -> int:
-    """Return preferred port if free, otherwise let the OS pick one."""
-    with socket.socket() as s:
+        pass
+
+# Import from our modular sub-package
+from src.runner.cli import parse_args, make_parser
+from src.runner.env import setup_environment, print_reproducibility_info, check_and_setup_proxy, sync_nfs_writes
+from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster
+from src.runner.dataset import (
+    apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
+    process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter
+)
+from src.runner.orchestrator import (
+    setup_schema, setup_executor, run_job, find_free_port, setup_config_defaults, setup_pico_base_name
+)
+
+# Global variable to track temp directory for cleanup (Condor)
+_temp_condor_dir = None
+
+def cleanup_temp_condor_dir():
+    """Cleanup the temporary directory created for Condor code transfer."""
+    global _temp_condor_dir
+    if _temp_condor_dir and os.path.exists(_temp_condor_dir):
+        logging.info(f"Cleaning up temporary Condor directory: {_temp_condor_dir}")
+        import shutil
         try:
-            s.bind(('', preferred))
-        except OSError:
-            s.bind(('', 0))
-        return s.getsockname()[1]
-
-
-def setup_config_defaults(config_runner, args):
-    """Set up all configuration defaults in one place."""
-    defaults = {
-        'data_tier': 'picoAOD',
-        'chunksize': 1_000 if args.test else 100_000,
-        'maxchunks': 1 if args.test else None,
-        'schema': NanoAODSchema,
-        'test_files': 5,
-        'allowlist_sites': ['T3_US_FNALLPC'],
-        'blocklist_sites': [''],
-        'rucio_regex_sites': "T[23]",
-        'class_name': 'analysis',
-        'condor_cores': 2,
-        'worker_memory': '4GB',
-        'condor_transfer_input_files': ['coffea4bees/', 'src/'],
-        'min_workers': 1,
-        'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
-        'workers': 2,
-        'skipbadfiles': False,
-        'dashboard_address': 10200,
-        'friend_base': None,
-        'friend_base_argname': "make_classifier_input",
-        'friend_merge_step': 100_000,
-        'write_coffea_output': True,
-        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
-        'dask_retries': 3,
-        'slurm_cores': 4,
-        'slurm_partition': 'work',
-        'slurm_qos': 'cpu_light',
-        'slurm_walltime': '08:00:00',
-        'slurm_log_directory': 'slurm_logs',
-        'slurm_job_extra': [],
+            shutil.rmtree(_temp_condor_dir)
+        except OSError as e:
+            logging.error(f"Error cleaning up Condor directory: {e}")
+class CustomFormatter(logging.Formatter):
+    COLORS = {
+        'DEBUG': '\033[36m',    # Cyan
+        'INFO': '\033[32m',     # Green
+        'WARNING': '\033[33m',  # Yellow
+        'ERROR': '\033[31m',    # Red
+        'CRITICAL': '\033[41m', # Red background
     }
+<<<<<<< HEAD
 
     for key, default_value in defaults.items():
         config_runner.setdefault(key, default_value)
@@ -1536,42 +817,107 @@ def make_parser():
     )
     return parser
 
+=======
+    RESET = '\033[0m'
+
+    def format(self, record):
+        # Format time to matches the exact user timestamp style
+        asctime = self.formatTime(record, "%y/%m/%d %H:%M:%S")
+        use_color = sys.stdout.isatty()
+        color = self.COLORS.get(record.levelname, '') if use_color else ''
+        reset = self.RESET if use_color else ''
+        colored_level = f"{color}{record.levelname:<8}{reset}" if color else f"{record.levelname:<8}"
+        
+        source = f"{record.filename}:{record.lineno}"
+        header = f"[{asctime}] {colored_level} {source}"
+        message = record.getMessage()
+        return f"{header}\n{message}"
+>>>>>>> origin/master
 
 if __name__ == '__main__':
-    parser = make_parser()
+    # 1. Parse arguments (supports both standard arguments and loading from YAML config)
+    args = parse_args()
 
-    # Parse command line arguments
-    args = parser.parse_args()
-
-    # Configure logging
-    logging_level = logging.DEBUG if args.debug else logging.INFO
+    # 2. Configure logging
+    logging_level = logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
+    handler = logging.StreamHandler()
+    handler.setLevel(logging_level)
+    handler.setFormatter(CustomFormatter())
     logging.basicConfig(
         level=logging_level,
-        handlers=[RichHandler(level=logging_level, markup=True)],
-        format="%(message)s",
+        handlers=[handler],
+        force=True,
     )
     # Disable verbose logging from third-party libraries
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
     logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
 
-    logging.info(f"Running with these parameters: {args}")
+    # Re-execute under mprof if requested and not already running under it
+    if getattr(args, 'run_performance', False) and not os.environ.get("RUNNER_MPROF_ACTIVE"):
+        os.environ["RUNNER_MPROF_ACTIVE"] = "1"
+        import shutil
+        mprof_cmd = shutil.which("mprof")
+        if not mprof_cmd:
+            logging.error("mprof command not found! Cannot run memory profiling. Please ensure memory_profiler is installed.")
+            sys.exit(1)
+        
+        output_dir = getattr(args, 'output_path', 'output/')
+        output_file = getattr(args, 'output_file', 'test.coffea')
+        os.makedirs(output_dir, exist_ok=True)
+        
+        username = os.environ.get("USER", "barista")
+        dat_dir = f"/tmp/{username}"
+        os.makedirs(dat_dir, exist_ok=True)
+        base_name = os.path.splitext(output_file)[0]
+        mprofile_dat = os.path.join(dat_dir, f"mprofile_{base_name}.dat")
+        mprofile_png = os.path.join(output_dir, "performance", f"mprofile_{base_name}.png")
+        os.makedirs(os.path.dirname(mprofile_png), exist_ok=True)
+        
+        clean_argv = [arg for arg in sys.argv if arg != "--run-performance"]
+        run_cmd = [mprof_cmd, "run", "-C", "-o", mprofile_dat, sys.executable] + clean_argv
+        
+        logging.info(f"Running performance profiling: {' '.join(run_cmd)}")
+        import subprocess
+        res = subprocess.run(run_cmd)
+        
+        if res.returncode == 0 and os.path.exists(mprofile_dat):
+            logging.info("Generating performance plot...")
+            plot_cmd = [mprof_cmd, "plot", "-o", mprofile_png, mprofile_dat]
+            subprocess.run(plot_cmd)
+            logging.info(f"Performance plot created successfully: {mprofile_png}")
+            
+        sys.exit(res.returncode)
 
-    if args.start_cluster_daemon:
+    # 3. Setup environment and check proxy (porting functionalities from run-analysis-processor.sh)
+    setup_environment(args)
+    
+    # Check if we should setup/verify the grid proxy
+    if not getattr(args, 'not_do_proxy', False):
+        check_and_setup_proxy(args)
+    else:
+        logging.info("Proxy setup skipped (--not-do-proxy / not_do_proxy: true)")
+
+    # Print reproducibility details
+    print_reproducibility_info(args)
+
+    # 4. Handle start_cluster_daemon mode (Daemon process setup)
+    if getattr(args, 'start_cluster_daemon', False):
         logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
         configs = yaml.safe_load(open(args.configs, 'r'))
-        if not 'config' in configs: configs['config'] = {}
+        if not 'config' in configs:
+            configs['config'] = {}
         with open("src/physics/corrections.yml", "r") as f:
             corrections_metadata = yaml.safe_load(f)
         configs['config']['corrections_metadata'] = corrections_metadata
         config_runner = configs['runner'] if 'runner' in configs.keys() else {}
         args.shared_dask = True
         setup_config_defaults(config_runner, args)
-        if args.dashboard_address is not None:
+        if getattr(args, 'dashboard_address', None) is not None:
             config_runner['dashboard_address'] = args.dashboard_address
-        if args.worker_memory is not None:
+        if getattr(args, 'worker_memory', None) is not None:
             config_runner['worker_memory'] = args.worker_memory
-        if args.slurm_qos is not None:
+        if getattr(args, 'slurm_qos', None) is not None:
             config_runner['slurm_qos'] = args.slurm_qos
         if config_runner['dashboard_address'] != 0:
             requested = config_runner['dashboard_address']
@@ -1579,37 +925,90 @@ if __name__ == '__main__':
         setup_schema(config_runner)
 
         args.run_dask = True
-        client, cluster = setup_shared_dask_client(args, config_runner)
+        client, cluster = setup_shared_dask_client(args, config_runner, WorkerInitializer)
         sys.exit(0)
 
-    # Load configuration and metadata files
+    # 5. Load configuration and metadata files
+    logging.info(">>> Checking and creating output directory")
+    logging.info(f"Output directory: {args.output_path}")
+    if args.output_path and not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
     configs = yaml.safe_load(open(args.configs, 'r'))
 
-    if not 'config' in configs: configs['config'] = {}
-    # Add corrections_metadata to configs
+    # Apply config overrides
+    if getattr(args, 'config_overrides', None):
+        logging.info(">>> Applying config overrides")
+        if not 'config' in configs:
+            configs['config'] = {}
+        for key, val in args.config_overrides.items():
+            orig_val = configs['config'].get(key, '<Not Set>')
+            configs['config'][key] = val
+            print(f"  Override: config.{key} = {val} (original: {orig_val})")
+
+    logging.info(">>> Modifying config")
+    print(yaml.dump(configs, default_flow_style=False))
+
+    if not 'config' in configs:
+        configs['config'] = {}
+    
+    # Load corrections_metadata
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
     with open("src/physics/corrections.yml", "r") as f:
         corrections_metadata = yaml.safe_load(f)
     configs['config']['corrections_metadata'] = corrections_metadata
 
-    if args.systematics:
+    # Handle blinding (replaces sed configuration patches)
+    if getattr(args, 'blind', False):
+        logging.info("Blinding SR region: setting blind = True in configuration")
+        configs['config']['blind'] = True
+
+    if getattr(args, 'systematics', None):
         logging.info(f"Systematics to run: {args.systematics}")
         configs['config']['run_systematics'] = args.systematics
 
-    logging.info(f"Loading datasets metadata from: {args.metadata}")
-    # load all .yml files in given metadata directory
-    if os.path.isdir(args.metadata):
-        files= [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
-        datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
+    # Load datasets metadata (supports multiple files merging)
+    if getattr(args, 'datasets_metadata_files', None):
+        logging.info(">>> Merging datasets metadata files")
+        merged_datasets = {}
+        for fpath in args.datasets_metadata_files:
+            print(f"  Loading: {fpath}")
+            with open(fpath, 'r') as f:
+                f_data = yaml.safe_load(f)
+                if isinstance(f_data, dict):
+                    if 'datasets' in f_data:
+                        merged_datasets.update(f_data['datasets'])
+                    else:
+                        merged_datasets.update(f_data)
+        datasets = {'datasets': merged_datasets}
+        print(f"Merged datasets metadata: loaded {len(merged_datasets)} top-level dataset keys.")
     else:
-        #backward compatibility if .yml file is directly provided
-        datasets = yaml.safe_load(open(args.metadata, 'r'))
-        if isinstance(datasets, dict) and 'datasets' not in datasets:
-            datasets = {'datasets': datasets}
+        logging.info(f"Loading datasets metadata from: {args.metadata}")
+        if os.path.isdir(args.metadata):
+            files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
+            datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
+        else:
+            datasets = yaml.safe_load(open(args.metadata, 'r'))
+            if isinstance(datasets, dict) and 'datasets' not in datasets:
+                datasets = {'datasets': datasets}
 
+    # Apply dataset exclusions/filters
+    if getattr(args, 'datasets_filter', None):
+        logging.info(">>> Applying dataset exclusions")
+        datasets = apply_datasets_filter(datasets, args.datasets_filter)
+        logging.info(">>> Modified Datasets Structure:")
+        summary_lines = []
+        for k, v in datasets.get('datasets', {}).items():
+            if isinstance(v, dict):
+                years = [y for y in v.keys() if y not in ['xs', 'nSamples', 'type', 'label', 'xsec', 'color']]
+                summary_lines.append(f"  - {k}: years={years}")
+            else:
+                summary_lines.append(f"  - {k}: {type(v)}")
+        print("\n".join(summary_lines))
 
+    # Load triggers and luminosities metadata
     logging.info(f"Loading triggers metadata from: {args.triggers}")
     triggers = yaml.safe_load(open(args.triggers, 'r'))
 
@@ -1618,7 +1017,8 @@ if __name__ == '__main__':
 
     metadata = {**datasets, **triggers, **luminosities}
 
-    if args.storage_remap:
+    # Apply storage remappings if provided
+    if getattr(args, 'storage_remap', None):
         logging.info(f"Applying storage remaps from: {args.storage_remap}")
         with open(args.storage_remap, 'r') as f:
             remap_config = yaml.safe_load(f)
@@ -1629,18 +1029,16 @@ if __name__ == '__main__':
 
     logging.info("Successfully loaded all metadata files")
 
-    # Per-year friends are loaded and injected after the processor class is known (see below)
-
-    # Setup configuration
+    # 6. Setup runner configuration defaults
     logging.info("Setting up configuration defaults...")
     config_runner = configs['runner'] if 'runner' in configs.keys() else {}
     setup_config_defaults(config_runner, args)
-    if args.dashboard_address is not None:
+    
+    if getattr(args, 'dashboard_address', None) is not None:
         config_runner['dashboard_address'] = args.dashboard_address
-
-    if args.worker_memory is not None:
+    if getattr(args, 'worker_memory', None) is not None:
         config_runner['worker_memory'] = args.worker_memory
-    if args.slurm_qos is not None:
+    if getattr(args, 'slurm_qos', None) is not None:
         config_runner['slurm_qos'] = args.slurm_qos
 
     if config_runner['dashboard_address'] != 0:
@@ -1651,7 +1049,7 @@ if __name__ == '__main__':
     setup_schema(config_runner)
     logging.info(f"Configuration setup complete. Data tier: {config_runner['data_tier']}, Schema: {config_runner['schema'].__name__}")
 
-    # Process datasets
+    # 7. Process datasets to build fileset
     logging.info(f"Starting dataset processing for {len(args.years)} year(s) and {len(args.datasets)} dataset(s)")
     metadata_dataset = {}
     fileset = {}
@@ -1661,7 +1059,6 @@ if __name__ == '__main__':
         for dataset in args.datasets:
             logging.info(f"Processing dataset: {dataset}")
 
-            # Find matching dataset
             matched_dataset = find_matching_dataset(dataset, metadata)
             if matched_dataset is None:
                 logging.warning(f"Skipping dataset {dataset} - no match found")
@@ -1671,11 +1068,9 @@ if __name__ == '__main__':
                 logging.warning(f"Skipping {dataset} for {year} - year not available in metadata")
                 continue
 
-            # Determine dataset type and cross-section
             dataset_type = get_dataset_type(matched_dataset)
             xsec = calculate_cross_section(matched_dataset, dataset_type, metadata, year)
             logging.info(f"Dataset type: {dataset_type}, Cross-section: {xsec}")
-
 
             metadata_dataset[matched_dataset] = {
                 'year': year,
@@ -1684,7 +1079,7 @@ if __name__ == '__main__':
                 'lumi': float(metadata['luminosities'][year]),
                 'trigger': metadata['triggers'][year],
             }
-            # Main dataset processing logic
+
             if dataset_type == 'mc':
                 process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
             elif dataset_type == 'mixed_data':
@@ -1710,79 +1105,67 @@ if __name__ == '__main__':
             elif dataset_type == 'data':
                 process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
 
-    # Summary of processed datasets
     logging.info(f"Dataset processing complete. Total datasets in fileset: {len(fileset)}")
     logging.debug(f"fileset is {pretty_repr(fileset)}")
     if fileset:
         total_files = sum(len(dataset_info['files']) for dataset_info in fileset.values())
         logging.info(f"Total files across all datasets: {total_files}")
 
-    # Setup compute environment
+    # 8. Setup compute environment (Standalone Dask/HTCondor/SLURM clusters or local thread pool)
     logging.info("Setting up compute environment...")
     client = None
     pool = None
     cluster = None
 
-    # Register cleanup function to run at  exit
     atexit.register(cleanup_temp_condor_dir)
 
-    # Setup compute environment
-    logging.info("Setting up compute environment...")
-    client = None
-    pool = None
-    cluster = None
-
-    if args.condor or args.slurm or args.scheduler_address or args.run_dask:
+    if getattr(args, 'condor', False) or getattr(args, 'slurm', False) or getattr(args, 'scheduler_address', None) or getattr(args, 'run_dask', False):
         args.run_dask = True
-        if args.shared_dask:
+        if getattr(args, 'shared_dask', False):
             logging.info("Configuring shared Dask cluster client...")
-            client, cluster = setup_shared_dask_client(args, config_runner)
+            client, cluster = setup_shared_dask_client(args, config_runner, WorkerInitializer)
         else:
-            if args.scheduler_address:
+            if getattr(args, 'scheduler_address', None):
                 logging.info(f"Connecting to explicit Dask scheduler at {args.scheduler_address}...")
-                from distributed import Client
+                from dask.distributed import Client
                 client = Client(args.scheduler_address)
                 cluster = None
-            elif args.condor:
+            elif getattr(args, 'condor', False):
                 logging.info("Configuring standalone LPCCondorCluster...")
+                from src.runner.cluster import create_code_tarball
                 tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
                 client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
-            elif args.slurm:
+            elif getattr(args, 'slurm', False):
                 logging.info("Configuring standalone SLURMCluster...")
                 client, cluster = setup_slurm_cluster(config_runner)
-            elif args.run_dask:
+            elif getattr(args, 'run_dask', False):
                 logging.info("Configuring standalone LocalCluster...")
                 client, cluster = setup_local_cluster(config_runner)
     else:
         logging.info("Configuring local process pool execution...")
-        # Setup process pool for futures executor
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         pool = ProcessPoolExecutor(max_workers=config_runner['workers'], initializer=worker_initializer.setup)
         logging.info(f"Process pool created with {config_runner['workers']} workers")
 
-
-    # Register worker plugin if using Dask and we did not connect to a shared daemon
-    if client is not None and (not args.shared_dask or args.start_cluster_daemon or args.scheduler_address):
+    if client is not None and (not getattr(args, 'shared_dask', False) or getattr(args, 'start_cluster_daemon', False) or getattr(args, 'scheduler_address', None)):
         logging.info("Registering worker plugin for Dask client...")
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
 
-    # Setup executor
+    # 9. Setup executor and load processor class
     logging.info("Setting up processor executor...")
     executor, executor_args = setup_executor(config_runner, args, client, pool)
-
     logging.info(f"Executor arguments:")
     logging.info(pretty_repr(executor_args))
 
-    # Setup processor
     logging.info("Loading processor class...")
     processor_name = args.processor.split('.')[0].replace("/", '.')
     analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
-    # Inject per-year friends as defaults into config.friends if the processor accepts them
+    # Inject per-year friends
     year_friends = {}
-    if args.friends and 'friends' in inspect.signature(analysis_class.__init__).parameters:
+    if getattr(args, 'friends', None) and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
         friends_by_year = yaml.safe_load(open(args.friends, 'r')).get('friends', {})
         for year in args.years:
@@ -1795,34 +1178,24 @@ if __name__ == '__main__':
             configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
             logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
 
-    # Forward weights file path to processor if accepted
-    if args.weights and 'weights' in inspect.signature(analysis_class.__init__).parameters:
+    # Inject per-year weights if specified and accepted by the processor
+    if getattr(args, 'weights', None) and 'weights' in inspect.signature(analysis_class.__init__).parameters:
+        logging.info(f"Loading weights metadata from: {args.weights}")
         configs.setdefault('config', {})['weights'] = args.weights
 
-    # Log fileset information
     logging.info(f"Final fileset contains {len(fileset)} datasets:")
-    logging.debug(f" and is {pretty_repr(fileset)}")
-    for dataset_key in sorted(fileset.keys()):
-        logging.info(f"  - {dataset_key}: {len(fileset[dataset_key]['files'])} files")
+    print("\n".join(f"  - {dk}: {len(fileset[dk]['files'])} files" for dk in sorted(fileset.keys())))
 
-    logging.debug(f"Detailed fileset:")
-    logging.debug(pretty_repr(fileset))
-
-    # Start job execution
+    # 10. Execute the job
     logging.info("=" * 60)
     logging.info("STARTING JOB EXECUTION")
     logging.info("=" * 60)
     tstart = time.time()
 
-    #
-    # Run dask performance only in dask jobs
-    #
-    if args.run_dask:
+    if getattr(args, 'run_dask', False):
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
-        # Don't let the report's teardown RPC (which can hit a reset connection on
-        # a shared scheduler) crash an already-finished job.
         _cm = performance_report(filename=dask_report_file)
         _cm.__enter__()
         _exc = None
@@ -1837,7 +1210,6 @@ if __name__ == '__main__':
             except Exception as e:
                 logging.warning(f"Dask performance report teardown failed (does not change job outcome): {type(e).__name__}: {e}")
 
-        # Cleanup cluster and client
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:
             if obj is not None:
@@ -1852,7 +1224,7 @@ if __name__ == '__main__':
         logging.info("Starting local job execution...")
         run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
 
-    # Final cleanup
+    # 11. Final cleanups and NFS synchronization
     if pool is not None:
         logging.info("Shutting down process pool...")
         pool.shutdown(wait=True)
@@ -1861,5 +1233,8 @@ if __name__ == '__main__':
     logging.info("=" * 60)
     logging.info("JOB EXECUTION COMPLETED SUCCESSFULLY")
     logging.info("=" * 60)
-    # Trigger CI pipeline run: Option 2 implementation
+
+    # Sync and sleep to flush NFS writes before exiting
+    sync_nfs_writes()
+    # Trigger CI pipeline rerun
     os._exit(0)

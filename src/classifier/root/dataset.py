@@ -70,7 +70,8 @@ class _chunk_dumper:
         with Friend(name=self.name).auto_dump(
             base_path=self.base_path, naming=self.naming
         ) as friend:
-            friend.add(self.chunk, self.method(batch))
+            data = self.method(batch)
+            friend.add(self.chunk, data)
             return friend
 
     def new(self, chunk: Chunk, name: str):

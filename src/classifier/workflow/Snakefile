@@ -30,10 +30,11 @@ WFS_BASE                = config["wfs_base"]
 OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
 PLOT_INPUTS             = bool(config.get("plot_inputs", False))
 PLOT_WEIGHTS            = bool(config.get("plot_weights", False))
+EVALUATE                = bool(config.get("evaluate", True))
 
 MODEL          = _r(config["model"])
 TRAIN_TEMPLATE = _r(config["train_template"])
-EVAL_TEMPLATE  = _r(config["eval_template"])
+EVAL_TEMPLATE  = _r(config.get("eval_template", ""))
 METADATA       = config.get("metadata", "")
 FRIEND         = _r(config.get("friend", ""))
 
@@ -50,10 +51,12 @@ INIT = "set -e && set +u && source /entrypoint.sh && set -u && export PYTHONUNBU
 
 
 def _all_targets():
-    targets = [
-        f"{OUTPUT_DIR}/evaluate.done",
-        f"{OUTPUT_DIR}/analyze.done",
-    ]
+    targets = [f"{OUTPUT_DIR}/train.done"]
+    if EVALUATE:
+        targets += [
+            f"{OUTPUT_DIR}/evaluate.done",
+            f"{OUTPUT_DIR}/analyze.done",
+        ]
     if PLOT_INPUTS:
         targets += [
             f"{OUTPUT_DIR}/plot_inputs_raw.done",
@@ -77,9 +80,10 @@ rule train:
         f"{OUTPUT_DIR}/train.log",
     container: CLASSIFIER
     resources:
-        runtime = 240,
+        runtime = 1440,
         mem_mb  = 32000,
-        gres    = "mps:30",
+        gres    = "mps:25",
+        qos     = "light",
     threads: 4
     params:
         init                    = INIT,
@@ -91,7 +95,7 @@ rule train:
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
-        ./src/pyml.py \
+        python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
             -from {params.wfs_base}/../common.yml \
             -setting Monitor "address: '127.0.0.1:$PORT'" \
@@ -123,7 +127,7 @@ rule analyze:
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
-        ./src/pyml.py analyze \
+        python -m src.classifier.task.main analyze \
             --results {params.model}/result.json \
             -analysis HCR.LossROC \
             -setting IO "output: {params.plot}" \
@@ -146,6 +150,7 @@ rule evaluate:
         runtime = 240,
         mem_mb  = 32000,
         gres    = "mps:30",
+        qos     = "medium",
     threads: 4
     params:
         init                    = INIT,
@@ -157,7 +162,7 @@ rule evaluate:
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
-        ./src/pyml.py \
+        python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
             -from {params.wfs_base}/../common.yml \
             -setting Monitor "address: '127.0.0.1:$PORT'" \

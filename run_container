@@ -46,45 +46,6 @@ add_x509_proxy_flags() {
             local PROXY="${PWD}/proxy/x509_proxy"
             mkdir -p proxy
             
-            # Construct apptainer flags for proxy operations
-            local PROXY_FLAGS=( -B "${HOME}/.globus:${HOME}/.globus" )
-            if [[ "${PWD}" != "${HOME}"* ]]; then
-                PROXY_FLAGS+=( -B "${PWD}:${PWD}" --pwd "${PWD}" )
-            fi
-            if [ -d "/cvmfs/grid.cern.ch/etc/grid-security/certificates" ]; then
-                PROXY_FLAGS+=( -B /cvmfs --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates )
-            fi
-
-            # Check if proxy is valid
-            local PROXY_VALID=false
-            if command -v voms-proxy-info >/dev/null 2>&1; then
-                if voms-proxy-info --file "$PROXY" --exists -valid 6:00 &>/dev/null; then
-                    PROXY_VALID=true
-                fi
-            else
-                if "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-info --file "$PROXY" --exists -valid 6:00 &>/dev/null; then
-                    PROXY_VALID=true
-                fi
-            fi
-
-            if [ "$PROXY_VALID" = false ]; then
-                if [ ! -t 0 ]; then
-                    error "No valid Grid proxy found at $PROXY and stdin is not a TTY. Please initialize the proxy interactively by running run_container once from the login node before submitting batch jobs."
-                    exit 1
-                fi
-                if command -v voms-proxy-init >/dev/null 2>&1; then
-                    voms-proxy-init -voms cms -valid 192:00 -out "$PROXY"
-                else
-                    info "Host does not have voms-proxy-init. Attempting to generate proxy using the container..."
-                    if [[ "$CLUSTER_PROFILE" == "bridges2" ]]; then
-                        warning "On Bridges 2, generating proxy inside the container without VOMS attributes to avoid OOM-kill."
-                        "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-init -valid 192:00 -out "$PROXY"
-                    else
-                        "${APPTAINER_CMD:-apptainer}" exec "${PROXY_FLAGS[@]}" "$COFFEA_IMAGE" voms-proxy-init -voms cms -valid 192:00 -out "$PROXY"
-                    fi
-                fi
-            fi
-
             if [ -f "$PROXY" ]; then
                 FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
             fi
@@ -598,7 +559,7 @@ exit(1)
             if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" "$@"
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=3800M "$0" "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
             fi
@@ -755,7 +716,7 @@ run_coffea_dev() {
             if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=4000M "$0" dev "$@"
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=3800M "$0" dev "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
             fi
@@ -928,7 +889,7 @@ run_snakemake() {
             info "Not in a job on Bridges-2. Launching Snakemake scheduler inside interactive Slurm session..."
             local ACCOUNT_ARG=()
             [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-            exec srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=04:00:00 --cpus-per-task=2 --mem=8000M "$0" snakemake "$@"
+            exec srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=04:00:00 --cpus-per-task=4 --mem=7800M "$0" snakemake "$@"
         fi
     fi
 
@@ -1006,7 +967,7 @@ run_snakemake() {
         # Falcon uses a default account with no partition association, so skip it
         local PROFILE_NAME
         PROFILE_NAME=$(basename "$ACTIVE_PROFILE_DIR")
-        if [[ "$PROFILE_NAME" != "falcon" ]]; then
+        if [[ "$PROFILE_NAME" != "falcon" && "$PROFILE_NAME" != "bridges2" ]]; then
             info "Auto-injecting Slurm account: $USER"
             ARGS+=("--default-resources" "slurm_account=$USER")
         fi
