@@ -295,7 +295,20 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
 
         def _merge_naming(path0, path1, name, **_):
             dir_name = path1_to_dataset.get(path1, path1)
-            return f'{dir_name}/{path0.replace("picoAOD", name)}'
+            fname = path0.replace("picoAOD", name)
+            # When several source era-dirs collapse into a single dataset dir
+            # (dir_name != path1 — e.g. a synthetic sample folds
+            # data_2022_preEEB/C/D into one syn_noTT_v0_2022_preEE), the
+            # source picoAODs share a basename (picoAOD_seed0.root), so the
+            # friend filenames (SvB_seed0.root) would collide and silently
+            # overwrite each other — only the last chunk survives on disk while
+            # the index still records every intended per-chunk UUID. Prefix the
+            # source era to keep them unique. When the era dir is preserved
+            # (dir_name == path1 — e.g. mixeddata), basenames are already unique
+            # per era, so the historical name is kept byte-for-byte.
+            if dir_name != path1:
+                fname = f'{path1}_{fname}'
+            return f'{dir_name}/{fname}'
 
         merge_kw = {
             'step': config_runner["friend_merge_step"],
