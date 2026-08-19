@@ -70,17 +70,23 @@ if __name__ == '__main__':
         'sumw_raw', 'sumw2_raw',
     }
 
-    # Expand any directories in files_to_add to their contained YAML files
+    # Expand any directories in files_to_add to their contained YAML files,
+    # including YAML files one level deep in subdirectories
     expanded_files = []
     for entry in args.files_to_add:
         if os.path.isdir(entry):
-            expanded_files.extend(
-                sorted(
-                    os.path.join(entry, f)
-                    for f in os.listdir(entry)
-                    if f.endswith(('.yml', '.yaml'))
-                )
-            )
+            found = []
+            for f in os.listdir(entry):
+                path = os.path.join(entry, f)
+                if os.path.isdir(path):
+                    found.extend(
+                        os.path.join(path, sub)
+                        for sub in os.listdir(path)
+                        if sub.endswith(('.yml', '.yaml'))
+                    )
+                elif f.endswith(('.yml', '.yaml')):
+                    found.append(path)
+            expanded_files.extend(sorted(found))
         else:
             expanded_files.append(entry)
 
