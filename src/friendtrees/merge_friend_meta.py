@@ -51,6 +51,29 @@ def merge_friend_metas(output: PathLike, *metafiles: PathLike, cleanup: bool = T
             )
         for friend in friends:
             anchor = anchors[friend.name][1]
+            if anchor._branches != friend._branches:
+                only_anchor = sorted(anchor._branches - friend._branches)
+                only_new = sorted(friend._branches - anchor._branches)
+                print(f'Branch mismatch for friend "{friend.name}":')
+                if only_anchor:
+                    print(f'  missing in "{metafile}": {only_anchor}')
+                if only_new:
+                    print(f'  missing in "{metafiles[0]}": {only_new}')
+                try:
+                    answer = ""
+                    while answer not in ("yes", "no"):
+                        answer = input(
+                            "continue merge without this branch? type 'yes' or 'no': "
+                        ).strip().lower()
+                except EOFError:
+                    answer = "no"
+                if answer != "yes":
+                    raise ValueError(
+                        f'merge aborted: friend "{friend.name}" has different branches'
+                    )
+                common = anchor._branches & friend._branches
+                anchor._branches = common
+                friend._branches = common
             anchor += friend
             updated.add(friend.name)
     for name in updated:
