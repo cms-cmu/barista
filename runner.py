@@ -100,7 +100,8 @@ from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, s
 from src.runner.dataset import (
     apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
-    process_data_dataset, add_fvt_metadata, apply_datasets_filter
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter,
+    expand_directory_files, list_of_files
 )
 from src.runner.orchestrator import (
     setup_schema, setup_executor, run_job, find_free_port, setup_config_defaults, setup_pico_base_name
