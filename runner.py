@@ -5,13 +5,52 @@ import os
 import sys
 import time
 import atexit
+
 import yaml
 import importlib
 import inspect
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
-from rich.pretty import pretty_repr
+import shutil
+
 from omegaconf import OmegaConf
+from src.utils.addhash import get_git_diff, get_git_revision_hash, find_git_root
+from coffea import processor
+from coffea.dataset_tools import rucio_utils
+from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
+
+# Patch for SITECONF storage.json entries that use 'site' instead of 'rse'
+# (seen after a SITECONF format change; coffea's get_xrootd_sites_map assumes 'rse' always present)
+_orig_get_xrootd_sites_map = rucio_utils.get_xrootd_sites_map
+def _patched_get_xrootd_sites_map():
+    import coffea.dataset_tools.rucio_utils as _ru
+    _orig_json_load = _ru.json.load
+    def _safe_json_load(f):
+        data = _orig_json_load(f)
+        for entry in data:
+            if 'rse' not in entry and 'site' in entry:
+                entry['rse'] = entry['site']
+        return data
+    _ru.json.load = _safe_json_load
+    try:
+        # Retry on corrupt/empty .sites_map.json: a concurrent job may be
+        # mid-write of the cache file when we read it
+        for attempt in range(5):
+            try:
+                return _orig_get_xrootd_sites_map()
+            except json.JSONDecodeError:
+                if attempt == 4:
+                    raise
+                time.sleep(2 + 2 * attempt)
+    finally:
+        _ru.json.load = _orig_json_load
+rucio_utils.get_xrootd_sites_map = _patched_get_xrootd_sites_map
+
+from coffea.util import save
+from dask.distributed import performance_report
+from distributed.diagnostics.plugin import WorkerPlugin, SchedulerPlugin
+from rich.logging import RichHandler
+from rich.pretty import pretty_repr
 import copy
 
 # Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
@@ -410,6 +449,11 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
     """Monitor connected clients and active tasks, shut down when idle."""
     logging.info("Dask cluster daemon monitoring loop started.")
     idle_start = None
+<<<<<<< HEAD
+=======
+    seen_client = False
+    startup_deadline = time.time() + max(idle_timeout * 3, 1800)
+>>>>>>> 368c296a (add multiple attempts for xrootd read)
 
     while True:
         try:
@@ -417,6 +461,10 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
             scheduler_info = client.scheduler_info()
 
             # Count connected clients, excluding this daemon client itself
+<<<<<<< HEAD
+=======
+
+>>>>>>> 368c296a (add multiple attempts for xrootd read)
             try:
                 def get_active_clients(dask_scheduler):
                     return [c for c in dask_scheduler.clients.keys() if c != 'fire-and-forget']
@@ -426,6 +474,12 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
                 logging.error(f"Error querying clients on scheduler: {e}")
                 connected_clients = scheduler_info.get('clients', {})
                 active_clients = max(0, len(connected_clients) - 1)
+<<<<<<< HEAD
+=======
+
+            connected_clients = scheduler_info.get('clients', {})
+            active_clients = max(0, len(connected_clients) - 1)
+>>>>>>> 368c296a (add multiple attempts for xrootd read)
 
             # Query number of processing tasks
             processing_tasks = client.processing()
