@@ -7,7 +7,49 @@ from rich.pretty import pretty_repr
 
 import uproot
 import psutil
+import re
+import fnmatch
+import subprocess
+from urllib.parse import urlparse
 from coffea.dataset_tools import rucio_utils
+
+def _natural_sort_key(s: str):
+    """Sort strings containing numbers in human/natural order."""
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+def expand_directory_files(directory_path: str, pattern: str = "*.root") -> list[str]:
+    """Recursively list all matching files in a local or remote XRootD directory."""
+    files = []
+    if directory_path.startswith("root://"):
+        parsed = urlparse(directory_path)
+        host = parsed.netloc
+        path = parsed.path
+        try:
+            cmd = ["xrdfs", host, "ls", "-R", path]
+            output = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                fname = os.path.basename(line)
+                if fname.endswith(".root") and fnmatch.fnmatch(fname, pattern):
+                    clean_line = line.lstrip('/')
+                    if directory_path.startswith(f"root://{host}//"):
+                        files.append(f"root://{host}//{clean_line}")
+                    else:
+                        files.append(f"root://{host}/{clean_line}")
+        except Exception as e:
+            logging.warning(f"Failed to list XRootD directory '{directory_path}' with xrdfs: {e}")
+    else:
+        clean_path = directory_path[7:] if directory_path.startswith("file://") else directory_path
+        clean_path = os.path.expanduser(clean_path)
+        for root_dir, _, filenames in os.walk(clean_path):
+            for fname in filenames:
+                if fname.endswith(".root") and fnmatch.fnmatch(fname, pattern):
+                    files.append(os.path.join(root_dir, fname))
+
+    files.sort(key=_natural_sort_key)
+    return files
 
 def checking_input_files(outfiles):
     '''Check if the input files are corrupted'''
@@ -43,6 +85,16 @@ def list_of_files(
     if isinstance(ifile, list):
         ifile = checking_input_files(ifile) if check_input_files else ifile
         return ifile[:(test_files if test else None)]
+    elif isinstance(ifile, dict):
+        dir_path = ifile.get('path', '')
+        pattern = ifile.get('pattern', '*.root')
+        file_list = expand_directory_files(dir_path, pattern=pattern)
+        file_list = checking_input_files(file_list) if check_input_files else file_list
+        return file_list[:(test_files if test else None)]
+    elif isinstance(ifile, str) and (ifile.endswith('/') or ifile.startswith('root://') or (ifile.startswith(('file://', '/')) and not ifile.endswith(('.root', '.txt')) and os.path.isdir(ifile))):
+        file_list = expand_directory_files(ifile)
+        file_list = checking_input_files(file_list) if check_input_files else file_list
+        return file_list[:(test_files if test else None)]
     elif ifile.endswith('.txt'):
         file_list = [
             jfile.rstrip() if jfile.startswith(('root','file')) else f'root://cmseos.fnal.gov/{jfile.rstrip()}' for jfile in open(ifile).readlines()]
