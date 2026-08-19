@@ -91,7 +91,7 @@ def list_of_files(
         file_list = expand_directory_files(dir_path, pattern=pattern)
         file_list = checking_input_files(file_list) if check_input_files else file_list
         return file_list[:(test_files if test else None)]
-    elif isinstance(ifile, str) and (ifile.endswith('/') or (ifile.startswith(('root://', 'file://', '/')) and not ifile.endswith(('.root', '.txt')))):
+    elif isinstance(ifile, str) and (ifile.endswith('/') or ifile.startswith('root://') or (ifile.startswith(('file://', '/')) and not ifile.endswith(('.root', '.txt')) and os.path.isdir(ifile))):
         file_list = expand_directory_files(ifile)
         file_list = checking_input_files(file_list) if check_input_files else file_list
         return file_list[:(test_files if test else None)]
