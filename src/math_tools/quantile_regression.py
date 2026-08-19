@@ -9,9 +9,14 @@ import re
 import pickle
 import tempfile
 import argparse
+from typing import Optional
 import numpy as np
 import awkward as ak
 from scipy.stats import norm
+try:
+    from numpy.typing import NDArray
+except ImportError:
+    NDArray = None  # annotations are never evaluated (PEP 563)
 try:
     # sklearn only supplies the (optional) estimator/transformer mixins; none of
     # the math below depends on it, so fall back to plain object if it's absent
@@ -29,8 +34,28 @@ plt.rcParams["figure.figsize"] = [8,8]
 plt.rcParams["font.size"] = 18
 
 REGIONS = ("nominal_4j2b", "lowpt_4j2b", "incl_3j2b")
-DEFAULT_N_BINS = 50   # starting number of equal-signal-yield bins (rescanned down)
-DEFAULT_MIN_NEFF = 10  # minimum effective unweighted background events per bin
+DEFAULT_MAX_BINS = 30    # k_max: maximum number of final bins the DP may choose
+DEFAULT_M_FINE = 250     # number of fine uniform-in-score bins the DP merges
+DEFAULT_MIN_NEFF = 10.5  # minimum effective unweighted background events per bin
+DEFAULT_Z2_MIN = 1e-5    # per-bin z^2 floor; forbids thin near-zero-signal bins
+DEFAULT_EPS = 0.01       # knee tolerance: smallest k within (1+eps) of best mu_UL
+
+# Major-background families whose yield must be strictly positive in every bin
+# (positivity constraint of the DP). Patterns are matched against dataset names.
+MAJOR_BKG_PATTERNS = {
+    'tt':    ('TTTo',),
+    'wjets': ('WtoLNu-2Jets',),
+    'tW':    ('TbarWplus', 'TWminus'),
+}
+
+
+def _major_bkg_group(dataset):
+    """Return the major-background family ('tt'/'wjets'/'tW') a dataset belongs
+    to, or None if it is not one of the constrained major backgrounds."""
+    for group, patterns in MAJOR_BKG_PATTERNS.items():
+        if any(p in dataset for p in patterns):
+            return group
+    return None
 
 # Filename pattern written by bbreww processor:
 #   phh_hist_{dataset}__{year}_{chunk_id}.pkl
@@ -41,7 +66,7 @@ class WeightedQuantileTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, n_quantiles=1000, output_distribution='normal'):
         self.n_quantiles = n_quantiles
         self.output_distribution = output_distribution
-    
+
     def save(self, filename):
         with open(filename, 'wb') as f:
             pickle.dump(np.array([self.quantiles_, self.reference_quantiles_]), f)
@@ -68,22 +93,22 @@ class WeightedQuantileTransformer(BaseEstimator, TransformerMixin):
         # Interpolate to get quantiles
         quantiles = np.interp(np.linspace(0, 1, self.n_quantiles), cum_weights, X_sorted)
         return quantiles
-    
+
     def fit(self, X, y=None, sample_weight=None):
         if sample_weight is None:
             raise ValueError("Sample weights must be provided.")
-        
+
         self.quantiles_ = self._weighted_quantiles(X, sample_weight)
-        
+
         if self.output_distribution == 'normal':
             self.reference_quantiles_ = norm.ppf(np.linspace(0, 1, self.n_quantiles))
         elif self.output_distribution == 'uniform':
             self.reference_quantiles_ = np.linspace(0, 1, self.n_quantiles)
         else:
             raise ValueError(f"Unknown output distribution '{self.output_distribution}'.")
-        
+
         return self
-    
+
     def transform(self, X):
         # Interpolate based on weighted quantiles (NaN inputs produce NaN outputs)
         transformed_X = np.where(
@@ -96,19 +121,19 @@ class WeightedQuantileTransformer(BaseEstimator, TransformerMixin):
 def plot_score(X, W, transformer, label, output_dir):
     transformed_score = transformer.transform(X)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
-    
+
     # Original score
     ax1.hist(X, weights=W, bins=100, histtype='step', label=label)
     ax1.set_xlabel("Original Score")
     ax1.set_ylabel("Counts")
     ax1.legend()
-    
+
     # Transformed score - use fixed 0-1 range to verify flatness
     ax2.hist(transformed_score, weights=W, bins=np.linspace(0, 1, 101), histtype='step', label=f"{label} transformed")
     ax2.set_xlabel("Transformed Score")
     ax2.set_ylabel("Counts")
     ax2.legend()
-    
+
     plt.tight_layout()
     plt.savefig(f"{output_dir}/{label}_score.png", dpi=300)
 
@@ -194,111 +219,353 @@ def split_signal_background(grouped):
     return _concat(sig), _concat(bkg)
 
 
-def _quantile_bin_edges(transformer, n_bins):
-    """Bin edges in original score space giving ~equal signal yield per bin."""
-    edges = np.interp(np.linspace(0, 1, n_bins + 1),
-                      transformer.reference_quantiles_, transformer.quantiles_)
-    # guarantee monotonic, cover full [0, 1]
-    edges[0] = min(edges[0], 0.0)
-    edges[-1] = max(edges[-1], 1.0)
-    return edges
+def split_background_by_process(grouped):
+    """Split the merged dataset dict into per-major-process background arrays.
 
-
-def count_underpopulated_bins(bkg_phh, bkg_w, bin_edges,
-                              min_neff_bkg=DEFAULT_MIN_NEFF):
-    """Count background bins whose effective unweighted count is below the floor.
-
-    For each bin the effective number of unweighted background events is
-
-        n_eff_i = b_i^2 / sigma_b_i^2 = (sum w)^2 / (sum w^2)
-
-    where b_i = sum of background weights in the bin and sigma_b_i^2 = sum of
-    squared weights (the MC statistical variance). A bin is "underpopulated" if
-    n_eff_i < `min_neff_bkg`. A bin with zero background (sigma_b_i^2 == 0) has
-    n_eff = 0 and is therefore counted.
-
-    Returns
-    -------
-    int
-        Number of background bins failing n_eff >= min_neff_bkg.
+    Returns {region: {group: {'phh': array, 'weight': array}}} where `group` is
+    one of the major-background families ('tt', 'wjets', 'tW') or 'other' for any
+    background dataset not matching a major family. Signal ('GluGlu') and data are
+    excluded. Used by the DP binning to enforce per-process positivity (constraint
+    a), which requires keeping the major backgrounds separate rather than summed.
     """
-    b, _     = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w)
-    b_var, _ = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w ** 2)
-    n_eff = np.where(b_var > 0, b ** 2 / np.where(b_var > 0, b_var, 1.0), 0.0)
-    return int(np.sum(n_eff < min_neff_bkg))
+    groups = list(MAJOR_BKG_PATTERNS.keys()) + ['other']
+    out = {r: {g: {'phh': [], 'weight': []} for g in groups} for r in REGIONS}
+    for dataset, regions in grouped.items():
+        name_lc = dataset.lower()
+        if 'data' in name_lc or 'GluGlu' in dataset:
+            continue
+        group = _major_bkg_group(dataset) or 'other'
+        for region, arrs in regions.items():
+            out[region][group]['phh'].append(arrs['phh'])
+            out[region][group]['weight'].append(arrs['weight'])
+    return {r: {g: {k: (np.concatenate(v) if v else np.array([]))
+                    for k, v in arrs.items()}
+                for g, arrs in gd.items()}
+            for r, gd in out.items()}
 
 
-def optimize_n_bins(transformer, bkg_phh, bkg_w,
-                    n_bins_start=DEFAULT_N_BINS, min_neff_bkg=DEFAULT_MIN_NEFF):
-    """Choose the number of equal-signal-probability bins, top-down.
+# ── DP binning: maximize Sum z^2 over k contiguous bins ───────────────────────
+# Implements the HH-combine binning strategy: partition a finely-binned score
+# axis into at most k_max bins maximizing Z_A^2 = Sum s^2/(s+b+sigma_s^2+sigma_b^2)
+# subject to per-bin constraints, then pick the smallest k whose estimated
+# mu_UL = 1 + 1.64/sqrt(Z_A^2) is within (1+eps) of the best.
 
-    Implements the HH-combine quantile-rebinning procedure:
+_DP_NEG = -1e18
 
-        1. Start with `n_bins_start` quantile bins (equal signal yield per bin,
-           via the fitted `transformer`).
-        2. Rebin the background with those edges and check that every background
-           bin has n_eff = (sum w)^2/(sum w^2) >= `min_neff_bkg`.
-        3. If any bin fails, decrement n_bins by one and repeat from step 1.
-        4. Stop at the first (finest) n_bins where all bins pass, or at n_bins=1.
 
-    This is fully deterministic: the chosen binning is the finest one the
-    background MC statistics can support at the given floor. No significance or
-    other figure of merit is involved.
+def _extract_dp_arrays(
+    sig_phh: NDArray, sig_w: NDArray, bkg_phh: NDArray, bkg_w: NDArray,
+    m_fine: int
+) -> tuple[NDArray, NDArray, NDArray, NDArray, NDArray]:
+    '''
+    Histogram the signal and background event arrays onto `m_fine` uniform fine
+    bins on [0, 1]. Returns per-fine-bin signal yield s, background yield b,
+    background variance vb (sum w^2), signal variance vs, and the fine bin edges.
+    '''
+    bin_edges = np.linspace(0.0, 1.0, m_fine + 1)
+    s, _  = np.histogram(sig_phh, bins=bin_edges, weights=sig_w)
+    vs, _ = np.histogram(sig_phh, bins=bin_edges, weights=sig_w ** 2)
+    b, _  = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w)
+    vb, _ = np.histogram(bkg_phh, bins=bin_edges, weights=bkg_w ** 2)
+    return s, b, vb, vs, bin_edges
 
-    Returns
-    -------
-    dict
-        {'results': [(n_bins, n_bad), ...] from n_bins_start down to the chosen
-                     n (or 1), in descending order;
-         'n_bins_start': the starting n;
-         'best_n_bins': the chosen n_bins (None only if even n=1 fails)}
-    """
-    results = []  # list of (n_bins, n_bad), scanned high -> low
-    best_n = None
-    for n in range(n_bins_start, 0, -1):
-        edges = _quantile_bin_edges(transformer, n)
-        n_bad = count_underpopulated_bins(bkg_phh, bkg_w, edges,
-                                          min_neff_bkg=min_neff_bkg)
-        results.append((n, n_bad))
-        if n_bad == 0:
-            best_n = n
-            break  # finest valid binning found (scanning downward)
-    return {
-        'results': results,
-        'n_bins_start': n_bins_start,
-        'best_n_bins': best_n,
-    }
 
+def _build_segment_tables(
+    s: NDArray, b: NDArray, vb: NDArray, vs: NDArray,
+    neff_thresh: float, z2_min: float, pos_prefix: list[NDArray]
+) -> tuple[list, list]:
+    '''
+    Per-segment z^2 and feasibility tables for the DP.
+
+    For every `end` in [1, nbins], seg_z2[end][start] is the z^2 of the merged
+    segment [start, end) and seg_ok[end][start] its feasibility:
+        z^2  = s^2 / (s + b + sigma_s^2 + sigma_b^2)
+        ok   = (neff = b^2/sigma_b^2 >= neff_thresh)
+             & (z^2 >= z2_min)
+             & (every pos_prefix process has yield > 0 over the segment)
+    All quantities are computed from prefix sums, so building the tables is
+    O(nbins^2) with vectorized inner arrays.
+    '''
+    nbins = len(s)
+    S  = np.concatenate([[0.0], np.cumsum(s)])
+    B  = np.concatenate([[0.0], np.cumsum(b)])
+    VS = np.concatenate([[0.0], np.cumsum(vs)])
+    VB = np.concatenate([[0.0], np.cumsum(vb)])
+    seg_z2 = [np.array([])] * (nbins + 1)
+    seg_ok = [np.array([], dtype=bool)] * (nbins + 1)
+    for end in range(1, nbins + 1):
+        starts = np.arange(end)
+        seg_s  = S[end]  - S[starts]
+        seg_b  = B[end]  - B[starts]
+        seg_vs = VS[end] - VS[starts]
+        seg_vb = VB[end] - VB[starts]
+        denom = seg_s + seg_b + seg_vs + seg_vb
+        z2 = np.where(denom > 0,
+                      seg_s ** 2 / np.where(denom > 0, denom, 1.0), 0.0)
+        neff = np.where(seg_vb > 0,
+                        seg_b ** 2 / np.where(seg_vb > 0, seg_vb, 1.0), 0.0)
+        ok = (neff >= neff_thresh) & (z2 >= z2_min)
+        for P in pos_prefix:
+            ok &= (P[end] - P[starts]) > 0
+        seg_z2[end] = z2
+        seg_ok[end] = ok
+    return seg_z2, seg_ok
+
+
+def _run_dp(
+    seg_z2: list[NDArray], seg_ok: list[NDArray],
+    max_bins: int, nbins: int
+) -> tuple[NDArray, NDArray]:
+    '''
+    DP forward pass: Build a table `best_total[k, end]` containing sum(z^2)
+    `[k, end]` represents the optimal partitioning of [0, end) fine bins into
+    `k` segments, using `seg_z2` and `seg_ok`. Hence, `best_total` is upper
+    -triangular. This is built from the starting point `best_total[0,0]=0.0`
+    iteratively.
+    `split[k, end]` it also built iteratively, and holds the optimal
+    starting bin number `start` for the final partition of `[0, end)` into `k`
+    bins. The full optimal bin edges can be extracted by recursively querying
+    `split[k, end]->split[k-1,split[k,end]]->...`.
+    '''
+    best_total = np.full((max_bins + 1, nbins + 1), _DP_NEG)
+    split = np.zeros((max_bins + 1, nbins + 1), dtype=int)
+    best_total[0, 0] = 0.0
+    for k in range(1, max_bins + 1):
+        prev_row = best_total[k - 1]
+        for end in range(1, nbins + 1):
+            candidates = np.where(
+                seg_ok[end], prev_row[:end] + seg_z2[end], _DP_NEG
+            )
+            start = int(np.argmax(candidates))
+            best_total[k, end] = candidates[start]
+            split[k, end] = start
+    return best_total, split
+
+
+def _select_k_at_knee(dp_curve: NDArray, eps: float) -> int:
+    '''
+    Knee selection on the estimated mu=1 upper limit mu_UL = 1 + 1.64/sqrt(Sum z2),
+    where 1.64 is the one-sided 95% normal quantile. Return the smallest feasible
+    k whose mu_UL is within (1+eps) of the best.
+    NaN entries from infeasible k fail the comparison.
+    '''
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ul_curve = 1.0 + 1.64 / np.sqrt(dp_curve)
+    ul_best = np.nanmin(ul_curve)
+    return int(np.argmax(ul_curve <= (1.0 + eps) * ul_best)) + 1 # First occurrence, minimum k
+
+
+def _backtrack_dp_boundaries(split: NDArray, k_best: int, nbins: int) -> list:
+    '''Walk the DP split table to recover the boundary fine-bin indices.'''
+    boundaries = [nbins]
+    end = nbins
+    for k in range(k_best, 0, -1):
+        end = split[k][end]
+        boundaries.append(end)
+    return boundaries[::-1]
+
+
+def _backtrack_dp_edges(split: NDArray, k_best: int, nbins: int, bin_edges: NDArray) -> NDArray:
+    '''Walk the DP split table to recover the boundary fine-bin indices as edge values.'''
+    boundaries = _backtrack_dp_boundaries(split, k_best, nbins)
+    quants = bin_edges[boundaries]
+    quants[0], quants[-1] = 0.0, 1.0
+    return quants
+
+
+def _sb_monotonicity_penalty(sb: NDArray) -> int:
+    '''
+    Departure from a monotonically increasing s/b spectrum. Walks the coarse bins
+    left to right, tracking a running streak of consecutive decreases: the first
+    decrease adds 1, a second consecutive decrease adds 2, and so on, so that long
+    downward runs are penalized more heavily than isolated dips.
+    '''
+    penalty = 0
+    streak = 0
+    for i in range(1, len(sb)):
+        if sb[i] < sb[i - 1]:
+            streak += 1
+            penalty += streak
+        else:
+            streak = 0
+    return penalty
+
+
+def _dp_sb_monotonicity_curve(
+    split: NDArray, dp_curve: NDArray, s: NDArray, b: NDArray, nbins: int
+) -> NDArray:
+    '''
+    s/b non-monotonicity penalty for the optimal partition at each bin count k.
+    Backtracks the DP split table for every feasible k, forms the per-coarse-bin
+    s/b spectrum, and scores it with _sb_monotonicity_penalty.  NaN where k is
+    infeasible.
+    '''
+    S = np.concatenate([[0.0], np.cumsum(s)])
+    B = np.concatenate([[0.0], np.cumsum(b)])
+    mono_curve = np.full(len(dp_curve), np.nan)
+    for k in range(1, len(dp_curve) + 1):
+        if np.isnan(dp_curve[k - 1]):
+            continue
+        bounds = np.array(_backtrack_dp_boundaries(split, k, nbins))
+        seg_s = S[bounds[1:]] - S[bounds[:-1]]
+        seg_b = B[bounds[1:]] - B[bounds[:-1]]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            sb = np.where(seg_b > 0, seg_s / seg_b, np.inf)
+        mono_curve[k - 1] = _sb_monotonicity_penalty(sb)
+    return mono_curve
+
+
+def plot_dp_ul_curve(
+    dp_curve: NDArray, k_best: int, eps: float, plot_path,
+    mono_curve: Optional[NDArray]=None
+) -> None:
+    '''
+    Diagnostic plot of the estimated mu=1 upper limit mu_UL = 1 + 1.64/sqrt(Sum z2)
+    versus the number of bins k.  Reference lines mark the (1+eps)*mu_UL_best knee
+    threshold and the selected k_best.  When mono_curve is given, a lower panel
+    shows the s/b non-monotonicity penalty versus k (0 = perfectly monotonic).
+    '''
+    ks = np.arange(1, len(dp_curve) + 1)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        mu_ul = 1.0 + 1.64 / np.sqrt(np.asarray(dp_curve, dtype=float))
+    ul_best = float(np.nanmin(mu_ul))
+
+    if mono_curve is None:
+        fig, ax = plt.subplots(figsize=(8, 6))
+    else:
+        fig, (ax, ax_mono) = plt.subplots(
+            2, 1, figsize=(8, 9), sharex=True,
+            gridspec_kw={'height_ratios': [2, 1]},
+        )
+
+    ax.plot(ks, mu_ul, 'o-')
+    ax.axhline((1.0 + eps) * ul_best, color='C1', ls=':',
+               label=f'{eps:.0%} degradation threshold')
+    ax.axvline(k_best, color='C3', ls='--', label=f'chosen $k$ = {k_best}')
+    ax.set_ylabel(r'estimated $\mu_{UL}$')
+    ax.set_ylim(0.98*ul_best, 1.1*ul_best)
+    ax.legend(title=r'best $\mu_{UL}$' + f' = {ul_best:.3g}')
+
+    if mono_curve is None:
+        ax.set_xlabel(r'number of bins $k$')
+    else:
+        ax_mono.plot(ks, np.asarray(mono_curve, dtype=float), 'o-', color='C2')
+        ax_mono.axvline(k_best, color='C3', ls='--')
+        ax_mono.set_xlabel(r'number of bins $k$')
+        ax_mono.set_ylabel('s/b non-monotonicity')
+        ax_mono.set_ylim(bottom=0)
+
+    fig.savefig(plot_path, bbox_inches='tight')
+    plt.close(fig)
+
+
+def get_dp_optimal_bin_edges(
+    sig_phh: NDArray, sig_w: NDArray, bkg_phh: NDArray, bkg_w: NDArray,
+    max_bins: int=DEFAULT_MAX_BINS, neff_thresh: float=DEFAULT_MIN_NEFF,
+    z2_min: float=DEFAULT_Z2_MIN, eps: float=DEFAULT_EPS,
+    m_fine: int=DEFAULT_M_FINE, pos_events: list=None
+) -> tuple[NDArray, Optional[NDArray], Optional[NDArray]]:
+    '''
+    Partitions the fine-binned score axis into at most `max_bins` contiguous bins
+    so as to maximize the total Asimov mu=1 sensitivity Sum z2, where each bin's
+    z2 = s^2 / (s + b + sigma_s^2 + sigma_b^2) is the expected significance
+    squared for an Asimov mu=1 measurement including both signal and background
+    MC statistical uncertainties. Every bin is constrained to have
+    neff = b^2/sigma_b^2 >= `neff_thresh` for Barlow-Beeston-lite nuisances in
+    Combine and z2 >= `z2_min`; the latter floor forbids thin, marginal bins
+    (mostly at low score) that make the spectrum jagged without meaningfully
+    improving sensitivity.
+
+    The objective is additive over contiguous segments and every constraint is
+    per-segment, so the DP returns the exact global optimum for this objective.
+
+    Among the feasible bin counts k <= `max_bins`, the smallest k whose estimated
+    upper limit mu_UL = 1 + 1.64/sqrt(sum z2) is within a fraction `eps` of the
+    best is selected.
+
+    Args:
+        sig_phh, sig_w (NDArray): signal event scores and weights (weights
+            include lumi/xsec normalization)
+        bkg_phh, bkg_w (NDArray): summed-background event scores and weights
+        max_bins (int): maximum number of bins
+        neff_thresh (float): minimum effective background MC events per bin
+        z2_min (float): minimum z2 contribution required of every bin
+        eps (float): knee tolerance; pick the smallest k whose estimated mu_UL
+            is within (1+eps) of the best mu_UL
+        m_fine (int): number of uniform fine bins on [0, 1] the DP merges
+        pos_events (list): optional list of (phh, weight) event-array pairs, one
+            per process; a segment [j, m) is invalid unless every process's
+            yield summed over that range is > 0.  Used to require individual
+            background processes to be present in every bin.
+    Returns:
+        quants (NDArray): bin edges, endpoints fixed at 0 and 1
+        dp_curve (NDArray): total z2 for each k = 1 .. max_bins,
+            with NaN where k is infeasible
+        mono_curve (NDArray): s/b non-monotonicity penalty for the optimal
+            partition at each k = 1 .. max_bins, with NaN where k is infeasible
+    '''
+    s, b, vb, vs, bin_edges = _extract_dp_arrays(sig_phh, sig_w,
+                                                 bkg_phh, bkg_w, m_fine)
+    nbins = len(s)
+
+    pos_prefix = []
+    for phh, w in (pos_events or []):
+        a, _ = np.histogram(phh, bins=bin_edges, weights=w)
+        pos_prefix.append(np.concatenate(([0.0], np.cumsum(a))))
+    max_bins = min(max_bins, nbins)
+
+    seg_z2, seg_ok = _build_segment_tables(s, b, vb, vs, neff_thresh, z2_min, pos_prefix)
+    best_total, split = _run_dp(seg_z2, seg_ok, max_bins, nbins)
+
+    final_scores = best_total[1:max_bins + 1, nbins]
+    if np.all(final_scores <= _DP_NEG / 2):
+        return np.array([0., 1.]), None, None
+    dp_curve = np.where(final_scores <= _DP_NEG / 2, np.nan, final_scores)
+
+    k_best = _select_k_at_knee(dp_curve, eps)
+    quants = _backtrack_dp_edges(split, k_best, nbins, bin_edges)
+    mono_curve = _dp_sb_monotonicity_curve(split, dp_curve, s, b, nbins)
+
+    return quants, dp_curve, mono_curve
 
 
 def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
-                         n_bins_start=DEFAULT_N_BINS,
-                         min_neff_bkg=DEFAULT_MIN_NEFF):
-    """End-to-end: load directory, split sig/bkg, fit transformer, choose bins.
+                         max_bins=DEFAULT_MAX_BINS, m_fine=DEFAULT_M_FINE,
+                         min_neff_bkg=DEFAULT_MIN_NEFF, z2_min=DEFAULT_Z2_MIN,
+                         eps=DEFAULT_EPS):
+    """End-to-end: load directory, split sig/bkg, run the DP binning per region.
 
-    Flat equal-signal-yield binning (`optimize_n_bins`): start from
-    `n_bins_start` equal-signal-probability bins and rescan the whole binning
-    with one fewer bin until every background bin has
-    n_eff = (sum w)^2/(sum w^2) >= `min_neff_bkg`. The finest such binning is
-    kept. The fitted transformer is saved to
-    `output_dir/quantiles_regressed_{region}.pkl` and the chosen edges to
-    `output_dir/bin_edges_{region}.txt`.
+    For each region the summed-signal and summed-background score distributions
+    are histogrammed onto `m_fine` uniform fine bins and `get_dp_optimal_bin_edges`
+    picks the optimal <= `max_bins` coarse bins (max Sum z^2, knee rule at `eps`)
+    subject to n_eff >= `min_neff_bkg`, z^2 >= `z2_min`, and strictly positive
+    tt/wjets/tW yield per bin. The chosen edges go to
+    `output_dir/bin_edges_{region}.txt`; a mu_UL-vs-k diagnostic plot goes to
+    `output_dir/dp_ul_curve_{region}.png`. The fitted quantile transformer is
+    still saved to `output_dir/quantiles_regressed_{region}.pkl` (diagnostic
+    only — the DP does not use it).
     """
     os.makedirs(output_dir, exist_ok=True)
     grouped = load_phh_from_directory(input_dir)
     sig, bkg = split_signal_background(grouped)
+    bkg_by_proc = split_background_by_process(grouped)
 
     summary = {}
     for region in REGIONS:
         s_phh, s_w = sig[region]['phh'], sig[region]['weight']
         b_phh, b_w = bkg[region]['phh'], bkg[region]['weight']
-        if s_phh.size == 0 or b_w.sum() == 0:
+        if s_phh.size == 0 or b_phh.size == 0:
             print(f"[{region}] no signal or background events — skipping")
             continue
         print(f"\n=== {region} ===")
         print(f"  signal:     {s_phh.size} events, sum(w) = {s_w.sum():.3f}")
         print(f"  background: {b_phh.size} events, sum(w) = {b_w.sum():.3f}")
+        for group in MAJOR_BKG_PATTERNS:
+            g = bkg_by_proc[region][group]
+            print(f"    {group:6s}: {g['phh'].size} events, "
+                  f"sum(w) = {g['weight'].sum():.3f}")
 
+        # Diagnostic only: flat-signal check + transformer pickle (not used by DP)
         transformer = WeightedQuantileTransformer(n_quantiles=n_quantiles,
                                                   output_distribution='uniform')
         transformer.fit(s_phh, sample_weight=s_w)
@@ -306,29 +573,46 @@ def run_bin_optimization(input_dir, output_dir, n_quantiles=10000,
         transformer.save(os.path.join(output_dir,
                                       f"quantiles_regressed_{region}.pkl"))
 
-        res = optimize_n_bins(transformer, b_phh, b_w,
-                              n_bins_start=n_bins_start,
-                              min_neff_bkg=min_neff_bkg)
-        summary[region] = res
+        pos_events = [(bkg_by_proc[region][g]['phh'],
+                       bkg_by_proc[region][g]['weight'])
+                      for g in MAJOR_BKG_PATTERNS]
 
-        print(f"  n_bins scan (n_bins, n_underpopulated) from {n_bins_start} down:")
-        for n, n_bad in res['results']:
-            print(f"    n_bins={n:3d}  n_bad={n_bad}")
+        edges, dp_curve, mono_curve = get_dp_optimal_bin_edges(
+            s_phh, s_w, b_phh, b_w,
+            max_bins=max_bins, neff_thresh=min_neff_bkg,
+            z2_min=z2_min, eps=eps, m_fine=m_fine,
+            pos_events=pos_events)
 
-        best_n = res['best_n_bins']
-        if best_n is None:
-            print(f"  NO valid binning even at n_bins=1 (background too sparse)")
-            continue
-        print(f"  chosen n_bins = {best_n} (finest with all bins "
-              f"n_eff >= {min_neff_bkg})")
+        if dp_curve is None:
+            print(f"  WARNING: no feasible binning at any k <= {max_bins} — "
+                  f"even a single bin violates the constraints "
+                  f"(n_eff >= {min_neff_bkg} or process positivity). "
+                  f"Writing a single [0, 1] bin.")
+            k_best = 1
+        else:
+            k_best = len(edges) - 1
+            za2 = dp_curve[k_best - 1]
+            mu_ul = 1.0 + 1.64 / np.sqrt(za2)
+            print(f"  chosen k = {k_best} (knee rule, eps = {eps:.0%})")
+            print(f"  Z_A^2 = {za2:.4f}  ->  estimated mu_UL = {mu_ul:.3f}")
+            print(f"  s/b non-monotonicity penalty = {mono_curve[k_best - 1]:.0f}")
+            plot_path = os.path.join(output_dir, f"dp_ul_curve_{region}.png")
+            plot_dp_ul_curve(dp_curve, k_best, eps, plot_path, mono_curve)
+            print(f"  mu_UL-vs-k plot written to {plot_path}")
 
-        edges = _quantile_bin_edges(transformer, best_n)
         edges_path = os.path.join(output_dir, f"bin_edges_{region}.txt")
         with open(edges_path, 'w') as f:
-            f.write(f"# region={region}  n_bins={best_n}  "
-                    f"min_neff_bkg={min_neff_bkg}  n_bins_start={n_bins_start}\n")
+            f.write(f"# region={region}  n_bins={k_best}  max_bins={max_bins}  "
+                    f"m_fine={m_fine}  min_neff_bkg={min_neff_bkg}  "
+                    f"z2_min={z2_min}  eps={eps}\n")
             f.write(", ".join(f"{e:.6f}" for e in edges) + "\n")
         print(f"  bin edges written to {edges_path}")
+        summary[region] = {
+            'edges': edges,
+            'k_best': k_best,
+            'dp_curve': dp_curve,
+            'mono_curve': mono_curve,
+        }
     return summary
 
 
@@ -339,23 +623,31 @@ if __name__ == "__main__":
     src.add_argument("--input-dir", help=(
         "Directory (local or EOS root:// URL) containing phh_hist_*.pkl chunk "
         "files. Files are grouped by dataset, split into signal (GluGlu*) and "
-        "background (everything else except 'data'), and the bin-count "
+        "background (everything else except 'data'), and the DP bin "
         "optimization is run per region."))
     parser.add_argument("-o", "--output", help="Output folder for fitted quantile transformer", required=True)
     parser.add_argument("-n", "--n_quantiles", type=int, default=10000, help="Number of quantiles", required=False)
-    parser.add_argument("-b", "--n_bins", type=int, default=DEFAULT_N_BINS,
-                        help="Starting number of equal-signal-yield bins "
-                             "(--input-dir mode); the binning is rescanned with "
-                             "one fewer bin until every bin passes the n_eff floor")
+    parser.add_argument("-b", "--max-bins", dest="max_bins", type=int,
+                        default=DEFAULT_MAX_BINS,
+                        help="Maximum number of final bins k_max for the DP "
+                             "(--input-dir mode); in legacy -i mode, the number "
+                             "of equal-probability bin edges printed")
+    parser.add_argument("--m-fine", type=int, default=DEFAULT_M_FINE,
+                        help="Number of uniform fine bins on [0, 1] the DP merges")
     parser.add_argument("--min-neff", type=float, default=DEFAULT_MIN_NEFF,
                         help="Minimum effective unweighted background events "
                              "n_eff=(sum w)^2/(sum w^2) required per bin")
+    parser.add_argument("--z2-min", type=float, default=DEFAULT_Z2_MIN,
+                        help="Minimum per-bin z^2 contribution")
+    parser.add_argument("--eps", type=float, default=DEFAULT_EPS,
+                        help="Knee tolerance: smallest k with estimated mu_UL "
+                             "within (1+eps) of the best")
     parser.add_argument("-r", "--region", choices=list(REGIONS), default="nominal_4j2b",
                         nargs="+" , help="Region to use for fitting in legacy -i mode")
     args = parser.parse_args()
 
-    if args.n_bins < 1:
-        parser.error(f"-b/--n_bins must be >= 1, got {args.n_bins}")
+    if args.max_bins < 1:
+        parser.error(f"-b/--max-bins must be >= 1, got {args.max_bins}")
 
     os.makedirs(args.output, exist_ok=True)
 
@@ -364,8 +656,11 @@ if __name__ == "__main__":
             input_dir=args.input_dir,
             output_dir=args.output,
             n_quantiles=args.n_quantiles,
-            n_bins_start=args.n_bins,
+            max_bins=args.max_bins,
+            m_fine=args.m_fine,
             min_neff_bkg=args.min_neff,
+            z2_min=args.z2_min,
+            eps=args.eps,
         )
     else:
         # Legacy single-sample mode: `-i` files are assumed to be signal.
@@ -404,6 +699,6 @@ if __name__ == "__main__":
         transformer.save(output_file)
 
         # Print custom bin edges in original score space
-        bin_edges = np.interp(np.linspace(0, 1, args.n_bins + 1), transformer.reference_quantiles_, transformer.quantiles_)
-        print(f"\n{args.n_bins} equal-probability bin edges in original score space:")
+        bin_edges = np.interp(np.linspace(0, 1, args.max_bins + 1), transformer.reference_quantiles_, transformer.quantiles_)
+        print(f"\n{args.max_bins} equal-probability bin edges in original score space:")
         print(np.array2string(bin_edges, separator=', '))
