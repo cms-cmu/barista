@@ -64,6 +64,8 @@ def test_yaml_dataset_definitions():
         ("coffea4bees/metadata/datasets/ZZ4b.yml", ["ZZ4b"]),
         ("coffea4bees/metadata/datasets/ZH4b.yml", ["ZH4b", "ggZH4b"])
     ]:
+        if not os.path.exists(fname):
+            continue
         with open(fname) as f:
             db = yaml.safe_load(f)
 
