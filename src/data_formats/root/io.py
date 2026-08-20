@@ -32,6 +32,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 from __future__ import annotations
 
 import logging
+import os
 import time
 from numbers import Number
 from typing import TYPE_CHECKING, Callable, Generator, Literal, TypedDict, overload
@@ -144,6 +145,7 @@ class TreeWriter:
         self._default_name = name
         self._parents = parents
         self._basket_size = basket_size
+        options.setdefault("compression", uproot.ZSTD(level=1))
         self._options = options
 
         self.tree: Chunk | list[Chunk] = None
@@ -177,7 +179,8 @@ class TreeWriter:
         self : TreeWriter
         """
         self.tree = None
-        self._temp = self._path.local_temp(dir=".")
+        temp_dir = os.getenv("_CONDOR_SCRATCH_DIR") or os.getenv("TMPDIR") or None
+        self._temp = self._path.local_temp(dir=temp_dir)
         self._file = uproot.recreate(self._temp, **self._options)
         self._trees = {self._tree_name: 0}
         return self
