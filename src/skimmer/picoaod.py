@@ -141,19 +141,54 @@ class PicoAOD(ProcessorABC):
         else:
             self._preselected = np.asarray(preselected)
         self._preselected.setflags(write=False)
+
         # select
         selected = self.select(events)
-        added, result = None, {}
-        if isinstance(selected, tuple):
-            if len(selected) >= 2:
-                added = selected[1]
-            if len(selected) >= 3:
-                result = selected[2] or result
-            selected = selected[0]
+
+        # Parse single-stream or multi-stream returns
+        is_multi_stream = isinstance(selected, dict)
+        streams: dict[str | None, dict] = {}
+
+        if is_multi_stream:
+            for stream_name, stream_val in selected.items():
+                stream_added, stream_result = None, {}
+                if isinstance(stream_val, tuple):
+                    if len(stream_val) >= 2:
+                        stream_added = stream_val[1]
+                    if len(stream_val) >= 3:
+                        stream_result = stream_val[2] or stream_result
+                    stream_mask = stream_val[0]
+                else:
+                    stream_mask = stream_val
+                if preselected is not None:
+                    stream_mask = preselected & stream_mask
+                streams[stream_name] = {
+                    "selected": np.asarray(stream_mask),
+                    "added": stream_added,
+                    "result": stream_result,
+                }
+        else:
+            added, result_extra = None, {}
+            if isinstance(selected, tuple):
+                if len(selected) >= 2:
+                    added = selected[1]
+                if len(selected) >= 3:
+                    result_extra = selected[2] or result_extra
+                selected = selected[0]
             if preselected is not None:
                 selected = preselected & selected
+            streams[None] = {
+                "selected": np.asarray(selected),
+                "added": added,
+                "result": result_extra,
+            }
 
-        # construct output
+        # Calculate union of all selected streams
+        union_selected = np.zeros(len(events), dtype=bool)
+        for s in streams.values():
+            union_selected |= s["selected"]
+
+        # Common weights calculation
         weights = {}
         if "genWeight" in events.fields:
             genWeight = events.genWeight
@@ -170,42 +205,60 @@ class PicoAOD(ProcessorABC):
             nevents = len(events) if preselected is None else float(np.sum(preselected))
             weights["sumw"] = nevents
             weights["sumw2"] = nevents
-        metadata = (
-            {
-                "total_events": len(events),
-                "saved_events": int(ak.sum(selected)),
-            }
-            | weights
-            | result
-        )
-        result = {
-            dataset: metadata
-            | {
+
+        result = {}
+        stream_metadata = {}
+        for stream_name, s in streams.items():
+            stream_dataset = dataset if stream_name is None else f"{dataset}_{stream_name}"
+            stream_saved = int(np.sum(s["selected"]))
+            metadata = (
+                {
+                    "total_events": len(events),
+                    "saved_events": stream_saved,
+                }
+                | weights
+                | s["result"]
+            )
+            stream_metadata[stream_name] = metadata
+            result[stream_dataset] = metadata | {
                 "files": [],
                 "source": source_chunk,
             }
-        }
-        self._cutFlow.addOutputSkim(result, dataset)
-        if "genWeight" not in events.fields:
-            self._cutFlow.addOutputLumisProcessed(
-                result, dataset, events.run, events.luminosityBlock
-            )
+            if hasattr(self, "_cutFlow") and self._cutFlow is not None:
+                self._cutFlow.addOutputSkim(result, stream_dataset)
+                if "genWeight" not in events.fields:
+                    self._cutFlow.addOutputLumisProcessed(
+                        result, stream_dataset, events.run, events.luminosityBlock
+                    )
 
-        # sanity check
-        if (
-            added is not None
-            and (size := len(added)) != result[dataset]["saved_events"]
-        ):
-            raise SkimmingError(
-                f"Length of additional branches ({size}) does not match the number of selected events ({result[dataset]['saved_events']})"
-            )
-        # clear cache
+            # Sanity check
+            if s["added"] is not None and (size := len(s["added"])) != stream_saved:
+                raise SkimmingError(
+                    f"Length of additional branches ({size}) does not match the number of selected events ({stream_saved}) for stream {stream_name}"
+                )
+
+        # Clear cache
         _clear_cache(events)
-        # save selected events
-        if result[dataset]["saved_events"] > 0:
+
+        # Save selected events
+        total_saved = sum(result[k]["saved_events"] for k in result)
+        if total_saved > 0:
             reader = TreeReader(self._filter)
-            saved = 0
-            with TreeWriter()(path) as writer:
+            active_writers: dict[str | None, TreeWriter] = {}
+            saved_counters: dict[str | None, int] = {k: 0 for k in streams}
+
+            for stream_name, s in streams.items():
+                stream_dataset = dataset if stream_name is None else f"{dataset}_{stream_name}"
+                if result[stream_dataset]["saved_events"] > 0:
+                    stream_path = (
+                        self._base
+                        / f"{stream_dataset}/{self._pico_base_name}_{chunk.uuid}_{chunk.entry_start}_{chunk.entry_stop}{_ROOT}"
+                    )
+                    writer = TreeWriter()(stream_path)
+                    writer.__enter__()
+                    active_writers[stream_name] = writer
+
+            try:
                 with reader._open_with_retry(chunk.path) as file:
                     tree = file[chunk.name]
                     branches = chunk.branches
@@ -214,14 +267,13 @@ class PicoAOD(ProcessorABC):
                     for i, chunks in enumerate(
                         Chunk.partition(self._step, chunk, common_branches=True)
                     ):
-                        _selected = selected[i * self._step : (i + 1) * self._step]
-                        _range = np.arange(len(_selected))[_selected]
+                        _union = union_selected[i * self._step : (i + 1) * self._step]
+                        _range = np.arange(len(_union))[_union]
                         if len(_range) == 0:
                             continue
                         _start, _stop = int(_range[0]), int(_range[-1] + 1)
                         _entry_start = (chunks[0].entry_start or 0) + _start
                         _entry_stop = (chunks[0].entry_start or 0) + _stop
-                        _selected = _selected[_start:_stop]
                         data = tree.arrays(
                             expressions=branches,
                             entry_start=_entry_start,
@@ -229,19 +281,31 @@ class PicoAOD(ProcessorABC):
                             library="ak",
                             decompression_executor=_decompression_executor,
                         )
-                        data = data[_selected]
-                        if added is not None:
-                            _saved = saved + ak.sum(_selected)
-                            _added = added[saved:_saved]
-                            for k in added.fields:
-                                data[k] = _added[k]
-                            saved = _saved
-                        data = self._transform(data)
-                        writer.extend(data)
-                if self._campaign is not None:
-                    writer.save_metadata(self._campaign, metadata)
-            if writer.tree is not None:
-                result[dataset]["files"].append(writer.tree)
+
+                        for stream_name, writer in active_writers.items():
+                            s = streams[stream_name]
+                            _stream_sel = s["selected"][i * self._step + _start : i * self._step + _stop]
+                            if not np.any(_stream_sel):
+                                continue
+                            stream_data = data[_stream_sel]
+                            if s["added"] is not None:
+                                n_sel = int(np.sum(_stream_sel))
+                                cur_saved = saved_counters[stream_name]
+                                _added = s["added"][cur_saved : cur_saved + n_sel]
+                                for k in s["added"].fields:
+                                    stream_data[k] = _added[k]
+                                saved_counters[stream_name] = cur_saved + n_sel
+                            stream_data = self._transform(stream_data)
+                            writer.extend(stream_data)
+            finally:
+                for stream_name, writer in active_writers.items():
+                    stream_dataset = dataset if stream_name is None else f"{dataset}_{stream_name}"
+                    if self._campaign is not None:
+                        writer.save_metadata(self._campaign, stream_metadata[stream_name])
+                    writer.__exit__(None, None, None)
+                    if writer.tree is not None:
+                        result[stream_dataset]["files"].append(writer.tree)
+
         return result
 
     def postprocess(self, accumulator):
