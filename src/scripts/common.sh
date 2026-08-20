@@ -55,25 +55,24 @@ check_file_exists() {
 parse_output_base_arg() {
     local default_output_base="${1:-output/}"
     local output_base="$default_output_base"
+    shift
     
     # Parse command line arguments
-    while [[ $# -gt 1 ]]; do
-        case $2 in
+    while [[ $# -gt 0 ]]; do
+        case $1 in
             --output-base)
-                output_base="$3"
+                output_base="$2"
                 shift 2
                 ;;
             *)
-                echo "Unknown option: $2"
-                echo "Usage: $0 [--output-base DIR]"
-                return 1
+                shift
                 ;;
         esac
-        shift
     done
     
     echo "$output_base"
 }
+
 
 # Function to validate required variables are set
 validate_required_vars() {
