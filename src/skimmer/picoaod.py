@@ -33,10 +33,18 @@ def _log_exception(e, *_):
     return {}
 
 
+_decompression_executor = uproot.ThreadPoolExecutor()
+
+
 def _clear_cache(events: ak.Array):
-    # try to clear cached branches (caches attribute removed in coffea 2025)
+    # Purge cached branches and virtual buffers
     for cache in getattr(events, "caches", []):
         cache.clear()
+    behavior = getattr(events, "behavior", None)
+    if isinstance(behavior, dict):
+        for k in list(behavior.keys()):
+            if isinstance(k, tuple) and len(k) > 0 and isinstance(k[0], str) and k[0].startswith("__"):
+                behavior.pop(k, None)
     gc.collect()
 
 
@@ -219,6 +227,7 @@ class PicoAOD(ProcessorABC):
                             entry_start=_entry_start,
                             entry_stop=_entry_stop,
                             library="ak",
+                            decompression_executor=_decompression_executor,
                         )
                         data = data[_selected]
                         if added is not None:

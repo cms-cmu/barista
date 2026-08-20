@@ -145,6 +145,7 @@ class TreeWriter:
         self._default_name = name
         self._parents = parents
         self._basket_size = basket_size
+        options.setdefault("compression", uproot.ZSTD(level=1))
         self._options = options
 
         self.tree: Chunk | list[Chunk] = None
