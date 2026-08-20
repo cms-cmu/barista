@@ -177,7 +177,8 @@ class TreeWriter:
         self : TreeWriter
         """
         self.tree = None
-        self._temp = self._path.local_temp(dir=".")
+        temp_dir = os.getenv("_CONDOR_SCRATCH_DIR") or os.getenv("TMPDIR") or None
+        self._temp = self._path.local_temp(dir=temp_dir)
         self._file = uproot.recreate(self._temp, **self._options)
         self._trees = {self._tree_name: 0}
         return self

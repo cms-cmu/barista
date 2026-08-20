@@ -198,25 +198,37 @@ class PicoAOD(ProcessorABC):
             reader = TreeReader(self._filter)
             saved = 0
             with TreeWriter()(path) as writer:
-                for i, chunks in enumerate(
-                    Chunk.partition(self._step, chunk, common_branches=True)
-                ):
-                    _selected = selected[i * self._step : (i + 1) * self._step]
-                    _range = np.arange(len(_selected))[_selected]
-                    if len(_range) == 0:
-                        continue
-                    _start, _stop = _range[0], _range[-1] + 1
-                    _chunk = chunks[0].slice(_start, _stop)
-                    _selected = _selected[_start:_stop]
-                    data = reader.arrays(_chunk)[_selected]
-                    if added is not None:
-                        _saved = saved + ak.sum(_selected)
-                        _added = added[saved:_saved]
-                        for k in added.fields:
-                            data[k] = _added[k]
-                        saved = _saved
-                    data = self._transform(data)
-                    writer.extend(data)
+                with reader._open_with_retry(chunk.path) as file:
+                    tree = file[chunk.name]
+                    branches = chunk.branches
+                    if self._filter is not None:
+                        branches = self._filter(branches)
+                    for i, chunks in enumerate(
+                        Chunk.partition(self._step, chunk, common_branches=True)
+                    ):
+                        _selected = selected[i * self._step : (i + 1) * self._step]
+                        _range = np.arange(len(_selected))[_selected]
+                        if len(_range) == 0:
+                            continue
+                        _start, _stop = int(_range[0]), int(_range[-1] + 1)
+                        _entry_start = (chunks[0].entry_start or 0) + _start
+                        _entry_stop = (chunks[0].entry_start or 0) + _stop
+                        _selected = _selected[_start:_stop]
+                        data = tree.arrays(
+                            expressions=branches,
+                            entry_start=_entry_start,
+                            entry_stop=_entry_stop,
+                            library="ak",
+                        )
+                        data = data[_selected]
+                        if added is not None:
+                            _saved = saved + ak.sum(_selected)
+                            _added = added[saved:_saved]
+                            for k in added.fields:
+                                data[k] = _added[k]
+                            saved = _saved
+                        data = self._transform(data)
+                        writer.extend(data)
                 if self._campaign is not None:
                     writer.save_metadata(self._campaign, metadata)
             if writer.tree is not None:
