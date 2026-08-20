@@ -32,6 +32,7 @@ A wrapper for ROOT file I/O :func:`uproot.reading.open`, :func:`uproot._dask.das
 from __future__ import annotations
 
 import logging
+import os
 import time
 from numbers import Number
 from typing import TYPE_CHECKING, Callable, Generator, Literal, TypedDict, overload
