@@ -3,6 +3,13 @@ import awkward as ak
 from coffea.lumi_tools import LumiMask
 from src.physics.common import mask_event_decision
 
+_lumimask_cache: dict[str, LumiMask] = {}
+
+def _get_lumimask(json_path: str) -> LumiMask:
+    if json_path not in _lumimask_cache:
+        _lumimask_cache[json_path] = LumiMask(json_path)
+    return _lumimask_cache[json_path]
+
 def apply_event_selection(
     event: ak.Array, 
     corrections_metadata: dict, 
@@ -31,13 +38,13 @@ def apply_event_selection(
         - `passNoiseFilter`: Boolean mask indicating events passing noise filters.
     """
     # Apply luminosity mask
-    if 'goldenJSON' not in corrections_metadata:
-        raise KeyError("Missing 'goldenJSON' in corrections_metadata.")
-    lumimask = LumiMask(corrections_metadata['goldenJSON'])
-    event['lumimask'] = (
-        np.array(lumimask(event.run, event.luminosityBlock))
-        if cut_on_lumimask else np.full(len(event), True)
-    )
+    if cut_on_lumimask:
+        if 'goldenJSON' not in corrections_metadata:
+            raise KeyError("Missing 'goldenJSON' in corrections_metadata.")
+        lumimask = _get_lumimask(corrections_metadata['goldenJSON'])
+        event['lumimask'] = np.array(lumimask(event.run, event.luminosityBlock))
+    else:
+        event['lumimask'] = np.full(len(event), True)
 
     # Apply HLT trigger mask
     event['passHLT'] = (

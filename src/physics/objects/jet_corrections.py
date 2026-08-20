@@ -402,7 +402,7 @@ def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):
         mask_for_VetoMap = mask_for_VetoMap & (jets.muonSubtrFactor < 0.8) # May no be Muons misreconstructed as jets
     else: logging.warning("muonSubtrFactor NOT in jets fields. This is correct only for mixeddata and old picos.")
 
-    corr = correctionlib.CorrectionSet.from_file(corrections_metadata['file'])[corrections_metadata['tag']]
+    corr = _get_correction_set(corrections_metadata['file'])[corrections_metadata['tag']]
 
     etaFlat, phiFlat, etaCounts = ak.flatten(jets.eta), ak.flatten(jets.phi), ak.num(jets.eta)
     phiFlat = np.clip(phiFlat, -3.14159, 3.14159) # Needed since no overflow included in phi binning
