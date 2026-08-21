@@ -310,6 +310,22 @@ def parse_args() -> argparse.Namespace:
         for key, val in yaml_config.items():
             setattr(default_args, key, val)
             
+        # Also unpack runner block options (e.g. condor, run_performance, shared_dask, test)
+        if 'runner' in yaml_config and isinstance(yaml_config['runner'], dict):
+            for r_key, r_val in yaml_config['runner'].items():
+                if hasattr(default_args, r_key):
+                    setattr(default_args, r_key, r_val)
+                elif r_key == 'condor':
+                    default_args.condor = r_val
+                elif r_key == 'run_performance':
+                    default_args.run_performance = r_val
+                elif r_key == 'shared_dask':
+                    default_args.shared_dask = r_val
+                elif r_key == 'test':
+                    default_args.test = r_val
+                elif r_key == 'not_do_proxy':
+                    default_args.not_do_proxy = r_val
+            
         # Parse remaining args on top of the YAML-defined namespace
         args = parser.parse_args(remaining_args, namespace=default_args)
         args.job_yaml_path = yaml_path
