@@ -245,6 +245,13 @@ def make_parser() -> argparse.ArgumentParser:
         default=False,
         help='Enable memory profiling using mprof'
     )
+    debug_group.add_argument(
+        '--no-color',
+        dest="no_color",
+        action="store_true",
+        default=False,
+        help='Disable ANSI color formatting in logging'
+    )
 
     # Reproducibility options
     repro_group = parser.add_argument_group('Reproducibility')
@@ -273,7 +280,7 @@ def parse_args() -> argparse.Namespace:
         if not arg.startswith('-') and (arg.endswith('.yml') or arg.endswith('.yaml')) and os.path.exists(arg):
             # Check if this file is the value of a preceding option flag
             if i > 0 and args_to_parse[i-1].startswith('-'):
-                boolean_flags = ('-t', '--test', '--condor', '--slurm', '--shared-dask', '--debug', '--check-input-files', '--not-do-proxy', '--run-performance')
+                boolean_flags = ('-t', '--test', '--condor', '--slurm', '--shared-dask', '--debug', '--check-input-files', '--not-do-proxy', '--run-performance', '--no-color')
                 if args_to_parse[i-1] not in boolean_flags:
                     continue
             yaml_path = arg
@@ -287,6 +294,18 @@ def parse_args() -> argparse.Namespace:
         # Parse defaults first
         default_args = parser.parse_args([])
         
+        # Standardize aliases if present
+        if 'friend_file' in yaml_config and 'friends' not in yaml_config:
+            default_args.friends = yaml_config['friend_file']
+        if 'weights_file' in yaml_config and 'weights' not in yaml_config:
+            default_args.weights = yaml_config['weights_file']
+        if 'dataset_location' in yaml_config and 'metadata' not in yaml_config:
+            default_args.metadata = yaml_config['dataset_location']
+        if 'analysis_config' in yaml_config and 'configs' not in yaml_config:
+            default_args.configs = yaml_config['analysis_config']
+        elif 'configs' not in yaml_config:
+            default_args.configs = yaml_path
+
         # Merge YAML properties
         for key, val in yaml_config.items():
             setattr(default_args, key, val)

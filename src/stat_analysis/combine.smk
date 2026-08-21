@@ -14,7 +14,25 @@ if os.path.exists("/cvmfs/unpacked.cern.ch"):
 # Default target generation for transparent running
 out_base = os.path.normpath(config.get("output_path", "output/v4_systematics_test/HH4b/"))
 log_dir = os.path.join(config.get("output_path", "output"), "logs")
-stat_only = config.get("stat_only", False)
+
+def is_stat_only_mode():
+    val = config.get("stat_only", None)
+    if val is not None:
+        if isinstance(val, bool):
+            return val
+        if str(val).lower() in ["true", "1", "--stat_only"]:
+            return True
+        if str(val).lower() in ["false", "0", "none", ""]:
+            return False
+    # Check make_combine_inputs.stat_only
+    make_combine_stat = config.get("make_combine_inputs", {}).get("stat_only", "")
+    if isinstance(make_combine_stat, bool):
+        return make_combine_stat
+    if str(make_combine_stat).lower() in ["true", "1", "--stat_only"]:
+        return True
+    return False
+
+stat_only = is_stat_only_mode()
 
 targets = []
 for channel, ch_config in config.get("channels", {}).items():
@@ -389,9 +407,9 @@ rule likelihood_scan_chunk:
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120"),
-        points = lambda wildcards: config.get("likelihood_scan_points", "50"),
-        r_min = lambda wildcards: config.get("r_min", "-10"),
-        r_max = lambda wildcards: config.get("r_max", "10"),
+        points = lambda wildcards: config.get("likelihood_scan_points", "20"),
+        r_min = lambda wildcards: config.get("likelihood_scan_r_min", "-10"),
+        r_max = lambda wildcards: config.get("likelihood_scan_r_max", "10"),
         first_point = lambda wildcards: get_grid_split_points(wildcards, config)[0],
         last_point = lambda wildcards: get_grid_split_points(wildcards, config)[1]
     log: f"{log_dir}/likelihood_scan_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
@@ -1019,10 +1037,17 @@ rule fit_diagnostics_sb:
         ) 2>&1 | tee {log}
         """
 
+def get_postfit_fit_result(wildcards):
+    fit_type = "bonly" if is_stat_only_mode() else "sb"
+    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_{fit_type}__{wildcards.signallabel}.root"
+
+def get_postfit_plot_fit_type(wildcards):
+    return "fit_b" if is_stat_only_mode() else "fit_s"
+
 rule postfit:
     input:
         workspace = "{path}/workspace/datacard__{signallabel}.root",
-        fit_result = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
+        fit_result = get_postfit_fit_result,
         plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py")
     output: "{path}/postfit/datacard_postfit__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
@@ -1030,6 +1055,7 @@ rule postfit:
         signallabel = "{signallabel}",
         channel = lambda wildcards: wildcards.path.rstrip('/').split('/')[-1],
         signal = "{signallabel}",
+        fit_type = get_postfit_plot_fit_type,
         ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
         metadata = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml").format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
@@ -1055,7 +1081,7 @@ rule postfit:
             -s {params.signal} \
             {params.ylog} \
             -m $METADATA_FILE && \
-            cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE
+            cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE
         ) 2>&1 | tee {log}
         """
 
