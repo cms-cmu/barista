@@ -58,7 +58,7 @@ RUN micromamba run -n base python -m pip install --no-cache-dir \
     awkward-pandas \
     readchar \
     pyvis \
-    git+https://github.com/CoffeaTeam/lpcjobqueue.git@v0.5.0 \
+    git+https://github.com/CoffeaTeam/lpcjobqueue.git@v0.6.0 \
     conda-pack
 
 # Create directories as root
@@ -80,9 +80,3 @@ RUN mv /opt/conda/bin/voms-proxy-info /opt/conda/bin/voms-proxy-info.real && \
 
 # Create sitecustomize.py to allowlist numpy scalar and arrays in PyTorch 2.6+ safe unpickling
 COPY software/dockerfiles/sitecustomize.py /opt/conda/lib/python3.12/site-packages/sitecustomize.py
-
-# Create htcondor->htcondor2 compatibility shim for lpcjobqueue
-RUN mkdir -p /opt/conda/lib/python3.12/site-packages/htcondor
-COPY software/dockerfiles/htcondor_shim.py /opt/conda/lib/python3.12/site-packages/htcondor/__init__.py
-
-# Dummy change to trigger container rebuild in this branch MR
