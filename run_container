@@ -294,12 +294,13 @@ setup_lpc_jobqueue() {
     # Only run on LPC
     [[ $(hostname) != *"cmslpc"* ]] && return 0
 
-    # Bootstrap if missing
-    if [[ ! -f ".bashrc" || ! -f ".cmslpc-local-conf" ]]; then
-        info "Setting up lpcjobqueue configuration..."
+    # Bootstrap if missing or if outdated lpcjobqueue configuration is found
+    if [[ ! -f ".bashrc" || ! -f ".cmslpc-local-conf" ]] || grep -q 'LPCJQ_VERSION="0.5' .bashrc 2>/dev/null; then
+        info "Setting up/updating lpcjobqueue configuration..."
+        rm -rf .env .bashrc .cmslpc-local-conf
         curl -OL https://raw.githubusercontent.com/CoffeaTeam/lpcjobqueue/main/bootstrap.sh
         bash bootstrap.sh
-        rm bootstrap.sh shell
+        rm -f bootstrap.sh shell
     else
         info "lpcjobqueue configuration found. Skipping bootstrap."
     fi
