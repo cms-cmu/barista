@@ -465,7 +465,9 @@ rule likelihood_scan:
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
-        mass = lambda wildcards: config.get("mass", "120")
+        mass = lambda wildcards: config.get("mass", "120"),
+        y_cut = lambda wildcards: config.get("likelihood_scan_y_cut", "100"),
+        y_max = lambda wildcards: config.get("likelihood_scan_y_max", "100")
     log: f"{log_dir}/likelihood_scan_{{path}}__{{signallabel}}.log"
     shell:
         """
@@ -489,7 +491,7 @@ rule likelihood_scan:
             hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
             $INPUT_FILES && \
             plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            --POI r{params.signallabel} -o scan_plot && \
+            --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
         ) 2>&1 | tee {log}
         """
