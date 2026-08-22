@@ -7,4 +7,9 @@ warnings.warn(
     stacklevel=2,
 )
 
-from coffea4bees.classifier.nn.blocks.HCR import *  # noqa: F401, F403
+try:
+    from coffea4bees.classifier.nn.blocks.HCR import *  # noqa: F401, F403
+    from coffea4bees.classifier.nn.blocks.HCR import __all__ as _coffea4bees_all
+    __all__ = _coffea4bees_all
+except ImportError:
+    pass
