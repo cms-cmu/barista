@@ -194,7 +194,7 @@ if __name__ == '__main__':
     # 4. Handle start_cluster_daemon mode (Daemon process setup)
     if getattr(args, 'start_cluster_daemon', False):
         logging.info("Running in daemon mode. Skipping metadata loading and dataset processing.")
-        configs = yaml.safe_load(open(args.configs, 'r'))
+        configs = copy.deepcopy(args.configs) if isinstance(args.configs, dict) else (yaml.safe_load(open(args.configs, 'r')) or {})
         if not 'config' in configs:
             configs['config'] = {}
         with open("src/physics/corrections.yml", "r") as f:
@@ -226,7 +226,16 @@ if __name__ == '__main__':
 
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
-    configs = yaml.safe_load(open(args.configs, 'r'))
+    configs = copy.deepcopy(args.configs) if isinstance(args.configs, dict) else (yaml.safe_load(open(args.configs, 'r')) or {})
+
+    # If a full job YAML was supplied (Mode 1) and points to an external analysis_config,
+    # merge any top-level 'runner' or 'config' block overrides from the job YAML.
+    if getattr(args, 'job_yaml_path', None) and args.job_yaml_path != args.configs and isinstance(args.job_yaml_path, str) and os.path.exists(args.job_yaml_path):
+        job_yaml = yaml.safe_load(open(args.job_yaml_path, 'r')) or {}
+        if 'runner' in job_yaml and isinstance(job_yaml['runner'], dict):
+            configs.setdefault('runner', {}).update(job_yaml['runner'])
+        if 'config' in job_yaml and isinstance(job_yaml['config'], dict):
+            configs.setdefault('config', {}).update(job_yaml['config'])
 
     # Apply config overrides
     if getattr(args, 'config_overrides', None):

@@ -63,6 +63,7 @@ def setup_condor_cluster(config_runner, tarball_path):
         'worker_extra_args': [
             f"--worker-port 10000:10100",
             f"--nanny-port 10100:10200",
+            "--death-timeout 300",
         ],
         'job_extra_directives': {
             'leave_in_queue': 'False',

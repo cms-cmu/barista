@@ -291,16 +291,46 @@ def parse_args() -> argparse.Namespace:
         with open(yaml_path, 'r') as f:
             yaml_config = yaml.safe_load(f)
             
-        # Parse defaults first
         default_args = parser.parse_args([])
-        
-        # Standardize aliases if present
-        if 'friend_file' in yaml_config and 'friends' not in yaml_config:
-            default_args.friends = yaml_config['friend_file']
-        if 'weights_file' in yaml_config and 'weights' not in yaml_config:
-            default_args.weights = yaml_config['weights_file']
-        if 'dataset_location' in yaml_config and 'metadata' not in yaml_config:
-            default_args.metadata = yaml_config['dataset_location']
+        analysis_entry = yaml_config.get('analysis_config', {})
+        analysis_data = {}
+        if isinstance(analysis_entry, str) and os.path.exists(analysis_entry):
+            with open(analysis_entry, 'r') as f_sub:
+                analysis_data = yaml.safe_load(f_sub) or {}
+        elif isinstance(analysis_entry, dict):
+            analysis_data = analysis_entry
+
+        # Standardize aliases from top-level and analysis_config
+        for source in [analysis_data, yaml_config]:
+            if 'processor' in source:
+                default_args.processor = source['processor']
+            if 'friend_file' in source:
+                default_args.friends = source['friend_file']
+            elif 'friends' in source:
+                default_args.friends = source['friends']
+            if 'weights_file' in source:
+                default_args.weights = source['weights_file']
+            elif 'weights' in source:
+                default_args.weights = source['weights']
+            if 'dataset_location' in source:
+                default_args.metadata = source['dataset_location']
+            elif 'metadata' in source:
+                default_args.metadata = source['metadata']
+            if 'runner' in source and isinstance(source['runner'], dict):
+                for r_key, r_val in source['runner'].items():
+                    if hasattr(default_args, r_key):
+                        setattr(default_args, r_key, r_val)
+                    elif r_key == 'condor':
+                        default_args.condor = r_val
+                    elif r_key == 'run_performance':
+                        default_args.run_performance = r_val
+                    elif r_key == 'shared_dask':
+                        default_args.shared_dask = r_val
+                    elif r_key == 'test':
+                        default_args.test = r_val
+                    elif r_key == 'not_do_proxy':
+                        default_args.not_do_proxy = r_val
+
         if 'analysis_config' in yaml_config and 'configs' not in yaml_config:
             default_args.configs = yaml_config['analysis_config']
         elif 'configs' not in yaml_config:
