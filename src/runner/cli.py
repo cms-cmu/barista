@@ -291,7 +291,7 @@ def parse_args() -> argparse.Namespace:
         with open(yaml_path, 'r') as f:
             yaml_config = yaml.safe_load(f)
             
-        # Unpack nested analysis_config (if provided as dict or external file)
+        default_args = parser.parse_args([])
         analysis_entry = yaml_config.get('analysis_config', {})
         analysis_data = {}
         if isinstance(analysis_entry, str) and os.path.exists(analysis_entry):
