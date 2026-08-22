@@ -22,6 +22,8 @@ class selected:
 
     def _pad_regular(self, array: npt.NDArray, selection: npt.NDArray):
         padded = np.full(len(selection), self._value, dtype=array.dtype)
+        if len(array) == len(selection):
+            array = array[selection]
         padded[selection] = array
         return ak.Array(padded)
 

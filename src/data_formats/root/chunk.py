@@ -488,8 +488,13 @@ class Chunk(metaclass=_ChunkMeta):
             Chunk from ``events``.
         """
         metadata = events.metadata
+        fileuuid = metadata["fileuuid"]
+        if isinstance(fileuuid, bytes):
+            fileuuid = UUID(bytes=fileuuid)
+        elif not isinstance(fileuuid, UUID):
+            fileuuid = UUID(str(fileuuid))
         return cls(
-            source=(metadata["filename"], UUID(metadata["fileuuid"])),
+            source=(metadata["filename"], fileuuid),
             name=metadata["treename"],
             entry_start=metadata["entrystart"],
             entry_stop=metadata["entrystop"],

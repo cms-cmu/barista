@@ -401,6 +401,11 @@ exit(1)
                             next_idx=$((i+1))
                             eval TMP_DIR=\$\{$next_idx\}
                             ;;
+                        *.yml|*.yaml)
+                            if [ -z "$CONFIG_FILE" ]; then
+                                CONFIG_FILE="$arg"
+                            fi
+                            ;;
                     esac
                     i=$((i+1))
                 done
