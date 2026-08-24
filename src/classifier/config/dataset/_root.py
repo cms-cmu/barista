@@ -92,6 +92,14 @@ class LoadRoot(ABC, Dataset):
     def __init__(self):
         from src.classifier.df.io import ToTensor
 
+        # Cooperative init: must forward up the MRO so classes that come AFTER
+        # LoadRoot in a diamond hierarchy still get initialized. Without this,
+        # `class Signal(_Train, _picoAOD.Signal)` (where _picoAOD is after the
+        # _Train->...->LoadRoot chain) never runs _PicoAOD.__init__, so the ggF
+        # signal files are never resolved -> "Dataset loaded 0 events".
+        # (Background is `(_picoAOD.Background, _Train)` so _PicoAOD runs first
+        # and was unaffected.)
+        super().__init__()
         self._to_tensor = ToTensor()
         self._preprocessors: list[DFProcessor] = []
         self._postprocessors: list[DFProcessor] = []

@@ -17,12 +17,22 @@ class _FuturePool(Generic[_SubmitT]):
 
     def __iter__(self):
         for _ in range(self._count):
-            yield self._tasks.get()
+            err, res = self._tasks.get()
+            if err is not None:
+                raise err
+            yield res
         self._count = 0
         self._tasks = None
 
     def _result(self, task: Future[_SubmitT]):
-        self._tasks.put(task.result(timeout=self._timeout))
+        # A failed task must still enqueue a result, otherwise the consumer's
+        # fixed-count get() loop in __iter__ blocks forever (deadlock). Capture
+        # the exception and re-raise it on the consumer side (fail-fast) instead
+        # of letting the done-callback swallow it via LOGGER.exception.
+        try:
+            self._tasks.put((None, task.result(timeout=self._timeout)))
+        except BaseException as e:  # noqa: BLE001 - propagate any loader failure
+            self._tasks.put((e, None))
 
 
 class _OrderedFuturePool(Generic[_SubmitT]):
