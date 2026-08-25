@@ -164,94 +164,6 @@ def cleanup_temp_condor_dir():
             s.bind(('', 0))
         return s.getsockname()[1]
 
-
-def setup_config_defaults(config_runner, args):
-    """Set up all configuration defaults in one place."""
-    defaults = {
-        'data_tier': 'picoAOD',
-        'chunksize': 1_000 if args.test else 100_000,
-        'maxchunks': 1 if args.test else None,
-        'schema': NanoAODSchema,
-        'test_files': 5,
-        'allowlist_sites': ['T3_US_FNALLPC'],
-        'blocklist_sites': [''],
-        'rucio_regex_sites': "T[23]",
-        'class_name': 'analysis',
-        'condor_cores': 2,
-        'worker_memory': '4GB',
-        'condor_transfer_input_files': ['coffea4bees/', 'src/'],
-        'min_workers': 1,
-        'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
-        'workers': 2,
-        'skipbadfiles': False,
-        'dashboard_address': 10200,
-        'friend_base': None,
-        'friend_base_argname': "make_classifier_input",
-        'friend_merge_step': 100_000,
-        'write_coffea_output': True,
-        'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
-        'dask_retries': 3,
-        'slurm_cores': 4,
-        'slurm_partition': 'work',
-        'slurm_qos': 'cpu_light',
-        'slurm_walltime': '08:00:00',
-        'slurm_log_directory': 'slurm_logs',
-        'slurm_job_extra': [],
-    }
-
-    for key, default_value in defaults.items():
-        config_runner.setdefault(key, default_value)
-
-
-def setup_executor(config_runner, args, client, pool):
-    """Setup processor executor based on configuration."""
-    if COFFEA_2025:
-        runner_args = {
-            'schema': config_runner['schema'],
-            'savemetrics': True,
-            'skipbadfiles': config_runner['skipbadfiles'],
-            'xrootdtimeout': 600,
-            'chunksize': config_runner['chunksize'],
-            'maxchunks': config_runner['maxchunks'],
-        }
-        if args.debug:
-            logging.info("Running iterative executor in debug mode")
-            return processor.IterativeExecutor(), runner_args
-        elif args.condor or args.run_dask:
-            return processor.DaskExecutor(
-                client=client,
-                status=args.run_dask and not args.condor,
-                retries=config_runner['dask_retries'],
-            ), runner_args
-        else:
-            logging.info("Running futures executor")
-            return processor.FuturesExecutor(workers=config_runner['workers']), runner_args
-    else:
-        executor_args = {
-            'schema': config_runner['schema'],
-            'savemetrics': True,
-            'skipbadfiles': config_runner['skipbadfiles'],
-            'xrootdtimeout': 900,
-        }
-        if args.debug:
-            logging.info("Running iterative executor in debug mode")
-            return processor.iterative_executor, executor_args
-        elif args.condor or args.run_dask:
-            executor_args.update({
-                "client": client,
-                "align_clusters": False,
-                "status": args.run_dask and not args.condor,
-            })
-            return processor.dask_executor, executor_args
-        else:
-            logging.info("Running futures executor")
-            executor_args.update({
-                "pool": pool,
-                "workers": config_runner['workers'],
-            })
-            return processor.futures_executor, executor_args
-
-
 def process_skimming_output(output, fileset, configs, config_runner, args, client):
     """Process output for skimming jobs."""
     # Check integrity of the output
@@ -381,79 +293,12 @@ def save_coffea_output(output, config_runner, args):
         logging.info(f'Saving file {hfile}')
         save(output, hfile)
 
-
-@profile
-def run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart):
-    """Run the main processing job."""
-    # Get the processor instance
-    processor_name = args.processor.split('.')[0].replace("/", '.')
-    analysis_class = getattr(importlib.import_module(processor_name), config_runner['class_name'])
-    logging.debug(f'Running on fileset {pretty_repr(fileset)}')
-
-    if COFFEA_2025:
-        runner_kwargs = dict(
-            executor=executor,
-            schema=executor_args['schema'],
-            savemetrics=executor_args['savemetrics'],
-            skipbadfiles=executor_args['skipbadfiles'],
-            xrootdtimeout=executor_args['xrootdtimeout'],
-            chunksize=executor_args['chunksize'],
-            maxchunks=executor_args['maxchunks'],
-            # NOTE: do NOT set metadata_cache={} — under Condor with many chunks
-            # per worker, the in-process dict grows unboundedly and contributes
-            # to "unmanaged memory" leaks that cause nanny-kills. Leave default.
-        )
-        runner = processor.Runner(**runner_kwargs)
-        result = runner(
-            fileset,
-            treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
-        )
-        if isinstance(result, tuple):
-            output, metrics = result
-        else:
-            output = result
-            metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
-    else:
-        output, metrics = processor.run_uproot_job(
-            fileset,
-            treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
-            executor=executor,
-            executor_args=executor_args,
-            chunksize=config_runner['chunksize'],
-            maxchunks=config_runner['maxchunks'],
-        )
-    elapsed = time.time() - tstart
-    nEvent = metrics.get('entries', 0)
-    logging.info(f'Metrics:')
-    logging.info(pretty_repr(metrics))
-    logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
-
-    # Process output based on job type
-    if args.skimming:
-        output = process_skimming_output(output, fileset, configs, config_runner, args, client)
-
-        # Log performance again after processing
-        elapsed = time.time() - tstart
-        nEvent = metrics['entries']
-        logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
-
-        process_metadata_output(output, fileset, config_runner, args, client)
-    else:
-        process_analysis_output(output, args)
-        process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
-        save_coffea_output(output, config_runner, args)
-
 def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout):
     """Monitor connected clients and active tasks, shut down when idle."""
     logging.info("Dask cluster daemon monitoring loop started.")
     idle_start = None
-<<<<<<< HEAD
-=======
     seen_client = False
     startup_deadline = time.time() + max(idle_timeout * 3, 1800)
->>>>>>> 368c296a (add multiple attempts for xrootd read)
 
     while True:
         try:
@@ -461,10 +306,7 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
             scheduler_info = client.scheduler_info()
 
             # Count connected clients, excluding this daemon client itself
-<<<<<<< HEAD
-=======
 
->>>>>>> 368c296a (add multiple attempts for xrootd read)
             try:
                 def get_active_clients(dask_scheduler):
                     return [c for c in dask_scheduler.clients.keys() if c != 'fire-and-forget']
@@ -474,12 +316,9 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
                 logging.error(f"Error querying clients on scheduler: {e}")
                 connected_clients = scheduler_info.get('clients', {})
                 active_clients = max(0, len(connected_clients) - 1)
-<<<<<<< HEAD
-=======
 
             connected_clients = scheduler_info.get('clients', {})
             active_clients = max(0, len(connected_clients) - 1)
->>>>>>> 368c296a (add multiple attempts for xrootd read)
 
             # Query number of processing tasks
             processing_tasks = client.processing()
@@ -896,7 +735,6 @@ def make_parser():
         help='Override git diff for reproducibility tracking'
     )
     return parser
->>>>>>> 2a1a4038 (increase timeout for shared cluster)
 
 from src.runner.logging import CustomFormatter
 
