@@ -51,14 +51,18 @@ BUILTIN_LABEL_MAPS = {
         (r"^GluGluToHHTo4B",     "ggF"),
         (r"^ttH",                "ttHbb"),
     ],
+    "FvT": [
+        (r"^data_",              ["d4", "d3"]),
+        (r"^TTTo",               ["t4", "t3"]),
+    ],
 }
 
 
 def _load_label_patterns(label_map_path, checkpoint_labels):
-    """Build [(compiled_regex, label)] from a JSON file or built-in defaults.
+    """Build [(compiled_regex, [labels])] from a JSON file or built-in defaults.
 
-    JSON format: {"regex_pattern": "label", ...}
-    e.g. {"^data_": "multijet", "^TTTo": "ttbar"}
+    JSON format: {"regex_pattern": "label" | ["label1", "label2"], ...}
+    e.g. {"^data_": ["d4", "d3"], "^TTTo": ["t4", "t3"]}
 
     If no --label-map is given, tries each built-in map and picks the one
     whose labels best overlap with the checkpoint's labels.
@@ -66,30 +70,42 @@ def _load_label_patterns(label_map_path, checkpoint_labels):
     if label_map_path:
         with open(label_map_path) as f:
             mapping = json.load(f)
-        return [(re.compile(pat), lbl) for pat, lbl in mapping.items()]
+        return [
+            (re.compile(pat), lbl if isinstance(lbl, list) else [lbl])
+            for pat, lbl in mapping.items()
+        ]
 
     # Auto-select best built-in map
     label_set = set(checkpoint_labels)
     best_name, best_overlap = None, -1
     for name, patterns in BUILTIN_LABEL_MAPS.items():
-        map_labels = {lbl for _, lbl in patterns}
+        map_labels = set()
+        for _, lbl in patterns:
+            if isinstance(lbl, list):
+                map_labels.update(lbl)
+            else:
+                map_labels.add(lbl)
         overlap = len(label_set & map_labels)
         if overlap > best_overlap:
             best_name, best_overlap = name, overlap
 
     if best_name and best_overlap > 0:
         print(f"Using built-in label map: {best_name}")
-        return [(re.compile(pat), lbl) for pat, lbl in BUILTIN_LABEL_MAPS[best_name]]
+        return [
+            (re.compile(pat), lbl if isinstance(lbl, list) else [lbl])
+            for pat, lbl in BUILTIN_LABEL_MAPS[best_name]
+        ]
 
     print("Warning: no matching built-in label map found. Use --label-map to provide one.")
     return []
 
 
-def sample_to_label(sample_name, patterns):
-    for pattern, label in patterns:
+def sample_to_labels(sample_name, patterns):
+    matched = []
+    for pattern, labels in patterns:
         if pattern.search(sample_name):
-            return label
-    return None
+            matched.extend(labels)
+    return matched
 
 
 # --------------------------------------------------------------------------- #
@@ -193,11 +209,11 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
         if len(parts) < 3:
             continue
         sample_name = parts[-2]
-        label = sample_to_label(sample_name, label_patterns)
-        if label is None or label not in label_set:
-            continue
-        for chunk_info in entry[1]:
-            files[label].append(chunk_info["chunk"]["path"])
+        matched_labels = sample_to_labels(sample_name, label_patterns)
+        for label in matched_labels:
+            if label in label_set:
+                for chunk_info in entry[1]:
+                    files[label].append(chunk_info["chunk"]["path"])
 
     import random
     rng = random.Random(42)
@@ -235,12 +251,12 @@ def plot_comparison_raw(args, saved, files_by_label, files_by_label_compare):
         if paths_nom:
             print(f"Reading {len(paths_nom)} nominal files for {label}...")
             data_nom[label] = read_branches(
-                paths_nom, all_branches, n_canjet=n_canjet, n_notcanjet=n_notcanjet
+                paths_nom, all_branches, label=label, n_canjet=n_canjet, n_notcanjet=n_notcanjet
             )
         if paths_comp:
             print(f"Reading {len(paths_comp)} comparison files for {label}...")
             data_comp[label] = read_branches(
-                paths_comp, all_branches, n_canjet=n_canjet, n_notcanjet=n_notcanjet
+                paths_comp, all_branches, label=label, n_canjet=n_canjet, n_notcanjet=n_notcanjet
             )
 
     raw_dir = os.path.join(args.output_dir, "raw")
@@ -391,32 +407,32 @@ def plot_comparison_dataprep(args, saved, files_by_label, files_by_label_compare
 
         if paths_nom:
             print(f"Building nominal tensors for {label} ({len(paths_nom)} files)...")
-            j_n, o_n, a_n = _build_tensors(paths_nom, input_cfg)
+            j_n, o_n, a_n = _build_tensors(paths_nom, input_cfg, label=label)
             if j_n is not None:
-                print(f"  Running nominal dataPrep ({j_n.shape[0]} events)...")
+                print(f"  Running dataPrep nominal ({j_n.shape[0]} events)...")
                 with torch.no_grad():
-                    j_out, d_out, q_out, a_out, o_out, *_ = input_embed.dataPrep(j_n, o_n, a_n)
+                    j_out_n, d_out_n, q_out_n, a_out_n, o_out_n, *_ = input_embed.dataPrep(j_n, o_n, a_n)
                 res_nom[label] = {
-                    "j": j_out.numpy(),
-                    "d": d_out.numpy(),
-                    "q": q_out.numpy(),
-                    "a": a_out.numpy(),
-                    "o": o_out.numpy() if o_out is not None else None,
+                    "j": j_out_n.numpy(),
+                    "d": d_out_n.numpy(),
+                    "q": q_out_n.numpy(),
+                    "a": a_out_n.numpy(),
+                    "o": o_out_n.numpy() if o_out_n is not None else None,
                 }
 
         if paths_comp:
             print(f"Building comparison tensors for {label} ({len(paths_comp)} files)...")
-            j_c, o_c, a_c = _build_tensors(paths_comp, input_cfg)
+            j_c, o_c, a_c = _build_tensors(paths_comp, input_cfg, label=label)
             if j_c is not None:
-                print(f"  Running comparison dataPrep ({j_c.shape[0]} events)...")
+                print(f"  Running dataPrep comparison ({j_c.shape[0]} events)...")
                 with torch.no_grad():
-                    j_out, d_out, q_out, a_out, o_out, *_ = input_embed.dataPrep(j_c, o_c, a_c)
+                    j_out_c, d_out_c, q_out_c, a_out_c, o_out_c, *_ = input_embed.dataPrep(j_c, o_c, a_c)
                 res_comp[label] = {
-                    "j": j_out.numpy(),
-                    "d": d_out.numpy(),
-                    "q": q_out.numpy(),
-                    "a": a_out.numpy(),
-                    "o": o_out.numpy() if o_out is not None else None,
+                    "j": j_out_c.numpy(),
+                    "d": d_out_c.numpy(),
+                    "q": q_out_c.numpy(),
+                    "a": a_out_c.numpy(),
+                    "o": o_out_c.numpy() if o_out_c is not None else None,
                 }
 
     dp_dir = os.path.join(args.output_dir, "dataprep")
@@ -549,7 +565,7 @@ def _branch_groups(input_cfg):
     }
 
 
-def read_branches(file_paths, branches, n_canjet=4, n_notcanjet=8):
+def read_branches(file_paths, branches, label=None, n_canjet=4, n_notcanjet=8):
     """Read branches from friend tree ROOT files, return {branch: np.array}.
 
     Multi-jet branches are padded and returned as 2D arrays (nevents, n_jets)
@@ -568,6 +584,19 @@ def read_branches(file_paths, branches, n_canjet=4, n_notcanjet=8):
                 # Filter: only events with enough CanJets (others failed selection)
                 ncanjet = tree["nCanJet"].array(library="np")
                 mask = ncanjet >= n_canjet
+
+                # Event-level selection for FvT / SvB sub-classes
+                if label in ("t4", "d4"):
+                    if "fourTag" in tree:
+                        mask = mask & (tree["fourTag"].array(library="np") != 0)
+                    if label == "d4" and "SB" in tree:
+                        mask = mask & (tree["SB"].array(library="np") != 0)
+                elif label in ("t3", "d3", "multijet"):
+                    if "threeTag" in tree:
+                        mask = mask & (tree["threeTag"].array(library="np") != 0)
+                elif label in ("ttbar", "ttHbb", "ggF", "ZH", "ZZ"):
+                    if "fourTag" in tree:
+                        mask = mask & (tree["fourTag"].array(library="np") != 0)
 
                 for branch in branches:
                     if branch == "year":
@@ -650,7 +679,7 @@ def plot_raw(args, saved, files_by_label):
             continue
         print(f"Reading {len(paths)} files for {label}...")
         data_by_label[label] = read_branches(
-            paths, all_branches, n_canjet=n_canjet, n_notcanjet=n_notcanjet
+            paths, all_branches, label=label, n_canjet=n_canjet, n_notcanjet=n_notcanjet
         )
 
     raw_dir = os.path.join(args.output_dir, "raw")
@@ -736,7 +765,7 @@ def plot_raw(args, saved, files_by_label):
     print(f"Raw plots saved to {raw_dir}/")
 
 
-def _build_tensors(file_paths, input_cfg):
+def _build_tensors(file_paths, input_cfg, label=None):
     """Read friend tree ROOT files and build (j, o, a) tensors for dataPrep.
 
     Layout matches what dataPrep expects before reshape:
@@ -763,6 +792,19 @@ def _build_tensors(file_paths, input_cfg):
                 # Filter: only events with enough CanJets
                 ncanjet = tree["nCanJet"].array(library="np")
                 mask = ncanjet >= n_canjet
+
+                # Event-level selection for FvT / SvB sub-classes
+                if label in ("t4", "d4"):
+                    if "fourTag" in tree:
+                        mask = mask & (tree["fourTag"].array(library="np") != 0)
+                    if label == "d4" and "SB" in tree:
+                        mask = mask & (tree["SB"].array(library="np") != 0)
+                elif label in ("t3", "d3", "multijet"):
+                    if "threeTag" in tree:
+                        mask = mask & (tree["threeTag"].array(library="np") != 0)
+                elif label in ("ttbar", "ttHbb", "ggF", "ZH", "ZZ"):
+                    if "fourTag" in tree:
+                        mask = mask & (tree["fourTag"].array(library="np") != 0)
 
                 # CanJet: jagged → pad to exactly 4 jets
                 j_parts = []
@@ -874,7 +916,7 @@ def plot_dataprep(args, saved, files_by_label):
         if not paths:
             continue
         print(f"Building tensors for {label} ({len(paths)} files)...")
-        j, o, a = _build_tensors(paths, input_cfg)
+        j, o, a = _build_tensors(paths, input_cfg, label=label)
         if j is None:
             print(f"  No data loaded for {label}, skipping")
             continue

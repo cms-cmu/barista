@@ -28,6 +28,8 @@ def merge_coffea_files( files_to_merge, output_file ):
                     logging.info(f'   Merging histogram {ihist}')
                     if ihist not in output[ikey]:
                         output[ikey][ihist] = iout[ikey][ihist]
+                    elif isinstance(output[ikey][ihist], dict) and isinstance(iout[ikey][ihist], dict):
+                        output[ikey][ihist] = output[ikey][ihist] | iout[ikey][ihist]
                     else:
                         output[ikey][ihist] += iout[ikey][ihist]
             else:

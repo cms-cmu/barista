@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _DATA_ONLY_KEYS: frozenset = frozenset({
     'rebin', 'process', 'var_over_ride', 'hist_key_list', 'do2d',
-    'fileLabels', 'labels', 'combine_input_files', 'blind',
+    'fileLabels', 'labels', 'combine_input_files', 'blind', '2d',
 })
 
 
@@ -95,7 +95,7 @@ class RenderOptions:
 
     # --- Output --------------------------------------------------------------
     outputFolder: Optional[str] = None
-    fmt: str = "pdf"
+    fmt: Union[str, List[str]] = "pdf"
     dpi: Optional[int] = None
     write_yaml: bool = False
 

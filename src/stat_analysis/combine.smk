@@ -44,6 +44,7 @@ for channel, ch_config in config.get("channels", {}).items():
     targets.extend([
         f"{base_prefix}/limits/datacard_limits__{signallabel}.json",
         f"{base_prefix}/significance/datacard_significance__{signallabel}.log",
+        f"{base_prefix}/significance/datacard_significance__{signallabel}.json",
         f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf",
         f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.png",
         f"{base_prefix}/postfit/datacard_postfit__{signallabel}.pdf",
@@ -288,7 +289,9 @@ rule limits:
 
 rule significance:
     input: "{path}/workspace/datacard__{signallabel}.root"
-    output: "{path}/significance/datacard_significance__{signallabel}.log"
+    output: 
+        log = "{path}/significance/datacard_significance__{signallabel}.log",
+        json = "{path}/significance/datacard_significance__{signallabel}.json"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -306,9 +309,11 @@ rule significance:
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
         WORKSPACE_FILE=$(realpath {input})
+        OUT_LOG=$(realpath {output.log})
+        OUT_JSON=$(realpath {output.json})
         mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname {output})
-        OUT_FILE=$(realpath {output})
+        mkdir -p $(dirname $OUT_LOG)
+        mkdir -p $(dirname $OUT_JSON)
         (
         echo "[$(date)] Starting significance rule with signal {params.signallabel}"
 
@@ -321,40 +326,93 @@ rule significance:
         fi
 
         SET_ZERO_OPT=""
+        SET_EXP_OPT="--setParameters r{params.signallabel}=1"
         if [ -n "{params.set_parameters_zero}" ]; then
             formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 SET_ZERO_OPT="--setParameters $formatted_params"
+                SET_EXP_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
             fi
         fi
 
-        cd $(dirname $OUT_FILE) && \
-            combine -M Significance $WORKSPACE_FILE \
+        cd $(dirname $OUT_LOG) && \
+        echo "=== Observed Significance ===" > $(basename {output.log}) && \
+        combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
             --redefineSignalPOIs r{params.signallabel} \
-            -n _{params.signallabel} > $(basename {output}) && \
-            combine -M Significance $WORKSPACE_FILE \
+            -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
+        echo "" >> $(basename {output.log}) && \
+        echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
+        combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
-            $SET_ZERO_OPT \
+            $SET_EXP_OPT \
             $FREEZE_OPT \
-            -n _{params.signallabel} \
-            -t -1 --expectSignal=1 >> $(basename {output})
+            -n _{params.signallabel}_exp \
+            -t -1 >> $(basename {output.log}) 2>&1 && \
+        python3 -c '
+import re, json, sys
+
+log_file = sys.argv[1]
+json_file = sys.argv[2]
+signal_label = sys.argv[3]
+
+with open(log_file, "r") as f:
+    content = f.read()
+
+obs_part = ""
+exp_part = ""
+if "=== Expected Significance" in content:
+    parts = content.split("=== Expected Significance")
+    obs_part = parts[0]
+    exp_part = parts[1]
+else:
+    obs_part = content
+
+def extract_sig(text):
+    sig_match = re.search(r"Significance:\\s*([\\d\\.eE\\+-]+)", text)
+    pval_match = re.search(r"\\(p-value\\s*=\\s*([\\d\\.eE\\+-]+)\\)", text)
+    sig = float(sig_match.group(1)) if sig_match else None
+    pval = float(pval_match.group(1)) if pval_match else None
+    return {{"significance": sig, "p_value": pval}}
+
+res = {{
+    "signal": signal_label,
+    "observed": extract_sig(obs_part),
+    "expected": extract_sig(exp_part)
+}}
+
+with open(json_file, "w") as f:
+    json.dump(res, f, indent=2)
+
+sig_name = res.get("signal", "")
+obs_sig = res.get("observed", {{}}).get("significance")
+obs_pval = res.get("observed", {{}}).get("p_value")
+exp_sig = res.get("expected", {{}}).get("significance")
+exp_pval = res.get("expected", {{}}).get("p_value")
+
+print("\\n" + "="*60)
+print(" Significance Summary for %s:" % sig_name)
+print("   Observed Significance : %s (p-value: %s)" % (obs_sig, obs_pval))
+print("   Expected Significance : %s (p-value: %s)" % (exp_sig, exp_pval))
+print("="*60 + "\\n")
+' "$OUT_LOG" "$OUT_JSON" "{params.signallabel}"
         ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_snapshot:
     input: "{path}/workspace/datacard__{signallabel}.root"
-    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root")
+    output: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot_{fit_type}__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: f"{log_dir}/likelihood_scan_snapshot_{{path}}__{{signallabel}}.log"
+    log: f"{log_dir}/likelihood_scan_snapshot_{{fit_type}}_{{path}}__{{signallabel}}.log"
     shell:
         """
         . /srv/apptainer_env.sh || true
@@ -369,7 +427,7 @@ rule likelihood_scan_snapshot:
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
-        echo "[$(date)] Starting likelihood_scan snapshot fit with signal {params.signallabel}"
+        echo "[$(date)] Starting likelihood_scan snapshot fit ({params.fit_type}) with signal {params.signallabel}"
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
@@ -379,31 +437,45 @@ rule likelihood_scan_snapshot:
             fi
         fi
 
-        SET_ZERO_OPT=""
-        if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                SET_ZERO_OPT="--setParameters $formatted_params"
+        SET_OPT=""
+        if [ "{params.fit_type}" = "exp" ]; then
+            SET_OPT="--setParameters r{params.signallabel}=1"
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
+                fi
             fi
+            ASYMOV_OPT="-t -1"
+        else
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters $formatted_params"
+                fi
+            fi
+            ASYMOV_OPT=""
         fi
 
         cd $(dirname $OUT_FILE) && \
             combine -M MultiDimFit -d $WORKSPACE_FILE \
             -m {params.mass} \
-            -n _$(basename {input} .root)_snapshot \
-            $SET_ZERO_OPT \
+            -n _$(basename {input} .root)_{params.fit_type}_snapshot \
+            $SET_OPT \
             $FREEZE_OPT \
+            $ASYMOV_OPT \
             --saveWorkspace --robustFit 1 && \
-            mv higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
+            mv higgsCombine_$(basename {input} .root)_{params.fit_type}_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_chunk:
-    input: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root"
-    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_chunk_{split_index}__{signallabel}.root")
+    input: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot_{fit_type}__{signallabel}.root"
+    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_chunk_{fit_type}_{split_index}__{signallabel}.root")
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120"),
@@ -412,7 +484,7 @@ rule likelihood_scan_chunk:
         r_max = lambda wildcards: config.get("likelihood_scan_r_max", "10"),
         first_point = lambda wildcards: get_grid_split_points(wildcards, config)[0],
         last_point = lambda wildcards: get_grid_split_points(wildcards, config)[1]
-    log: f"{log_dir}/likelihood_scan_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
+    log: f"{log_dir}/likelihood_scan_chunk_{{fit_type}}_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
         . /srv/apptainer_env.sh || true
@@ -427,7 +499,7 @@ rule likelihood_scan_chunk:
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
-        echo "[$(date)] Starting likelihood_scan chunk {wildcards.split_index} with signal {params.signallabel}"
+        echo "[$(date)] Starting likelihood_scan chunk ({params.fit_type}) {wildcards.split_index} with signal {params.signallabel}"
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
@@ -437,12 +509,24 @@ rule likelihood_scan_chunk:
             fi
         fi
 
-        SET_ZERO_OPT=""
-        if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                SET_ZERO_OPT="--setParameters $formatted_params"
+        SET_OPT=""
+        if [ "{params.fit_type}" = "exp" ]; then
+            SET_OPT="--setParameters r{params.signallabel}=1"
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
+                fi
             fi
+            ASYMOV_OPT="-t -1"
+        else
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters $formatted_params"
+                fi
+            fi
+            ASYMOV_OPT=""
         fi
 
         cd $(dirname $OUT_FILE) && \
@@ -451,8 +535,9 @@ rule likelihood_scan_chunk:
             -n _$(basename {input} .root)_chunk_{wildcards.split_index} \
             -m {params.mass} \
             -P r{params.signallabel} \
-            $SET_ZERO_OPT \
+            $SET_OPT \
             $FREEZE_OPT \
+            $ASYMOV_OPT \
             --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1 && \
             mv higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
@@ -479,20 +564,46 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
-        INPUT_FILES=""
+        EXP_FILES=""
+        OBS_FILES=""
         for f in {input}; do
-            INPUT_FILES="$INPUT_FILES $(realpath $f)"
+            rf=$(realpath $f)
+            if [[ "$f" == *"_exp_"* ]]; then
+                EXP_FILES="$EXP_FILES $rf"
+            elif [[ "$f" == *"_obs_"* ]]; then
+                OBS_FILES="$OBS_FILES $rf"
+            fi
         done
         mkdir -p $(dirname $LOG)
         mkdir -p $DATACARD_DIR
         (
         echo "[$(date)] Merging likelihood scan chunks and plotting"
-        cd $DATACARD_DIR && \
-            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            $INPUT_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+        cd $DATACARD_DIR
+
+        if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
+            hadd -f higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
+            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+                --main-label "Observed" \
+                --others higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
+        elif [ -n "$EXP_FILES" ]; then
+            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --main-label "Expected" \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+            mv scan_plot.pdf $OUT_FILE
+        else
+            INPUT_FILES=""
+            for f in {input}; do
+                INPUT_FILES="$INPUT_FILES $(realpath $f)"
+            done
+            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+            mv scan_plot.pdf $OUT_FILE
+        fi
         ) 2>&1 | tee {log}
         """
 
@@ -1058,6 +1169,7 @@ rule postfit:
         channel = lambda wildcards: wildcards.path.rstrip('/').split('/')[-1],
         signal = "{signallabel}",
         fit_type = get_postfit_plot_fit_type,
+        signal_scale = lambda wildcards: config.get("channels", {}).get(wildcards.path.rstrip('/').split('/')[-1], {}).get("signal_scale", 1 if "ttHbb" in wildcards.signallabel else (100 if "HH" in wildcards.signallabel else 1)),
         ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
         metadata = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml").format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
@@ -1081,6 +1193,7 @@ rule postfit:
             -o $OUT_DIR/plots/ \
             -c {params.channel} \
             -s {params.signal} \
+            --signal_scale {params.signal_scale} \
             {params.ylog} \
             -m $METADATA_FILE && \
             cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE

@@ -90,6 +90,7 @@ class LoadRoot(ABC, Dataset):
     )
 
     def __init__(self):
+        super().__init__()
         from src.classifier.df.io import ToTensor
 
         self._to_tensor = ToTensor()

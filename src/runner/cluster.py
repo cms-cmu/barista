@@ -258,7 +258,8 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
                         break
         except Exception as e:
             logging.error(f"Error in daemon monitoring loop: {e}")
-            break
+            time.sleep(10)
+            continue
 
         time.sleep(30)
 
@@ -308,7 +309,7 @@ def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
     if not args.start_cluster_daemon:
         start_wait = time.time()
         data = None
-        while time.time() - start_wait < 15:
+        while time.time() - start_wait < 120:
             if os.path.exists(scheduler_json_path):
                 try:
                     with open(scheduler_json_path, "r") as f:
@@ -336,19 +337,19 @@ def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
         logging.info(f"Connecting to shared Dask scheduler at {address}...")
 
         client = None
-        for attempt in range(1, 6):
+        for attempt in range(1, 11):
             try:
-                client = distributed.Client(address, timeout="5s")
-                logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/5)!")
+                client = distributed.Client(address, timeout="30s")
+                logging.info(f"Successfully connected to Dask scheduler (attempt {attempt}/10)!")
                 logging.info(f"Dask dashboard: {client.dashboard_link}")
                 logging.info(f"Dask scheduler host: {address.split('://')[1].split(':')[0]}")
                 log_daemon_info(data)
                 return client, None
             except Exception as e:
-                if attempt == 5:
-                    raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 5 attempts: {e}")
-                logging.warning(f"Connection attempt {attempt}/5 failed: {e}. Retrying in 2 seconds...")
-                time.sleep(2)
+                if attempt == 10:
+                    raise RuntimeError(f"Failed to connect to Dask scheduler at {address} after 10 attempts: {e}")
+                logging.warning(f"Connection attempt {attempt}/10 failed: {e}. Retrying in 3 seconds...")
+                time.sleep(3)
 
     else:
         logging.info("Initializing Dask cluster daemon...")
@@ -380,5 +381,6 @@ def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
         worker_initializer = WorkerInitializer(uproot_xrootd_retry_delays=config_runner['uproot_xrootd_retry_delays'])
         client.register_plugin(worker_initializer)
 
-        run_daemon_monitoring_loop(client, cluster, scheduler_json_path, args.idle_timeout)
+        idle_timeout = getattr(args, 'idle_timeout', None) or config_runner.get('idle_timeout', 3600)
+        run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout)
         sys.exit(0)

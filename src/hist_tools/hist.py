@@ -323,12 +323,12 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                                 hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
                     hists._hists[name].fill(**hist_args)
                     hists._filled.add(name)
-                except Exception:
+                except Exception as e:
                     if hist_args:
                         msg = f'filling histogram "{name}", with\n" + {indent(pretty_repr(hist_args), "    ")}'
                     else:
                         msg = f'preparing the arguments for histogram "{name}"'
-                    raise FillError(f"\nWhile {msg}\n the above exception occurred.")
+                    raise FillError(f"\nWhile {msg}\n the above exception occurred: {type(e).__name__}: {e}") from e
 
 
 if sys.version_info >= (3, 11):
@@ -344,13 +344,19 @@ else:
         categories: set[str]
 
 
-class _ThreadLocalCollectionDescriptor:
-    def __init__(self):
-        self._local = threading.local()
+import contextvars
+
+_current_collection_var: contextvars.ContextVar[_Collection | None] = contextvars.ContextVar(
+    "_current_collection_var", default=None
+)
+
+
+class _ContextVarCollectionDescriptor:
     def __get__(self, instance, owner):
-        return getattr(self._local, "current", None)
+        return _current_collection_var.get()
+
     def __set__(self, instance, value):
-        self._local.current = value
+        _current_collection_var.set(value)
 
 
 class _Collection(Generic[HistType, FillType]):
@@ -358,7 +364,7 @@ class _Collection(Generic[HistType, FillType]):
         hist: type[HistType]
         fill: type[FillType]
 
-    current = _ThreadLocalCollectionDescriptor()
+    current = _ContextVarCollectionDescriptor()
 
     def __init__(self, **categories):
         self._fills: dict[str, list[str]] = {}

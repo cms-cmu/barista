@@ -45,6 +45,8 @@ def init_arg_parser():
                         help='Name of hists to skip')
 
 
+    parser.add_argument('-f', '--format', dest="fmt", default="pdf,png",
+                        help='Output format(s), comma-separated (e.g. pdf, png, or pdf,png)')
     parser.add_argument('--doTest', action="store_true", help='Metadata file.')
     parser.add_argument('--debug', action="store_true", help='')
     parser.add_argument('--signal', action="store_true", help='')

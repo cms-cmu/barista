@@ -187,21 +187,32 @@ def _ensure_output_path(*args: Any) -> str:
         os.makedirs(output_path)
     return output_path
 
-def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: str = "pdf", dpi: Any = None) -> None:
-    """Save a figure to a file.
+def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: Union[str, List[str]] = "pdf", dpi: Any = None) -> None:
+    """Save a figure to one or more file formats.
 
     Args:
         fig: The figure object to save
         file_name: Name of the output file (string or list of strings)
         *args: Additional path components
-        fmt: Output format (default: "pdf"). Use "png" for web-friendly output.
-        dpi: Resolution in dots per inch (default: None, uses matplotlib default)
+        fmt: Output format(s) (e.g. "pdf", "png", "pdf,png", ["pdf", "png"]).
+        dpi: Resolution in dots per inch (default: 150 for raster formats if None)
     """
     output_path = _ensure_output_path(*args)
     file_name = file_name if isinstance(file_name, str) else "_vs_".join(file_name)
-    file_path = f"{output_path}/{file_name.replace('.', '_').replace('/', '_')}.{fmt}"
-    print(f"wrote {fmt}: {file_path}")
-    fig.savefig(file_path, dpi=dpi)
+    sanitized_name = file_name.replace('.', '_').replace('/', '_')
+
+    if isinstance(fmt, str):
+        formats = [f.strip() for f in fmt.split(",") if f.strip()]
+    elif isinstance(fmt, (list, tuple)):
+        formats = list(fmt)
+    else:
+        formats = [str(fmt)]
+
+    for f in formats:
+        file_path = f"{output_path}/{sanitized_name}.{f}"
+        print(f"wrote {f}: {file_path}")
+        target_dpi = dpi if dpi is not None else (150 if f.lower() in ("png", "jpg", "jpeg") else None)
+        fig.savefig(file_path, dpi=target_dpi, bbox_inches="tight")
 
 def save_yaml(plot_data: Dict[str, Any], var: Union[str, List[str]], *args: Any) -> None:
     """Save plot data to a YAML file.
