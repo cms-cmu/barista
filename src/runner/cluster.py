@@ -238,8 +238,23 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
                 connected_clients = scheduler_info.get('clients', {})
                 active_clients = max(0, len(connected_clients) - 1)
 
-            processing_tasks = client.processing()
-            n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
+            # Query number of outstanding tasks on the scheduler. We must count
+            # ALL non-terminal tasks, not just those actively 'processing' on a
+            # worker: during the final tree-reduction/accumulation of a large job
+            # the worker 'processing' count can momentarily hit 0 (partials held
+            # in 'memory', the reduce task 'waiting'/'no-worker' for a slot),
+            # which previously looked idle and killed a still-running job.
+            try:
+                def get_unfinished_task_count(dask_scheduler):
+                    active_states = {"processing", "waiting", "queued",
+                                     "no-worker", "memory"}
+                    return sum(1 for ts in dask_scheduler.tasks.values()
+                               if ts.state in active_states)
+                n_tasks = client.run_on_scheduler(get_unfinished_task_count)
+            except Exception as e:
+                logging.error(f"Error querying tasks on scheduler: {e}")
+                processing_tasks = client.processing()
+                n_tasks = sum(len(tasks) for tasks in processing_tasks.values()) if processing_tasks else 0
 
             logging.debug(f"Daemon status: {active_clients} active clients, {n_tasks} tasks processing.")
 
