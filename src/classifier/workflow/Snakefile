@@ -39,6 +39,7 @@ METADATA       = config.get("metadata", "")
 FRIEND         = _r(config.get("friend", ""))
 
 PLOT_BASE = config["plot_base"]
+COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml"))
 
 # ── Container images ──────────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ rule train:
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         wfs_base                = WFS_BASE,
         template_str            = TRAIN_TEMPLATE,
+        common                  = COMMON,
     shell:
         """
         {params.init} && \
@@ -97,7 +99,7 @@ rule train:
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
-            -from {params.wfs_base}/../common.yml \
+            -from {params.common} \
             -setting Monitor "address: '127.0.0.1:$PORT'" \
             -flag debug \
             2>&1 | tee -a {log}
@@ -156,6 +158,7 @@ rule evaluate:
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         wfs_base                = WFS_BASE,
         template_str            = EVAL_TEMPLATE,
+        common                  = COMMON,
     shell:
         """
         {params.init} && \
@@ -163,7 +166,7 @@ rule evaluate:
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
-            -from {params.wfs_base}/../common.yml \
+            -from {params.common} \
             -setting Monitor "address: '127.0.0.1:$PORT'" \
             -flag debug \
             2>&1 | tee -a {log}
