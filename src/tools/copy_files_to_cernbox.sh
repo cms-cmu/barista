@@ -105,29 +105,44 @@ if [[ $use_tar -eq 1 ]]; then
   fi
 fi
 
+# Check if source is a folder with subfolders or a direct folder with files
+first_item=$($list_cmd "$source_folder" | head -1)
+
 command_file=$(mktemp)
 trap 'rm -f "$command_file"' EXIT
 
-# Transfer files recursively supporting any directory depth
-created_dirs=()
-while IFS= read -r -d '' full_file; do
-    rel_path="${full_file#$source_folder/}"
-    rel_dir=$(dirname "$rel_path")
-    if [[ -n "$folder_filter" && ! "$rel_dir" =~ $folder_filter ]]; then
-        continue
-    fi
-    if [[ -n "$file_filter" && ! "$(basename "$full_file")" =~ $file_filter ]]; then
-        continue
-    fi
-    dst_dir="${destination_folder#/}/${rel_dir}"
-    if [[ "$rel_dir" != "." && ! " ${created_dirs[*]:-} " =~ " ${dst_dir} " ]]; then
-        xrdfs root://eosuser.cern.ch mkdir -p "/${dst_dir}" 2>/dev/null || true
-        created_dirs+=("${dst_dir}")
-    fi
-    src="$full_file"
-    dst="root://eosuser.cern.ch//${destination_folder#/}/${rel_path}"
-    printf "%s\0%s\0" "$src" "$dst" >> "$command_file"
-done < <(find "$source_folder" -type f -print0)
+# If the first item is a file (has extension), treat source as direct folder
+if [[ $first_item == *.* ]]; then
+  xrdfs root://eosuser.cern.ch mkdir -p "$destination_folder"
+  # Transfer files directly from source folder
+  for ifile in $($list_cmd "$source_folder");
+  do
+      if [[ -z $file_filter || $ifile =~ $file_filter ]];
+      then
+          src="${source_folder}/${ifile}"
+          dst="root://eosuser.cern.ch//${destination_folder#/}/${ifile}"
+          printf "%s\0%s\0" "$src" "$dst" >> "$command_file"
+      fi
+  done
+else
+  # Transfer files from subfolders
+  for ifolder in $($list_cmd "$source_folder");
+  do
+      if [[ -z $folder_filter || $ifolder =~ $folder_filter ]];
+      then
+          xrdfs root://eosuser.cern.ch mkdir -p "${destination_folder}/${ifolder}"
+          for ifile in $($list_cmd "${source_folder}/${ifolder}");
+          do
+              if [[ -z $file_filter || $ifile =~ $file_filter ]];
+              then
+                  src="${source_folder}/${ifolder}/${ifile}"
+                  dst="root://eosuser.cern.ch//${destination_folder#/}/${ifolder}/${ifile}"
+                  printf "%s\0%s\0" "$src" "$dst" >> "$command_file"
+              fi
+          done
+      fi
+  done
+fi
 
 if [[ $jobs -gt 1 ]]; then
   echo "Found $(grep -z -c . "$command_file" | awk '{print $1/2}') files to transfer."
