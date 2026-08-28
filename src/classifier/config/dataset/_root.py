@@ -90,6 +90,7 @@ class LoadRoot(ABC, Dataset):
     )
 
     def __init__(self):
+        super().__init__()
         from src.classifier.df.io import ToTensor
 
         # Cooperative init: must forward up the MRO so classes that come AFTER

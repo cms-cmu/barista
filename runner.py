@@ -200,7 +200,7 @@ if __name__ == '__main__':
         with open("src/physics/corrections.yml", "r") as f:
             corrections_metadata = yaml.safe_load(f)
         configs['config']['corrections_metadata'] = corrections_metadata
-        config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+        config_runner = configs.get('runner', configs.get('analysis_config', {}).get('runner', {}))
         args.shared_dask = True
         setup_config_defaults(config_runner, args)
         if getattr(args, 'dashboard_address', None) is not None:
@@ -330,7 +330,7 @@ if __name__ == '__main__':
 
     # 6. Setup runner configuration defaults
     logging.info("Setting up configuration defaults...")
-    config_runner = configs['runner'] if 'runner' in configs.keys() else {}
+    config_runner = configs.get('runner', configs.get('analysis_config', {}).get('runner', {}))
     setup_config_defaults(config_runner, args)
     
     if getattr(args, 'dashboard_address', None) is not None:
@@ -495,19 +495,12 @@ if __name__ == '__main__':
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
         logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
-        _cm = performance_report(filename=dask_report_file)
-        _cm.__enter__()
-        _exc = None
         try:
+            with performance_report(filename=dask_report_file):
+                run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        except Exception as e:
+            logging.warning(f"Dask performance report failed ({e}); proceeding with job execution directly...")
             run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
-        except BaseException as e:
-            _exc = e
-            raise
-        finally:
-            try:
-                _cm.__exit__(*(type(_exc), _exc, _exc.__traceback__) if _exc else (None, None, None))
-            except Exception as e:
-                logging.warning(f"Dask performance report teardown failed (does not change job outcome): {type(e).__name__}: {e}")
 
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:

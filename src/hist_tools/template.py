@@ -67,9 +67,11 @@ class Template:
         self._parent: Template = None
 
     def copy(self):
-        return self.__class__(
-            self._name, self._data, self._bins, self._skip, **self._fill_args
+        inst = self.__class__(
+            deepcopy(self._name), self._data, self._bins, self._skip, **self._fill_args
         )
+        inst._collection = self._collection
+        return inst
 
     @property
     def collection(self):
@@ -124,6 +126,7 @@ class Template:
             self._instanced = True
             self._parent = parent
             self._fills = _h._Fill()
+            self._name = deepcopy(self._name)
             if name is not None:
                 self._name.code = name
             self._data = astuple(
@@ -175,7 +178,7 @@ class Template:
             if isinstance(attr, cls._Hist):
                 hists[name] = attr
             elif isinstance(attr, Template):
-                templates[name] = attr
+                templates[name] = attr.copy()
         return hists, templates
 
     def __add__(self, other: _h._Fill | Template) -> _h.Fill:

@@ -39,13 +39,14 @@ METADATA       = config.get("metadata", "")
 FRIEND         = _r(config.get("friend", ""))
 
 PLOT_BASE = config["plot_base"]
+COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml"))
 
 # ── Container images ──────────────────────────────────────────────────────────
 
 CLASSIFIER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
-ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
+ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
 
-INIT = "set -e && set +u && source /entrypoint.sh && set -u && export PYTHONUNBUFFERED=1"
+INIT = "set -e && set +u && { [ -f /entrypoint.sh ] && source /entrypoint.sh || true; } && set -u && export PYTHONUNBUFFERED=1"
 
 # ── Rules ─────────────────────────────────────────────────────────────────────
 
@@ -80,16 +81,17 @@ rule train:
         f"{OUTPUT_DIR}/train.log",
     container: CLASSIFIER
     resources:
-        runtime = 1440,
-        mem_mb  = 32000,
+        runtime = 480,
+        mem_mb  = 64000,
         gres    = "mps:25",
         qos     = "light",
-    threads: 4
+    threads: 8
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         wfs_base                = WFS_BASE,
         template_str            = TRAIN_TEMPLATE,
+        common                  = COMMON,
     shell:
         """
         {params.init} && \
@@ -97,7 +99,7 @@ rule train:
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
-            -from {params.wfs_base}/../common.yml \
+            -from {params.common} \
             -setting Monitor "address: '127.0.0.1:$PORT'" \
             -flag debug \
             2>&1 | tee -a {log}
@@ -115,8 +117,8 @@ rule analyze:
     container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
-        mem_mb  = 8000,
-    threads: 1
+        mem_mb  = 16000,
+    threads: 4
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
@@ -125,14 +127,13 @@ rule analyze:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10200-10300 -n 1) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main analyze \
-            --results {params.model}/result.json \
+            {params.model}/result.json \
             -analysis HCR.LossROC \
             -setting IO "output: {params.plot}" \
             -setting IO "report: $(basename {params.model})" \
-            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            -setting Monitor "enable: False" \
             2>&1 | tee -a {log}
         touch {output.flag}
         """
@@ -148,15 +149,16 @@ rule evaluate:
     container: CLASSIFIER
     resources:
         runtime = 240,
-        mem_mb  = 32000,
-        gres    = "mps:30",
-        qos     = "medium",
-    threads: 4
+        mem_mb  = 64000,
+        gres    = "mps:25",
+        qos     = "light",
+    threads: 8
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         wfs_base                = WFS_BASE,
         template_str            = EVAL_TEMPLATE,
+        common                  = COMMON,
     shell:
         """
         {params.init} && \
@@ -164,7 +166,7 @@ rule evaluate:
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
-            -from {params.wfs_base}/../common.yml \
+            -from {params.common} \
             -setting Monitor "address: '127.0.0.1:$PORT'" \
             -flag debug \
             2>&1 | tee -a {log}

@@ -53,6 +53,23 @@ def get_default_othersignals(wildcards, config):
     return []
 
 
+def is_channel_blinded(wildcards, config):
+    """
+    Check if the channel or workflow is configured to run blinded.
+    """
+    if not config:
+        return False
+    flags = config.get("combine_flags", "")
+    if hasattr(wildcards, "path"):
+        channel = wildcards.path.rstrip("/").split("/")[-1]
+        flags = config.get("channels", {}).get(channel, {}).get("combine_flags", flags)
+    if "--blind" in str(flags):
+        return True
+    if config.get("blind", False) or config.get("analysis_config", {}).get("config", {}).get("blind", False):
+        return True
+    return False
+
+
 def get_grid_split_points(wildcards, config):
     """
     Get the (firstPoint, lastPoint) tuple for a given split chunk.
@@ -68,12 +85,22 @@ def get_grid_split_points(wildcards, config):
 def get_likelihood_scan_chunks(wildcards, config):
     """
     Generate all chunk filenames for a given path and signallabel.
+    In blinded mode, returns only 'exp' chunks; in unblinded mode, returns 'obs' and 'exp' chunks.
     """
     points = int(config.get("likelihood_scan_points", 50))
     split_size = int(config.get("likelihood_scan_split_size", 10))
     num_splits = (points + split_size - 1) // split_size
-    return [
-        f"{wildcards.path}/likelihood_scan/datacard_likelihood_scan_chunk_{i}__{wildcards.signallabel}.root"
-        for i in range(num_splits)
-    ]
+    blinded = is_channel_blinded(wildcards, config)
+    fit_types = ["exp"] if blinded else ["obs", "exp"]
+    
+    chunks = []
+    for ft in fit_types:
+        chunks.append(
+            f"{wildcards.path}/likelihood_scan/datacard_likelihood_scan_snapshot_{ft}__{wildcards.signallabel}.root"
+        )
+        for i in range(num_splits):
+            chunks.append(
+                f"{wildcards.path}/likelihood_scan/datacard_likelihood_scan_chunk_{ft}_{i}__{wildcards.signallabel}.root"
+            )
+    return chunks
 

@@ -630,6 +630,10 @@ def get_plot_dict_from_list(*, cfg: Any, var: str, cut: str, axis_opts: Dict, pr
 
     _load_hists(plot_data, cfg, entries, rebin=rebin, do2d=do2d, debug=debug)
 
+    blind = kwargs.get("blind", None)
+    if blind:
+        apply_blinding(plot_data, blind)
+
     if kwargs.get("doRatio", True):
         _add_ratio_plots(plot_data, **kwargs)
 
@@ -778,6 +782,85 @@ def add_ratio_plots(ratio_config: Dict, plot_data: Dict, **kwargs) -> None:
                 style=band_style,
             ))
 
+
+def apply_blinding(plot_data: Dict[str, Any], blind: Any) -> None:
+    """Mask data distributions for blinded signal regions.
+
+    Args:
+        plot_data: The plot data dictionary containing 'hists', 'stack', etc.
+        blind: Blinding specification:
+            - True: blind the last 10 bins
+            - int N > 0: blind the last N bins
+            - int N < 0: blind the first |N| bins
+            - float X: blind bins with center >= X (or lower edge >= X)
+            - tuple/list (low, high): blind bins with center in [low, high]
+    """
+    if blind is None or blind is False:
+        return
+
+    hists = plot_data.get("hists", {})
+    for proc_name, proc_config in hists.items():
+        proc = proc_config.get("process")
+        is_data = (
+            proc == "data"
+            or (isinstance(proc, list) and "data" in proc)
+            or proc_name == "data"
+            or str(proc_name).lower().startswith("data")
+        )
+        if not is_data:
+            continue
+
+        values = np.array(proc_config.get("values", []), dtype=float)
+        variances = np.array(proc_config.get("variances", []), dtype=float)
+        edges = np.array(proc_config.get("edges", []), dtype=float)
+        n_bins = len(values)
+        if n_bins == 0:
+            continue
+
+        if "centers" in proc_config:
+            centers = np.array(proc_config["centers"], dtype=float)
+        elif len(edges) == n_bins + 1:
+            centers = (edges[:-1] + edges[1:]) / 2.0
+        else:
+            centers = np.arange(n_bins, dtype=float)
+
+        mask = np.zeros(n_bins, dtype=bool)
+
+        if isinstance(blind, bool):
+            if blind:
+                n_blind = min(10, n_bins)
+                if n_blind > 0:
+                    mask[-n_blind:] = True
+        elif isinstance(blind, (int, np.integer)):
+            if blind > 0:
+                n_blind = min(int(blind), n_bins)
+                if n_blind > 0:
+                    mask[-n_blind:] = True
+            elif blind < 0:
+                n_blind = min(abs(int(blind)), n_bins)
+                if n_blind > 0:
+                    mask[:n_blind] = True
+        elif isinstance(blind, (float, np.floating)):
+            thresh = float(blind)
+            if len(edges) == n_bins + 1:
+                mask = (centers >= thresh) | (edges[:-1] >= thresh - 1e-9)
+            else:
+                mask = centers >= thresh
+        elif isinstance(blind, (list, tuple)) and len(blind) == 2:
+            low, high = float(blind[0]), float(blind[1])
+            mask = (centers >= low) & (centers <= high)
+
+        values[mask] = np.nan
+        variances[mask] = np.nan
+        proc_config["values"] = values.tolist()
+        proc_config["variances"] = variances.tolist()
+        if len(mask) > 0:
+            if mask[-1]:
+                proc_config["over_flow"] = 0.0
+            if mask[0]:
+                proc_config["under_flow"] = 0.0
+
+
 def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
                               cut: Optional[str] = None, axis_opts: Dict, **kwargs) -> PlotData:
     """
@@ -848,6 +931,11 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
 
     plot_data["stack"] = load_stack_config(cfg=cfg, stack_config=stack_config,
                                            var=var, cut=cut, axis_opts=axis_opts,  **kwargs)
+
+    # Apply blinding if specified
+    blind = kwargs.get("blind", None)
+    if blind:
+        apply_blinding(plot_data, blind)
 
     # Add ratio plots if requested
     if kwargs.get("doRatio", True) and not do2d:
