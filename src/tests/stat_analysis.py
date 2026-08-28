@@ -74,9 +74,28 @@ class TestStatAnalysisHelpers(unittest.TestCase):
         wildcards = SimpleNamespace(path="output/scan", signallabel="ggHH")
         chunks = get_likelihood_scan_chunks(wildcards, config)
         self.assertEqual(chunks, [
-            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_0__ggHH.root",
-            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_1__ggHH.root",
-            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_2__ggHH.root"
+            "output/scan/likelihood_scan/datacard_likelihood_scan_snapshot_obs__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_obs_0__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_obs_1__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_obs_2__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_snapshot_exp__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_0__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_1__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_2__ggHH.root",
+        ])
+
+        # Test blinded mode
+        config_blinded = {
+            "likelihood_scan_points": "25",
+            "likelihood_scan_split_size": "10",
+            "combine_flags": "--blind"
+        }
+        chunks_blinded = get_likelihood_scan_chunks(wildcards, config_blinded)
+        self.assertEqual(chunks_blinded, [
+            "output/scan/likelihood_scan/datacard_likelihood_scan_snapshot_exp__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_0__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_1__ggHH.root",
+            "output/scan/likelihood_scan/datacard_likelihood_scan_chunk_exp_2__ggHH.root",
         ])
 
 

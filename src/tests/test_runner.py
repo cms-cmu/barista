@@ -232,7 +232,7 @@ class TestRunner(unittest.TestCase):
         config_runner = {}
         client, cluster = setup_shared_dask_client(args, config_runner)
         
-        mock_client.assert_called_once_with("tcp://127.0.0.1:8786", timeout="5s")
+        mock_client.assert_called_once_with("tcp://127.0.0.1:8786", timeout="30s")
         self.assertIsNone(cluster)
 
 
