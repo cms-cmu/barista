@@ -37,6 +37,9 @@ class GlobalState:
 
 
 class _share_global_state:
+    def __init__(self):
+        self._states = None
+
     def __getstate__(self):
         return (
             *filter(
@@ -52,13 +55,15 @@ class _share_global_state:
         self._states = states
 
     def __call__(self):
-        for cls, vars in self._states:
+        for cls, vars in getattr(self, "_states", ()) or ():
             for k, v in vars.items():
                 setattr(cls, k, v)
-        del self._states
 
 
 class _share_import_path:
+    def __init__(self):
+        self._states = None
+
     def __getstate__(self):
         return sys.path
 
@@ -66,12 +71,12 @@ class _share_import_path:
         self._states = state
 
     def __call__(self):
-        sys.path = self._states
-        del self._states
+        if getattr(self, "_states", None) is not None:
+            sys.path = self._states
 
 
-status.initializer.add_unique(_share_global_state)
-status.initializer.add_unique(_share_import_path)
+status.initializer.add_unique(_share_global_state())
+status.initializer.add_unique(_share_import_path())
 
 
 class _ClassPropertyMeta(type):

@@ -10,16 +10,18 @@ CLASSIFIER_IMAGE="docker://gitlab-registry.cern.ch/cms-cmu/barista:classifier_la
 BRILCALC_IMAGE="docker://gitlab-registry.cern.ch/cms-cloud/brilws-docker:latest"
 
 # Resolve CVMFS paths if available
-if [ -d '/cvmfs/unpacked.cern.ch' ]; then
-    _resolve_cvmfs() {
-        local img="$1"
-        local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
-        if [ -e "$cvmfs_path" ]; then
-            echo "$cvmfs_path"
-        else
-            echo "$img"
-        fi
-    }
+_resolve_cvmfs() {
+    local img="$1"
+    # Access /cvmfs/unpacked.cern.ch to trigger autofs mount if available
+    ls /cvmfs/unpacked.cern.ch >/dev/null 2>&1
+    local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
+    if [ -e "$cvmfs_path" ]; then
+        echo "$cvmfs_path"
+    else
+        echo "$img"
+    fi
+}
+if [ -d '/cvmfs' ]; then
     COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
     DEV_COFFEA0_7_IMAGE=$(_resolve_cvmfs "$DEV_COFFEA0_7_IMAGE")
     COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
@@ -45,10 +47,8 @@ add_x509_proxy_flags() {
         *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*)
             local PROXY="${PWD}/proxy/x509_proxy"
             mkdir -p proxy
-            
-            if [ -f "$PROXY" ]; then
-                FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
-            fi
+            touch "$PROXY"
+            FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
             ;;
     esac
 }
@@ -155,23 +155,31 @@ setup_host_env() {
     APPTAINER_CMD="apptainer"
 
     if [[ "$CLUSTER_PROFILE" == "bridges2" ]]; then
-        # Resolve SIF files from shared directory if present
+        # Resolve SIF files from shared directory if present, otherwise use CVMFS
         local SHARED_IMAGE_DIR="/ocean/projects/phy260026p/shared/images"
         if [ -f "${SHARED_IMAGE_DIR}/barista_latest.sif" ]; then
             COFFEA_IMAGE="${SHARED_IMAGE_DIR}/barista_latest.sif"
+        else
+            COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
         fi
         if [ -f "${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif" ]; then
             DEV_COFFEA2025_IMAGE="${SHARED_IMAGE_DIR}/barista_dev_coffea2025_latest.sif"
         fi
         if [ -f "${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif" ]; then
             COMBINE_IMAGE="${SHARED_IMAGE_DIR}/combine-container_CMSSW_14_1_0_pre4-combine_v10.6.0-harvester_v3.1.0.sif"
+        else
+            COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
         fi
         if [ -f "${SHARED_IMAGE_DIR}/barista_classifier_latest.sif" ]; then
             CLASSIFIER_IMAGE="${SHARED_IMAGE_DIR}/barista_classifier_latest.sif"
+        else
+            CLASSIFIER_IMAGE=$(_resolve_cvmfs "$CLASSIFIER_IMAGE")
         fi
 
         if [ -f "${SHARED_IMAGE_DIR}/brilws-docker_latest.sif" ]; then
             BRILCALC_IMAGE="${SHARED_IMAGE_DIR}/brilws-docker_latest.sif"
+        else
+            BRILCALC_IMAGE=$(_resolve_cvmfs "$BRILCALC_IMAGE")
         fi
     fi
 
@@ -490,8 +498,10 @@ exit(1)
             # Bridges 2 has older glibc than container, so we bind host binaries directly
             FLAGS+=(
                 -B "${HOME}/.globus:${HOME}/.globus"
-                -B /cvmfs
+                -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
                 --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+                --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+                --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
                 -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol -B /usr/bin/scancel
                 -B /usr/lib64/slurm
                 -B /usr/lib64/libmunge.so.2
@@ -504,6 +514,9 @@ exit(1)
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
             info "Inside Slurm Job ($SLURM_JOB_ID). Running container directly..."
+        elif [[ "$1" == "voms-proxy-"* || "$1" == "grid-proxy-"* || "$1" == "clean" || "$1" == "--help" || "$1" == "-h" ]]; then
+            # CASE A2: Proxy management or utility command -> Run directly on login node (needed for external network access)
+            info "Running proxy/utility command directly on login node..."
         elif [[ " $* " == *" --slurm "* ]]; then
             # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
             local _ROOT
@@ -565,7 +578,7 @@ exit(1)
             if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=3800M "$0" "$@"
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
             fi
@@ -647,8 +660,10 @@ run_coffea_dev() {
             # Bridges 2 has older glibc than container, so we bind host binaries directly
             FLAGS+=(
                 -B "${HOME}/.globus:${HOME}/.globus"
-                -B /cvmfs
+                -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
                 --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+                --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+                --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
                 -B /usr/bin/sbatch -B /usr/bin/squeue -B /usr/bin/scontrol -B /usr/bin/scancel
                 -B /usr/lib64/slurm
                 -B /usr/lib64/libmunge.so.2
@@ -661,6 +676,9 @@ run_coffea_dev() {
         if [ -n "$SLURM_JOB_ID" ]; then
             # CASE A: Inside a job -> Run locally
             info "Inside Slurm Job ($SLURM_JOB_ID). Running Dev Coffea0.7 container directly..."
+        elif [[ "$1" == "voms-proxy-"* || "$1" == "grid-proxy-"* || "$1" == "clean" || "$1" == "--help" || "$1" == "-h" ]]; then
+            # CASE A2: Proxy management or utility command -> Run directly on login node (needed for external network access)
+            info "Running proxy/utility command directly on login node (Dev Coffea0.7)..."
         elif [[ " $* " == *" --slurm "* ]]; then
             # CASE B: Login node + --slurm flag -> Submit scheduler as batch job
             local _ROOT
@@ -722,7 +740,7 @@ run_coffea_dev() {
             if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
-                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=2 --mem=3800M "$0" dev "$@"
+                srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" dev "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
             fi

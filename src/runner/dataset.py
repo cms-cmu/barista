@@ -213,7 +213,15 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
     sample_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
     logging.info(f"Number of samples is {nSamples}")
 
-    for v in range(nSamples):
+    if getattr(args, 'samples', None):
+        sample_indices = []
+        for s in args.samples:
+            s_str = str(s).lstrip("v")
+            sample_indices.append(int(s_str))
+    else:
+        sample_indices = list(range(nSamples))
+
+    for v in sample_indices:
         sample_name = f"{name_prefix}_v{v}"
         idataset = f'{sample_name}_{year}'
 

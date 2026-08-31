@@ -38,6 +38,9 @@ class FriendTreeEvalDataset(EvalDataset[Friend]):
             naming=dump_naming,
         )
 
+    def __len__(self):
+        return len(self.__chunks)
+
     def batches(self, batch_size: int, name: str, **_):
         for chunk in Chunk.balance(batch_size, *self.__chunks):
             yield self.__dumper.new(chunk, name), self.__loader.new(chunk)

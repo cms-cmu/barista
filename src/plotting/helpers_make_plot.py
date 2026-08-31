@@ -88,6 +88,43 @@ def plot_border_SR() -> None:
                     linestyles=BORDER_LINESTYLE, linewidths=BORDER_LINEWIDTH)
 
 
+def plot_border_ttHbb_SR(h_min: float = 95.0, h_max: float = 180.0,
+                         m_min: float = 25.0, arm_max: float = 400.0,
+                         sb_max: float = 1000.0,
+                         draw_sb: bool = True,
+                         sr_color: str = 'red', sr_linestyle: str = '--', sr_linewidth: float = 2.5,
+                         sb_color: str = 'cyan', sb_linestyle: str = ':', sb_linewidth: float = 2.0,
+                         add_labels: bool = True,
+                         ax = None, **kwargs) -> None:
+    """Plot the ttHbb signal region and sideband borders."""
+    if ax is None:
+        ax = plt.gca()
+
+    # Horizontal arm: x in [m_min, arm_max], y in [h_min, h_max]
+    rect_h = mpatches.Rectangle((m_min, h_min), arm_max - m_min, h_max - h_min,
+                                linewidth=sr_linewidth, edgecolor=sr_color, facecolor='none',
+                                linestyle=sr_linestyle)
+    ax.add_patch(rect_h)
+
+    # Vertical arm: x in [h_min, h_max], y in [m_min, arm_max]
+    rect_v = mpatches.Rectangle((h_min, m_min), h_max - h_min, arm_max - m_min,
+                                linewidth=sr_linewidth, edgecolor=sr_color, facecolor='none',
+                                linestyle=sr_linestyle)
+    ax.add_patch(rect_v)
+
+    if draw_sb:
+        # Outer SB analysis box: [m_min, sb_max] x [m_min, sb_max]
+        rect_sb = mpatches.Rectangle((m_min, m_min), sb_max - m_min, sb_max - m_min,
+                                    linewidth=sb_linewidth, edgecolor=sb_color, facecolor='none',
+                                    linestyle=sb_linestyle)
+        ax.add_patch(rect_sb)
+
+    if add_labels:
+        ax.text(110, 110, "SR", color=sr_color, fontsize=16, weight='bold', ha='center', va='center')
+        if draw_sb and sb_max > arm_max:
+            ax.text(arm_max + 100, arm_max + 100, "SB", color=sb_color, fontsize=16, weight='bold', ha='center', va='center')
+
+
 def _draw_stack(stack_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool,
                 plot_data: Dict, ax) -> None:
     """Draw the stacked histogram. Stores uniform-bin metadata in plot_data when needed."""
@@ -738,6 +775,9 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
 
             if opts.plot_contour:
                 plot_border_SR()
+            if opts.plot_ttHbb_sr:
+                params = opts.ttHbb_sr_params or {}
+                plot_border_ttHbb_SR(**params)
             if opts.plot_leadst_lines:
                 plot_leadst_lines()
             if opts.plot_sublst_lines:
