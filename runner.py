@@ -250,7 +250,7 @@ if __name__ == '__main__':
     logging.info(">>> Modifying config")
     print(yaml.dump(configs, default_flow_style=False))
 
-    if not 'config' in configs:
+    if configs.get('config') is None:
         configs['config'] = {}
     
     # Load corrections_metadata

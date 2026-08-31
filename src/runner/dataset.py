@@ -151,7 +151,7 @@ def get_dataset_type(dataset_name):
         return 'mixeddata_4b'
     elif dataset_name in ['mixeddata_4b_noTT']:
         return 'mixeddata_4b_noTT'
-    elif dataset_name.startswith('mixeddata_all'):
+    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3'):
         return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
