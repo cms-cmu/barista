@@ -176,7 +176,7 @@ rule workspace:
     log: f"{log_dir}/workspace_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -237,7 +237,7 @@ rule limits:
     log: f"{log_dir}/limits_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -301,7 +301,7 @@ rule significance:
     log: f"{log_dir}/significance_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -415,7 +415,7 @@ rule likelihood_scan_snapshot:
     log: f"{log_dir}/likelihood_scan_snapshot_{{fit_type}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -487,7 +487,7 @@ rule likelihood_scan_chunk:
     log: f"{log_dir}/likelihood_scan_chunk_{{fit_type}}_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -556,7 +556,7 @@ rule likelihood_scan:
     log: f"{log_dir}/likelihood_scan_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -622,7 +622,7 @@ rule impacts_initial_fit:
     log: f"{log_dir}/impacts_initial_fit_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -696,7 +696,7 @@ rule impacts_do_fits:
     log: f"{log_dir}/impacts_do_fits_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -768,7 +768,7 @@ rule impacts_collect:
     log: f"{log_dir}/impacts_collect_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -853,7 +853,7 @@ rule gof_data:
     log: f"{log_dir}/gof_data_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -907,7 +907,7 @@ rule gof_toys_chunk:
     log: f"{log_dir}/gof_toys_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -968,7 +968,7 @@ rule gof:
     log: f"{log_dir}/gof_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -1023,7 +1023,7 @@ rule fit_diagnostics_bonly:
     log: f"{log_dir}/fit_diagnostics_bonly_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -1095,7 +1095,7 @@ rule fit_diagnostics_sb:
     log: f"{log_dir}/fit_diagnostics_sb_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -1171,11 +1171,11 @@ rule postfit:
         fit_type = get_postfit_plot_fit_type,
         signal_scale = lambda wildcards: config.get("channels", {}).get(wildcards.path.rstrip('/').split('/')[-1], {}).get("signal_scale", 1 if "ttHbb" in wildcards.signallabel else (100 if "HH" in wildcards.signallabel else 1)),
         ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
-        metadata = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml").format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
+        metadata = lambda wildcards: config.get("metadata_template", config.get("make_combine_inputs", {}).get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")).format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -1196,7 +1196,7 @@ rule postfit:
             --signal_scale {params.signal_scale} \
             {params.ylog} \
             -m $METADATA_FILE && \
-            cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE
+            (cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_b.pdf $OUT_FILE)
         ) 2>&1 | tee {log}
         """
 
@@ -1208,7 +1208,7 @@ rule pdf_to_png:
     log: f"{log_dir}/pdf_to_png_{{path}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         python3 {input.script} {input.pdf} > {log} 2>&1
         """
 
@@ -1220,7 +1220,7 @@ rule split_impacts:
     log: f"{log_dir}/split_impacts_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . /srv/apptainer_env.sh 2>/dev/null || . software/combine/apptainer_env.sh 2>/dev/null || (source /cvmfs/cms.cern.ch/cmsset_default.sh && cd /home/cmsusr/CMSSW_14_1_0_pre4 && eval $(scram runtime -sh) && cd - > /dev/null) || true
         LOG=$(pwd)/{log}
         mkdir -p $(dirname $LOG)
         (
