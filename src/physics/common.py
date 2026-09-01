@@ -3,6 +3,18 @@ import logging
 import pickle
 import warnings
 
+from src.runner.logging import CustomFormatter
+
+# If root logger is in worker process (empty or default handler), apply CustomFormatter
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(CustomFormatter())
+    root_logger.handlers = [handler]
+    root_logger.setLevel(logging.INFO)
+elif not isinstance(root_logger.handlers[0].formatter, CustomFormatter):
+    root_logger.handlers[0].setFormatter(CustomFormatter())
+
 import awkward as ak
 import numpy as np
 import correctionlib
@@ -25,8 +37,8 @@ def mask_event_decision(event, decision='OR', branch='HLT', list_to_mask=[''], l
             if i in event[branch].fields:
                 tmp_list.append( event[branch][i] )
             elif i in list_to_skip: continue
-            else: logging.warning(f'\n{i} branch not in {branch} for event.')
-    else: logging.warning(f'\n{branch} branch not in event.')
+            else: logging.warning(f'{i} branch not in {branch} for event.')
+    else: logging.warning(f'{branch} branch not in event.')
     if not tmp_list:
         tmp_list = [np.zeros(len(event), dtype=bool)]
         logging.warning(f'No {list_to_mask} branches found in event. Returning empty mask.')

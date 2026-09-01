@@ -71,6 +71,9 @@ def convert_pdf(src: str, dst: str) -> None:
     # check if the source file exists
     if not os.path.exists(src):
         raise RuntimeError(f"source file {src} does not exist")
+    if os.path.getsize(src) == 0:
+        print(f"Warning: Skipping empty PDF file {src}")
+        return
 
     # build the command
     src = os.path.abspath(src)
@@ -92,7 +95,10 @@ def convert_pdf(src: str, dst: str) -> None:
 
 
 def convert_pdf_mp(arg: Tuple[str, str]) -> None:
-    return convert_pdf(*arg)
+    try:
+        convert_pdf(*arg)
+    except Exception as e:
+        print(f"Warning: Failed to convert {arg[0]}: {str(e)}")
 
 
 def convert_pdfs(paths: Sequence[Tuple[str, str]], n_cores: int = 1) -> None:
@@ -101,7 +107,10 @@ def convert_pdfs(paths: Sequence[Tuple[str, str]], n_cores: int = 1) -> None:
     if n_cores <= 1:
         # in-thread conversion
         for src, dst in paths:
-            convert_pdf(src, dst)
+            try:
+                convert_pdf(src, dst)
+            except Exception as e:
+                print(f"Warning: Failed to convert {src}: {str(e)}")
     else:
         # multi-processing
         with Pool(n_cores) as pool:

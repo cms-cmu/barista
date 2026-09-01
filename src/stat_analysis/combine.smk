@@ -14,7 +14,25 @@ if os.path.exists("/cvmfs/unpacked.cern.ch"):
 # Default target generation for transparent running
 out_base = os.path.normpath(config.get("output_path", "output/v4_systematics_test/HH4b/"))
 log_dir = os.path.join(config.get("output_path", "output"), "logs")
-stat_only = config.get("stat_only", False)
+
+def is_stat_only_mode():
+    val = config.get("stat_only", None)
+    if val is not None:
+        if isinstance(val, bool):
+            return val
+        if str(val).lower() in ["true", "1", "--stat_only"]:
+            return True
+        if str(val).lower() in ["false", "0", "none", ""]:
+            return False
+    # Check make_combine_inputs.stat_only
+    make_combine_stat = config.get("make_combine_inputs", {}).get("stat_only", "")
+    if isinstance(make_combine_stat, bool):
+        return make_combine_stat
+    if str(make_combine_stat).lower() in ["true", "1", "--stat_only"]:
+        return True
+    return False
+
+stat_only = is_stat_only_mode()
 
 targets = []
 for channel, ch_config in config.get("channels", {}).items():
@@ -26,6 +44,7 @@ for channel, ch_config in config.get("channels", {}).items():
     targets.extend([
         f"{base_prefix}/limits/datacard_limits__{signallabel}.json",
         f"{base_prefix}/significance/datacard_significance__{signallabel}.log",
+        f"{base_prefix}/significance/datacard_significance__{signallabel}.json",
         f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf",
         f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.png",
         f"{base_prefix}/postfit/datacard_postfit__{signallabel}.pdf",
@@ -50,6 +69,11 @@ if targets and is_standalone:
         input: targets
 
 def get_channel_by_signal(wildcards):
+    path = getattr(wildcards, 'path', None)
+    if path:
+        path_channel = os.path.basename(path)
+        if path_channel in config.get("channels", {}):
+            return path_channel
     signallabel = wildcards.signallabel
     for channel, ch_config in config.get("channels", {}).items():
         if ch_config.get("signallabel") == signallabel or channel == signallabel:
@@ -65,45 +89,69 @@ def get_workspace_input(wildcards):
     if os.path.exists(default_input):
         return default_input
     signallabel = wildcards.signallabel
-    for channel, ch_config in config.get("channels", {}).items():
-        if ch_config.get("signallabel") == signallabel or channel == signallabel:
-            # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
-            case_dc_name = f"datacard__{channel}"
-            for case_key, case_info in config.get("cases", {}).items():
-                if case_info.get("datacard"):
-                    case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
-                    if case_key.upper() in channel.upper() or channel.upper() in case_key.upper():
-                        case_dc_name = case_dc
-                        break
+    
+    channel_to_use = None
+    path_channel = os.path.basename(wildcards.path)
+    if path_channel in config.get("channels", {}):
+        channel_to_use = path_channel
+    else:
+        for channel, ch_config in config.get("channels", {}).items():
+            if ch_config.get("signallabel") == signallabel or channel == signallabel:
+                channel_to_use = channel
+                break
+                
+    if channel_to_use:
+        # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
+        case_dc_name = f"datacard__{channel_to_use}"
+        for case_key, case_info in config.get("cases", {}).items():
+            if case_info.get("datacard"):
+                case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
+                if case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper():
+                    case_dc_name = case_dc
+                    break
 
-            # If imported as a module, return the planned consolidated path to link the DAG.
-            is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
-            if not is_standalone:
-                return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
-
-            # Check 1: new consolidated location (e.g. out_base/datacards/)
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(wildcards.path, "datacards", f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            # Check 2: workspace folder directly
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(wildcards.path, "workspace", f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            # Check 3: old location (2 levels up fallback)
-            parent_dir = os.path.dirname(os.path.dirname(out_base))
-            for prefix in ["datacard__", "datacard_"]:
-                path_to_check = os.path.join(parent_dir, "datacards", channel, f"{prefix}{channel}.txt")
-                if os.path.exists(path_to_check):
-                    return path_to_check
-            
-            # Default fallback
+        # If imported as a module, return the planned consolidated path to link the DAG.
+        is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+        if not is_standalone:
             return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
+
+        # Check 1: new consolidated location (e.g. out_base/datacards/)
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(wildcards.path, "datacards", f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        # Check 2: workspace folder directly
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(wildcards.path, "workspace", f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        # Check 3: old location (2 levels up fallback)
+        parent_dir = os.path.dirname(os.path.dirname(out_base))
+        for prefix in ["datacard__", "datacard_"]:
+            path_to_check = os.path.join(parent_dir, "datacards", channel_to_use, f"{prefix}{channel_to_use}.txt")
+            if os.path.exists(path_to_check):
+                return path_to_check
+        
+        # Default fallback
+        return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
     return default_input
 
 def get_poi_maps_dynamic(wildcards):
     signallabel = wildcards.signallabel
+    path = getattr(wildcards, 'path', None)
+    channel_to_use = None
+    if path:
+        path_channel = os.path.basename(path)
+        if path_channel in config.get("channels", {}):
+            channel_to_use = path_channel
+    
+    if channel_to_use:
+        ch_config = config["channels"][channel_to_use]
+        actual_signal = ch_config.get("signallabel", channel_to_use)
+        signals = [actual_signal] + ch_config.get("othersignal", "").split()
+        poi_ranges = config.get("poi_ranges", "1,-10,10")
+        return make_poi_maps(signals=signals, poi_ranges=poi_ranges)
+        
     for channel, ch_config in config.get("channels", {}).items():
         if ch_config.get("signallabel") == signallabel or channel == signallabel:
             actual_signal = ch_config.get("signallabel", channel)
@@ -128,7 +176,7 @@ rule workspace:
     log: f"{log_dir}/workspace_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -149,7 +197,7 @@ for ext in ["*.txt", "*.root"]:
     for f in glob.glob(os.path.join(in_dir, ext)):
         dest = os.path.join(out_dir, os.path.basename(f))
         if os.path.exists(dest):
-            if os.path.getsize(f) == os.path.getsize(dest):
+            if os.path.getmtime(f) == os.path.getmtime(dest) and os.path.getsize(f) == os.path.getsize(dest):
                 continue
         tmp_fd, tmp_path = tempfile.mkstemp(dir=out_dir)
         try:
@@ -189,7 +237,7 @@ rule limits:
     log: f"{log_dir}/limits_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -241,7 +289,9 @@ rule limits:
 
 rule significance:
     input: "{path}/workspace/datacard__{signallabel}.root"
-    output: "{path}/significance/datacard_significance__{signallabel}.log"
+    output: 
+        log = "{path}/significance/datacard_significance__{signallabel}.log",
+        json = "{path}/significance/datacard_significance__{signallabel}.json"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
@@ -251,7 +301,7 @@ rule significance:
     log: f"{log_dir}/significance_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -259,9 +309,11 @@ rule significance:
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input}))
         WORKSPACE_FILE=$(realpath {input})
+        OUT_LOG=$(realpath {output.log})
+        OUT_JSON=$(realpath {output.json})
         mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname {output})
-        OUT_FILE=$(realpath {output})
+        mkdir -p $(dirname $OUT_LOG)
+        mkdir -p $(dirname $OUT_JSON)
         (
         echo "[$(date)] Starting significance rule with signal {params.signallabel}"
 
@@ -274,43 +326,96 @@ rule significance:
         fi
 
         SET_ZERO_OPT=""
+        SET_EXP_OPT="--setParameters r{params.signallabel}=1"
         if [ -n "{params.set_parameters_zero}" ]; then
             formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 SET_ZERO_OPT="--setParameters $formatted_params"
+                SET_EXP_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
             fi
         fi
 
-        cd $(dirname $OUT_FILE) && \
-            combine -M Significance $WORKSPACE_FILE \
+        cd $(dirname $OUT_LOG) && \
+        echo "=== Observed Significance ===" > $(basename {output.log}) && \
+        combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
             --redefineSignalPOIs r{params.signallabel} \
-            -n _{params.signallabel} > $(basename {output}) && \
-            combine -M Significance $WORKSPACE_FILE \
+            -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
+        echo "" >> $(basename {output.log}) && \
+        echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
+        combine -M Significance $WORKSPACE_FILE \
             -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
-            $SET_ZERO_OPT \
+            $SET_EXP_OPT \
             $FREEZE_OPT \
-            -n _{params.signallabel} \
-            -t -1 --expectSignal=1 >> $(basename {output})
+            -n _{params.signallabel}_exp \
+            -t -1 >> $(basename {output.log}) 2>&1 && \
+        python3 -c '
+import re, json, sys
+
+log_file = sys.argv[1]
+json_file = sys.argv[2]
+signal_label = sys.argv[3]
+
+with open(log_file, "r") as f:
+    content = f.read()
+
+obs_part = ""
+exp_part = ""
+if "=== Expected Significance" in content:
+    parts = content.split("=== Expected Significance")
+    obs_part = parts[0]
+    exp_part = parts[1]
+else:
+    obs_part = content
+
+def extract_sig(text):
+    sig_match = re.search(r"Significance:\\s*([\\d\\.eE\\+-]+)", text)
+    pval_match = re.search(r"\\(p-value\\s*=\\s*([\\d\\.eE\\+-]+)\\)", text)
+    sig = float(sig_match.group(1)) if sig_match else None
+    pval = float(pval_match.group(1)) if pval_match else None
+    return {{"significance": sig, "p_value": pval}}
+
+res = {{
+    "signal": signal_label,
+    "observed": extract_sig(obs_part),
+    "expected": extract_sig(exp_part)
+}}
+
+with open(json_file, "w") as f:
+    json.dump(res, f, indent=2)
+
+sig_name = res.get("signal", "")
+obs_sig = res.get("observed", {{}}).get("significance")
+obs_pval = res.get("observed", {{}}).get("p_value")
+exp_sig = res.get("expected", {{}}).get("significance")
+exp_pval = res.get("expected", {{}}).get("p_value")
+
+print("\\n" + "="*60)
+print(" Significance Summary for %s:" % sig_name)
+print("   Observed Significance : %s (p-value: %s)" % (obs_sig, obs_pval))
+print("   Expected Significance : %s (p-value: %s)" % (exp_sig, exp_pval))
+print("="*60 + "\\n")
+' "$OUT_LOG" "$OUT_JSON" "{params.signallabel}"
         ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_snapshot:
     input: "{path}/workspace/datacard__{signallabel}.root"
-    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root")
+    output: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot_{fit_type}__{signallabel}.root"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
-    log: f"{log_dir}/likelihood_scan_snapshot_{{path}}__{{signallabel}}.log"
+    log: f"{log_dir}/likelihood_scan_snapshot_{{fit_type}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -322,7 +427,7 @@ rule likelihood_scan_snapshot:
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
-        echo "[$(date)] Starting likelihood_scan snapshot fit with signal {params.signallabel}"
+        echo "[$(date)] Starting likelihood_scan snapshot fit ({params.fit_type}) with signal {params.signallabel}"
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
@@ -332,43 +437,57 @@ rule likelihood_scan_snapshot:
             fi
         fi
 
-        SET_ZERO_OPT=""
-        if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                SET_ZERO_OPT="--setParameters $formatted_params"
+        SET_OPT=""
+        if [ "{params.fit_type}" = "exp" ]; then
+            SET_OPT="--setParameters r{params.signallabel}=1"
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
+                fi
             fi
+            ASYMOV_OPT="-t -1"
+        else
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters $formatted_params"
+                fi
+            fi
+            ASYMOV_OPT=""
         fi
 
         cd $(dirname $OUT_FILE) && \
             combine -M MultiDimFit -d $WORKSPACE_FILE \
             -m {params.mass} \
-            -n _$(basename {input} .root)_snapshot \
-            $SET_ZERO_OPT \
+            -n _$(basename {input} .root)_{params.fit_type}_snapshot \
+            $SET_OPT \
             $FREEZE_OPT \
+            $ASYMOV_OPT \
             --saveWorkspace --robustFit 1 && \
-            mv higgsCombine_$(basename {input} .root)_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
+            mv higgsCombine_$(basename {input} .root)_{params.fit_type}_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
         """
 
 rule likelihood_scan_chunk:
-    input: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot__{signallabel}.root"
-    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_chunk_{split_index}__{signallabel}.root")
+    input: "{path}/likelihood_scan/datacard_likelihood_scan_snapshot_{fit_type}__{signallabel}.root"
+    output: temp("{path}/likelihood_scan/datacard_likelihood_scan_chunk_{fit_type}_{split_index}__{signallabel}.root")
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120"),
-        points = lambda wildcards: config.get("likelihood_scan_points", "50"),
-        r_min = lambda wildcards: config.get("r_min", "-10"),
-        r_max = lambda wildcards: config.get("r_max", "10"),
+        points = lambda wildcards: config.get("likelihood_scan_points", "20"),
+        r_min = lambda wildcards: config.get("likelihood_scan_r_min", "-10"),
+        r_max = lambda wildcards: config.get("likelihood_scan_r_max", "10"),
         first_point = lambda wildcards: get_grid_split_points(wildcards, config)[0],
         last_point = lambda wildcards: get_grid_split_points(wildcards, config)[1]
-    log: f"{log_dir}/likelihood_scan_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
+    log: f"{log_dir}/likelihood_scan_chunk_{{fit_type}}_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -380,7 +499,7 @@ rule likelihood_scan_chunk:
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
-        echo "[$(date)] Starting likelihood_scan chunk {wildcards.split_index} with signal {params.signallabel}"
+        echo "[$(date)] Starting likelihood_scan chunk ({params.fit_type}) {wildcards.split_index} with signal {params.signallabel}"
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
@@ -390,12 +509,24 @@ rule likelihood_scan_chunk:
             fi
         fi
 
-        SET_ZERO_OPT=""
-        if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
-            if [ -n "$formatted_params" ]; then
-                SET_ZERO_OPT="--setParameters $formatted_params"
+        SET_OPT=""
+        if [ "{params.fit_type}" = "exp" ]; then
+            SET_OPT="--setParameters r{params.signallabel}=1"
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters r{params.signallabel}=1,$formatted_params"
+                fi
             fi
+            ASYMOV_OPT="-t -1"
+        else
+            if [ -n "{params.set_parameters_zero}" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+                if [ -n "$formatted_params" ]; then
+                    SET_OPT="--setParameters $formatted_params"
+                fi
+            fi
+            ASYMOV_OPT=""
         fi
 
         cd $(dirname $OUT_FILE) && \
@@ -404,8 +535,9 @@ rule likelihood_scan_chunk:
             -n _$(basename {input} .root)_chunk_{wildcards.split_index} \
             -m {params.mass} \
             -P r{params.signallabel} \
-            $SET_ZERO_OPT \
+            $SET_OPT \
             $FREEZE_OPT \
+            $ASYMOV_OPT \
             --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1 && \
             mv higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
@@ -418,11 +550,13 @@ rule likelihood_scan:
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
-        mass = lambda wildcards: config.get("mass", "120")
+        mass = lambda wildcards: config.get("mass", "120"),
+        y_cut = lambda wildcards: config.get("likelihood_scan_y_cut", "100"),
+        y_max = lambda wildcards: config.get("likelihood_scan_y_max", "100")
     log: f"{log_dir}/likelihood_scan_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -430,20 +564,46 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
-        INPUT_FILES=""
+        EXP_FILES=""
+        OBS_FILES=""
         for f in {input}; do
-            INPUT_FILES="$INPUT_FILES $(realpath $f)"
+            rf=$(realpath $f)
+            if [[ "$f" == *"_exp_"* ]]; then
+                EXP_FILES="$EXP_FILES $rf"
+            elif [[ "$f" == *"_obs_"* ]]; then
+                OBS_FILES="$OBS_FILES $rf"
+            fi
         done
         mkdir -p $(dirname $LOG)
         mkdir -p $DATACARD_DIR
         (
         echo "[$(date)] Merging likelihood scan chunks and plotting"
-        cd $DATACARD_DIR && \
-            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            $INPUT_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-            --POI r{params.signallabel} -o scan_plot && \
+        cd $DATACARD_DIR
+
+        if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
+            hadd -f higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
+            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+                --main-label "Observed" \
+                --others higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
+        elif [ -n "$EXP_FILES" ]; then
+            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --main-label "Expected" \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+            mv scan_plot.pdf $OUT_FILE
+        else
+            INPUT_FILES=""
+            for f in {input}; do
+                INPUT_FILES="$INPUT_FILES $(realpath $f)"
+            done
+            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
+            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+            mv scan_plot.pdf $OUT_FILE
+        fi
         ) 2>&1 | tee {log}
         """
 
@@ -462,7 +622,7 @@ rule impacts_initial_fit:
     log: f"{log_dir}/impacts_initial_fit_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -536,7 +696,7 @@ rule impacts_do_fits:
     log: f"{log_dir}/impacts_do_fits_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -608,7 +768,7 @@ rule impacts_collect:
     log: f"{log_dir}/impacts_collect_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -693,7 +853,7 @@ rule gof_data:
     log: f"{log_dir}/gof_data_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -747,7 +907,7 @@ rule gof_toys_chunk:
     log: f"{log_dir}/gof_toys_chunk_{{split_index}}_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -808,7 +968,7 @@ rule gof:
     log: f"{log_dir}/gof_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -863,7 +1023,7 @@ rule fit_diagnostics_bonly:
     log: f"{log_dir}/fit_diagnostics_bonly_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -935,7 +1095,7 @@ rule fit_diagnostics_sb:
     log: f"{log_dir}/fit_diagnostics_sb_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -990,23 +1150,32 @@ rule fit_diagnostics_sb:
         ) 2>&1 | tee {log}
         """
 
+def get_postfit_fit_result(wildcards):
+    fit_type = "bonly" if is_stat_only_mode() else "sb"
+    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_{fit_type}__{wildcards.signallabel}.root"
+
+def get_postfit_plot_fit_type(wildcards):
+    return "fit_b" if is_stat_only_mode() else "fit_s"
+
 rule postfit:
     input:
         workspace = "{path}/workspace/datacard__{signallabel}.root",
-        fit_result = "{path}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root"
+        fit_result = get_postfit_fit_result,
+        plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py")
     output: "{path}/postfit/datacard_postfit__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         channel = lambda wildcards: wildcards.path.rstrip('/').split('/')[-1],
         signal = "{signallabel}",
-        ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1] == "HH4b" else "",
-        plot_script = config.get("postfit_plot_script", "src/stat_analysis/plots/make_postfit_plot.py"),
-        metadata_template = lambda wildcards: config.get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")
+        fit_type = get_postfit_plot_fit_type,
+        signal_scale = lambda wildcards: config.get("channels", {}).get(wildcards.path.rstrip('/').split('/')[-1], {}).get("signal_scale", 1 if "ttHbb" in wildcards.signallabel else (100 if "HH" in wildcards.signallabel else 1)),
+        ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
+        metadata = lambda wildcards: config.get("metadata_template", config.get("make_combine_inputs", {}).get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")).format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         if [ "${{SLURM_PROCID:-0}}" -ne 0 ]; then
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
@@ -1018,26 +1187,29 @@ rule postfit:
         mkdir -p $(dirname $OUT_FILE)
         (
         # Run the plotting script from the Snakemake workspace root (not inside the datacard subfolder)
-        METADATA_FILE=$(echo "{params.metadata_template}" | sed "s|{{channel}}|{params.channel}|g")
-        python3 {params.plot_script} \
+        METADATA_FILE="{params.metadata}"
+        python3 {input.plot_script} \
             -i {input.fit_result} \
             -o $OUT_DIR/plots/ \
             -c {params.channel} \
             -s {params.signal} \
+            --signal_scale {params.signal_scale} \
             {params.ylog} \
             -m $METADATA_FILE && \
-            cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE
+            (cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_b.pdf $OUT_FILE)
         ) 2>&1 | tee {log}
         """
 
 rule pdf_to_png:
-    input: "{path}.pdf"
+    input:
+        pdf = "{path}.pdf",
+        script = "src/plotting/pb_pdf_to_png.py"
     output: "{path}.png"
     log: f"{log_dir}/pdf_to_png_{{path}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
-        python3 src/plotting/pb_pdf_to_png.py {input} > {log} 2>&1
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.script} {input.pdf} > {log} 2>&1
         """
 
 rule split_impacts:
@@ -1048,7 +1220,7 @@ rule split_impacts:
     log: f"{log_dir}/split_impacts_{{path}}__{{signallabel}}.log"
     shell:
         """
-        . /srv/apptainer_env.sh || true
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
         LOG=$(pwd)/{log}
         mkdir -p $(dirname $LOG)
         (

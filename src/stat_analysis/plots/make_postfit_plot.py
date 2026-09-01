@@ -71,6 +71,10 @@ if __name__ == '__main__':
                         choices=['prefit', 'fit_b', 'fit_s'], 
                         nargs='+', default=['prefit', 'fit_b', 'fit_s'],
                         help="Type of fit to plot, choices: prefit, fit_b, fit_s")
+    parser.add_argument('--signal_scale', dest='signal_scale', type=float,
+                        default=None, help="Scale factor for signal histogram (default: 100 for HH4b, 1 for other signals)")
+    parser.add_argument('--signal_label', dest='signal_label', type=str,
+                        default=None, help="Legend label for signal (default: auto-detected from signal or channel)")
     parser.add_argument('--make_bkg_covariance', dest='make_bkg_covariance', action='store_true', 
                         default=False, help="Flag to make background covariance matrix")
     args = parser.parse_args()
@@ -181,11 +185,10 @@ if __name__ == '__main__':
                         signal_key = alt_key
                         break
             
-            # Validate all required objects exist before proceeding
+            # Validate core required objects exist before proceeding
             required_objects = {
                 'data': f'{tmp_folder}/data',
                 mj: f'{tmp_folder}/{mj}',
-                tt: f'{tmp_folder}/{tt}',
                 'TotalBkg': f'{tmp_folder}/total_background',
                 signal: f'{tmp_folder}/{signal_key}',
                 'cov_matrix': f'{tmp_folder}/total_covar'
@@ -194,10 +197,15 @@ if __name__ == '__main__':
                 if not infile.Get(obj_path):
                     raise RuntimeError(f"Error: Required ROOT object '{obj_path}' not found in file '{args.input_file}'")
 
+            tt_hist = infile.Get(f'{tmp_folder}/{tt}')
+            if not tt_hist:
+                tt_hist = infile.Get(f'{tmp_folder}/{mj}').Clone(f'{tmp_folder}_{tt}_empty')
+                tt_hist.Reset()
+
             if is_first:
                 hists['data'] = convert_tgraph_to_th1(infile.Get(f'{tmp_folder}/data'), f'data{ichannel}')
                 hists[mj] = infile.Get(f'{tmp_folder}/{mj}')
-                hists[tt] = infile.Get(f'{tmp_folder}/{tt}')
+                hists[tt] = tt_hist
                 hists['TotalBkg'] = infile.Get(f'{tmp_folder}/total_background')
                 hists[signal] = infile.Get(f'{tmp_folder}/{signal_key}')
                 hists['cov_matrix'] = infile.Get(f'{tmp_folder}/total_covar')
@@ -205,7 +213,7 @@ if __name__ == '__main__':
             else: 
                 hists['data'].Add( convert_tgraph_to_th1(infile.Get(f'{tmp_folder}/data'), f'data{ichannel}') )
                 hists[mj].Add( infile.Get(f'{tmp_folder}/{mj}') )
-                hists[tt].Add( infile.Get(f'{tmp_folder}/{tt}') )
+                hists[tt].Add( tt_hist )
                 hists['TotalBkg'].Add( infile.Get(f'{tmp_folder}/total_background') )
                 hists[signal].Add( infile.Get(f'{tmp_folder}/{signal_key}') )
                 hists['cov_matrix'].Add( infile.Get(f'{tmp_folder}/total_covar') )
@@ -255,9 +263,36 @@ if __name__ == '__main__':
         CMS.GetcmsCanvasHist(nominal_can.cd(1)).GetYaxis().SetTitleSize(0.05)
         CMS.GetcmsCanvasHist(nominal_can.cd(1)).Draw('AXISSAME')
 
+        # Determine signal scale and label
+        if args.signal_scale is not None:
+            signal_scale = args.signal_scale
+        elif args.channel.startswith('HH4b') or 'HH' in args.signal:
+            signal_scale = 100.0
+        else:
+            signal_scale = 1.0
+
+        if args.signal_label is not None:
+            base_label = args.signal_label
+        elif 'ttHbb' in args.signal or 'ttHbb' in args.channel:
+            base_label = 'ttHbb'
+        elif args.channel.startswith('HH4b') or 'HH' in args.signal:
+            base_label = 'HH4b'
+        elif 'ZH' in args.signal or 'ZH' in args.channel:
+            base_label = 'ZH4b'
+        elif 'ZZ' in args.signal or 'ZZ' in args.channel:
+            base_label = 'ZZ4b'
+        else:
+            base_label = args.signal
+
+        if signal_scale != 1.0:
+            scale_str = int(signal_scale) if signal_scale.is_integer() else signal_scale
+            display_label = f"{base_label} (x{scale_str})"
+        else:
+            display_label = f"{base_label}"
+
         hsignal = hists[signal].Clone("hsignal")
-        hsignal.Scale( 100 )
-        leg.AddEntry( hsignal, 'HH4b (x100)', 'lp' )
+        hsignal.Scale( signal_scale )
+        leg.AddEntry( hsignal, display_label, 'lp' )
         CMS.cmsDraw( hsignal, 'histsame', fstyle=0, marker=1, alpha=1, lcolor=ROOT.TColor.GetColor("#e42536" ), fcolor=ROOT.TColor.GetColor("#e42536"))
         if args.log: nominal_can.cd(1).SetLogy(True)
 

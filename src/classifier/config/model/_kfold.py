@@ -153,7 +153,8 @@ def _find_models(args: list[list[str]], no_kfold: bool = False) -> list[dict]:
         paths = arg[1:]
         for path in paths:
             with fsspec.open(path, "rt") as f:
-                results: list[dict[str, dict]] = json.load(f).get(ResultKey.models, [])
+                data = json.load(f)
+                results: list[dict[str, dict]] = data.get(ResultKey.models, [])
             for result in results:
                 metadata = result.get("metadata", {})
                 m_path = None

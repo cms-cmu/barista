@@ -22,7 +22,7 @@ def init_arg_parser():
                         help='Input File. Default: hists.pkl')
 
     parser.add_argument('-l', '--labelNames', dest="fileLabels",
-                        default=["fileA", "fileB"], nargs='+',
+                        default=None, nargs='+',
                         help='label Names when more than one input file')
 
     parser.add_argument('-o', '--outputFolder', default=None,
@@ -45,11 +45,15 @@ def init_arg_parser():
                         help='Name of hists to skip')
 
 
+    parser.add_argument('-f', '--format', dest="fmt", default="png",
+                        help='Output format(s), comma-separated (e.g. pdf, png, or pdf,png)')
     parser.add_argument('--doTest', action="store_true", help='Metadata file.')
     parser.add_argument('--debug', action="store_true", help='')
     parser.add_argument('--signal', action="store_true", help='')
     parser.add_argument('--year',   help='')
     parser.add_argument('--combine_input_files', action="store_true", help='')
+    parser.add_argument('-p', '--num-workers', '--png_cores', dest="num_workers", type=int, default=8,
+                        help='Number of parallel worker processes to use for rendering plots (default: 8)')
     parser.add_argument('--category', default=None,
                         help='Optional hist category selector (e.g. nominal, lowpt). '
                              'Default None lets the caller plot all categories.')
@@ -126,6 +130,8 @@ _NORMALIZE_MAP.update({
     # fmt  ('format'/'output' ≠ 'fmt' after stripping)
     'format':          'fmt',
     'outputformat':    'fmt',
+    # blind
+    'blinding':        'blind',
 })
 
 
@@ -168,7 +174,7 @@ def makePlot(cfg, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In makePlot kwargs={kwargs}")
 
-    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
+    if (isinstance(cut, list) and process is not None) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
             if debug: print(f"makePlot: getting plot data from list")
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, **kwargs)

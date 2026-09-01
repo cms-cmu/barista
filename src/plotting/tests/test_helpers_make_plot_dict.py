@@ -430,3 +430,185 @@ class TestSqueezeHist:
         h = self._hist_2d()          # shape (3, 10)
         result = _squeeze_hist(h, do2d=False)
         assert result.shape[0] == 10  # x axis preserved
+
+
+# ---------------------------------------------------------------------------
+# get_plot_dict_from_list
+# ---------------------------------------------------------------------------
+
+class TestGetPlotDictFromList:
+    def test_get_plot_dict_from_list_default_process(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.plotting.helpers_make_plot_dict.add_hist_data",
+            lambda **kwargs: True
+        )
+
+        cfg = MagicMock()
+        cfg.plotConfig = {
+            "hists": {
+                "ttHbb": {"process": "ttHbb", "label": "ttHbb", "fillcolor": "red"}
+            },
+            "stack": {
+                "TTbar": {"process": "TTbar", "label": "TTbar", "fillcolor": "blue"}
+            }
+        }
+        cfg.hists = [MagicMock()]
+        cfg.combine_input_files = True
+
+        from src.plotting.helpers_make_plot_dict import get_plot_dict_from_list
+
+        # When process is None, it should default to all processes in hists & stack
+        # and support cut as a list
+        plot_data = get_plot_dict_from_list(
+            cfg=cfg,
+            var="jet_pt",
+            cut=["SR", "SB"],
+            axis_opts={},
+            process=None,
+            doRatio=False,
+        )
+
+        assert "ttHbb" in plot_data["process"]
+        assert "TTbar" in plot_data["process"]
+        
+        # Check that we have entries for all processes x cuts
+        hists_keys = list(plot_data["hists"].keys())
+        assert any("ttHbb" in k and "SR" in k for k in hists_keys)
+        assert any("ttHbb" in k and "SB" in k for k in hists_keys)
+        assert any("TTbar" in k and "SR" in k for k in hists_keys)
+        assert any("TTbar" in k and "SB" in k for k in hists_keys)
+
+
+class TestGetHistDataListCuts:
+    def test_get_hist_data_sums_list_of_cuts(self, monkeypatch):
+        mock_hist1 = MagicMock()
+        mock_hist2 = MagicMock()
+        mock_sum = MagicMock()
+        mock_hist1.__add__.return_value = mock_sum
+        mock_hist1.__iadd__.return_value = mock_sum
+        mock_hist1.__imul__.return_value = mock_hist1
+        mock_hist2.__imul__.return_value = mock_hist2
+
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._build_hist_opts", lambda process, year, config, axis_opts, cut, cfg, debug: ({"cut": cut}, {}))
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._find_hist_obj", lambda *a, **k: MagicMock())
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._apply_intcategory_compat", lambda *a, **k: None)
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._remove_missing_cut_keys", lambda *a, **k: None)
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._squeeze_hist", lambda h, *a, **k: h)
+
+        def mock_select_hist(hist_obj, hist_opts, rebin, do2d, debug):
+            if hist_opts.get("cut") == "cut1":
+                return mock_hist1
+            elif hist_opts.get("cut") == "cut2":
+                return mock_hist2
+            return MagicMock()
+
+        monkeypatch.setattr("src.plotting.helpers_make_plot_dict._select_hist", mock_select_hist)
+
+        from src.plotting.helpers_make_plot_dict import get_hist_data
+
+        cfg = MagicMock()
+        cfg.plotConfig = {}
+        config = {"scalefactor": 1.0}
+
+        result = get_hist_data(
+            process="ttbar", cfg=cfg, config=config, var="jet_pt",
+            cut=["cut1", "cut2"], rebin=1, year="UL18", axis_opts={},
+        )
+
+        assert result == mock_sum
+        mock_hist1.__iadd__.assert_called_once_with(mock_hist2)
+
+
+class TestBlinding:
+    def _create_sample_plot_data(self, n_bins=20, x_min=0.0, x_max=1.0):
+        edges = np.linspace(x_min, x_max, n_bins + 1)
+        centers = (edges[:-1] + edges[1:]) / 2.0
+        return {
+            "hists": {
+                "data": {
+                    "process": "data",
+                    "values": [10.0] * n_bins,
+                    "variances": [10.0] * n_bins,
+                    "edges": edges.tolist(),
+                    "centers": centers.tolist(),
+                    "under_flow": 2.0,
+                    "over_flow": 3.0,
+                },
+                "signal": {
+                    "process": "ttHbb",
+                    "values": [5.0] * n_bins,
+                    "variances": [5.0] * n_bins,
+                    "edges": edges.tolist(),
+                    "centers": centers.tolist(),
+                    "under_flow": 1.0,
+                    "over_flow": 1.0,
+                },
+            },
+            "stack": {
+                "ttbar": {
+                    "process": "ttbar",
+                    "values": [20.0] * n_bins,
+                    "variances": [20.0] * n_bins,
+                    "edges": edges.tolist(),
+                    "centers": centers.tolist(),
+                    "under_flow": 4.0,
+                    "over_flow": 4.0,
+                }
+            }
+        }
+
+    def test_blind_bool_masks_last_10_bins(self):
+        from src.plotting.helpers_make_plot_dict import apply_blinding
+        plot_data = self._create_sample_plot_data(n_bins=20)
+        apply_blinding(plot_data, True)
+
+        data = plot_data["hists"]["data"]
+        vals = data["values"]
+        assert all(v == 10.0 for v in vals[:10])
+        assert all(np.isnan(v) for v in vals[10:])
+        assert data["over_flow"] == 0.0
+
+        # Signal and background stack should not be touched
+        signal_vals = plot_data["hists"]["signal"]["values"]
+        assert all(v == 5.0 for v in signal_vals)
+        stack_vals = plot_data["stack"]["ttbar"]["values"]
+        assert all(v == 20.0 for v in stack_vals)
+
+    def test_blind_int_masks_specified_bins(self):
+        from src.plotting.helpers_make_plot_dict import apply_blinding
+        plot_data = self._create_sample_plot_data(n_bins=20)
+        apply_blinding(plot_data, 5)
+
+        data = plot_data["hists"]["data"]
+        vals = data["values"]
+        assert all(v == 10.0 for v in vals[:15])
+        assert all(np.isnan(v) for v in vals[15:])
+        assert data["over_flow"] == 0.0
+
+    def test_blind_float_threshold(self):
+        from src.plotting.helpers_make_plot_dict import apply_blinding
+        plot_data = self._create_sample_plot_data(n_bins=10, x_min=0.0, x_max=1.0)
+        # Bins: [0.0, 0.1], ..., [0.7, 0.8], [0.8, 0.9], [0.9, 1.0]
+        apply_blinding(plot_data, 0.8)
+
+        data = plot_data["hists"]["data"]
+        vals = data["values"]
+        assert all(v == 10.0 for v in vals[:8])
+        assert all(np.isnan(v) for v in vals[8:])
+
+    def test_blind_range_tuple(self):
+        from src.plotting.helpers_make_plot_dict import apply_blinding
+        plot_data = self._create_sample_plot_data(n_bins=10, x_min=0.0, x_max=100.0)
+        # Bins: [0, 10], [10, 20], ..., [90, 100]
+        # Centers: 5, 15, 25, 35, 45, 55, 65, 75, 85, 95
+        apply_blinding(plot_data, (30.0, 70.0))
+
+        data = plot_data["hists"]["data"]
+        vals = data["values"]
+        # Centers 35, 45, 55, 65 (indices 3, 4, 5, 6) should be masked
+        assert vals[0] == 10.0 and vals[1] == 10.0 and vals[2] == 10.0
+        assert all(np.isnan(vals[i]) for i in [3, 4, 5, 6])
+        assert vals[7] == 10.0 and vals[8] == 10.0 and vals[9] == 10.0
+
+
+

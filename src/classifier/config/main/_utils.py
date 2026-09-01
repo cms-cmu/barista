@@ -85,23 +85,30 @@ class LoadTrainingSets(Main):
             raise ValueError("No dataset to load")
         logging.info(f"Loading {len(loaders)} datasets")
         timer = datetime.now()
-        with (
-            ProcessPoolExecutor(
-                max_workers=self.opts.max_loaders,
-                mp_context=status.context,
-                initializer=status.initializer,
-            ) as executor,
-            Progress.new(total=len(loaders), msg=("datasets", "Loading")) as progress,
-        ):
-            datasets = [
-                *pool.map_async(
-                    executor,
-                    _load_dataset,
-                    loaders,
-                    callbacks=[lambda _: progress_advance(progress)],
-                    preserve_order=self.opts.preserve_order,
-                )
-            ]
+        if self.opts.max_loaders == 1:
+            with Progress.new(total=len(loaders), msg=("datasets", "Loading")) as progress:
+                datasets = []
+                for loader in loaders:
+                    datasets.append(_load_dataset(loader))
+                    progress_advance(progress)(None)
+        else:
+            with (
+                ProcessPoolExecutor(
+                    max_workers=self.opts.max_loaders,
+                    mp_context=status.context,
+                    initializer=status.initializer,
+                ) as executor,
+                Progress.new(total=len(loaders), msg=("datasets", "Loading")) as progress,
+            ):
+                datasets = [
+                    *pool.map_async(
+                        executor,
+                        _load_dataset,
+                        loaders,
+                        callbacks=[lambda _: progress_advance(progress)],
+                        preserve_order=self.opts.preserve_order,
+                    )
+                ]
         logging.info(f"Loaded {len(loaders)} datasets in {datetime.now() - timer}")
         # concatenate datasets
         keys = [set(d.keys()) for d in datasets]

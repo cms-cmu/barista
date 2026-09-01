@@ -41,3 +41,12 @@ code_snakemake_dryrun_combine:
     - mkdir -p output/v4_systematics_test/HH4b/datacards
     - touch output/v4_systematics_test/HH4b/datacards/datacard__HH4b.txt
     - ./run_container snakemake --snakefile src/stat_analysis/combine.smk --config stat_only=True channels='{"HH4b":{"signallabel":"ggHH_kl_1_kt_1_13p0TeV_hbbhbb","othersignal":"","signal":"GluGluToHHTo4B_cHHH1"}}' -n
+
+code_classifier_dependencies:
+  stage: code
+  extends: .base_analysis_barista
+  before_script:
+    - cd $CI_PROJECT_DIR/
+    - pwd && ls -la
+  script:
+    - python -m src.classifier.test.check_configs

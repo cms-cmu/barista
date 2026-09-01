@@ -1,3 +1,4 @@
+# CI voms proxy setup
 voms_proxy:
   stage: setup
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest

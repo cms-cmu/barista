@@ -345,6 +345,8 @@ class EntryPoint:
             serialized = json.dumps(result, cls=DefaultEncoder)
             with fsspec.open(cfg.IO.result, "wt") as f:
                 f.write(serialized)
+        import os
+        os._exit(0)
 
 
 # main
@@ -360,3 +362,16 @@ class Main(Task):
 
     @interface
     def run(self, parser: EntryPoint) -> Optional[dict[str]]: ...
+
+
+if __name__ == "__main__":
+    # Install the awkward_pandas concat patch (PR#49) BEFORE the loader runs.
+    # Without it, awkward_pandas 2023.8.0 + pandas 3.0 makes the per-chunk
+    # pd.concat fall back to ak.from_iter (element-wise iteration), which hangs
+    # on large mixed-background datasets. The old ./src/pyml.py entry point
+    # called this; the `python -m src.classifier.task.main` path must too.
+    from src.classifier.patch import patch_awkward_pandas
+
+    patch_awkward_pandas()
+    EntryPoint().run()
+

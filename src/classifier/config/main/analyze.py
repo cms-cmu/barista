@@ -61,22 +61,27 @@ def run_analyzer(parser: EntryPoint, results: list[dict]):
         return None
 
     timer = datetime.now()
-    with (
-        ProcessPoolExecutor(
-            max_workers=cfg.Analysis.max_workers,
-            mp_context=status.context,
-            initializer=status.initializer,
-        ) as executor,
-        Progress.new(total=len(analyzers), msg=("analysis", "Running")) as progress,
-    ):
-        outputs = [
-            *pool.map_async(
-                executor,
-                _analyze,
-                analyzers,
-                callbacks=[lambda _: progress_advance(progress)],
-            )
-        ]
+    if cfg.Analysis.max_workers == 1:
+        outputs = []
+        for analyzer in analyzers:
+            outputs.append(_analyze(analyzer))
+    else:
+        with (
+            ProcessPoolExecutor(
+                max_workers=cfg.Analysis.max_workers,
+                mp_context=status.context,
+                initializer=status.initializer,
+            ) as executor,
+            Progress.new(total=len(analyzers), msg=("analysis", "Running")) as progress,
+        ):
+            outputs = [
+                *pool.map_async(
+                    executor,
+                    _analyze,
+                    analyzers,
+                    callbacks=[lambda _: progress_advance(progress)],
+                )
+            ]
     Index.render()
     logging.info(f"Completed {len(outputs)} analysis in {datetime.now() - timer}")
 

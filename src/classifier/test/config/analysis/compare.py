@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from src.classifier.config.analysis.HCR._loss_roc import _collect_loss_roc
 from src.classifier.task import Analysis, ArgParser, parse
 
 if TYPE_CHECKING:
@@ -128,45 +127,6 @@ def _tree_to_dict(tree: dict):
         k: _tree_to_dict(v) if isinstance(v, defaultdict) else v
         for k, v in tree.items()
     }
-
-
-class CompareTrainingHCR(CompareRecursiveJSON):
-    argparser = ArgParser()
-    argparser.remove_argument("--result")
-
-    def _get_result(self, result):
-        import pandas as pd
-
-        from src.utils import unique
-
-        _, _, groups = _collect_loss_roc._collect_data(result)
-        outputs = []
-        for group in groups:
-            dfs = {
-                k: pd.concat([group.data[k], group.phase], axis=1)
-                for k in sorted(group.data)
-            }
-            columns = sorted(
-                unique(chain.from_iterable(map(lambda x: x.columns, dfs.values())))
-            )
-            output = _tree()
-            for ks, df in dfs.items():
-                cd = output
-                for k in ks:
-                    cd = cd[k]
-                for col in columns:
-                    if col in df.columns:
-                        val = df[col].iloc[-1]
-                        if pd.isna(val):
-                            val = None
-                        else:
-                            try:
-                                val = val.item()
-                            except AttributeError:
-                                pass
-                    cd[col] = val
-            outputs.append(_tree_to_dict(output))
-        return outputs
 
 
 class CompareRootFile(CompareFloat):

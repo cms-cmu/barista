@@ -57,21 +57,29 @@ class Main(SelectDevice, LoadTrainingSets):
         logging.info(f"Initialized {len(trainers)} models in {datetime.now() - timer}")
         # train models in parallel
         timer = datetime.now()
-        with (
-            ProcessPoolExecutor(
-                max_workers=self.opts.max_trainers,
-                mp_context=status.context,
-                initializer=status.initializer,
-            ) as executor,
-            Progress.new(total=len(trainers), msg=("models", "Training")) as progress,
-        ):
-            results = [
-                *pool.map_async(
-                    executor,
-                    _train_model(self.device, datasets),
-                    trainers,
-                    callbacks=[lambda _: progress_advance(progress)],
-                )
-            ]
+        if self.opts.max_trainers == 1:
+            with Progress.new(total=len(trainers), msg=("models", "Training")) as progress:
+                results = []
+                trainer_func = _train_model(self.device, datasets)
+                for trainer in trainers:
+                    results.append(trainer_func(trainer))
+                    progress_advance(progress)(None)
+        else:
+            with (
+                ProcessPoolExecutor(
+                    max_workers=self.opts.max_trainers,
+                    mp_context=status.context,
+                    initializer=status.initializer,
+                ) as executor,
+                Progress.new(total=len(trainers), msg=("models", "Training")) as progress,
+            ):
+                results = [
+                    *pool.map_async(
+                        executor,
+                        _train_model(self.device, datasets),
+                        trainers,
+                        callbacks=[lambda _: progress_advance(progress)],
+                    )
+                ]
         logging.info(f"Trained {len(results)} models in {datetime.now() - timer}")
         return {ResultKey.models: results}

@@ -60,7 +60,7 @@ def uproot_XRootD_retry(
     import uproot
 
     v = version.parse(uproot.__version__)
-    if (v < version.parse("5.0.0")) and (v >= version.parse("4.1.0")):
+    if v >= version.parse("4.1.0"):
         from uproot.source.xrootd import XRootDResource
 
         XRootDResource._open = _uproot_XRootDResource_open_retry(

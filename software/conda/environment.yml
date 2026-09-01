@@ -467,7 +467,7 @@ dependencies:
     - fastjet==3.4.0.1
     - fsspec_xrootd==0.5.1
     - htcondor==24.3.0
-    - lpcjobqueue==0.4.1
+    - git+https://github.com/CoffeaTeam/lpcjobqueue.git@v0.6.0
     - memory-profiler==0.61.0
     - onnxruntime==1.20.1
     - pip==25.0.1
