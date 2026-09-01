@@ -531,6 +531,14 @@ def _plot_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[plt
 
     _resolve_ratio_specs(plot_data)
     do_ratio = len(plot_data.get("ratio", {}))
+
+    # for label, h in {**plot_data.get("stack", {}), **plot_data.get("hists", {})}.items():
+    #     edges = np.array(h["edges"])
+    #     centers = (edges[:-1] + edges[1:]) / 2
+    #     values = np.array(h["values"])
+    #     print(f"[{label}] bin centers: {centers.tolist()}")
+    #     print(f"[{label}] contents:    {values.tolist()}")
+
     fig, main_ax, grid = _setup_figure(do_ratio, opts)
 
     year_str = plot_helpers.get_year_str(year=opts.year_str if opts.year_str is not None else opts.year)
