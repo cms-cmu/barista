@@ -227,6 +227,8 @@ if __name__ == '__main__':
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
     configs = copy.deepcopy(args.configs) if isinstance(args.configs, dict) else (yaml.safe_load(open(args.configs, 'r')) or {})
+    if 'config' not in configs or configs['config'] is None:
+        configs['config'] = {}
 
     # If a full job YAML was supplied (Mode 1) and points to an external analysis_config,
     # merge any top-level 'runner' or 'config' block overrides from the job YAML.
