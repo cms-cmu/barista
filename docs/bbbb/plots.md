@@ -54,7 +54,7 @@ python -i plots/iPlot.py  output/hists.coffea  -o testPlotsNew
 ### To plot the same process from two different inputs
 
 ```
-> py  -i plots/iPlot.py hists/histAll_file1.coffea hists/histAll_file1.coffea -l file1 file2
+> py  -i plots/iPlot.py output/histAll_file1.coffea output/histAll_file1.coffea -l file1 file2
 ```
 
 ```
@@ -66,7 +66,7 @@ python -i plots/iPlot.py  output/hists.coffea  -o testPlotsNew
 When you have two input files with histograms that have different axes (e.g. different tags), you can define each process in the metadata YAML and plot them together. Each process is matched to its corresponding input file by order.
 
 ```
-> python -i plots/iPlot.py hists/histNominal.coffea hists/histLowpt.coffea -l Nominal Lowpt -m plots/metadata/plotsAll_lowpt_TMP.yml
+> python -i plots/iPlot.py output/histNominal.coffea output/histLowpt.coffea -l Nominal Lowpt -m plots/metadata/plotsAll_lowpt_TMP.yml
 ```
 
 The metadata YAML defines processes with different tags pointing to the same underlying data:

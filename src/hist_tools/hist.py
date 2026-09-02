@@ -233,10 +233,12 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
         for category in hists._categories:
             if category not in fill_args:
                 field = _fill_field(category)
-                if isinstance(hists._axes[category], StrCategory) and not (
-                    self.__backend__.allow_str_array
-                    and akext.is_array(get_field(events, field))
-                ):
+                has_str_array = False
+                try:
+                    has_str_array = self.__backend__.allow_str_array and akext.is_array(get_field(events, field))
+                except Exception:
+                    has_str_array = False
+                if isinstance(hists._axes[category], StrCategory) and not has_str_array:
                     mask_categories.append(category)
                 else:
                     fill_args[category] = field

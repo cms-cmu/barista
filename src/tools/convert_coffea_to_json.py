@@ -29,18 +29,18 @@ Axis handling:
 Usage:
     # Convert all histograms, Boolean axes summed automatically
     python src/tools/convert_coffea_to_json.py \\
-        -i analysis/hists/histAll.coffea \\
+        -i output/histAll.coffea \\
         -o histos/histAll.json
 
     # Select specific histograms
     python src/tools/convert_coffea_to_json.py \\
-        -i analysis/hists/histAll.coffea \\
+        -i output/histAll.coffea \\
         -o histos/histAll.json \\
         --histos SvB.phh SvB.ptt
 
     # Fix Boolean axis to True (coffea4bees style)
     python src/tools/convert_coffea_to_json.py \\
-        -i analysis/hists/histAll.coffea \\
+        -i output/histAll.coffea \\
         -o histos/histAll.json \\
         --select passPreSel=True
 
@@ -51,7 +51,7 @@ Usage:
 
     # IntCategory axes with integer bin values — provide a mapping file
     python src/tools/convert_coffea_to_json.py \\
-        -i analysis/hists/histAll.coffea \\
+        -i output/histAll.coffea \\
         -o histos/histAll.json \\
         --mapping-config my_mapping.json
 """

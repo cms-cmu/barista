@@ -65,7 +65,7 @@ def make_parser() -> argparse.ArgumentParser:
     io_group.add_argument(
         '-op', '--output-path',
         dest="output_path",
-        default="hists/",
+        default="output/",
         help='Directory path where output files will be saved'
     )
     io_group.add_argument(

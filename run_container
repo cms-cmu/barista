@@ -48,6 +48,7 @@ add_x509_proxy_flags() {
             local PROXY="${PWD}/proxy/x509_proxy"
             mkdir -p proxy
             touch "$PROXY"
+            export X509_USER_PROXY="$PROXY"
             FLAGS_REF+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
             ;;
     esac
@@ -816,7 +817,7 @@ run_classifier() {
     local USE_SLURM=false
     local IMAGE="$CLASSIFIER_IMAGE"
     touch "$PWD/.python_history"
-    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv -B /tmp:/tmp
+    local FLAGS=( -B "$PWD":/srv --nv --pwd /srv
         --env PYTHONHISTFILE=/srv/.python_history
     )
     ulimit -n 65536
@@ -829,7 +830,10 @@ run_classifier() {
     fi
 
     # Bind X509 proxy for XRootD authentication
-    local PROXY="${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"
+    local PROXY="${PWD}/proxy/x509_proxy"
+    if [ ! -f "$PROXY" ] && [ -n "${X509_USER_PROXY:-}" ] && [ -f "$X509_USER_PROXY" ]; then
+        PROXY="$X509_USER_PROXY"
+    fi
     if [ -f "$PROXY" ]; then
         FLAGS+=( -B "$PROXY":"$PROXY" --env X509_USER_PROXY="$PROXY" )
     fi
@@ -857,8 +861,6 @@ run_classifier() {
         fi
     fi
 
-    add_x509_proxy_flags "$HOST" FLAGS
-
     # Execute
     if [ "$USE_SLURM" = true ] && [ -n "$USER_CMD" ]; then
         # FALCON with command: submit to SLURM
@@ -868,7 +870,7 @@ run_classifier() {
         local SLURM_GRES_ARGS=( --gres=mps:20 )
 
         info "Submitting batch job to Slurm (config: $SLURM_CONF)..."
-        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "${APPTAINER_CMD:-apptainer} exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
+        { echo "#!/bin/bash"; cat "$SLURM_CONF"; echo "export X509_USER_PROXY=\"$PROXY\""; echo "${APPTAINER_CMD:-apptainer} exec ${FLAGS[@]} \"$IMAGE\" bash -c \"$CMD\""; } | sbatch "${SLURM_GRES_ARGS[@]}"
     elif [ -z "$USER_CMD" ]; then
         # Interactive (FALCON job or non-FALCON)
         APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"

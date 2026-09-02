@@ -69,7 +69,7 @@ python dask_run.py \
     analysis_dask/config/classifier_plot.cfg.yml#2024_v2
 ```
 
-- the output will be available as `{output_dir}/classifier_plot_2024_v2_{timestamp}/hists/classifier_basic.coffea`
+- the output will be available as `{output_dir}/classifier_plot_2024_v2_{timestamp}/output/classifier_basic.coffea`
 
 See [Histogram](histogram.md#classifier-plot-configurations) for details.
 
