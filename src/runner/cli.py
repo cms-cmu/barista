@@ -65,7 +65,7 @@ def make_parser() -> argparse.ArgumentParser:
     io_group.add_argument(
         '-op', '--output-path',
         dest="output_path",
-        default="hists/",
+        default="output/",
         help='Directory path where output files will be saved'
     )
     io_group.add_argument(
@@ -113,6 +113,13 @@ def make_parser() -> argparse.ArgumentParser:
         dest='era',
         default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2', 'I2', 'I3' ],
         help='Data era(s) to process (data only). Examples: --eras A B C.'
+    )
+    data_group.add_argument(
+        '--samples',
+        nargs='+',
+        dest='samples',
+        default=None,
+        help='Sample index or list of sample indices for multi-sample datasets like mixeddata or synthetic_data (e.g. --samples 0 or --samples 0 1 2 or --samples v0 v1). Default is all samples.'
     )
 
     # Processing mode options

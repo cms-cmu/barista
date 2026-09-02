@@ -68,7 +68,14 @@ class Main(SelectDevice, main.Main):
         # prepare datasets
         tasks: list[Dataset] = parser.tasks[TaskOptions.dataset.name]
         timer = datetime.now()
-        datasets = [*chain(*(t.evaluate() for t in tasks))]
+        datasets = [
+            d
+            for d in chain(*(t.evaluate() for t in tasks))
+            if getattr(d, "_FriendTreeEvalDataset__chunks", [1])
+        ]
+        if not datasets:
+            logging.warning("No non-empty datasets to evaluate.")
+            return []
         dataset: EvalDatasetLike = reduce(op.add, datasets)
         logging.info(f"Initialized {len(datasets)} datasets in {datetime.now() - timer}, type={type(dataset)}")
         # initialize models

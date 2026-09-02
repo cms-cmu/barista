@@ -367,7 +367,8 @@ def integrity_check(
 ):
     complete = True
     logging.info("Checking integrity of the picoAOD...")
-    diff = set(fileset) - set(output)
+    empty_datasets = {d for d, v in fileset.items() if len(v.get("files", [])) == 0}
+    diff = (set(fileset) - set(output)) - empty_datasets
     miss_dict = {}
     if diff:
         logging.error(f"The whole dataset is missing: {diff}")

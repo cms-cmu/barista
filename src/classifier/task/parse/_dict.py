@@ -205,11 +205,18 @@ def grouped_mappings(
 def grouped_mappings(
     opts: list[list[str]], sep: None = None
 ) -> dict[str, list[str]]: ...
-def grouped_mappings(opts: list[list[str]], sep: str = None):
+def grouped_mappings(opts: list[list[str]] | list[str], sep: str = None):
     result = defaultdict(list)
+    if opts and isinstance(opts[0], str):
+        opts = [opts]
     for opt in opts:
-        if len(opt) < 2:
+        if isinstance(opt, str):
             continue
+        if len(opt) == 0:
+            continue
+        elif len(opt) == 1:
+            arg = frozenset() if sep is not None else ""
+            result[arg].extend(opt)
         else:
             arg = opt[0]
             if sep is not None:

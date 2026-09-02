@@ -227,6 +227,8 @@ if __name__ == '__main__':
     logging.info("Loading configuration and metadata files...")
     logging.info(f"Loading configs from: {args.configs}")
     configs = copy.deepcopy(args.configs) if isinstance(args.configs, dict) else (yaml.safe_load(open(args.configs, 'r')) or {})
+    if 'config' not in configs or configs['config'] is None:
+        configs['config'] = {}
 
     # If a full job YAML was supplied (Mode 1) and points to an external analysis_config,
     # merge any top-level 'runner' or 'config' block overrides from the job YAML.
@@ -250,9 +252,20 @@ if __name__ == '__main__':
     logging.info(">>> Modifying config")
     print(yaml.dump(configs, default_flow_style=False))
 
-    if not 'config' in configs:
-        configs['config'] = {}
-    
+    # Inherit top-level properties from config YAML if present
+    if 'processor' in configs and configs['processor']:
+        args.processor = configs['processor']
+    if 'friend_file' in configs and configs['friend_file']:
+        args.friends = configs['friend_file']
+    elif 'friends' in configs and isinstance(configs['friends'], str):
+        args.friends = configs['friends']
+    if 'weights_file' in configs and configs['weights_file']:
+        args.weights = configs['weights_file']
+    elif 'weights' in configs and isinstance(configs['weights'], str):
+        args.weights = configs['weights']
+    if 'dataset_location' in configs and configs['dataset_location']:
+        args.metadata = configs['dataset_location']
+
     # Load corrections_metadata
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
     with open("src/physics/corrections.yml", "r") as f:
@@ -494,13 +507,17 @@ if __name__ == '__main__':
     if getattr(args, 'run_dask', False):
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
-        logging.info(f"Starting Dask job with performance reporting to: {dask_report_file}")
+        job_done = False
         try:
             with performance_report(filename=dask_report_file):
                 run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+                job_done = True
         except Exception as e:
-            logging.warning(f"Dask performance report failed ({e}); proceeding with job execution directly...")
-            run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+            if not job_done:
+                logging.warning(f"Dask performance report failed ({e}); proceeding with job execution directly...")
+                run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+            else:
+                logging.warning(f"Dask performance report failed to write ({e}), but job completed successfully.")
 
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:

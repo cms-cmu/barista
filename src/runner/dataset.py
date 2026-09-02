@@ -151,7 +151,7 @@ def get_dataset_type(dataset_name):
         return 'mixeddata_4b'
     elif dataset_name in ['mixeddata_4b_noTT']:
         return 'mixeddata_4b_noTT'
-    elif dataset_name.startswith('mixeddata_all'):
+    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3') or dataset_name.startswith('mixeddata_4b_v'):
         return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
@@ -209,11 +209,19 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
     }
     logging.info(f"Config {type_names.get(dataset_type, dataset_type.title())}")
 
-    nSamples = metadata['datasets'][dataset]["nSamples"]
+    nSamples = metadata['datasets'][dataset].get("nSamples", 15)
     sample_config = metadata['datasets'][dataset][year][config_runner['data_tier']]
     logging.info(f"Number of samples is {nSamples}")
 
-    for v in range(nSamples):
+    if getattr(args, 'samples', None):
+        sample_indices = []
+        for s in args.samples:
+            s_str = str(s).lstrip("v")
+            sample_indices.append(int(s_str))
+    else:
+        sample_indices = list(range(nSamples))
+
+    for v in sample_indices:
         sample_name = f"{name_prefix}_v{v}"
         idataset = f'{sample_name}_{year}'
 
@@ -223,7 +231,12 @@ def process_sample_based_dataset(dataset_type, name_prefix, dataset, year, metad
         if extra_metadata_fn:
             extra_metadata_fn(metadata_dataset[idataset], sample_config, v)
 
-        sample_files = [f.replace("XXX", str(v)) for f in sample_config['files_template']]
+        if 'files_template' in sample_config:
+            sample_files = [f.replace("XXX", str(v)) for f in sample_config['files_template']]
+        elif f"{dataset}_v{v}" in metadata['datasets'] and year in metadata['datasets'][f"{dataset}_v{v}"]:
+            sample_files = metadata['datasets'][f"{dataset}_v{v}"][year][config_runner['data_tier']]['files']
+        else:
+            sample_files = [f for f in sample_config.get('files', []) if f"_v{v}/" in f or f"_v{v}." in f or f"_v{v}_" in f]
         logging.debug(f"samples_files is {sample_files}")
         logging.debug(f"files_template is {sample_config['files_template']}")
         fileset[idataset] = create_fileset_entry(idataset, sample_files, metadata_dataset[idataset], args, config_runner)
@@ -306,7 +319,7 @@ def process_tt_for_mixed(dataset, year, metadata, metadata_dataset, fileset, arg
 def process_data_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process regular data dataset configuration."""
     for iera, ifile in metadata['datasets'][dataset][year][config_runner['data_tier']].items():
-        if iera not in args.era:
+        if args.era and iera not in args.era:
             continue
         idataset = f'{dataset}_{year}{iera}'
         meta = copy(metadata_dataset[dataset])

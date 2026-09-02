@@ -171,7 +171,9 @@ class _FriendItem:
 
     def __lt__(self, other):
         if isinstance(other, _FriendItem):
-            return self.stop <= other.start
+            s_stop = float("inf") if (self.stop is None or self.stop is ...) else self.stop
+            o_start = float("-inf") if (other.start is None or other.start is ...) else other.start
+            return s_stop <= o_start
         return NotImplemented
 
     def __len__(self):
@@ -448,10 +450,10 @@ class Friend(Configurable, namespace="root.Friend"):
                 _FRIEND_MISSING_ERROR.format(name=self.name, range="", target=target)
             )
         series = self._data[target]
-        start = target.entry_start
-        stop = target.entry_stop
+        start = 0 if (target.entry_start is None or target.entry_start is ...) else target.entry_start
+        stop = float("inf") if (target.entry_stop is None or target.entry_stop is ...) else target.entry_stop
         idx = bisect.bisect_left(
-            series, _FriendItem(target.entry_start, target.entry_stop)
+            series, _FriendItem(start, stop)
         )
         if idx == len(series):
             raise FriendTreeError(

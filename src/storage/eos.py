@@ -25,8 +25,6 @@ __all__ = ["EOS", "PathLike", "EOSError", "save", "load"]
 
 
 class EOSError(Exception):
-    __module__ = Exception.__module__
-
     def __init__(self, cmd: list[str], stderr: bytes, *args):
         msg = f'Operation failed\n  Command: {" ".join(cmd)}\n  Message: {stderr.decode()}'
         super().__init__(msg, *args)
