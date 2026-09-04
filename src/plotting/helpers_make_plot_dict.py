@@ -884,6 +884,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     rebin = kwargs.get("rebin", 1)
     do2d = kwargs.get("do2d", False)
     debug = kwargs.get("debug", False)
+    tag = kwargs.get("tag", None)
 
     if debug:
         print(f"in get_plot_dict_from_config hist process={process}, cut={cut}")
@@ -912,17 +913,41 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     if process is not None:
         hist_config = {key: hist_config[key] for key in process if key in hist_config}
 
-    # Process each histogram
-    for _proc_name, _proc_config in hist_config.items():
-        proc_config = copy.deepcopy(_proc_config)
-        proc_config["name"] = _proc_name
-        var_to_plot = var_over_ride.get(_proc_name, var)
+    if do2d and len(hist_config) > 1:
+        # A 2D plot can only show one map: sum the requested processes into
+        # a single combined histogram instead of plotting/ratioing them separately.
+        combined_process = []
+        for _proc_config in hist_config.values():
+            _proc = _proc_config["process"]
+            combined_process.extend(_proc if isinstance(_proc, list) else [_proc])
+
+        proc_config = copy.deepcopy(next(iter(hist_config.values())))
+        proc_config["process"] = combined_process
+        proc_config["name"] = "_vs_".join(hist_config.keys())
+        proc_config["label"] = "+".join(hist_config.keys())
+        if tag is not None:
+            proc_config["tag"] = tag
 
         success = add_hist_data(cfg=cfg, config=proc_config,
-                      var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                      var=var, cut=cut, rebin=rebin, year=year,
                       axis_opts=axis_opts, do2d=do2d, debug=debug)
         if success:
-            plot_data["hists"][_proc_name] = proc_config
+            plot_data["hists"][proc_config["name"]] = proc_config
+            plot_data["process"] = list(hist_config.keys())
+    else:
+        # Process each histogram
+        for _proc_name, _proc_config in hist_config.items():
+            proc_config = copy.deepcopy(_proc_config)
+            proc_config["name"] = _proc_name
+            var_to_plot = var_over_ride.get(_proc_name, var)
+            if tag is not None:
+                proc_config["tag"] = tag
+
+            success = add_hist_data(cfg=cfg, config=proc_config,
+                          var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                          axis_opts=axis_opts, do2d=do2d, debug=debug)
+            if success:
+                plot_data["hists"][_proc_name] = proc_config
 
     # Process stack configuration
     stack_config = cfg.plotConfig.get("stack", {})

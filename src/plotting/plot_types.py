@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _DATA_ONLY_KEYS: frozenset = frozenset({
     'rebin', 'process', 'var_over_ride', 'hist_key_list', 'do2d',
-    'fileLabels', 'labels', 'combine_input_files', 'blind', '2d',
+    'fileLabels', 'labels', 'combine_input_files', 'blind', '2d', 'tag',
 })
 
 
