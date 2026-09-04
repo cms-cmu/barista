@@ -29,12 +29,17 @@ class FriendTreeSchema(BaseSchema):
             self._form["contents"] = list(output.values())
 
     def _build_collections(self, branch_forms):
+        name = None
         for k in branch_forms:
             if k.endswith('event'):
                 name = '_'.join(k.split('_')[:-1])
-
+                break
             elif k.startswith('w'):
                 name = k
+                break
+
+        if not name:
+            name = list(branch_forms.keys())[0].split('_')[0] if branch_forms else "Friend"
 
         mixin = self.mixins.get(name, "NanoCollection")
 

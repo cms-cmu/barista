@@ -285,9 +285,9 @@ def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
     # We import internally to keep imports clean
     global _temp_condor_dir
     
+    workspace_path = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     workspace_hash = os.environ.get("BARISTA_WORKSPACE_HASH")
     if not workspace_hash:
-        workspace_path = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         workspace_hash = hashlib.md5(workspace_path.encode('utf-8')).hexdigest()[:8]
     username = getpass.getuser()
     daemon_dir = f"/tmp/barista_{username}"

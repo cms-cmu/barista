@@ -32,6 +32,10 @@ class status:
 
 
 class _inherit_context_initializer:
+    def __init__(self):
+        self._context = status.context
+        self._initializer = status.initializer
+
     def __getstate__(self):
         return (status.context, status.initializer)
 
@@ -39,11 +43,11 @@ class _inherit_context_initializer:
         self._context, self._initializer = states
 
     def __call__(self):
-        status.context = self._context
-        status.initializer = self._initializer
+        status.context = getattr(self, "_context", None)
+        status.initializer = getattr(self, "_initializer", None)
 
 
-status.initializer.add_unique(_inherit_context_initializer)
+status.initializer.add_unique(_inherit_context_initializer())
 
 
 class torch_set_sharing_strategy:

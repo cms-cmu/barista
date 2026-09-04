@@ -21,7 +21,7 @@ The script `./shell_combine` runs your command inside a container, for simplicit
 Using the  container:
 ```
 cd coffea4bees/stats_analysis/
-python convert_hist_to_json.py -o histos/histAll.json -i ../analysis/hists/histAll.coffea
+python convert_hist_to_json.py -o histos/histAll.json -i ../analysis/output/histAll.coffea
 ```
 
 ## Convert json to root (for combine)
@@ -37,7 +37,7 @@ cd coffea4bees/
 Using the combine container:
 ```
 cd coffea4bees/
-../shell_combine python3 stats_analysis/make_variable_binning.py -i hists/test_/histAll.json -t 10 -o stats_analysis/tmp/histAll_rebinned.root
+../shell_combine python3 stats_analysis/make_variable_binning.py -i output/test_/histAll.json -t 10 -o stats_analysis/tmp/histAll_rebinned.root
 ```
 `-i` can take json or root files. The output is a root file.
 
@@ -49,9 +49,9 @@ for var_type in m4j_zz m4j_zh m4j_hh; do
     ./shell_combine python3 stats_analysis/runTwoStageClosure.py  --var $var_type  \
         --classifier SvB  --m4j_xmin 230  --m4j_xmax 1200 \
         --rebin 16 --outputPath stats_analysis/sysana/histsLocalResonance \
-        --input_file_data3b analysis/hists/sysana/histMixedBkg_data_3b_for_mixed_kfold.root \
-        --input_file_TT     analysis/hists/sysana/histMixedBkg_TT.root \
-        --input_file_mix    analysis/hists/sysana/histMixedData.root \
-        --input_file_sig    analysis/hists/sysana/histSignal_UL.root \
+        --input_file_data3b analysis/output/sysana/histMixedBkg_data_3b_for_mixed_kfold.root \
+        --input_file_TT     analysis/output/sysana/histMixedBkg_TT.root \
+        --input_file_mix    analysis/output/sysana/histMixedData.root \
+        --input_file_sig    analysis/output/sysana/histSignal_UL.root \
         --use_kfold   
 ```

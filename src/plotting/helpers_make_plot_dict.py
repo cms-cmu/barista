@@ -92,12 +92,6 @@ def _find_hist_obj(
 
     hist_obj = None
     for _input_data in cfg.hists:
-        try:
-            _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
-        except (KeyError, AttributeError) as e:
-            raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
-        for _key in unique_to_dict:
-            hist_opts.pop(_key)
         if var not in _input_data[hist_key]:
             continue
         try:
@@ -105,9 +99,16 @@ def _find_hist_obj(
         except (KeyError, StopIteration):
             available_processes = None
         if available_processes is not None and process in available_processes:
+            try:
+                _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+            except (KeyError, AttributeError) as e:
+                raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
+            for _key in unique_to_dict:
+                hist_opts.pop(_key)
             if "variation" in _input_data[category_key]:
                 hist_opts["variation"] = "nominal"
             hist_obj = _input_data[hist_key][var]
+            break
 
     if hist_obj is None:
         try:
@@ -139,6 +140,35 @@ def _apply_intcategory_compat(
         for axis in hist_obj.axes:
             if axis.name in hist_opts and hist_opts[axis.name] == "sum":
                 hist_opts[axis.name] = sum
+
+        if "year" in hist_obj.axes.name and "year" in hist_opts:
+            y_val = hist_opts["year"]
+            if y_val not in (sum, "sum"):
+                avail_years = list(hist_obj.axes["year"])
+                if y_val not in avail_years:
+                    if y_val in ("2016", "UL16"):
+                        matched = [y for y in avail_years if "16" in str(y)]
+                        if matched:
+                            hist_opts["year"] = matched if len(matched) > 1 else matched[0]
+                    elif y_val in ("2017", "UL17"):
+                        matched = [y for y in avail_years if "17" in str(y)]
+                        if matched:
+                            hist_opts["year"] = matched if len(matched) > 1 else matched[0]
+                    elif y_val in ("2018", "UL18"):
+                        matched = [y for y in avail_years if "18" in str(y)]
+                        if matched:
+                            hist_opts["year"] = matched if len(matched) > 1 else matched[0]
+                    else:
+                        year_aliases = {
+                            "UL18": "2018",
+                            "UL17": "2017",
+                            "UL16_preVFP": "2016",
+                            "UL16_postVFP": "2016",
+                            "2018": "UL18",
+                            "2017": "UL17",
+                        }
+                        if y_val in year_aliases and year_aliases[y_val] in avail_years:
+                            hist_opts["year"] = year_aliases[y_val]
     except (KeyError, AttributeError) as e:
         raise ValueError(f"Failed to handle axis compatibility: {str(e)}")
 

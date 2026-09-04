@@ -22,7 +22,7 @@ def init_arg_parser():
                         help='Input File. Default: hists.pkl')
 
     parser.add_argument('-l', '--labelNames', dest="fileLabels",
-                        default=["fileA", "fileB"], nargs='+',
+                        default=None, nargs='+',
                         help='label Names when more than one input file')
 
     parser.add_argument('-o', '--outputFolder', default=None,
@@ -45,13 +45,15 @@ def init_arg_parser():
                         help='Name of hists to skip')
 
 
-    parser.add_argument('-f', '--format', dest="fmt", default="pdf,png",
+    parser.add_argument('-f', '--format', dest="fmt", default="png",
                         help='Output format(s), comma-separated (e.g. pdf, png, or pdf,png)')
     parser.add_argument('--doTest', action="store_true", help='Metadata file.')
     parser.add_argument('--debug', action="store_true", help='')
     parser.add_argument('--signal', action="store_true", help='')
     parser.add_argument('--year',   help='')
     parser.add_argument('--combine_input_files', action="store_true", help='')
+    parser.add_argument('-p', '--num-workers', '--png_cores', dest="num_workers", type=int, default=8,
+                        help='Number of parallel worker processes to use for rendering plots (default: 8)')
     parser.add_argument('--category', default=None,
                         help='Optional hist category selector (e.g. nominal, lowpt). '
                              'Default None lets the caller plot all categories.')

@@ -105,6 +105,8 @@ class RenderOptions:
     plot_contour: bool = False
     plot_leadst_lines: bool = False
     plot_sublst_lines: bool = False
+    plot_ttHbb_sr: bool = False
+    ttHbb_sr_params: Optional[Dict] = None
 
     # --- Blinding ------------------------------------------------------------
     blind: Any = None

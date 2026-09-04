@@ -307,6 +307,13 @@ def apply_jerc_corrections_jsonpog(
         if run_tag is None and run_tags:
             logging.warning(f"No run_tag matched for dataset {dataset!r} in {list(run_tags.keys())}")
 
+    # Auto-detect jet_type from metadata or campaign if using default AK4PFchs for Run 3
+    if jet_type == "AK4PFchs":
+        if "jet_type" in jec_meta:
+            jet_type = jec_meta["jet_type"]
+        elif any(k in jec_campaign for k in ["Summer22", "Summer23", "2022", "2023", "Run3", "RunIII"]):
+            jet_type = "AK4PFPuppi"
+
     cset       = _get_correction_set(jerc_file)
     era        = "MC" if isMC else "DATA"
     run_tag_prefix = f"{run_tag}_" if run_tag else ""

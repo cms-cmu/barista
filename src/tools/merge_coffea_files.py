@@ -31,7 +31,10 @@ def merge_coffea_files( files_to_merge, output_file ):
                     elif isinstance(output[ikey][ihist], dict) and isinstance(iout[ikey][ihist], dict):
                         output[ikey][ihist] = output[ikey][ihist] | iout[ikey][ihist]
                     else:
-                        output[ikey][ihist] += iout[ikey][ihist]
+                        try:
+                            output[ikey][ihist] += iout[ikey][ihist]
+                        except Exception as e:
+                            logging.warning(f'   Could not merge histogram {ihist}: {e}. Skipping.')
             else:
                 output[ikey] = output[ikey] | iout[ikey]
 

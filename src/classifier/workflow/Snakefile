@@ -148,7 +148,7 @@ rule evaluate:
         f"{OUTPUT_DIR}/evaluate.log",
     container: CLASSIFIER
     resources:
-        runtime = 240,
+        runtime = 480,
         mem_mb  = 64000,
         gres    = "mps:25",
         qos     = "light",

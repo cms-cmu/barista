@@ -34,35 +34,35 @@ Converts coffea `.coffea` histogram files to a nested JSON format suitable for `
 ```bash
 # bbreww — StrCategory axes, no mapping needed
 python src/tools/convert_coffea_to_json.py \
-    -i bbreww/analysis/hists/histAll.coffea \
+    -i bbreww/output/histAll.coffea \
     -o bbreww/stats_analysis/histos/histAll.json \
     --histos SvB.phh
 
 # coffea4bees — fix Boolean axis passPreSel to True
 python src/tools/convert_coffea_to_json.py \
-    -i coffea4bees/analysis/hists/histAll.coffea \
+    -i coffea4bees/output/histAll.coffea \
     -o coffea4bees/stats_analysis/histos/histAll.json \
     --histos SvB_MA.ps_hh_fine \
     --select passPreSel=True
 
 # Use only SR
 python src/tools/convert_coffea_to_json.py \
-    -i analysis/hists/histAll.coffea -o histos/histAll.json \
+    -i output/histAll.coffea -o histos/histAll.json \
     --select region=SR
 
 # Merge SR+CR into one histogram (sum over region axis)
 python src/tools/convert_coffea_to_json.py \
-    -i analysis/hists/histAll.coffea -o histos/histAll.json \
+    -i output/histAll.coffea -o histos/histAll.json \
     --sum region
 
 # Both: fix passPreSel=True and merge regions
 python src/tools/convert_coffea_to_json.py \
-    -i analysis/hists/histAll.coffea -o histos/histAll.json \
+    -i output/histAll.coffea -o histos/histAll.json \
     --select passPreSel=True --sum region
 
 # IntCategory axes with integer bin values — provide a mapping file
 python src/tools/convert_coffea_to_json.py \
-    -i analysis/hists/histAll.coffea \
+    -i output/histAll.coffea \
     -o histos/histAll.json \
     --mapping-config my_mapping.json
 ```

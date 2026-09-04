@@ -105,7 +105,7 @@ class HCRBenchmarks:
 def _HCRInput(batch: BatchType, device: tt.Device, selection: Tensor = None):
     for k, v in batch.items():
         batch[k] = v.to(device, non_blocking=True)
-    inputs = [batch.pop(k) for k in (Input.CanJet, Input.NotCanJet, Input.ancillary)]
+    inputs = [batch[k] for k in (Input.CanJet, Input.NotCanJet, Input.ancillary)]
     if selection is not None:
         selection = selection.to(device, non_blocking=True)
         inputs = [i[selection] for i in inputs]

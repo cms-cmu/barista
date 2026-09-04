@@ -199,14 +199,20 @@ class Chunk(metaclass=_ChunkMeta):
         if self._num_entries is ...:
             self._num_entries = tree.num_entries
         if self._uuid is ...:
-            self._uuid = file.file.uuid
+            uuid_val = file.file.uuid
+            if isinstance(uuid_val, bytes):
+                self._uuid = UUID(bytes=uuid_val)
+            elif isinstance(uuid_val, str):
+                self._uuid = UUID(uuid_val)
+            else:
+                self._uuid = uuid_val
 
     def __hash__(self):
-        return hash((self.uuid, self.name))
+        return hash((str(self.uuid), str(self.name)))
 
     def __eq__(self, other):
         if isinstance(other, Chunk):
-            return (self.uuid, self.name) == (other.uuid, other.name)
+            return (str(self.uuid), str(self.name)) == (str(other.uuid), str(other.name))
         return NotImplemented
 
     def __len__(self):
