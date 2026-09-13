@@ -584,24 +584,24 @@
   JEC_MC: 'src/data/JEC/Summer24Prompt24_V3_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
   JEC_DATA: 
-    C: 'src/data/JEC/Summer24Prompt24_RunCnib1_V2_DATA.tar.gz'
-    D: 'src/data/JEC/Summer24Prompt24_RunDnib1_V2_DATA.tar.gz'
-    E: 'src/data/JEC/Summer24Prompt24_RunEnib1_V2_DATA.tar.gz'
-    F1: 'src/data/JEC/Summer24Prompt24_RunFnib1_V2_DATA.tar.gz'
-    F2: 'src/data/JEC/Summer24Prompt24_RunFnib2_V2_DATA.tar.gz'
-    F3: 'src/data/JEC/Summer24Prompt24_RunFnib3_V2_DATA.tar.gz'
-    G1: 'src/data/JEC/Summer24Prompt24_RunGnib1_V2_DATA.tar.gz'
-    G2: 'src/data/JEC/Summer24Prompt24_RunGnib2_V2_DATA.tar.gz'
-    H: 'src/data/JEC/Summer24Prompt24_RunHnib1_V2_DATA.tar.gz'
-    I: 'src/data/JEC/Summer24Prompt24_RunInib1_V2_DATA.tar.gz'
+    C: 'src/data/JEC/Summer24Prompt24_RunCnib1_V5_DATA.tar.gz'
+    D: 'src/data/JEC/Summer24Prompt24_RunDnib1_V5_DATA.tar.gz'
+    E: 'src/data/JEC/Summer24Prompt24_RunEnib1_V5_DATA.tar.gz'
+    F1: 'src/data/JEC/Summer24Prompt24_RunFnib1_V5_DATA.tar.gz'
+    F2: 'src/data/JEC/Summer24Prompt24_RunFnib2_V5_DATA.tar.gz'
+    F3: 'src/data/JEC/Summer24Prompt24_RunFnib3_V5_DATA.tar.gz'
+    G1: 'src/data/JEC/Summer24Prompt24_RunGnib1_V5_DATA.tar.gz'
+    G2: 'src/data/JEC/Summer24Prompt24_RunGnib2_V5_DATA.tar.gz'
+    H: 'src/data/JEC/Summer24Prompt24_RunHnib1_V5_DATA.tar.gz'
+    I: 'src/data/JEC/Summer24Prompt24_RunInib1_V5_DATA.tar.gz'
   JES_uncertainties:
     - DUMMY
   jec:
     file: 'src/data/JEC/regJet_jerc_2024.json.gz'
     jec_campaign: Summer24Prompt24
-    jec_version: V3
-    jer_campaign: Summer23BPixPrompt23
-    jer_version: RunD_JRV1 ### DUMMY, TO BE UPDATED
+    jec_version: V5
+    jer_campaign: Summer24Prompt24
+    jer_version: JRV2
     #run_tags: not needed in 2024
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetid.json.gz'
   jes_unc:  
