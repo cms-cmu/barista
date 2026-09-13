@@ -315,11 +315,20 @@ def apply_jerc_corrections_jsonpog(
         if run_tag is None and run_tags:
             logging.warning(f"No run_tag matched for dataset {dataset!r} in {list(run_tags.keys())}")
 
-    # Auto-detect jet_type from metadata or campaign if using default AK4PFchs for Run 3
+    # Auto-detect jet_type from metadata or campaign if using default AK4PFchs for Run 3.
+    #
+    # Run 3 JERC payloads are Puppi-only -- they carry no AK4PFchs keys at all --
+    # so any Run 3 campaign missing from this list raises
+    # KeyError('<campaign>_<version>_MC_L1L2L3Res_AK4PFchs') the first time a
+    # chunk is corrected. "Summer24"/"2024" were absent, which broke every 2024
+    # job (jec_campaign is "Summer24Prompt24", matching none of the old keys).
+    # Checked safe: no Run 2 campaign string (Summer19UL16APV/UL16/UL17/UL18)
+    # contains any of these substrings.
     if jet_type == "AK4PFchs":
         if "jet_type" in jec_meta:
             jet_type = jec_meta["jet_type"]
-        elif any(k in jec_campaign for k in ["Summer22", "Summer23", "2022", "2023", "Run3", "RunIII"]):
+        elif any(k in jec_campaign for k in ["Summer22", "Summer23", "Summer24",
+                                             "2022", "2023", "2024", "Run3", "RunIII"]):
             jet_type = "AK4PFPuppi"
 
     cset       = _get_correction_set(jerc_file)
