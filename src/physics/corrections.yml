@@ -451,7 +451,7 @@
   jet_veto_maps: 
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-07-15/jetvetomaps.json.gz'
     tag: Summer23Prompt23_RunC_V1
-  JEC_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
+  JEC_MC: 'src/data/JEC/Summer23Prompt23_V4_MC.tar.gz'
   # JER_MC: 'src/data/JEC/Summer23Prompt23_V3_MC.tar.gz'
   JEC_DATA: 
     C01: &2023_C01 'src/data/JEC/Summer23Prompt23_RunCv123_V4_DATA.tar.gz'
@@ -472,7 +472,7 @@
     jec_campaign: Summer23Prompt23
     jec_version: V4
     jer_campaign: Summer23Prompt23
-    jer_version: RunCv1234_JRV1
+    jer_version: RunCv1234_JRV3
     #run_tags: not needed
   jes_unc:
     - DUMMY
