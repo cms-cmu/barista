@@ -205,3 +205,4 @@ bbreww
 pourover_output/
 .pytest*/
 apptainer_env.sh
+Documentation/

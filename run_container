@@ -347,8 +347,31 @@ run_coffea() {
     HOST=$(hostname)
 
     # Check if we need to start the shared Dask daemon
-    if [[ " $* " == *"--shared-dask"* ]] && \
-       [[ " $* " == *"--condor"* || " $* " == *"--slurm"* || " $* " == *"--dask"* ]] && \
+    local _wants_shared_dask=false
+    local _wants_condor=false
+    local _wants_slurm=false
+    local _wants_dask=false
+    [[ " $* " == *"--shared-dask"* ]] && _wants_shared_dask=true
+    [[ " $* " == *"--condor"* ]] && _wants_condor=true
+    [[ " $* " == *"--slurm"* ]] && _wants_slurm=true
+    [[ " $* " == *"--dask"* || " $* " == *"--run-dask"* ]] && _wants_dask=true
+
+    # Also inspect config yaml files if present
+    for _a in "$@"; do
+        if [[ "$_a" == *.yml || "$_a" == *.yaml ]] && [ -f "$_a" ]; then
+            if grep -Eq '^[[:space:]]*shared_dask:[[:space:]]*true' "$_a" 2>/dev/null; then
+                _wants_shared_dask=true
+            fi
+            if grep -Eq '^[[:space:]]*condor:[[:space:]]*true' "$_a" 2>/dev/null; then
+                _wants_condor=true
+            fi
+            if grep -Eq '^[[:space:]]*slurm:[[:space:]]*true' "$_a" 2>/dev/null; then
+                _wants_slurm=true
+            fi
+        fi
+    done
+
+    if $_wants_shared_dask && ($_wants_condor || $_wants_slurm || $_wants_dask) && \
        [[ " $* " != *" --start-cluster-daemon "* ]]; then
         
         # Determine scheduler JSON path and lock file path
@@ -366,7 +389,7 @@ if os.path.exists('$SCHEDULER_JSON'):
         with open('$SCHEDULER_JSON') as f:
             addr = json.load(f)['address']
         host, port = addr.replace('tcp://', '').split(':')
-        s = socket.create_connection((host, int(port)), timeout=2)
+        s = socket.create_connection((host, int(port)), timeout=10)
         s.close()
         exit(0)
     except Exception:
@@ -418,6 +441,13 @@ exit(1)
                     esac
                     i=$((i+1))
                 done
+
+                if [ -z "$DASK_FLAG" ]; then
+                    if $_wants_condor; then DASK_FLAG="--condor"
+                    elif $_wants_slurm; then DASK_FLAG="--slurm"
+                    elif $_wants_dask; then DASK_FLAG="--dask"
+                    fi
+                fi
 
                 # Spawn daemon in the background on the host
                 (
@@ -876,7 +906,7 @@ run_classifier() {
         APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE"
     else
         # Command execution
-        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash --init-file "$INIT_FILE" -c "$USER_CMD"
+        APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "$IMAGE" bash -c "{ [ -f \"$INIT_FILE\" ] && source \"$INIT_FILE\"; } 2>/dev/null || true; $USER_CMD"
     fi
 }
 

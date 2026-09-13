@@ -147,11 +147,11 @@ def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
     if dataset_name == 'mixeddata':
         return 'mixed_data'
-    if dataset_name == 'mixeddata_4b':
+    if dataset_name in ['mixeddata_4b', 'mixeddata_noTTSub_4b']:
         return 'mixeddata_4b'
     elif dataset_name in ['mixeddata_4b_noTT']:
         return 'mixeddata_4b_noTT'
-    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3') or dataset_name.startswith('mixeddata_4b_v'):
+    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3') or dataset_name.startswith('mixeddata_4b_v') or dataset_name.startswith('mixeddata_ttHbb'):
         return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
@@ -186,10 +186,9 @@ def create_fileset_entry(dataset_key, files, metadata_entry, args, config_runner
 
 def process_mc_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process MC dataset configuration."""
-    logging.info("Config MC")
     if config_runner['data_tier'].startswith('pico'):
-        if 'data' not in dataset:
-            metadata_dataset[dataset]['genEventSumw'] = metadata['datasets'][dataset][year][config_runner['data_tier']]['sumw']
+        sumw = metadata['datasets'][dataset][year][config_runner['data_tier']].get('sumw', 1)
+        metadata_dataset[dataset]['genEventSumw'] = sumw
         meta_files = metadata['datasets'][dataset][year][config_runner['data_tier']]['files']
     else:
         metadata_dataset[dataset]['genEventSumw'] = 1
@@ -336,6 +335,9 @@ def add_fvt_metadata(meta, config, v):
 
 def find_matching_dataset(dataset, metadata):
     """Find matching dataset in metadata, supporting substring matching."""
+    if ":" in dataset:
+        dataset = dataset.split(":", 1)[0]
+
     if dataset in metadata['datasets']:
         return dataset
 

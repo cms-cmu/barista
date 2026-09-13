@@ -111,6 +111,8 @@ class map_selection_to_flag:
         idx = np.zeros(len(df), dtype=t)
         sel = np.zeros(len(df), dtype=bool)
         for k, v in self._indices.items():
+            if k not in df.columns:
+                continue
             arr = df[k].to_numpy(dtype=bool)
             match self._op:
                 case "+":
@@ -132,10 +134,12 @@ class add_columns:
         self._override = override
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or len(df) == 0:
+            return df
         for k, v in self._values.items():
             if k in df and not self._override:
                 continue
-            df.loc[:, k] = v
+            df[k] = v
         return df
 
     def __repr__(self):
@@ -182,20 +186,33 @@ class prescale:
         self._rng = Squares((type(self).__name__, *seed))
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
-        if self._scale == 1:
+        if self._scale == 1 or len(df) == 0:
             return df
+        if Columns.weight not in df.columns:
+            df[Columns.weight] = 1.0
         columns = [*(self._columns | {Columns.weight})]
         if self._selection is not None:
             prescaled = np.asarray(self._selection(df), copy=True)
         else:
             prescaled = np.ones(len(df), dtype=np.bool_)
         unprescaled = ~prescaled
+        if not np.any(prescaled):
+            return df
         sumw = df.loc[prescaled, columns].sum(axis=0)
-        prescaled[prescaled] = keep_fraction(
-            self._scale, self._rng.uint64(df.loc[prescaled, Columns.event])
+        prescaled_events = (
+            df.loc[prescaled, Columns.event]
+            if Columns.event in df.columns
+            else np.arange(np.sum(prescaled))
         )
+        prescaled[prescaled] = keep_fraction(
+            self._scale, self._rng.uint64(prescaled_events)
+        )
+        if not np.any(prescaled):
+            return df[unprescaled]
         sumw_kept = df.loc[prescaled, columns].sum(axis=0)
-        df.loc[prescaled, columns] *= sumw / sumw_kept
+        scale_factor = sumw / sumw_kept
+        scale_factor = scale_factor.fillna(1.0)
+        df.loc[prescaled, columns] *= scale_factor
         return df[prescaled | unprescaled]
 
     def __repr__(self):

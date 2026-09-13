@@ -79,31 +79,39 @@ def add_weights(event, do_MC_weights: bool = True,
 
     if do_MC_weights:
         # genWeight
-        lumi    = event.metadata.get('lumi',    1.0)
-        xs      = event.metadata.get('xs',      1.0)
-        kFactor = event.metadata.get('kFactor', 1.0)
-        weights.add( "genweight", event.genWeight * (lumi * xs * kFactor / event.metadata["genEventSumw"]) )
-        list_weight_names.append('genweight')
-        logging.debug( f"genweight {weights.partial_weight(include=['genweight'])[:10]}\n" )
-        logging.debug( f" = {event.genWeight} * ({lumi} * {xs} * {kFactor} / {event.metadata['genEventSumw']})\n")
+        if "genWeight" in event.fields:
+            lumi    = event.metadata.get('lumi',    1.0)
+            xs      = event.metadata.get('xs',      1.0)
+            kFactor = event.metadata.get('kFactor', 1.0)
+            weights.add( "genweight", event.genWeight * (lumi * xs * kFactor / event.metadata["genEventSumw"]) )
+            list_weight_names.append('genweight')
+            logging.debug( f"genweight {weights.partial_weight(include=['genweight'])[:10]}\n" )
+            logging.debug( f" = {event.genWeight} * ({lumi} * {xs} * {kFactor} / {event.metadata['genEventSumw']})\n")
+        else:
+            logging.warning("do_MC_weights is True but 'genWeight' not found in event fields. Skipping genWeight.")
 
         # puWeight
-        if not isTTForMixed:
-            puWeight = list( correctionlib.CorrectionSet.from_file( corrections_metadata["PU"] ).values() )[0]
-            if run_systematics:
-                weights.add(
-                    f"CMS_pileup_{year_label}",
-                    puWeight.evaluate(event.Pileup.nTrueInt, "nominal"),
-                    puWeight.evaluate(event.Pileup.nTrueInt, "up"),
-                    puWeight.evaluate(event.Pileup.nTrueInt, "down"),
-                )
+        if not isTTForMixed and "PU" in corrections_metadata:
+            import os
+            pu_path = corrections_metadata["PU"]
+            if os.path.exists(pu_path):
+                puWeight = list( correctionlib.CorrectionSet.from_file( pu_path ).values() )[0]
+                if run_systematics:
+                    weights.add(
+                        f"CMS_pileup_{year_label}",
+                        puWeight.evaluate(event.Pileup.nTrueInt, "nominal"),
+                        puWeight.evaluate(event.Pileup.nTrueInt, "up"),
+                        puWeight.evaluate(event.Pileup.nTrueInt, "down"),
+                    )
+                else:
+                    weights.add(
+                        f"CMS_pileup_{year_label}",
+                        puWeight.evaluate(event.Pileup.nTrueInt, "nominal")
+                    )
+                list_weight_names.append(f"CMS_pileup_{year_label}")
+                logging.debug( f"PU weight {weights.partial_weight(include=[f'CMS_pileup_{year_label}'])[:10]}\n" )
             else:
-                weights.add(
-                    f"CMS_pileup_{year_label}",
-                    puWeight.evaluate(event.Pileup.nTrueInt, "nominal")
-                )
-            list_weight_names.append(f"CMS_pileup_{year_label}")
-            logging.debug( f"PU weight {weights.partial_weight(include=[f'CMS_pileup_{year_label}'])[:10]}\n" )
+                logging.warning(f"PU correction file not found: {pu_path}. Skipping PU weight.")
 
         # L1 prefiring weight
         if ( "L1PreFiringWeight" in event.fields ):

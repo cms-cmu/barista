@@ -169,8 +169,10 @@ class TrainingStage(BenchmarkStage):
                     self.model.step()
             p_epoch.update(epoch)
             Usage.checkpoint(self.name, f"epoch{epoch}", "finish")
+            if self.schedule.should_stop(benchmark):
+                break
         logging.info(
-            f"{self.name}: run {self.schedule.epoch} epochs in {datetime.now() - start}"
+            f"{self.name}: run {epoch} epochs in {datetime.now() - start}"
         )
         if benchmarks is not None:
             history["training"] = benchmarks

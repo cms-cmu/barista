@@ -26,7 +26,7 @@ def _common():
 def disable_monitor():
     logging.basicConfig(
         handlers=[logging.StreamHandler(sys.stdout)],
-        level=logging.INFO,
+        level=cfg.Log.level,
         format="[%(asctime)s] [%(levelname)s] %(message)s",
     )
 
