@@ -538,7 +538,7 @@
     L: 0.0879
     #L: 0.1139
     M: 0.1919
-    T: 0.7994
+    T: 0.6133
   btag_uncertainties:
     - cferr1
     - cferr2
