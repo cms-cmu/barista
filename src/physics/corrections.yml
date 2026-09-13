@@ -331,10 +331,10 @@
   jet_veto_maps: 
     file: /cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2025-09-23/jetvetomaps.json.gz
     tag: Summer22_23Sep2023_RunCD_V1
-  JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V2_MC.tar.gz'
-  JER_MC: 'src/data/JEC/Summer20UL16APV_JRV3_MC.tar.gz'
+  JEC_MC: 'src/data/JEC/Summer22_22Sep2023_V4_MC.tar.gz'
+  JER_MC: 'src/data/JEC/Summer22_22Sep2023_V4_MC.tar.gz'
   JEC_DATA: 
-    B: &2022_B 'src/data/JEC/Summer22_22Sep2023_RunCD_V2_DATA.tar.gz' 
+    B: &2022_B 'src/data/JEC/Summer22_22Sep2023_RunCD_V4_DATA.tar.gz'
     C: *2022_B
     D: *2022_B
   JES_uncertainties:
@@ -344,7 +344,7 @@
     jec_campaign: Summer22_22Sep2023
     jec_version: V4
     jer_campaign: Summer22_22Sep2023
-    jer_version: JRV1
+    jer_version: JRV2
     #run_tags: not needed — JSON has per-era keys (no per-run split)
   jes_unc:
     - DUMMY
