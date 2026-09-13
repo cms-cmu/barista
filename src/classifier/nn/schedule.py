@@ -73,6 +73,15 @@ class Schedule(ABC):
         self.bs_step(bs, benchmark)
         self.lr_step(lr, benchmark)
 
+    def should_stop(self, benchmark: dict = None) -> bool:
+        """Whether training should terminate before reaching ``epoch``.
+
+        Always ``False`` by default, so schedules that do not opt in keep running
+        the full fixed number of epochs. Subclasses implementing early stopping
+        override this and are responsible for logging the reason.
+        """
+        return False
+
 
 class MilestoneStep:
     def __init__(self, milestones: Optional[Iterable[int]] = None):

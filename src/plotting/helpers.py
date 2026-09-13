@@ -184,7 +184,7 @@ def _ensure_output_path(*args: Any) -> str:
     args_str = ["_vs_".join(a) if isinstance(a, list) else a for a in args]
     output_path = "/".join(args_str)
     if not os.path.exists(output_path):
-        os.makedirs(output_path)
+        os.makedirs(output_path, exist_ok=True)
     return output_path
 
 def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: Union[str, List[str]] = "pdf", dpi: Any = None) -> None:

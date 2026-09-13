@@ -139,7 +139,13 @@ def _apply_intcategory_compat(
         # Convert any "sum" value in hist_opts to the built-in sum to project over the axis
         for axis in hist_obj.axes:
             if axis.name in hist_opts and hist_opts[axis.name] == "sum":
-                hist_opts[axis.name] = sum
+                if axis.name == "region" and "inclusive" in axis:
+                    hist_opts[axis.name] = "inclusive"
+                else:
+                    hist_opts[axis.name] = sum
+            elif axis.name in hist_opts and hist_opts[axis.name] == "inclusive":
+                if "inclusive" not in axis:
+                    hist_opts[axis.name] = sum
 
         if "year" in hist_obj.axes.name and "year" in hist_opts:
             y_val = hist_opts["year"]
@@ -1014,7 +1020,7 @@ def _prepare_process_config(proc_conf: Dict):
     _process_config = copy.deepcopy(proc_conf)
     _process_config["fillcolor"] = proc_conf.get("fillcolor", None)
     _process_config["histtype"] = "errorbar"
-    _proc_id = proc_conf["label"] if isinstance(proc_conf["process"], list) else proc_conf["process"]
+    _proc_id = proc_conf.get("label", proc_conf.get("process")) if isinstance(proc_conf.get("process"), list) else proc_conf.get("process", proc_conf.get("label", "unknown"))
     return _process_config, _proc_id
 
 

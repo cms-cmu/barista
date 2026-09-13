@@ -197,6 +197,10 @@ def _get_run_range(path: str) -> tuple[float, float] | None:
 def _get_correction_set(path: str):
     """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
     if path not in _cset_cache:
+        if not os.path.exists(path):
+            logging.warning(f"Correction file not found: {path}. Returning None.")
+            _cset_cache[path] = None
+            return None
         logging.debug(f"CorrectionSet cache miss — loading {path}")
         _cset_cache[path] = correctionlib.CorrectionSet.from_file(path)
     else:
@@ -278,6 +282,11 @@ def apply_jerc_corrections_jsonpog(
     """
     logging.info(f"Applying JSON-POG JEC/JER corrections for {dataset}")
 
+    jec_meta     = corrections_metadata.get("jec")
+    if not jec_meta or not os.path.exists(jec_meta.get("file", "")) or _get_correction_set(jec_meta["file"]) is None:
+        logging.warning("JEC correction file not found or not configured. Returning uncorrected jets.")
+        return event[collection]
+
     from src.physics.objects.jetmet_tools.correctionlib_adapters import (
         CorrectionLibJEC as _JsonPogJEC,
         CorrectionLibJER as _JsonPogJER,
@@ -287,7 +296,6 @@ def apply_jerc_corrections_jsonpog(
     )
 
     # ── extract parameters from corrections_metadata ──────────────────────────
-    jec_meta     = corrections_metadata["jec"]
     jerc_file    = jec_meta["file"]
     jec_campaign = jec_meta["jec_campaign"]
     jec_version  = jec_meta["jec_version"]

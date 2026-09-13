@@ -43,7 +43,7 @@ def make_parser() -> argparse.ArgumentParser:
         help='Path to the luminosities metadata YAML file'
     )
     io_group.add_argument(
-        '--friends',
+        '-f', '--friends',
         dest="friends",
         default="coffea4bees/metadata/friends/friends_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
