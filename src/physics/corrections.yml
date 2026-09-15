@@ -340,7 +340,8 @@
   JES_uncertainties:
     - DUMMY
   jec:
-    file: 'src/data/JEC/regJet_jerc_2022_preEE.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2026-06-05/jet_jerc.json.gz'
+    jet_type: AK4PFPuppi
     jec_campaign: Summer22_22Sep2023
     jec_version: V4
     jer_campaign: Summer22_22Sep2023
@@ -400,7 +401,8 @@
   JES_uncertainties:
     - DUMMY
   jec:
-    file: 'src/data/JEC/regJet_jerc_2022_EE.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/2026-06-05/jet_jerc.json.gz'
+    jet_type: AK4PFPuppi
     jec_campaign: Summer22EE_22Sep2023
     jec_version: V4
     jer_campaign: Summer22EE_22Sep2023
@@ -468,7 +470,8 @@
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2025-10-07/jetid.json.gz'
   jec:
-    file: 'src/data/JEC/regJet_jerc_2023_preBPix.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23CSep23-Summer23-NanoAODv12/2026-07-15/jet_jerc.json.gz'
+    jet_type: AK4PFPuppi
     jec_campaign: Summer23Prompt23
     jec_version: V4
     jer_campaign: Summer23Prompt23
@@ -530,7 +533,8 @@
   JES_uncertainties:
     - DUMMY
   jec:
-    file: 'src/data/JEC/regJet_jerc_2023_BPix.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23DSep23-Summer23BPix-NanoAODv12/2026-07-15/jet_jerc.json.gz'
+    jet_type: AK4PFPuppi
     jec_campaign: Summer23BPixPrompt23
     jec_version: V4
     jer_campaign: Summer23BPixPrompt23
@@ -597,7 +601,8 @@
   JES_uncertainties:
     - DUMMY
   jec:
-    file: 'src/data/JEC/regJet_jerc_2024.json.gz'
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2026-07-16/jet_jerc.json.gz'
+    jet_type: AK4PFPuppi
     jec_campaign: Summer24Prompt24
     jec_version: V5
     jer_campaign: Summer24Prompt24

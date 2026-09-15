@@ -253,6 +253,7 @@ def apply_jerc_corrections_jsonpog(
 
         jec:
           file:          <path to jet_jerc.json.gz>
+          jet_type:      AK4PFPuppi       # optional; overrides the AK4PFchs default
           jec_campaign:  Summer19UL18
           jec_version:   V5
           jer_campaign:  Summer19UL18      # optional; JER skipped if absent
@@ -371,8 +372,16 @@ def apply_jerc_corrections_jsonpog(
     jer   = None
     jersf = None
     if isMC and jer_campaign and jer_version:
-        jer   = _JsonPogJER(cset[f"{jer_campaign}_{jer_version}_MC_PtResolution{key_suffix}"])
-        jersf = _JsonPogJERSF(cset[f"{jer_campaign}_{jer_version}_MC_ScaleFactor{key_suffix}"])
+        jer_prefix = f"{jer_campaign}_{jer_version}_MC"
+        jer = _JsonPogJER(cset[f"{jer_prefix}_PtResolution{key_suffix}"])
+        # JRV2+/JRV3+ payloads split the SF into ScaleFactor (nominal only) and
+        # SFUncertainty; JRV1 and older carry a single ScaleFactor with a
+        # "systematic" input. The adapter handles both given the unc key when present.
+        jersf_unc_key = f"{jer_prefix}_SFUncertainty{key_suffix}"
+        jersf = _JsonPogJERSF(
+            cset[f"{jer_prefix}_ScaleFactor{key_suffix}"],
+            cset[jersf_unc_key] if jersf_unc_key in set(cset.keys()) else None,
+        )
 
     # ── JES uncertainty adapters ──────────────────────────────────────────────
     junc = None

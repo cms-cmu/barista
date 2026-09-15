@@ -82,23 +82,52 @@ class CorrectionLibJER:
 class CorrectionLibJERSF:
     """Adapter for a JER scale-factor correction from correctionlib.
 
-    The correctionlib correction takes a ``"systematic"`` input that selects
-    between ``"nom"``, ``"up"``, and ``"down"``.  This adapter evaluates all
-    three and stacks them into an ``(N, 3)`` array so that
-    ``CorrectedJetsFactory`` can index as ``jersf[:, variation]``.
+    Two JSON-POG layouts are supported:
+
+    * **legacy** (``JRV1`` and earlier): a single ``ScaleFactor`` correction
+      with a ``"systematic"`` string input selecting ``"nom"``/``"up"``/``"down"``;
+    * **split** (``JRV2``/``JRV3`` and later, CAT "Split JER SF nom and up/down
+      tags"): ``ScaleFactor`` returns only the nominal SF and a companion
+      ``SFUncertainty`` correction returns the relative uncertainty, with
+      ``SF(up/down) = SF(nom) * (1 +/- unc)`` (same convention as
+      PocketCoffea ``get_jersmear_SFunc``).
+
+    In both cases the adapter stacks ``[nom, up, down]`` into an ``(N, 3)``
+    array so that ``CorrectedJetsFactory`` can index as ``jersf[:, variation]``.
 
     Parameters
     ----------
     correction : correctionlib.Correction
-        The JER scale-factor correction.
+        The JER ``ScaleFactor`` correction.
+    unc_correction : correctionlib.Correction, optional
+        The JER ``SFUncertainty`` correction.  Required for the split layout,
+        ignored for the legacy layout.
     """
 
-    def __init__(self, correction):
+    def __init__(self, correction, unc_correction=None):
         self._correction = correction
-        # Signature exposed to the factory excludes "systematic"
-        self._signature = [
+        self._legacy = any(inp.name == "systematic" for inp in correction.inputs)
+        self._sf_inputs = [
             inp.name for inp in correction.inputs if inp.name != "systematic"
         ]
+        if self._legacy:
+            self._unc_correction = None
+            self._unc_inputs = []
+        else:
+            if unc_correction is None:
+                raise ValueError(
+                    f"JER ScaleFactor correction {correction.name!r} has no "
+                    "'systematic' input (split nom/unc layout, JRV2+), so the "
+                    "matching 'SFUncertainty' correction must be passed as "
+                    "unc_correction."
+                )
+            self._unc_correction = unc_correction
+            self._unc_inputs = [inp.name for inp in unc_correction.inputs]
+        # Signature exposed to the factory: union of both corrections' inputs,
+        # never including "systematic".
+        self._signature = list(
+            dict.fromkeys(self._sf_inputs + self._unc_inputs)
+        )
 
     @property
     def signature(self):
@@ -107,10 +136,17 @@ class CorrectionLibJERSF:
     def getScaleFactor(self, **kwargs):
         kwargs.pop("form", None)
         kwargs.pop("lazy_cache", None)
-        np_args = [_to_flat_numpy(kwargs[name]) for name in self._signature]
-        nom = self._correction.evaluate(*np_args, "nom").astype(numpy.float32)
-        up = self._correction.evaluate(*np_args, "up").astype(numpy.float32)
-        down = self._correction.evaluate(*np_args, "down").astype(numpy.float32)
+        sf_args = [_to_flat_numpy(kwargs[name]) for name in self._sf_inputs]
+        if self._legacy:
+            nom = self._correction.evaluate(*sf_args, "nom").astype(numpy.float32)
+            up = self._correction.evaluate(*sf_args, "up").astype(numpy.float32)
+            down = self._correction.evaluate(*sf_args, "down").astype(numpy.float32)
+        else:
+            nom = self._correction.evaluate(*sf_args).astype(numpy.float32)
+            unc_args = [_to_flat_numpy(kwargs[name]) for name in self._unc_inputs]
+            unc = self._unc_correction.evaluate(*unc_args).astype(numpy.float32)
+            up = (nom * (1.0 + unc)).astype(numpy.float32)
+            down = (nom * (1.0 - unc)).astype(numpy.float32)
         stacked = numpy.stack([nom, up, down], axis=1)
         return awkward.Array(stacked)
 
@@ -323,7 +359,10 @@ class CorrectionLibJECStack:
             jer_adapter = CorrectionLibJER(cset[jer_name])
 
             jersf_name = f"{jer_tag}_{data_type}_ScaleFactor_{jet_type}"
-            jersf_adapter = CorrectionLibJERSF(cset[jersf_name])
+            # JRV2+ payloads split the SF into ScaleFactor + SFUncertainty
+            jersf_unc_name = f"{jer_tag}_{data_type}_SFUncertainty_{jet_type}"
+            jersf_unc = cset[jersf_unc_name] if jersf_unc_name in set(cset.keys()) else None
+            jersf_adapter = CorrectionLibJERSF(cset[jersf_name], jersf_unc)
 
         return cls(
             jec=jec_adapter,

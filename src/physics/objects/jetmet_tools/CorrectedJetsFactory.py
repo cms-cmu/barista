@@ -74,36 +74,65 @@ class _JsonPogJERSF:
     Returns a ``(n_jets, 3)`` array [nom, up, down] so that
     ``jer_smear`` can index it as ``jersf[:, variation]``.
 
-    The signature is derived dynamically from the correction's inputs,
-    excluding the ``systematic`` string input (always last).  This lets
-    the same adapter work for corrections that take only ``(eta, syst)``
-    as well as those that take ``(eta, pt, syst)``.
+    Supports both JSON-POG layouts:
+
+    * legacy (JRV1 and earlier): one ``ScaleFactor`` correction with a
+      ``systematic`` string input (``nom``/``up``/``down``);
+    * split (JRV2/JRV3+): ``ScaleFactor`` gives the nominal SF and a companion
+      ``SFUncertainty`` correction gives the relative uncertainty, with
+      ``SF(up/down) = SF(nom) * (1 +/- unc)``.
+
+    The signature is derived dynamically from the corrections' inputs,
+    excluding the ``systematic`` string input.  This lets the same adapter
+    work for corrections that take only ``(eta, syst)`` as well as those that
+    take ``(eta, pt, syst)`` or ``(eta, pt)``.
     """
 
-    def __init__(self, corr):
+    _pogname_to_namemap = {
+        "JetEta": "JetEta",
+        "JetPt":  "JetPt",
+    }
+
+    def __init__(self, corr, unc_corr=None):
         self._corr = corr
-        # Derive signature from the correction's input names (excluding "systematic")
-        _pogname_to_namemap = {
-            "JetEta": "JetEta",
-            "JetPt":  "JetPt",
-        }
-        self.signature = tuple(
-            _pogname_to_namemap[inp.name]
+        self._legacy = any(inp.name == "systematic" for inp in corr.inputs)
+        self._sf_sig = tuple(
+            self._pogname_to_namemap[inp.name]
             for inp in corr.inputs
-            if inp.name in _pogname_to_namemap
+            if inp.name in self._pogname_to_namemap
         )
+        if self._legacy:
+            self._unc_corr = None
+            self._unc_sig = ()
+        else:
+            if unc_corr is None:
+                raise ValueError(
+                    f"JER ScaleFactor correction {corr.name!r} has no 'systematic' "
+                    "input (split nom/unc layout, JRV2+); pass the matching "
+                    "'SFUncertainty' correction as unc_corr."
+                )
+            self._unc_corr = unc_corr
+            self._unc_sig = tuple(
+                self._pogname_to_namemap[inp.name]
+                for inp in unc_corr.inputs
+                if inp.name in self._pogname_to_namemap
+            )
+        self.signature = tuple(dict.fromkeys(self._sf_sig + self._unc_sig))
 
     def getScaleFactor(self, form=None, lazy_cache=None, **kwargs):
         # kwargs keys correspond to self.signature (e.g. JetEta, or JetEta+JetPt)
-        arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self.signature]
-        stacked = numpy.stack(
-            [
-                self._corr.evaluate(*arrays, "nom").astype(numpy.float32),
-                self._corr.evaluate(*arrays, "up").astype(numpy.float32),
-                self._corr.evaluate(*arrays, "down").astype(numpy.float32),
-            ],
-            axis=1,
-        )
+        sf_arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self._sf_sig]
+        if self._legacy:
+            nom  = self._corr.evaluate(*sf_arrays, "nom").astype(numpy.float32)
+            up   = self._corr.evaluate(*sf_arrays, "up").astype(numpy.float32)
+            down = self._corr.evaluate(*sf_arrays, "down").astype(numpy.float32)
+        else:
+            nom = self._corr.evaluate(*sf_arrays).astype(numpy.float32)
+            unc_arrays = [numpy.asarray(kwargs[k], dtype=numpy.float32) for k in self._unc_sig]
+            unc = self._unc_corr.evaluate(*unc_arrays).astype(numpy.float32)
+            up   = (nom * (1.0 + unc)).astype(numpy.float32)
+            down = (nom * (1.0 - unc)).astype(numpy.float32)
+        stacked = numpy.stack([nom, up, down], axis=1)
         return awkward.Array(stacked)
 
 
