@@ -238,7 +238,7 @@
 'UL18':
   year_label: '2018'
   goldenJSON: 'src/data/goldenJSON/Cert_314472-325175_13TeV_Legacy2018_Collisions18_JSON.txt'
-  PU: 'src/data/PU/puWeights_legacy18.json.gz'
+  PU: '/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run2-2018-UL-NanoAODv9/2021-09-10/puWeights.json.gz'
   ele_sf:
     file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run2-2018-UL-NanoAODv9/2024-07-02/electron.json.gz'
     tag: '2018'
@@ -283,7 +283,7 @@
     - Regrouped_HF_2018
     - Regrouped_RelativeBal
     - Regrouped_RelativeSample_2018
-  btagSF: 'src/data/Btag/btagging_legacy18_deepJet.json.gz'
+  btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2018-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0490
     #M: 0.2783

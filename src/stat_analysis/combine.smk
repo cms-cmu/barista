@@ -85,8 +85,11 @@ def get_signal_by_channel(wildcards):
     return config.get("channels", {}).get(channel, {}).get("signal", "")
 
 def get_workspace_input(wildcards):
-    is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+    default_input = f"{wildcards.path}/workspace/datacard__{wildcards.signallabel}.txt"
+    if os.path.exists(default_input):
+        return default_input
     signallabel = wildcards.signallabel
+
     channel_to_use = None
     path_channel = os.path.basename(wildcards.path)
     if path_channel in config.get("channels", {}):
@@ -97,19 +100,20 @@ def get_workspace_input(wildcards):
                 channel_to_use = channel
                 break
 
-    if not is_standalone:
-        case_dc_name = f"datacard__{channel_to_use}" if channel_to_use else f"datacard__{signallabel}"
+    if channel_to_use:
+        # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
+        case_dc_name = f"datacard__{channel_to_use}"
         for case_key, case_info in config.get("cases", {}).items():
             if case_info.get("datacard"):
                 case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
-                if channel_to_use and (case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper()):
+                if case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper():
                     case_dc_name = case_dc
                     break
-        return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
 
-    default_input = f"{wildcards.path}/workspace/datacard__{wildcards.signallabel}.txt"
-    if os.path.exists(default_input):
-        return default_input
+        # If imported as a module, return the planned consolidated path to link the DAG.
+        is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+        if not is_standalone:
+            return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
 
         # Check 1: new consolidated location (e.g. out_base/datacards/)
         for prefix in ["datacard__", "datacard_"]:
@@ -127,7 +131,7 @@ def get_workspace_input(wildcards):
             path_to_check = os.path.join(parent_dir, "datacards", channel_to_use, f"{prefix}{channel_to_use}.txt")
             if os.path.exists(path_to_check):
                 return path_to_check
-        
+
         # Default fallback
         return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
     return default_input

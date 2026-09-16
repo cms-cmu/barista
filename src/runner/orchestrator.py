@@ -370,7 +370,12 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
         )
         runner = processor.Runner(**runner_kwargs)
         sig = inspect.signature(analysis_class.__init__)
-        processor_config = {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        processor_config = (
+            configs.get('config', {})
+            if has_kwargs
+            else {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        )
         result = runner(
             fileset,
             treename='Events',
@@ -383,7 +388,12 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
     else:
         sig = inspect.signature(analysis_class.__init__)
-        processor_config = {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        processor_config = (
+            configs.get('config', {})
+            if has_kwargs
+            else {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        )
         output, metrics = processor.run_uproot_job(
             fileset,
             treename='Events',
