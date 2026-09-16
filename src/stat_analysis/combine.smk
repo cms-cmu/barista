@@ -2,7 +2,7 @@ import os
 import sys
 if os.getcwd() not in sys.path:
     sys.path.insert(0, os.getcwd())
-from src.stat_analysis.helpers import make_poi_maps, get_default_othersignals, get_grid_split_points, get_likelihood_scan_chunks
+from src.stat_analysis.helpers import make_poi_maps, get_default_othersignals, get_grid_split_points, get_likelihood_scan_chunks, is_channel_blinded
 
 
 # Resolve combine container image dynamically based on CVMFS availability
@@ -85,11 +85,8 @@ def get_signal_by_channel(wildcards):
     return config.get("channels", {}).get(channel, {}).get("signal", "")
 
 def get_workspace_input(wildcards):
-    default_input = f"{wildcards.path}/workspace/datacard__{wildcards.signallabel}.txt"
-    if os.path.exists(default_input):
-        return default_input
+    is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
     signallabel = wildcards.signallabel
-    
     channel_to_use = None
     path_channel = os.path.basename(wildcards.path)
     if path_channel in config.get("channels", {}):
@@ -99,21 +96,20 @@ def get_workspace_input(wildcards):
             if ch_config.get("signallabel") == signallabel or channel == signallabel:
                 channel_to_use = channel
                 break
-                
-    if channel_to_use:
-        # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
-        case_dc_name = f"datacard__{channel_to_use}"
+
+    if not is_standalone:
+        case_dc_name = f"datacard__{channel_to_use}" if channel_to_use else f"datacard__{signallabel}"
         for case_key, case_info in config.get("cases", {}).items():
             if case_info.get("datacard"):
                 case_dc = os.path.basename(case_info["datacard"]).replace(".txt", "")
-                if case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper():
+                if channel_to_use and (case_key.upper() in channel_to_use.upper() or channel_to_use.upper() in case_key.upper()):
                     case_dc_name = case_dc
                     break
+        return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
 
-        # If imported as a module, return the planned consolidated path to link the DAG.
-        is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
-        if not is_standalone:
-            return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
+    default_input = f"{wildcards.path}/workspace/datacard__{wildcards.signallabel}.txt"
+    if os.path.exists(default_input):
+        return default_input
 
         # Check 1: new consolidated location (e.g. out_base/datacards/)
         for prefix in ["datacard__", "datacard_"]:
@@ -1019,6 +1015,7 @@ rule fit_diagnostics_bonly:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/fit_diagnostics_bonly_{{path}}__{{signallabel}}.log"
     shell:
@@ -1056,6 +1053,12 @@ rule fit_diagnostics_bonly:
             SET_ZERO_OPT_BONLY="--setParameters r{params.signallabel}=0"
         fi
 
+        TOY_OPT_BONLY=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running FitDiagnostics B-only on Asimov dataset (-t -1 with expectSignal=0)"
+            TOY_OPT_BONLY="-t -1"
+        fi
+
         cd $(dirname $OUT_BONLY)
 
         echo "[$(date)] Running FitDiagnostics B-only"
@@ -1064,6 +1067,7 @@ rule fit_diagnostics_bonly:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_BONLY \
             $FREEZE_OPT_BONLY \
+            $TOY_OPT_BONLY \
             -n _$(basename {input} .root)_prefit_bonly \
             --saveShapes --saveWithUncertainties --plots
 
@@ -1091,6 +1095,7 @@ rule fit_diagnostics_sb:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/fit_diagnostics_sb_{{path}}__{{signallabel}}.log"
     shell:
@@ -1126,6 +1131,12 @@ rule fit_diagnostics_sb:
             SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
         fi
 
+        TOY_OPT_SB=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running FitDiagnostics S+B on Asimov dataset (-t -1 with expectSignal=1)"
+            TOY_OPT_SB="-t -1"
+        fi
+
         cd $(dirname $OUT_SB)
 
         echo "[$(date)] Running FitDiagnostics S+B"
@@ -1134,6 +1145,7 @@ rule fit_diagnostics_sb:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_SB \
             $FREEZE_OPT_SB \
+            $TOY_OPT_SB \
             -n _$(basename {input} .root)_prefit_sb \
             --saveShapes --saveWithUncertainties --plots
 

@@ -12,6 +12,7 @@ from rich.pretty import pretty_repr
 from coffea import processor
 from coffea.util import save
 import fsspec
+import inspect
 
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
 if hasattr(NanoAODSchema, 'error_missing_event_ids'):
@@ -103,7 +104,7 @@ def setup_config_defaults(config_runner, args):
         'min_workers': 1,
         'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
         'workers': 2,
-        'skipbadfiles': False,
+        'skipbadfiles': True,
         'dashboard_address': 10200,
         'friend_base': None,
         'friend_base_argname': "make_classifier_input",
@@ -368,10 +369,12 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             maxchunks=executor_args['maxchunks'],
         )
         runner = processor.Runner(**runner_kwargs)
+        sig = inspect.signature(analysis_class.__init__)
+        processor_config = {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
         result = runner(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
+            processor_instance=analysis_class(**processor_config),
         )
         if isinstance(result, tuple):
             output, metrics = result
@@ -379,10 +382,12 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             output = result
             metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
     else:
+        sig = inspect.signature(analysis_class.__init__)
+        processor_config = {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
         output, metrics = processor.run_uproot_job(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
+            processor_instance=analysis_class(**processor_config),
             executor=executor,
             executor_args=executor_args,
             chunksize=config_runner['chunksize'],
