@@ -68,10 +68,20 @@ def extract_hist_data(h, base_selection, custom_axes, axis_indices, edges, cente
         base_name = ax
         if ax.startswith("pass_"):
             base_name = ax[5:]
+        elif ax.startswith("pass"):
+            base_name = ax[4:]
         elif ax.startswith("fail_"):
             base_name = ax[5:]
+        elif ax.startswith("fail"):
+            base_name = ax[4:]
         results[f"_pass_{base_name}"] = get_sliced_1d({ax: True})
         results[f"_fail_{base_name}"] = get_sliced_1d({ax: False})
+        results[f"_{ax}"] = get_sliced_1d({ax: True})
+
+    # 3. If multiple custom axes exist (e.g. gt6 AND lepton veto), provide combined pass slice
+    if len(custom_axes) > 1:
+        pass_all = {ax: True for ax in custom_axes}
+        results["_pass_nSelJets_gt6_passLeptonVeto"] = get_sliced_1d(pass_all)
         
     return results
 
