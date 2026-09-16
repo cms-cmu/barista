@@ -28,8 +28,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.data_formats.root.friend import Friend
-
+from src.data_formats.root import Friend, Chunk
 try:
     from coffea4bees.classifier.config.dataset.HCR.SvB import _remove_outlier
 except ImportError:
@@ -37,7 +36,8 @@ except ImportError:
         from src.classifier.config.dataset.HCR.SvB import _remove_outlier
     except ImportError:
         def _remove_outlier(df):
-            return df.loc[df["weight"] < 1]
+            return df.loc[df['weight'] < 1]
+from src.classifier.task import parse
 
 # --------------------------------------------------------------------------- #
 # Sample directory name → physics label mapping
