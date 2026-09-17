@@ -464,32 +464,54 @@ class TreeReader(_Reader):
         branches = source.branches
         if self._filter is not None:
             branches = self._filter(branches)
-        try:
-            with self._open_with_retry(source.path) as file:
-                data = file[source.name].arrays(
-                    expressions=branches,
-                    entry_start=source.entry_start,
-                    entry_stop=source.entry_stop,
-                    **options,
-                )
-                if library == "pd":
-                    import awkward as ak
-                    import pandas as pd
-                    if not isinstance(data, pd.DataFrame):
-                        data = ak.to_dataframe(data)
-                    data.reset_index(drop=True, inplace=True)
-                if library == "pd" and len(data) == 0 and (source.entry_start or 0) > 0:
-                    logging.warning(
-                        f"TreeReader: read 0 rows from {source.path}"
-                        f" [{source.entry_start}, {source.entry_stop})"
-                        f" (file has {file[source.name].num_entries} entries)"
+        # Retry the full open+READ, not just the open: transient XRootD/EOS
+        # errors ("File did not vector_read properly: Operation expired") are
+        # raised during .arrays() (the vector_read), inside the `with` block, so
+        # open-only retry never catches them. Re-open fresh and re-read the chunk
+        # on OSError; a new XRootD connection recovers from EOS hiccups.
+        retries, delay = 5, 5
+        last_exc = None
+        for attempt in range(retries):
+            try:
+                with uproot.open(source.path, **self._open_options) as file:
+                    data = file[source.name].arrays(
+                        expressions=branches,
+                        entry_start=source.entry_start,
+                        entry_stop=source.entry_stop,
+                        **options,
                     )
-                if self._transform is not None:
-                    data = self._transform(data)
-                return data
-        except Exception as e:
-            logging.error(f"Failed to read {source.path}", exc_info=e)
-            raise
+                    if library == "pd":
+                        import awkward as ak
+                        import pandas as pd
+
+                        if not isinstance(data, pd.DataFrame):
+                            data = ak.to_dataframe(data)
+                        data.reset_index(drop=True, inplace=True)
+                    if library == "pd" and len(data) == 0 and (source.entry_start or 0) > 0:
+                        logging.warning(
+                            f"TreeReader: read 0 rows from {source.path}"
+                            f" [{source.entry_start}, {source.entry_stop})"
+                            f" (file has {file[source.name].num_entries} entries)"
+                        )
+                    if self._transform is not None:
+                        data = self._transform(data)
+                    return data
+            except (FileNotFoundError, OSError) as e:
+                last_exc = e
+                if attempt < retries - 1:
+                    logging.warning(
+                        f"Failed to read {source.path} (attempt {attempt + 1}/{retries}), "
+                        f"retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    delay *= 2
+            except Exception as e:
+                logging.error(f"Failed to read {source.path}", exc_info=e)
+                raise
+        logging.error(
+            f"Failed to read {source.path} after {retries} attempts", exc_info=last_exc
+        )
+        raise last_exc
 
     @overload
     def concat(
