@@ -89,7 +89,98 @@ class AutoStep(FixedStep):
         )
 
     def lr_step(self, lr: ReduceLROnPlateau, benchmark: dict = None):
-        lr.step(
-            self._get_key(self.lr_metric, benchmark, required=True, value_type=float),
-            self._get_key(self.epoch_key, benchmark),
+        # required=True here raises KeyError and kills the run when the benchmark
+        # dict is keyed by validation-set name rather than the literal
+        # "validation" (see EarlyStopStep._validation_loss). Skip the LR step
+        # instead: a missed plateau update must not abort training.
+        metric = self._get_key(self.lr_metric, benchmark, value_type=float)
+        if metric is None:
+            import logging
+
+            logging.warning(
+                f"{type(self).__name__}: validation loss unavailable this epoch; "
+                "skipping ReduceLROnPlateau step"
+            )
+            return
+        lr.step(metric, self._get_key(self.epoch_key, benchmark))
+
+
+@dataclass
+class EarlyStopStep(AutoStep):
+    """:class:`AutoStep` that also stops once the validation loss stops improving.
+
+    ``epoch`` becomes an upper bound rather than a fixed cost: training ends after
+    ``es_patience`` consecutive epochs without an improvement larger than
+    ``es_min_delta``. Requires benchmarks (i.e. ``Monitor`` enabled), inherited
+    from :class:`AutoStep` via ``require_benchmark``.
+    """
+
+    es_patience: int = 3
+    es_min_delta: float = 1e-4
+    es_min_epoch: int = 5
+
+    _es_best: float = None
+    _es_wait: int = 0
+    _es_stopped: int = None
+
+    def _validation_loss(self, benchmark: dict) -> float | None:
+        """Validation loss, tolerating how the benchmark dict is actually keyed.
+
+        ``_iter_benchmark`` keys results by validation-set *name*
+        (``benchmark["benchmarks"][<set>][<scalar>]``), so the ``AutoStep``
+        default path ``("benchmarks", "validation", "loss")`` only resolves when a
+        set happens to be called "validation". Try that first, then fall back to
+        the loss of any set that reports one.
+        """
+        loss = self._get_key(self.lr_metric, benchmark, value_type=float)
+        if loss is not None:
+            return loss
+        sets = self._get_key(("benchmarks",), benchmark)
+        if not isinstance(sets, dict):
+            return None
+        losses = []
+        for v in sets.values():
+            if not isinstance(v, dict):
+                continue
+            l = v.get("scalars", {}).get("loss") if "scalars" in v and isinstance(v["scalars"], dict) else v.get("loss")
+            if isinstance(l, (int, float)):
+                losses.append(l)
+        return float(sum(losses) / len(losses)) if losses else None
+
+    def lr_step(self, lr: ReduceLROnPlateau, benchmark: dict = None):
+        metric = self._validation_loss(benchmark)
+        if metric is None:
+            return
+        lr.step(metric, self._get_key(self.epoch_key, benchmark))
+
+    def should_stop(self, benchmark: dict = None) -> bool:
+        import logging
+
+        # Never let a metric lookup abort training: early stopping is an
+        # optimisation, so on any unexpected benchmark shape just keep going.
+        try:
+            epoch = self._get_key(self.epoch_key, benchmark)
+            loss = self._validation_loss(benchmark)
+        except Exception:
+            logging.warning(
+                "EarlyStopStep: could not read validation loss from benchmark; "
+                "continuing without early stopping",
+                exc_info=True,
+            )
+            return False
+        if loss is None or epoch is None:
+            return False
+        if self._es_best is None or loss < self._es_best - self.es_min_delta:
+            self._es_best = loss
+            self._es_wait = 0
+            return False
+        self._es_wait += 1
+        if epoch < self.es_min_epoch or self._es_wait < self.es_patience:
+            return False
+        self._es_stopped = epoch
+        logging.info(
+            f"Early stopping at epoch {epoch}/{self.epoch}: validation loss did not "
+            f"improve by >{self.es_min_delta:g} for {self._es_wait} epochs "
+            f"(best={self._es_best:.6g})"
         )
+        return True

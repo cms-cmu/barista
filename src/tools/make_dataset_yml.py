@@ -34,10 +34,17 @@ YEAR_PREFIXES = ["2023_preBPix", "2023_BPix", "2022_preEE", "2022_EE",
 
 def parse_dataset_key(key: str):
     """
-    Split a picoaod dataset key like 'data_2022_EEE' into (year, era).
-    Strips any leading word and underscore (e.g. 'data_', 'JetDeClustered_')
-    before matching year prefixes. Returns (None, None) if no match.
+    Split a picoaod dataset key like 'data_2022_EEE' or 'TTToHadronic_stitched_UL17' into (year, era).
+    Strips any leading words before matching year prefixes, or checks for _{year} substring.
+    Returns (None, None) if no match.
     """
+    # Check for _{year} anywhere in the key first (handles e.g. TTToHadronic_stitched_UL17)
+    for year in YEAR_PREFIXES:
+        if f"_{year}" in key:
+            idx = key.rfind(f"_{year}") + 1
+            era = key[idx + len(year):]
+            return year, era
+
     # Try matching directly first, then after stripping the first '_'-delimited word
     candidates = [key]
     parts = key.split("_", 1)
@@ -73,10 +80,14 @@ def convert(input_file: str, output_file: str, dataset_name: str):
 
         result[dataset_name].setdefault(year, {"picoAOD": {}})
         if era:
-            result[dataset_name][year]["picoAOD"][era] = {"files": sorted(files)}
+            result[dataset_name][year]["picoAOD"].setdefault(era, {"files": []})
+            result[dataset_name][year]["picoAOD"][era]["files"].extend(files)
+            result[dataset_name][year]["picoAOD"][era]["files"] = sorted(set(result[dataset_name][year]["picoAOD"][era]["files"]))
         else:
             # No era suffix (e.g. MC datasets): store files directly
-            result[dataset_name][year]["picoAOD"] = {"files": sorted(files)}
+            result[dataset_name][year]["picoAOD"].setdefault("files", [])
+            result[dataset_name][year]["picoAOD"]["files"].extend(files)
+            result[dataset_name][year]["picoAOD"]["files"] = sorted(set(result[dataset_name][year]["picoAOD"]["files"]))
 
     if skipped:
         print(f"[warn] Skipped unrecognised dataset keys: {skipped}")

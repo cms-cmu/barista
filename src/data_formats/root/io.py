@@ -481,6 +481,11 @@ class TreeReader(_Reader):
                         **options,
                     )
                     if library == "pd":
+                        import awkward as ak
+                        import pandas as pd
+
+                        if not isinstance(data, pd.DataFrame):
+                            data = ak.to_dataframe(data)
                         data.reset_index(drop=True, inplace=True)
                     if library == "pd" and len(data) == 0 and (source.entry_start or 0) > 0:
                         logging.warning(

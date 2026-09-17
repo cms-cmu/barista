@@ -40,4 +40,11 @@ class CustomFormatter(logging.Formatter):
         if '\n' in message:
             indent = " " * 7
             message = ("\n" + indent).join(message.splitlines())
-        return f"{header} {message}"
+        res = f"{header} {message}"
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            res = f"{res}\n{record.exc_text}"
+        if record.stack_info:
+            res = f"{res}\n{self.formatStack(record.stack_info)}"
+        return res

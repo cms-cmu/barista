@@ -15,6 +15,15 @@ from dask.distributed import SchedulerPlugin
 import dask.distributed
 import distributed
 
+def get_default_scratch():
+    user = getpass.getuser()
+    candidate = f"/uscmst1b_scratch/lpc1/3DayLifetime/{user}"
+    if os.path.exists(candidate) and os.access(candidate, os.W_OK):
+        return candidate
+    fallback = f"/tmp/{user}/barista_scratch"
+    os.makedirs(fallback, exist_ok=True)
+    return fallback
+
 def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     """Create a tarball of code in a temporary directory.
 
@@ -24,10 +33,10 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     import tarfile
     logging.info("Creating code tarball for HTCondor transfer...")
     
-    # Use specified tmpdir or default to LPC scratch directory
+    # Use specified tmpdir or default to scratch directory
     if tmpdir is None:
-        user = getpass.getuser()
-        tmpdir = f"/uscmst1b_scratch/lpc1/3DayLifetime/{user}/condor_tmp"
+        scratch = get_default_scratch()
+        tmpdir = f"{scratch}/condor_tmp"
         
     temp_dir = os.path.join(tmpdir, f"barista_{uuid.uuid4().hex[:8]}")
     os.makedirs(temp_dir, exist_ok=True)
@@ -49,7 +58,8 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     logging.info("Initializing HTCondor cluster configuration...")
 
-    _log_base = f'/uscmst1b_scratch/lpc1/3DayLifetime/{getpass.getuser()}/condor_logs'
+    scratch = get_default_scratch()
+    _log_base = f'{scratch}/condor_logs'
     _default_log_dir = f'{_log_base}_{uuid.uuid4().hex[:8]}'
 
     cluster_args = {

@@ -12,3 +12,4 @@ latency-wait: 60
 # start before the daemon writes its scheduler JSON) and transient HTCondor
 # KilledWorker/scheduler-lost flakiness. Overridable on the CLI with --retries N.
 retries: 2
+rerun-triggers: mtime

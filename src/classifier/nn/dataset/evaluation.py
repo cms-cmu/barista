@@ -6,6 +6,7 @@ import sys
 from abc import ABC, abstractmethod
 from functools import reduce
 import operator
+import time
 from concurrent.futures import ProcessPoolExecutor
 from queue import Queue
 from threading import Thread
@@ -133,17 +134,28 @@ class EvalLoader(ABC, Generic[_ResultT]):
                 toload_queue.put((i, loader))
 
             with self._pool() if self.__pool is None else self as pool:
-                for _ in range(cfg.num_workers):
-                    pool.submit(_load_worker, toload_queue, loaded_queue)
-                for _ in range(cfg.num_workers):
-                    pool.submit(_dump_worker, evaled_queue, self.__results)
-                for _ in range(nbatches):
-                    i, batch = loaded_queue.get()
-                    yield _nonblocking_dumper(batches[i][0], evaled_queue), batch
-                # wait for workers
-                collector.join()
-                toload_queue.put(None)
-                evaled_queue.put(None)
+                try:
+                    for _ in range(cfg.num_workers):
+                        pool.submit(_load_worker, toload_queue, loaded_queue)
+                    for _ in range(cfg.num_workers):
+                        pool.submit(_dump_worker, evaled_queue, self.__results)
+                    for _ in range(nbatches):
+                        i, batch = loaded_queue.get()
+                        if isinstance(batch, Exception):
+                            raise batch
+                        yield _nonblocking_dumper(batches[i][0], evaled_queue), batch
+                    # wait for workers
+                    collector.join()
+                finally:
+                    for _ in range(cfg.num_workers):
+                        try:
+                            toload_queue.put(None)
+                        except Exception:
+                            pass
+                        try:
+                            evaled_queue.put(None)
+                        except Exception:
+                            pass
         del self.__results
 
 
@@ -178,11 +190,24 @@ class EvalDataset(ABC, Generic[_ResultT]):
 def _load_worker(to_load: _ToLoadQ, loaded: _LoadedQ):
     while (job := to_load.get()) is not None:
         i, loader = job
-        try:
-            loaded.put((i, loader()))
-        except Exception as e:
-            logging.exception("when loading batch", exc_info=e)
-            raise
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                loaded.put((i, loader()))
+                break
+            except Exception as e:
+                logging.warning(
+                    f"Failed to load batch {i} (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                else:
+                    logging.exception("when loading batch (all retries failed)", exc_info=e)
+                    try:
+                        loaded.put((i, e))
+                    except Exception:
+                        pass
+                    raise
     to_load.put(None)
 
 

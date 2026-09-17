@@ -197,6 +197,10 @@ def _get_run_range(path: str) -> tuple[float, float] | None:
 def _get_correction_set(path: str):
     """Return a cached ``correctionlib.CorrectionSet`` for *path*."""
     if path not in _cset_cache:
+        if not os.path.exists(path):
+            logging.warning(f"Correction file not found: {path}. Returning None.")
+            _cset_cache[path] = None
+            return None
         logging.debug(f"CorrectionSet cache miss — loading {path}")
         _cset_cache[path] = correctionlib.CorrectionSet.from_file(path)
     else:
@@ -278,6 +282,11 @@ def apply_jerc_corrections_jsonpog(
     """
     logging.info(f"Applying JSON-POG JEC/JER corrections for {dataset}")
 
+    jec_meta     = corrections_metadata.get("jec")
+    if not jec_meta or not os.path.exists(jec_meta.get("file", "")) or _get_correction_set(jec_meta["file"]) is None:
+        logging.warning("JEC correction file not found or not configured. Returning uncorrected jets.")
+        return event[collection]
+
     from src.physics.objects.jetmet_tools.correctionlib_adapters import (
         CorrectionLibJEC as _JsonPogJEC,
         CorrectionLibJER as _JsonPogJER,
@@ -287,7 +296,6 @@ def apply_jerc_corrections_jsonpog(
     )
 
     # ── extract parameters from corrections_metadata ──────────────────────────
-    jec_meta     = corrections_metadata["jec"]
     jerc_file    = jec_meta["file"]
     jec_campaign = jec_meta["jec_campaign"]
     jec_version  = jec_meta["jec_version"]
@@ -307,11 +315,20 @@ def apply_jerc_corrections_jsonpog(
         if run_tag is None and run_tags:
             logging.warning(f"No run_tag matched for dataset {dataset!r} in {list(run_tags.keys())}")
 
-    # Auto-detect jet_type from metadata or campaign if using default AK4PFchs for Run 3
+    # Auto-detect jet_type from metadata or campaign if using default AK4PFchs for Run 3.
+    #
+    # Run 3 JERC payloads are Puppi-only -- they carry no AK4PFchs keys at all --
+    # so any Run 3 campaign missing from this list raises
+    # KeyError('<campaign>_<version>_MC_L1L2L3Res_AK4PFchs') the first time a
+    # chunk is corrected. "Summer24"/"2024" were absent, which broke every 2024
+    # job (jec_campaign is "Summer24Prompt24", matching none of the old keys).
+    # Checked safe: no Run 2 campaign string (Summer19UL16APV/UL16/UL17/UL18)
+    # contains any of these substrings.
     if jet_type == "AK4PFchs":
         if "jet_type" in jec_meta:
             jet_type = jec_meta["jet_type"]
-        elif any(k in jec_campaign for k in ["Summer22", "Summer23", "2022", "2023", "Run3", "RunIII"]):
+        elif any(k in jec_campaign for k in ["Summer22", "Summer23", "Summer24",
+                                             "2022", "2023", "2024", "Run3", "RunIII"]):
             jet_type = "AK4PFPuppi"
 
     cset       = _get_correction_set(jerc_file)

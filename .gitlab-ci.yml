@@ -83,11 +83,13 @@ stages:
   - friendtree
   - analysis
   - tools
+  - mixeddata
   - plot
   - cutflow
   - deploy
   - validation
   - workflows
+  - mixeddata
   - pages
 
 setup_coffea4bees:

@@ -252,19 +252,28 @@ if __name__ == '__main__':
     logging.info(">>> Modifying config")
     print(yaml.dump(configs, default_flow_style=False))
 
-    # Inherit top-level properties from config YAML if present
+    # Inherit properties from config YAML if present (checking both root and runner section)
+    cfg_runner = configs.get('runner', {}) if isinstance(configs.get('runner'), dict) else {}
     if 'processor' in configs and configs['processor']:
         args.processor = configs['processor']
-    if 'friend_file' in configs and configs['friend_file']:
-        args.friends = configs['friend_file']
-    elif 'friends' in configs and isinstance(configs['friends'], str):
-        args.friends = configs['friends']
-    if 'weights_file' in configs and configs['weights_file']:
-        args.weights = configs['weights_file']
-    elif 'weights' in configs and isinstance(configs['weights'], str):
-        args.weights = configs['weights']
-    if 'dataset_location' in configs and configs['dataset_location']:
-        args.metadata = configs['dataset_location']
+    elif 'processor' in cfg_runner and cfg_runner['processor']:
+        args.processor = cfg_runner['processor']
+
+    friend_val = configs.get('friend_file') or configs.get('friends') or cfg_runner.get('friend_file') or cfg_runner.get('friends')
+    if friend_val:
+        args.friends = friend_val
+
+    weights_val = configs.get('weights_file') or configs.get('weights') or cfg_runner.get('weights_file') or cfg_runner.get('weights')
+    if weights_val:
+        args.weights = weights_val
+
+    metadata_val = configs.get('dataset_location') or configs.get('metadata') or cfg_runner.get('dataset_location') or cfg_runner.get('metadata')
+    if metadata_val:
+        args.metadata = metadata_val
+
+    for r_key in ['condor', 'shared_dask', 'slurm', 'run_dask', 'worker_memory']:
+        if r_key in cfg_runner and not getattr(args, r_key, False):
+            setattr(args, r_key, cfg_runner[r_key])
 
     # Load corrections_metadata
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
@@ -371,7 +380,13 @@ if __name__ == '__main__':
         for dataset in args.datasets:
             logging.info(f"Processing dataset: {dataset}")
 
-            matched_dataset = find_matching_dataset(dataset, metadata)
+            dataset_sample = None
+            if ":" in dataset:
+                dataset_name_part, dataset_sample = dataset.split(":", 1)
+            else:
+                dataset_name_part = dataset
+
+            matched_dataset = find_matching_dataset(dataset_name_part, metadata)
             if matched_dataset is None:
                 logging.warning(f"Skipping dataset {dataset} - no match found")
                 continue
@@ -392,30 +407,35 @@ if __name__ == '__main__':
                 'trigger': metadata['triggers'][year],
             }
 
+            dataset_args = args
+            if dataset_sample is not None:
+                dataset_args = copy.copy(args)
+                dataset_args.samples = [dataset_sample]
+
             if dataset_type == 'mc':
-                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'mixed_data':
-                process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
+                process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner, add_fvt_metadata)
             elif dataset_type == 'mixeddata_all':
-                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'mixeddata_4b':
-                process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type in ['mixeddata_4b_noTT']:
-                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type in ['mixeddata_4b_pz']:
-                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data_mixed':
-                process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'synthetic_data':
-                process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'synthetic_data_noTT':
-                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data_for_mix':
-                process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'tt_for_mixed':
-                process_tt_for_mixed(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_tt_for_mixed(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data':
-                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
 
     logging.info(f"Dataset processing complete. Total datasets in fileset: {len(fileset)}")
     logging.debug(f"fileset is {pretty_repr(fileset)}")
