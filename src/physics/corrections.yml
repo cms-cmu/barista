@@ -50,6 +50,7 @@
     - Regrouped_HF_2016APV
     - Regrouped_RelativeBal
     - Regrouped_RelativeSample_2016APV
+  btag_algo: btagDeepFlavB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016preVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0508
@@ -127,6 +128,7 @@
     - Regrouped_HF_2016
     - Regrouped_RelativeBal
     - Regrouped_RelativeSample_2016
+  btag_algo: btagDeepFlavB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2016postVFP-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0480
@@ -205,6 +207,7 @@
     - Regrouped_HF_2017
     - Regrouped_RelativeBal
     - Regrouped_RelativeSample_2017
+  btag_algo: btagDeepFlavB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2017-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0532
@@ -283,6 +286,7 @@
     - Regrouped_HF_2018
     - Regrouped_RelativeBal
     - Regrouped_RelativeSample_2018
+  btag_algo: btagDeepFlavB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run2-2018-UL-NanoAODv9/2025-08-19/btagging.json.gz'
   btagWP:
     #L: 0.0490
@@ -345,6 +349,7 @@
   jes_unc:
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22CDSep23-Summer22-NanoAODv12/2025-09-23/jetid.json.gz'
+  btag_algo: btagPNetB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:   # https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22/#ak4-b-tagging
     #L: 0.047
@@ -404,6 +409,7 @@
   jes_unc:
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-10-07/jetid.json.gz'
+  btag_algo: btagPNetB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP:  #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer22EE/#ak4-b-tagging
     #L: 0.0499
@@ -470,6 +476,7 @@
     #run_tags: not needed
   jes_unc:
     - DUMMY
+  btag_algo: btagPNetB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23CSep23-Summer23-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23/#ak4-b-tagging
     #L: 0.0358
@@ -532,13 +539,14 @@
   jes_unc:  
     - DUMMY
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-10-07/jetid.json.gz'
+  btag_algo: btagPNetB
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer23BPix/#ak4-b-tagging
     #L: 0.0359
     L: 0.0879
     #L: 0.1139
     M: 0.1919
-    T: 0.7994
+    T: 0.6133
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -598,13 +606,13 @@
   jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-02/jetid.json.gz'
   jes_unc:  
     - DUMMY
+  btag_algo: btagUParTAK4B
   btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2026-01-30/btagging.json.gz'
   btagWP: #https://btv-wiki.docs.cern.ch/ScaleFactors/Run3Summer24/#ak4-b-tagging
-    #L: 0.0359
-    L: 0.0879
-    #L: 0.1139
-    M: 0.1919
-    T: 0.7994    
+    #L: 0.0246
+    L: 0.0602 # PLACEHOLDER, TO BE UPDATED BASED ON THE NUMBER OF EVENTS IN THE 3B REGION
+    M: 0.1272
+    T: 0.4648    
   btag_uncertainties:
     - cferr1
     - cferr2
@@ -648,6 +656,7 @@
     - HF_2016
     - RelativeBal
     - RelativeSample_2016
+  btag_algo: btagDeepFlavB
   btagSF: 'src/data/Btag/btagging_legacy16_deepJet_itFit.json.gz' 
   btagWP:
     #L: 0.0480
@@ -696,6 +705,7 @@
     - HF_2017
     - RelativeBal
     - RelativeSample_2017
+  btag_algo: btagDeepFlavB
   btagSF: 'src/data/Btag/btagging_legacy17_deepJet.json.gz'
   btagWP:
     #L: 0.0532
@@ -743,6 +753,7 @@
     - HF_2018
     - RelativeBal
     - RelativeSample_2018
+  btag_algo: btagDeepFlavB
   btagSF: 'src/data/Btag/btagging_legacy18_deepJet.json.gz'
   btagWP:
     #L: 0.0490
