@@ -83,6 +83,7 @@ stages:
   - friendtree
   - analysis
   - tools
+  - mixeddata
   - plot
   - cutflow
   - deploy
