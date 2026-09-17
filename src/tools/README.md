@@ -187,3 +187,21 @@ python src/tools/condor_monitor.py 2294883      # filter by cluster ID
 Status codes: `I`dle, `R`unning, `C`omplete, `H`eld, `X` Removed, `T` Transferring, `S` Suspended.
 
 The optional grep argument is matched against the job's `JobBatchName`, `Arguments`, and `ClusterId`. Up to 16 `condor_tail` fetches run concurrently. No external dependencies — runs directly on the host (does not require the analysis container).
+
+## roast.py
+
+Reproducible production runs ("roasts") of the Snakemake workflows, keyed on git hashes. A roast pins a barista sha, a coffea4bees sha and a captured `--configfile`, gets an **isolated checkout on each host** (outside the mutagen-synced dev trees), runs each step in a detached tmux window, and publishes results to the owner's CERNBox www area plus a catalogue page in the docs site (`docs/prod/`, "Cupping notes").
+
+```bash
+bin/roast init --cmslpc-user jda102 --falcon-user jalison --cern-user johnda   # once, writes ~/.config/roast/config.json
+bin/roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,D,F
+bin/roast checkout <id>              # clone + checkout pinned shas on cmslpc and falcon
+bin/roast submit <id> --step B       # Phase B on cmslpc, in tmux session "roast"
+bin/roast status <id>                # per-step exit codes, snakemake progress, condor / GPU
+bin/roast submit <id> --step C       # when B is done: falcon
+bin/roast resume <id> --step C       # after a node reboot / oomd kill: --unlock + --rerun-incomplete
+bin/roast publish <id>               # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md
+bin/roast ls | show <id> | index
+```
+
+Phases map to hosts as in `coffea4bees/workflows/README.md` (A, B, E, F on cmslpc; C, D on falcon). Non-phase workflows use `--step host:Snakefile[:targets]`, e.g. `--step falcon:coffea4bees/workflows/Snakefile_Run3_SvB_training.smk:output/Run3_quadjet_run2/SvB/train.done`. Chaining across hosts is manual: submit the next step when `status` shows the previous one at `exit=0`. Stdlib only; commit `roasts/<id>/` and `docs/prod/` so the Pages site picks them up.

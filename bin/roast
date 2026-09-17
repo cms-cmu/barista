@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# roast -- reproducible production runs of barista workflows (see src/tools/roast.py)
+exec python3 "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../src/tools/roast.py" "$@"

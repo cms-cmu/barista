@@ -32,6 +32,7 @@ output_nav_for_folder "software" "    " "Software"
 output_nav_for_folder "classifier" "    " "Classifier"
 output_nav_for_folder "bbbb" "    " "HH4b Analysis"
 output_nav_for_folder "bbWW" "    " "bbWW Analysis"
+output_nav_for_folder "prod" "    " "Cupping Notes"
 
 cat <<EOF >> "$TMP_NAV"
     - Documentation: readme.md
