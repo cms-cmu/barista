@@ -15,6 +15,20 @@ default-resources:
   tmpdir: "/tmp"
 
 set-resources:
+  train_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: ""
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "48h"
+  evaluate_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: ""
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "24h"
   train:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
