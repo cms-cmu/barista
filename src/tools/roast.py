@@ -68,7 +68,7 @@ PHASES = {
 # "publish" in ~/.config/roast/config.json, or per roast under "publish" in roast.json.
 # include: filename globs (find -name); exclude: path globs (find -path, relative to the checkout).
 PUBLISH_DEFAULTS = {
-    "include": ["*.pdf", "*.png", "*.svg", "*.yml", "*.yaml", "*.json", "*.txt", "*.log", "*.md", "*.csv", "*.tex"],
+    "include": ["*.pdf", "*.png", "*.svg", "*.html", "*.yml", "*.yaml", "*.json", "*.txt", "*.log", "*.md", "*.csv", "*.tex"],
     # per-job logs under output/ stay on the host; the step log logs/<step>.log always ships
     "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
                 "*/classifier_inputs/classifier_inputs_dataset_*",
