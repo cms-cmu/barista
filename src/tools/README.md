@@ -194,14 +194,24 @@ Reproducible production runs ("roasts") of the Snakemake workflows, keyed on git
 
 ```bash
 bin/roast init --cmslpc-user jda102 --falcon-user jalison --cern-user johnda   # once, writes ~/.config/roast/config.json
+bin/roast proxy                      # voms-proxy-init on cmslpc (interactive, weekly); --check shows time left
 bin/roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,D,F
 bin/roast checkout <id>              # clone + checkout pinned shas on cmslpc and falcon
-bin/roast submit <id> --step B       # Phase B on cmslpc, in tmux session "roast"
+bin/roast submit <id> --step B -n    # dry run (snakemake -n): plan only
+bin/roast submit <id> --step B -t    # test slice (--config test=true), runs locally on the node
+bin/roast submit <id> --step B       # Phase B for real on cmslpc, in tmux session "roast"
 bin/roast status <id>                # per-step exit codes, snakemake progress, condor / GPU
+bin/roast attach <id> [--step B]     # ssh -t into the host's roast tmux session on that window
 bin/roast submit <id> --step C       # when B is done: falcon
-bin/roast resume <id> --step C       # after a node reboot / oomd kill: --unlock + --rerun-incomplete
+bin/roast resume <id> --step C       # after a dead driver (reboot / oomd): --unlock + --rerun-incomplete, same args as last submit
 bin/roast publish <id>               # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md
+bin/roast archive <id>               # xrdcp heavy products (.coffea/.root/yml/json) to FNAL EOS eos.path/<id>/
+bin/roast pull <id> [--only '*.coffea']  # rsync a roast's output/ to output/roasts/<id>/ on this machine
 bin/roast ls | show <id> | index
 ```
+
+Workflow configs may use the placeholder `{roast_id}` in paths (e.g. `make_classifier_input: root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/{roast_id}/classifier_inputs/` in `nominal_run2.yml`); `roast submit` passes `--config roast_id=<id>` and `helpers/common.smk` resolves the placeholder (defaulting to the config `label` outside roast), so each production run writes to its own EOS directory. Heavy products go to FNAL EOS with `archive` (rules in an `archive` block, defaults `*.coffea *.root *.yml *.yaml *.json *.pkl`, no size cap; destination `eos.url` + `eos.path/<id>/`, e.g. `root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/<id>/output/...`). What `publish` ships is controlled by a `publish` block (`include` filename globs, `exclude` path globs, `max_mb`) in `~/.config/roast/config.json`, overridable per roast under `publish_rules` in `roast.json`. Defaults: pdf/png/svg/yml/json/txt/log/md/csv/tex under 50 MB, excluding `*_test/`, Dask reports and `performance/` profiles; `logs/` and `roasts/<id>/` always go. `publish -n` lists the selection without copying; reruns skip files already on CERNBox with the same size.
+
+Ids are `<label>_<YYYYMMDD>_<barista7>-<coffea4bees7>`; any unique prefix works. The cmslpc ssh target follows `host_file` (`~/.cmslpc-claude-host`) when present, so re-pinning after a dead node is one file edit.
 
 Phases map to hosts as in `coffea4bees/workflows/README.md` (A, B, E, F on cmslpc; C, D on falcon). Non-phase workflows use `--step host:Snakefile[:targets]`, e.g. `--step falcon:coffea4bees/workflows/Snakefile_Run3_SvB_training.smk:output/Run3_quadjet_run2/SvB/train.done`. Chaining across hosts is manual: submit the next step when `status` shows the previous one at `exit=0`. Stdlib only; commit `roasts/<id>/` and `docs/prod/` so the Pages site picks them up.
