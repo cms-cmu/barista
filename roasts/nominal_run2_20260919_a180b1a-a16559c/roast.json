@@ -1,0 +1,124 @@
+{
+  "id": "nominal_run2_20260919_a180b1a-a16559c",
+  "label": "nominal_run2",
+  "created": "2026-09-19 22:10:31",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "a180b1a6b5499706707ba04b2f7f4a0496ea0dfb",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "a16559c7b91ff76be95f9547defa5439d2b23841",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run2.yml",
+    "captured": "config.yml",
+    "sha256": "7d92c192bfcb5f038a760c074b71d2c10a3c9239761483d7f16404ed682cffeb"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-19 22:12:58",
+          "cores": 8,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "c973fb17021a"
+        },
+        {
+          "ts": "2026-09-19 23:17:15",
+          "cores": 8,
+          "extra": "",
+          "resume": true,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "7d92c192bfcb"
+        },
+        {
+          "ts": "2026-09-20 11:01:24",
+          "cores": 8,
+          "extra": "",
+          "resume": true,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "7d92c192bfcb"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/barista",
+      "ssh": "jda102@cmslpc307.fnal.gov",
+      "checked_out": "2026-09-19 22:12:24"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/",
+    "ts": "2026-09-20 11:06:57",
+    "ok": true
+  },
+  "history": [
+    {
+      "ts": "2026-09-19 22:10:31",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-19 22:12:24",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-19 22:12:58",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-19 23:17:15",
+      "event": "config-edited",
+      "sha256": "7d92c192bfcb"
+    },
+    {
+      "ts": "2026-09-19 23:17:15",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:01:24",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:04:18",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 11:06:57",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c",
+    "ts": "2026-09-20 11:04:18",
+    "ok": true
+  }
+}

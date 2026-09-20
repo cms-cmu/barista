@@ -94,31 +94,35 @@ extra_javascript:
 nav:
     - Home: index.md
     - Source Code:
-        - Index: src/index.md
-        - Tools: src/tools.md
+        - index: src/index.md
+        - tools: src/tools.md
     - Software:
-        - Index: software/index.md
+        - index: software/index.md
     - Classifier:
-        - Backend: classifier/backend.md
-        - Hcr: classifier/hcr.md
-        - Index: classifier/index.md
-        - Monitor: classifier/monitor.md
-        - Task: classifier/task.md
+        - uackend: classifier/backend.md
+        - hcr: classifier/hcr.md
+        - index: classifier/index.md
+        - monitor: classifier/monitor.md
+        - task: classifier/task.md
     - HH4b Analysis:
-        - Analysis: bbbb/analysis.md
-        - Analysis-Tests: bbbb/analysis-tests.md
-        - Analysis-Tools-Hists: bbbb/analysis-tools-hists.md
-        - Analysis-Tools-Ikappa: bbbb/analysis-tools-ikappa.md
-        - Analysis-Tools: bbbb/analysis-tools.md
-        - Analysis-Weights-Pytorch Models: bbbb/analysis-weights-pytorch_models.md
-        - Index: bbbb/index.md
-        - Jet Clustering: bbbb/jet_clustering.md
-        - Metadata: bbbb/metadata.md
-        - Plots: bbbb/plots.md
-        - Reana Submission: bbbb/reana_submission.md
-        - Skimmer: bbbb/skimmer.md
-        - Stats Analysis: bbbb/stats_analysis.md
-        - Workflows: bbbb/workflows.md
+        - analysis-tests: bbbb/analysis-tests.md
+        - analysis-tools-hists: bbbb/analysis-tools-hists.md
+        - analysis-tools-ikappa: bbbb/analysis-tools-ikappa.md
+        - analysis-tools: bbbb/analysis-tools.md
+        - analysis-weights-pytorch models: bbbb/analysis-weights-pytorch_models.md
+        - analysis: bbbb/analysis.md
+        - index: bbbb/index.md
+        - jet clustering: bbbb/jet_clustering.md
+        - metadata: bbbb/metadata.md
+        - plots: bbbb/plots.md
+        - reana suumission: bbbb/reana_submission.md
+        - skimmer: bbbb/skimmer.md
+        - stats analysis: bbbb/stats_analysis.md
+        - workflows: bbbb/workflows.md
     - bbWW Analysis:
-        - Index: bbWW/index.md
+        - index: bbWW/index.md
+    - Cupping Notes:
+        - 20260917 nominal run2 5978ff3-0ecb080: prod/20260917_nominal_run2_5978ff3-0ecb080.md
+        - 20260917 smoke 00276d9-5730uda: prod/20260917_smoke_00276d9-5730bda.md
+        - index: prod/index.md
     - Documentation: readme.md
