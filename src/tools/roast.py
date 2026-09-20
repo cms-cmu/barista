@@ -455,6 +455,9 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     return textwrap.dedent(f"""\
         #!/usr/bin/env bash
         # roast {r['id']} step {name} -- generated {now()}
+        # Everything lives in main() so bash parses the whole file before executing: a later
+        # regeneration of this script cannot derail a run that is already in progress.
+        main() {{
         cd {rq(ckpt)} || exit 97
         LOG=logs/{name}.log
         EXIT=logs/{name}.exit
@@ -478,6 +481,8 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
             exec bash
         fi
         sleep 5
+        }}
+        main "$@"
     """)
 
 
@@ -511,27 +516,40 @@ def _submit(args, resume: bool) -> None:
     if args.dry_run:
         parts.append("-n")                             # snakemake dry run: plan only, nothing produced
     args.extra = " ".join(x for x in parts if x).strip()
+    window = f"{r['label'][:16]}_{r['created'][:10].replace('-', '')}_{step['name']}"
+    driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
+    # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
+    # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
+    guard = textwrap.dedent(f"""\
+        tmux has-session -t {TMUX_SESSION} 2>/dev/null || tmux new-session -d -s {TMUX_SESSION} -n hub
+        live=$(pgrep -u "$USER" -f {shlex.quote(driver_pat)} | wc -l)
+        if [ "$live" != "0" ]; then
+            echo "a snakemake driver for this roast is still running on $(hostname) ($live proc); refusing to double-submit" >&2
+            exit 3
+        fi
+        if tmux list-windows -t {TMUX_SESSION} -F '#W' | grep -qx {shlex.quote(window)}; then
+            tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)}
+            if [ -f {rq(ckpt)}/logs/{step['name']}.exit ]; then
+                echo "closed finished window {window} (exit=$(cat {rq(ckpt)}/logs/{step['name']}.exit))"
+            else
+                echo "closed stale window {window} (no driver process, no exit file)"
+            fi
+        fi
+    """)
+    res = ssh_run(target, guard, check=False)
+    if res.returncode != 0:
+        die(res.stderr.strip() or res.stdout.strip())
+    if res.stdout.strip():
+        print(res.stdout.strip())
     script = _run_script(cfg, r, step, ckpt, cores, args.extra, resume)
     local = roast_dir(r["id"]) / f"run_{step['name']}.sh"
     local.write_text(script)
     # Re-ship the whole roast dir: the captured config.yml may have been edited since checkout.
     scp_to(target, sorted(p for p in roast_dir(r["id"]).iterdir() if p.is_file()), f"{ckpt}/roasts/{r['id']}/")
-    window = f"{r['label'][:16]}_{r['created'][:10].replace('-', '')}_{step['name']}"
     remote = textwrap.dedent(f"""\
         set -e
         SCRIPT={rq(f"{ckpt}/roasts/{r['id']}/run_{step['name']}.sh")}
         chmod +x "$SCRIPT"
-        tmux has-session -t {TMUX_SESSION} 2>/dev/null || tmux new-session -d -s {TMUX_SESSION} -n hub
-        if tmux list-windows -t {TMUX_SESSION} -F '#W' | grep -qx {shlex.quote(window)}; then
-            if [ -f {rq(ckpt)}/logs/{step['name']}.exit ]; then
-                # finished (a failed step keeps its window open for inspection): close it and go on
-                tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)}
-                echo "closed finished window {window} (exit=$(cat {rq(ckpt)}/logs/{step['name']}.exit))"
-            else
-                echo "window {window} is still running in tmux session {TMUX_SESSION}; refusing to double-submit" >&2
-                exit 3
-            fi
-        fi
         tmux new-window -d -t {TMUX_SESSION} -n {shlex.quote(window)} "bash $SCRIPT"
         echo "launched tmux {TMUX_SESSION}:{window}"
     """)
@@ -715,9 +733,13 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
            'sed "s/^/GPU /"; break; }; done || true') if host == "falcon" else "true"
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
+        live=$(pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} | wc -l)
         for S in {step_names}; do
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";
-            elif [ -f logs/$S.log ]; then st="running";
+            elif [ -f logs/$S.log ]; then
+                if [ "$live" != "0" ]; then st="running";
+                elif tac logs/$S.log | sed '/=== roast .* start /q' | grep -Eq "WorkflowError|Exiting because a job execution failed|Error in rule"; then st="error";
+                else st="stalled"; fi
             else st="not started"; fi
             win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
             prog=$(ls -t .snakemake/log/*.snakemake.log 2>/dev/null | head -1 | xargs -r grep -h -o '[0-9]* of [0-9]* steps ([0-9]*%) done' 2>/dev/null | tail -1)
@@ -744,7 +766,8 @@ def cmd_status(args) -> None:
             for line in res.stdout.splitlines():
                 if line.startswith("STEP|"):
                     _, s, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
-                    colour = "\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") else "\033[33m" if st == "running" else ""
+                    colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
+                              else "\033[33m" if st == "running" else "")
                     print(f"  {host:7s} {s:14s} {colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip())
                 elif line.startswith("HOST|") and line[5:].strip():
                     print(f"  {host:7s} condor: {line[5:].strip()}")

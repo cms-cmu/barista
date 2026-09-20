@@ -1,0 +1,155 @@
+# ==============================================================================
+# GLOBAL WORKFLOW CONFIGURATION
+# ==============================================================================
+label: "TESTRun2"
+output_path: "output/TESTRun2/"
+
+dataset:
+  - "GluGluToHHTo4B_cHHH1"
+  - "GluGluToHHTo4B_cHHH0"
+  - "GluGluToHHTo4B_cHHH2p45"
+  - "GluGluToHHTo4B_cHHH5"
+  - "ZH4b"
+  - "ZZ4b"
+  - "ggZH4b"
+
+year_eras:
+  UL16_preVFP:
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+  UL16_postVFP:
+    - "F"
+    - "G"
+    - "H"
+  UL17:
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+  UL18:
+    - "A"
+    - "B"
+    - "C"
+    - "D"
+
+# ==============================================================================
+# PHASE C & D: CLASSIFIER SETTINGS (Entirely on falcon / PSC)
+# ==============================================================================
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.CollisionData
+    option:
+      - eras:
+          UL16_preVFP: [C, D, E, F]
+          UL16_postVFP: [F, G, H]
+          UL17: [B, C, D, E, F]
+          UL18: [A, B, C, D]
+  - module: HCR.InputBranch
+    option:
+      - feature_ancillary: [xW, nSelJets, xbW, year]
+
+fvt:
+  eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
+  plot_base: "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/Plots"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_2024_v2/FvT"
+  label: "FvT_nominal"
+  output_dir: "output/FvT_nominal/"
+  plot_inputs: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}"
+  eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
+  metadata: "coffea4bees/metadata/datasets/classifier_inputs_nominal.json@@HCR_input"
+
+svb:
+  eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
+  plot_base: "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/Plots"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_2024_v2/SvB"
+  label: "SvB_nominal"
+  output_dir: "output/SvB_nominal/"
+  plot_inputs: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_nominal"
+  eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
+  metadata: "coffea4bees/metadata/datasets/classifier_inputs_nominal.json@@HCR_input"
+
+# ==============================================================================
+# PHASE B.2: CLASSIFIER INPUT FRIEND TREES (cmslpc)
+# ==============================================================================
+# Everything else is inherited from analysis_config below.  The friend trees
+# MUST go to EOS: condor workers cannot see the node-local output/ directory,
+# and the merge step fails with "cp: cannot stat ..." if this points there.
+# {roast_id} is resolved in helpers/common.smk: `roast` passes --config roast_id=<id>
+# so every production run gets its own directory; outside roast it defaults to `label`
+# (i.e. .../HH4b_prod/TESTRun2/classifier_inputs/ for this file).
+classifier_inputs:
+  config:
+    make_classifier_input: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/classifier_inputs/
+    # TEMPORARY (2026-09-19): ZZ4b UL16 trigger-weight friend index is stale (re-skimmed files);
+    # warn instead of error for the classifier-inputs step. See nominal_run2.yml.
+    require_trigWeight: false
+
+# ==============================================================================
+# PHASE F.1: MAIN ANALYSIS PROCESSOR, CUTFLOWS & PLOTTING
+# ==============================================================================
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b_2024_v2.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: true
+    apply_FvT: true
+    apply_JCM: true
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    run_SvB: true
+    SvB_MA: true
+    SvB: null
+    top_reconstruction: fast
+    plot_ttbar_with_weights: true
+
+plot_config: "coffea4bees/plots/metadata/plotsAll_ttbarWeights.yml"
+
+# ==============================================================================
+# PHASE F.2: COMBINE STATISTICAL INTERPRETATION & LIMITS
+# ==============================================================================
+combine_flags: "--blind"
+combine_outdir: "datacards/HH4b_fine"
+metadata_template: "coffea4bees/stats_analysis/metadata/{channel}.yml"
+
+channels:
+  HH4b:
+    signallabel: "ggHH_kl_1_kt_1_13p0TeV_hbbhbb"
+    othersignal: "ggHH_kl_0_kt_1_13p0TeV_hbbhbb ggHH_kl_2p45_kt_1_13p0TeV_hbbhbb ggHH_kl_5_kt_1_13p0TeV_hbbhbb"
+    variable: "SvB_MA.ps_hh_fine"
+    signal: "GluGluToHHTo4B_cHHH1"
+    closure_subdir: "hh"
+  ZZ4b:
+    signallabel: "ZZ_bbbb"
+    othersignal: "ggHH_kl_1_kt_1_13p0TeV_hbbhbb ZH_bbbb"
+    variable: "SvB_MA.ps_zz"
+    signal: "ZZ4b"
+    closure_subdir: "zz"
+  ZH4b:
+    signallabel: "ZH_bbbb"
+    othersignal: "ggHH_kl_1_kt_1_13p0TeV_hbbhbb ZZ_bbbb"
+    variable: "SvB_MA.ps_zh"
+    signal: "ZH4b"
+    closure_subdir: "zh"
