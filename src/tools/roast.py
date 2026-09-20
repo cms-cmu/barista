@@ -636,6 +636,69 @@ def cmd_pull(args) -> None:
         info(f"pulled into {ROOT / 'output' / 'roasts' / r['id']}")
 
 
+def _eos_rm_tree_script(eos_url: str, path: str) -> str:
+    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first."""
+    return textwrap.dedent(f"""\
+        set -u
+        EOS={eos_url}; P={shlex.quote(path)}
+        xrdfs $EOS stat "$P" >/dev/null 2>&1 || {{ echo "  (not present) $EOS/$P"; exit 0; }}
+        xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 !~ /^d/ {{ print $NF }}' | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 ~ /^d/ {{ print $NF }}' | awk '{{ print length($0), $0 }}' | sort -rn | cut -d" " -f2- | while read -r d; do xrdfs $EOS rmdir "$d" >/dev/null 2>&1; done
+        xrdfs $EOS rmdir "$P" >/dev/null 2>&1
+        xrdfs $EOS stat "$P" >/dev/null 2>&1 && echo "  WARNING: $EOS/$P still exists" || echo "  removed $EOS/$P"
+    """)
+
+
+def cmd_rm(args) -> None:
+    """Delete a roast everywhere: local manifest + docs page, host checkouts, EOS archive, CERNBox publish."""
+    cfg = load_config()
+    r = load_roast(args.id)
+    rid = r["id"]
+    eos = cfg.get("eos") or {}
+    plan = [f"local   {roast_dir(rid)}", f"local   {DOCS_PROD / (rid + '.md')} (+ regenerate index)"]
+    for host, h in r.get("hosts", {}).items():
+        plan.append(f"{host:7s} {h['checkout'].rsplit('/', 1)[0]}   (whole roast dir on the host)")
+    if r.get("archive", {}).get("eos") or (eos.get("path") and "<" not in eos["path"]):
+        plan.append(f"eos     {eos.get('url', 'root://cmseos.fnal.gov')}/{eos.get('path', '').rstrip('/')}/{rid}   (archive AND run-scoped outputs such as friend trees)")
+    plan.append(f"cernbox root://eosuser.cern.ch/{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}")
+    print(f"roast rm {rid} would remove:")
+    for line in plan:
+        print("  " + line)
+    if not args.yes:
+        info("dry run. Re-run with --yes to delete. Use --keep-eos / --keep-cernbox / --keep-hosts to spare a location.")
+        return
+    # refuse while a step is running
+    for host, h in r.get("hosts", {}).items():
+        target = resolve_ssh(host_cfg(cfg, host))
+        chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+        if chk.stdout.strip() not in ("", "0"):
+            die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
+    ok = True
+    # remote locations first, while we still have the manifest
+    lpc = None
+    for host, h in r.get("hosts", {}).items():
+        target = resolve_ssh(host_cfg(cfg, host))
+        if host == "cmslpc":
+            lpc = target
+        if not args.keep_hosts:
+            top = h["checkout"].rsplit("/", 1)[0]
+            res = ssh_run(target, f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
+            print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
+    lpc = lpc or resolve_ssh(host_cfg(cfg, "cmslpc"))
+    if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}"), check=False)
+        print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
+    if not args.keep_cernbox:
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}"), check=False)
+        print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
+    if not ok:
+        die("some remote deletions failed; local manifest kept so you can retry")
+    shutil.rmtree(roast_dir(rid), ignore_errors=True)
+    (DOCS_PROD / f"{rid}.md").unlink(missing_ok=True)
+    write_index(cfg)
+    info(f"removed roast {rid}")
+
+
 def cmd_submit(args) -> None:
     _submit(args, resume=False)
 
@@ -995,6 +1058,11 @@ def main(argv=None) -> None:
     s.add_argument("--include-test", action="store_true", help="also pull *_test directories")
     s.add_argument("-n", "--dry-run", action="store_true")
     s.set_defaults(func=cmd_pull)
+
+    s = sub.add_parser("rm", help="delete a roast everywhere (dry run unless --yes): local, host checkouts, EOS archive, CERNBox")
+    s.add_argument("id"); s.add_argument("--yes", action="store_true")
+    s.add_argument("--keep-hosts", action="store_true"); s.add_argument("--keep-eos", action="store_true"); s.add_argument("--keep-cernbox", action="store_true")
+    s.set_defaults(func=cmd_rm)
 
     s = sub.add_parser("index", help="regenerate docs/prod from all manifests")
     s.set_defaults(func=cmd_index)

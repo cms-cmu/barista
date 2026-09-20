@@ -164,6 +164,14 @@ def tt_raw(cell: dict, block: str, ttbar: list) -> float:
     return sum(cell[f"tt{block}_raw"].get(p, 0.0) for p in ttbar)
 
 
+def cut_label(cut: str) -> str:
+    """Human label for a cut name: `<cut>_woTrig` (filled without the MC trigger weight)
+    becomes `<cut> (before trig. weight)`."""
+    if cut.endswith("_woTrig"):
+        return f"{cut[:-len('_woTrig')]} (before trig. weight)"
+    return cut
+
+
 def fnum(v: float) -> str:
     if v is None or (isinstance(v, float) and math.isnan(v)):
         return "-"
@@ -196,7 +204,7 @@ def headers(ttbar: list, detailed: bool) -> list:
 def row_values(cut: str, cell: dict, ttbar: list, detailed: bool) -> list:
     d = derived(cell, ttbar)
     if d["alltag"]:
-        r = [f"{cut} (all tags)", fnum(cell["data3"]), fnum(d["tt3"])]
+        r = [f"{cut_label(cut)} (all tags)", fnum(cell["data3"]), fnum(d["tt3"])]
         if detailed:
             r += [fnum(cell["tt3"].get(p, 0.0)) for p in ttbar] + ["-"]
         r += ["-", "-"]
@@ -205,7 +213,7 @@ def row_values(cut: str, cell: dict, ttbar: list, detailed: bool) -> list:
         return r + ["-", "-", "-"]
     # detailed text view: weighted value followed by the raw entry count in parentheses
     w = (lambda v, raw: f"{fnum(v)} {fraw(raw)}") if detailed else (lambda v, raw: fnum(v))
-    r = [cut, w(cell["data3"], cell["data3_raw"]), w(d["tt3"], tt_raw(cell, "3", ttbar))]
+    r = [cut_label(cut), w(cell["data3"], cell["data3_raw"]), w(d["tt3"], tt_raw(cell, "3", ttbar))]
     if detailed:
         r += [w(cell["tt3"].get(p, 0.0), cell["tt3_raw"].get(p, 0.0)) for p in ttbar] + [ffrac(d["tt3frac"])]
     r += [fnum(d["mj"]), w(d["tt4"], tt_raw(cell, "4", ttbar))]
@@ -282,13 +290,13 @@ def html_table(title: str, cuts: list, cells: dict, ttbar: list) -> str:
         d = derived(cell, ttbar)
         if d["alltag"]:
             n_det = 2 * len(ttbar) + 1
-            tds = [f"<td>{html.escape(c)} <span style='color:#999'>(all tags)</span></td>", wr(cell['data3'], cell['data3_raw']),
+            tds = [f"<td>{html.escape(cut_label(c))} <span style='color:#999'>(all tags)</span></td>", wr(cell['data3'], cell['data3_raw']),
                    wr(d['tt3'], tt_raw(cell, '3', ttbar))] + ['<td class="det">-</td>'] * n_det + ["<td>-</td>"] * 5
             rows.append("<tr>" + "".join(tds) + "</tr>")
             continue
         dev = abs(d["ratio"] - 1) if not math.isnan(d["ratio"]) else float("nan")
         cls = "ratio " + ("ok" if dev < 0.05 else "warn" if dev < 0.20 else "bad") if not math.isnan(dev) else "ratio"
-        tds = [f"<td>{html.escape(c)}</td>", wr(cell['data3'], cell['data3_raw']), wr(d['tt3'], tt_raw(cell, '3', ttbar))]
+        tds = [f"<td>{html.escape(cut_label(c))}</td>", wr(cell['data3'], cell['data3_raw']), wr(d['tt3'], tt_raw(cell, '3', ttbar))]
         tds += [wr(cell["tt3"].get(p, 0.0), cell["tt3_raw"].get(p, 0.0), "det") for p in ttbar] + [f'<td class="det">{ffrac(d["tt3frac"])}</td>']
         tds += [f"<td>{fnum(d['mj'])}</td>", wr(d['tt4'], tt_raw(cell, '4', ttbar))]
         tds += [wr(cell["tt4"].get(p, 0.0), cell["tt4_raw"].get(p, 0.0), "det") for p in ttbar]
