@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run2.yml",
     "captured": "config.yml",
-    "sha256": "7d92c192bfcb5f038a760c074b71d2c10a3c9239761483d7f16404ed682cffeb"
+    "sha256": "83a8b041362dd48569264c8bcf458850758f0e454bf0b29ecd4508a9cd31e872"
   },
   "steps": [
     {
@@ -52,8 +52,51 @@
           "window": "nominal_run2_20260919_B",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "7d92c192bfcb"
+        },
+        {
+          "ts": "2026-09-20 11:44:55",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:45:17",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:45:57",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:46:15",
+          "cores": 8,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
         }
       ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
     }
   ],
   "hosts": {
@@ -61,6 +104,11 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/barista",
       "ssh": "jda102@cmslpc307.fnal.gov",
       "checked_out": "2026-09-19 22:12:24"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run2_20260919_a180b1a-a16559c/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-20 11:48:18"
     }
   },
   "publish": {
@@ -113,6 +161,40 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-20 11:44:55",
+      "event": "config-edited",
+      "sha256": "83a8b041362d"
+    },
+    {
+      "ts": "2026-09-20 11:44:55",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:45:17",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:45:57",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:46:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:48:18",
+      "event": "checkout",
+      "host": "falcon"
     }
   ],
   "notes": "",

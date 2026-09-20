@@ -194,7 +194,10 @@ def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.Co
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
-    sh(["scp", "-q", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
+    # -p: keep mtimes. The captured config.yml is an input of the workflows' create_*_config rules;
+    # re-shipping it with a fresh mtime on every submit/resume made snakemake regenerate those
+    # configs and rerun every processor job downstream of them.
+    sh(["scp", "-q", "-p", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
 
 
 def rq(path: str) -> str:
