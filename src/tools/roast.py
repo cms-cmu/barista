@@ -445,7 +445,9 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     configfile = f"roasts/{r['id']}/config.yml"
     # -p/--printshellcmds: every rule's resolved shell command lands in logs/<step>.log, so a job can be re-run by hand
     # --config roast_id: resolves {roast_id} placeholders in the config (helpers/common.smk), e.g. run-scoped EOS paths
-    base = f"./run_container snakemake -s {shlex.quote(smk)} --configfile {configfile} --cores {cores} --printshellcmds --config roast_id={r['id']}"
+    # --jobs as well as --cores: hosts whose run_container injects a remote-executor snakemake profile
+    # (falcon: software/snakemake/profiles/falcon, executor slurm) refuse to run without --jobs N.
+    base = f"./run_container snakemake -s {shlex.quote(smk)} --configfile {configfile} --cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}"
     if step.get("targets"):
         base += f" {step['targets']}"
     if step.get("extra"):
@@ -730,10 +732,24 @@ def cmd_resume(args) -> None:
 
 def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     step_names = " ".join(s["name"] for s in steps)
-    condor = 'condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true' if host == "cmslpc" else "true"
-    gpu = ('for NV in nvidia-smi /usr/bin/nvidia-smi /usr/local/cuda/bin/nvidia-smi; do command -v $NV >/dev/null 2>&1 && '
-           '{ $NV --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv,noheader 2>/dev/null | '
-           'sed "s/^/GPU /"; break; }; done || true') if host == "falcon" else "true"
+    rid = shlex.quote(r["id"])
+    # Batch-system view, filtered to this roast: both schedulers record the submitting
+    # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
+    if host == "cmslpc":
+        batch = "\n".join([
+            f'''echo "TOTALS|$(condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true)"''',
+            f'''condor_q -af:t JobBatchName JobStatus Iwd 2>/dev/null | awk -F\'\\t\' -v rid={rid} \'$3 ~ rid {{ n[$1 "\\t" $2]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print "CONDOR|" a[1] "|" a[2] "|" n[k] }} }}\' || true''',
+        ])
+    elif host == "falcon":
+        batch = "\n".join([
+            # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); echo "SLURM|$jid|$rest|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            # recently finished jobs of this roast (failures are what you want to see)
+            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print "SLURMDONE|" $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -4''',
+            f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
+        ])
+    else:
+        batch = "true"
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         live=$(pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} | wc -l)
@@ -749,8 +765,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             last=$(tail -n 1 logs/$S.log 2>/dev/null | cut -c1-90)
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
-        echo "HOST|$({condor})"
-        {gpu}
+        {batch}
     """)
 
 
@@ -772,10 +787,26 @@ def cmd_status(args) -> None:
                     colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
                               else "\033[33m" if st == "running" else "")
                     print(f"  {host:7s} {s:14s} {colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip())
-                elif line.startswith("HOST|") and line[5:].strip():
-                    print(f"  {host:7s} condor: {line[5:].strip()}")
-                elif line.startswith("GPU "):
-                    print(f"  {host:7s} {line}")
+                elif line.startswith("TOTALS|") and line[7:].strip():
+                    print(f"  {host:7s} condor  {line[7:].strip()}")
+                elif line.startswith("CONDOR|"):
+                    _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
+                    states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
+                    print(f"  {host:7s} condor  {n:>4s} x {states.get(code, code):9s} {name}")
+                elif line.startswith("SLURM|"):
+                    f = (line.split("|") + [""] * 11)[:11]
+                    _, jid, rule, state, el, lim, node, cpus, mem, tres, tail = f
+                    colour = "\033[33m" if state == "RUNNING" else "\033[31m" if state not in ("PENDING", "COMPLETED") else ""
+                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':12s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
+                    if tail.strip():
+                        print(f"  {host:7s}                 {tail.strip()}")
+                elif line.startswith("SLURMDONE|"):
+                    _, jid, name, state, el, rss = (line.split("|") + [""] * 6)[:6]
+                    colour = "\033[32m" if state == "COMPLETED" else "\033[31m"
+                    print(f"  {host:7s} slurm   {jid:>7s} {name[:12]:12s} {colour}{state:9s}\033[0m {el:>8s}          {('maxrss=' + rss) if rss else ''}".rstrip())
+                elif line.startswith("SINFO|"):
+                    _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
+                    print(f"  {host:7s} cluster {part} {nodes} node(s) {state} {gres}")
                 elif line == "NOCHECKOUT":
                     print(f"  {host:7s} checkout missing at {hinfo['checkout']}")
         if r.get("publish", {}).get("url"):

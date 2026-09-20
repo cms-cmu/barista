@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run2.yml",
     "captured": "config.yml",
-    "sha256": "83a8b041362dd48569264c8bcf458850758f0e454bf0b29ecd4508a9cd31e872"
+    "sha256": "332c1fcc28cc7fb470bd501d5a1dcd007cfe403118b72c61f98e391a18410a3e"
   },
   "steps": [
     {
@@ -96,7 +96,45 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-20 12:14:51",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 12:16:33",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        },
+        {
+          "ts": "2026-09-20 12:18:59",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        },
+        {
+          "ts": "2026-09-20 12:19:57",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -194,6 +232,35 @@
     {
       "ts": "2026-09-20 11:48:18",
       "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:14:51",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:16:33",
+      "event": "config-edited",
+      "sha256": "332c1fcc28cc"
+    },
+    {
+      "ts": "2026-09-20 12:16:33",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:18:59",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:19:57",
+      "event": "submit",
+      "step": "C",
       "host": "falcon"
     }
   ],

@@ -200,7 +200,7 @@ bin/roast checkout <id>              # clone + checkout pinned shas on cmslpc an
 bin/roast submit <id> --step B -n    # dry run (snakemake -n): plan only
 bin/roast submit <id> --step B -t    # test slice (--config test=true), runs locally on the node
 bin/roast submit <id> --step B       # Phase B for real on cmslpc, in tmux session "roast"
-bin/roast status <id>                # per-step exit codes, snakemake progress, condor / GPU
+bin/roast status <id>                # per-step state + batch-system detail for this roast's jobs
 bin/roast attach <id> [--step B]     # ssh -t into the host's roast tmux session on that window
 bin/roast submit <id> --step C       # when B is done: falcon
 bin/roast resume <id> --step C       # after a dead driver (reboot / oomd): --unlock + --rerun-incomplete, same args as last submit
@@ -211,6 +211,8 @@ bin/roast ls | show <id> | index
 ```
 
 Workflow configs may use the placeholder `{roast_id}` in paths (e.g. `make_classifier_input: root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/{roast_id}/classifier_inputs/` in `nominal_run2.yml`); `roast submit` passes `--config roast_id=<id>` and `helpers/common.smk` resolves the placeholder (defaulting to the config `label` outside roast), so each production run writes to its own EOS directory. Heavy products go to FNAL EOS with `archive` (rules in an `archive` block, defaults `*.coffea *.root *.yml *.yaml *.json *.pkl`, no size cap; destination `eos.url` + `eos.path/<id>/`, e.g. `root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/<id>/output/...`). What `publish` ships is controlled by a `publish` block (`include` filename globs, `exclude` path globs, `max_mb`) in `~/.config/roast/config.json`, overridable per roast under `publish_rules` in `roast.json`. Defaults: pdf/png/svg/yml/json/txt/log/md/csv/tex under 50 MB, excluding `*_test/`, Dask reports and `performance/` profiles; `logs/` and `roasts/<id>/` always go. `publish -n` lists the selection without copying; reruns skip files already on CERNBox with the same size.
+
+`status` reports each step as `not started`, `running` (a snakemake driver process is alive), `error` (the driver died after a job failed), `stalled` (died with no error) or `exit=N`, plus snakemake progress and the last log line. It also lists this roast's batch jobs, matched by the scheduler's record of the submitting directory: HTCondor batches by state on cmslpc, and on falcon each slurm job with its rule name, state, elapsed/limit, node, cpus/mem/gres and the last line of that job's own slurm log (training loss, batch counter), followed by jobs that finished in the last two days and a one-line cluster summary.
 
 Ids are `<label>_<YYYYMMDD>_<barista7>-<coffea4bees7>`; any unique prefix works. The cmslpc ssh target follows `host_file` (`~/.cmslpc-claude-host`) when present, so re-pinning after a dead node is one file edit.
 
