@@ -55,9 +55,19 @@ classifier_setting:
     option:
       - feature_ancillary: [xW, nSelJets, xbW, year]
 
+# ==============================================================================
+# PHASE C: FvT (falcon). Self-contained per roast: models/friends go to the roast's EOS
+# directory, and training/evaluation read THIS roast's classifier-input manifest and JCM fit,
+# which Phase B hands over as committed copies (see README, "After Phase B"):
+#   metadata/datasets/classifier_inputs_{roast_id}.json   (from output/.../classifier_inputs_friends.json)
+#   metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml
+# workflow_overrides: the checked-in templates classifier/config/workflows/HH4b_2024_v2/FvT/
+# {train,evaluate}.yml stay the source of truth; only the listed flags are replaced
+# (helpers/common.smk: write_workflow_overrides).
+# ==============================================================================
 fvt:
-  eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
-  plot_base: "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/Plots"
+  eos_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
+  plot_base: "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod/{roast_id}/classifier"
   classifier_config_paths: "coffea4bees"
   wfs_base: "coffea4bees/classifier/config/workflows/HH4b_2024_v2/FvT"
   label: "FvT_nominal"
@@ -67,7 +77,10 @@ fvt:
   friend: "{eos_base}/friend/{label}"
   train_template: "model: {eos_base}/classifier/{label}"
   eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
-  metadata: "coffea4bees/metadata/datasets/classifier_inputs_nominal.json@@HCR_input"
+  metadata: "coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --JCM-weight: '"" coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
+    --friends: '"" coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input'
 
 svb:
   eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
