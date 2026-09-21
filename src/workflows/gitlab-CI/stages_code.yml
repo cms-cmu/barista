@@ -1,3 +1,13 @@
+# roast (src/tools/roast.py) is stdlib python plus generated bash: no analysis container,
+# no grid proxy, no cluster.  Deliberately does NOT extend .base_analysis_barista, so it
+# needs nothing and reports in seconds instead of queueing behind the image build.
+code_roast_barista:
+  stage: code
+  image: registry.cern.ch/docker.io/library/python:3.13-slim-trixie
+  needs: []
+  script:
+    - python3 src/tests/roast.py
+
 code_hist_collection_barista:
   stage: code
   extends:
