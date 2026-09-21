@@ -6,11 +6,13 @@ output_path: "output/TESTRun2/"
 
 # Datasets for the main analysis processor (Phase F.1: per-era data jobs, per-year MC jobs).
 # Phase B.2 has its own list (classifier_inputs.datasets), B.1/C.4 use data + ttbar internally.
+# No ttbar MC here: with plot_ttbar_with_weights the ttbar is estimated from 3b data with the FvT
+# d3_to_t4 / d3_to_t3 weights (TTbar4b_from_d3 / TTbar3b_from_d3 histograms, TTbar_from_d3_<era>
+# cutflow entries), which is what the plots (plotsAll_ttbarWeights.yml) and the Combine `tt`
+# template use. Running the MC as well would double count the ttbar in the datacards
+# (make_combine_inputs sums every TTTo* and TTbar4b_from_d3 process into `tt`).
 dataset:
   - "data"
-  - "TTToHadronic"
-  - "TTToSemiLeptonic"
-  - "TTTo2L2Nu"
   - "GluGluToHHTo4B_cHHH1"
   - "GluGluToHHTo4B_cHHH0"
   - "GluGluToHHTo4B_cHHH2p45"
@@ -171,9 +173,16 @@ analysis_config:
       # manifest: data, ttbar, signals). The processor loads SvB* friends before falling back to
       # on-the-fly evaluation; the friend key (SvB_MA) is the field name the analysis uses.
       SvB_MA: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/SvB_nominal/result.json@@analysis.0.merged
-    blind: true
+    # Run 2 data: no blinding (blind: true would drop 4b SR events with any SvB ps > 0.8 from the
+    # histograms AND the cutflow, ~5 % of the SR; the F.1 vs C.4 cutflow cross-check then flags
+    # the 4b data unless crosscheck_ignore covers it).
+    blind: false
     apply_FvT: true
     apply_JCM: true
+    # THIS roast's JCM fit (Phase B.1 handoff copy; the same file C.4, the FvT and the SvB use).
+    # Without JCM_file the processor falls back to the per-year JCM in weights_file, i.e. the
+    # 2024_v2_nominal production's fit, and the 3b data / 3b ttbar normalisation is off by ~10 %.
+    JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml
     apply_trigWeight: true
     # TEMPORARY (2026-09-21), same as classifier_inputs: ZZ4b UL16 picoAODs were re-skimmed and the
     # trigger-weight index still points at the old files, so those 16 chunks run without a trigger
