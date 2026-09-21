@@ -4,7 +4,13 @@
 label: "TESTRun2"
 output_path: "output/TESTRun2/"
 
+# Datasets for the main analysis processor (Phase F.1: per-era data jobs, per-year MC jobs).
+# Phase B.2 has its own list (classifier_inputs.datasets), B.1/C.4 use data + ttbar internally.
 dataset:
+  - "data"
+  - "TTToHadronic"
+  - "TTToSemiLeptonic"
+  - "TTTo2L2Nu"
   - "GluGluToHHTo4B_cHHH1"
   - "GluGluToHHTo4B_cHHH0"
   - "GluGluToHHTo4B_cHHH2p45"
@@ -55,9 +61,19 @@ classifier_setting:
     option:
       - feature_ancillary: [xW, nSelJets, xbW, year]
 
+# ==============================================================================
+# PHASE C: FvT (falcon). Self-contained per roast: models/friends go to the roast's EOS
+# directory, and training/evaluation read THIS roast's classifier-input manifest and JCM fit,
+# which Phase B hands over as committed copies (see README, "After Phase B"):
+#   metadata/datasets/classifier_inputs_{roast_id}.json   (from output/.../classifier_inputs_friends.json)
+#   metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml
+# workflow_overrides: the checked-in templates classifier/config/workflows/HH4b_2024_v2/FvT/
+# {train,evaluate}.yml stay the source of truth; only the listed flags are replaced
+# (helpers/common.smk: write_workflow_overrides).
+# ==============================================================================
 fvt:
-  eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
-  plot_base: "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/Plots"
+  eos_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
+  plot_base: "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod/{roast_id}/classifier"
   classifier_config_paths: "coffea4bees"
   wfs_base: "coffea4bees/classifier/config/workflows/HH4b_2024_v2/FvT"
   label: "FvT_nominal"
@@ -67,11 +83,23 @@ fvt:
   friend: "{eos_base}/friend/{label}"
   train_template: "model: {eos_base}/classifier/{label}"
   eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
-  metadata: "coffea4bees/metadata/datasets/classifier_inputs_nominal.json@@HCR_input"
+  metadata: "coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --JCM-weight: '"" coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
+    '--friends ""': coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input
+
+# PHASE C.4 (cmslpc, roast step C4): FvT closure — processor on data with JCM x FvT (no SvB; ttbar
+# histograms reused from Phase B.1's wJCM pass, the FvT does not touch MC), plots, cutflow check, closure table. Defaults live in Snakefile_PhaseC_4_FvT_closure.smk; the FvT
+# friend is analysis_config.config.friends.FvT below, the JCM the per-roast copy.
+fvt_closure:
+  datasets: [data, TTToHadronic, TTToSemiLeptonic, TTTo2L2Nu]
+  plot_config: "coffea4bees/plots/metadata/plotsAll.yml"
 
 svb:
-  eos_base: "root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/nominal_sel"
-  plot_base: "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/Plots"
+  # Phase D (falcon). Same per-roast pattern as fvt; the FvT friend used for the background is
+  # {eos_base}/friend/FvT_nominal, i.e. THIS roast's Phase C output (train_template below).
+  eos_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
+  plot_base: "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod/{roast_id}/classifier"
   classifier_config_paths: "coffea4bees"
   wfs_base: "coffea4bees/classifier/config/workflows/HH4b_2024_v2/SvB"
   label: "SvB_nominal"
@@ -82,7 +110,10 @@ svb:
   friend: "{eos_base}/friend/{label}"
   train_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_nominal"
   eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
-  metadata: "coffea4bees/metadata/datasets/classifier_inputs_nominal.json@@HCR_input"
+  metadata: "coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --JCM-weight: '"" coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
+    '--friends ""': coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input
 
 # ==============================================================================
 # PHASE B.2: CLASSIFIER INPUT FRIEND TREES (cmslpc)
@@ -94,10 +125,28 @@ svb:
 # so every production run gets its own directory; outside roast it defaults to `label`
 # (i.e. .../HH4b_prod/TESTRun2/classifier_inputs/ for this file).
 classifier_inputs:
+  # FvT trains on 3b vs 4b detector data with ttbar subtracted, SvB on signal vs background:
+  # the classifier-input friend trees are needed for data (per era), ttbar and the signals.
+  # (Without this list B.2 falls back to the top-level `dataset:` = signals only.)
+  # mixeddata classifier inputs are made in Phase E, not here.
+  datasets:
+    - data
+    - TTToHadronic
+    - TTToSemiLeptonic
+    - TTTo2L2Nu
+    - GluGluToHHTo4B_cHHH1
+    - GluGluToHHTo4B_cHHH0
+    - GluGluToHHTo4B_cHHH2p45
+    - GluGluToHHTo4B_cHHH5
+    - ZH4b
+    - ZZ4b
+    - ggZH4b
   config:
     make_classifier_input: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/classifier_inputs/
-    # TEMPORARY (2026-09-19): ZZ4b UL16 trigger-weight friend index is stale (re-skimmed files);
-    # warn instead of error for the classifier-inputs step. See nominal_run2.yml.
+    # TEMPORARY (2026-09-19): ZZ4b UL16_preVFP/UL16_postVFP were re-skimmed and the trigger-weight
+    # friend index (metadata/datasets/trigweights_2024_v2.json) still points at the old files, so
+    # those 16 chunks get no trigger weight (warning instead of error). Remove once the ZZ4b UL16
+    # trigger weights are regenerated (Phase A.2) and merged into the index.
     require_trigWeight: false
 
 # ==============================================================================
@@ -113,14 +162,31 @@ analysis_config:
     worker_memory: 8GB
     dashboard_address: 0
   config:
+    # Per-roast friends: runner.py merges these over the per-year entries of friend_file,
+    # so the FvT (and later SvB) friend trees come from THIS roast's Phase C/D, not the
+    # nominal_sel production referenced in metadata/friends/friends_HH4b.yml.
+    friends:
+      FvT: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/FvT_nominal/result.json@@analysis.0.merged
+      # SvB scores from THIS roast's Phase D evaluation (friend trees over the whole classifier-input
+      # manifest: data, ttbar, signals). The processor loads SvB* friends before falling back to
+      # on-the-fly evaluation; the friend key (SvB_MA) is the field name the analysis uses.
+      SvB_MA: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/SvB_nominal/result.json@@analysis.0.merged
     blind: true
     apply_FvT: true
     apply_JCM: true
     apply_trigWeight: true
+    # TEMPORARY (2026-09-21), same as classifier_inputs: ZZ4b UL16 picoAODs were re-skimmed and the
+    # trigger-weight index still points at the old files, so those 16 chunks run without a trigger
+    # weight (warning). The ZZ4b 2016 signal yield is therefore overestimated by ~1/eff(trigger).
+    # Remove once trigweights_ZZ4b_UL16.yml has been run and merged into the index.
+    require_trigWeight: false
     apply_btagSF: true
     apply_boosted_veto: false
     run_SvB: true
-    SvB_MA: true
+    # no on-the-fly SvB model: the scores come from the friend above. (`SvB_MA: true` would evaluate the
+    # model from the weights file, i.e. the nominal_sel production; a HCRModelMetadata list would
+    # evaluate this roast's classifier/SvB_nominal/result.json on the fly instead of using the friend.)
+    SvB_MA: null
     SvB: null
     top_reconstruction: fast
     plot_ttbar_with_weights: true

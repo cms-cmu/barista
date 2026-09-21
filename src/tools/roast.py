@@ -59,6 +59,7 @@ PHASES = {
     "A": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseA.smk"),
     "B": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseB.smk"),
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
+    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
     "E": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseE.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
@@ -194,7 +195,10 @@ def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.Co
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
-    sh(["scp", "-q", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
+    # -p: keep mtimes. The captured config.yml is an input of the workflows' create_*_config rules;
+    # re-shipping it with a fresh mtime on every submit/resume made snakemake regenerate those
+    # configs and rerun every processor job downstream of them.
+    sh(["scp", "-q", "-p", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
 
 
 def rq(path: str) -> str:
@@ -442,7 +446,9 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     configfile = f"roasts/{r['id']}/config.yml"
     # -p/--printshellcmds: every rule's resolved shell command lands in logs/<step>.log, so a job can be re-run by hand
     # --config roast_id: resolves {roast_id} placeholders in the config (helpers/common.smk), e.g. run-scoped EOS paths
-    base = f"./run_container snakemake -s {shlex.quote(smk)} --configfile {configfile} --cores {cores} --printshellcmds --config roast_id={r['id']}"
+    # --jobs as well as --cores: hosts whose run_container injects a remote-executor snakemake profile
+    # (falcon: software/snakemake/profiles/falcon, executor slurm) refuse to run without --jobs N.
+    base = f"./run_container snakemake -s {shlex.quote(smk)} --configfile {configfile} --cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}"
     if step.get("targets"):
         base += f" {step['targets']}"
     if step.get("extra"):
@@ -499,8 +505,16 @@ def _submit(args, resume: bool) -> None:
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     if resume and extra is None and not args.test and not args.dry_run and step.get("runs"):
-        extra = step["runs"][-1].get("extra", "")      # resume repeats the last submit's snakemake args
-        cores = args.cores or step["runs"][-1].get("cores", cores)
+        # resume repeats the snakemake args of the last REAL submit: skip dry runs (-n) and test
+        # slices, and take the user's extra args only (not the -n / test flags roast appended).
+        # (Replaying a `submit -n` here once turned a resume into a 12-second no-op.)
+        for run in reversed(step["runs"]):
+            if run.get("dry_run") or run.get("test") or "-n" in (run.get("extra") or "").split():
+                continue
+            extra = run.get("user_extra", run.get("extra", ""))
+            cores = args.cores or run.get("cores", cores)
+            break
+    user_extra = extra or ""
     parts = [extra or ""]
     if args.test:
         parts.append("--config test=true")             # workflows' small-slice mode (local execution, few files)
@@ -562,7 +576,9 @@ def _submit(args, resume: bool) -> None:
         info("captured config.yml changed since `new`; recording the new sha256")
         r["config"]["sha256"] = cfg_sha
         log_event(r, "config-edited", sha256=cfg_sha[:12])
-    step.setdefault("runs", []).append({"ts": now(), "cores": cores, "extra": args.extra or "", "resume": resume, "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
+    step.setdefault("runs", []).append({"ts": now(), "cores": cores, "extra": args.extra or "", "user_extra": user_extra,
+                                        "dry_run": bool(args.dry_run), "test": bool(args.test), "resume": resume,
+                                        "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
     save_roast(r)
     info(f"attach: ssh -t {target} tmux attach -t {TMUX_SESSION}    |    {TOOL} status {r['id']}")
@@ -727,10 +743,24 @@ def cmd_resume(args) -> None:
 
 def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     step_names = " ".join(s["name"] for s in steps)
-    condor = 'condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true' if host == "cmslpc" else "true"
-    gpu = ('for NV in nvidia-smi /usr/bin/nvidia-smi /usr/local/cuda/bin/nvidia-smi; do command -v $NV >/dev/null 2>&1 && '
-           '{ $NV --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv,noheader 2>/dev/null | '
-           'sed "s/^/GPU /"; break; }; done || true') if host == "falcon" else "true"
+    rid = shlex.quote(r["id"])
+    # Batch-system view, filtered to this roast: both schedulers record the submitting
+    # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
+    if host == "cmslpc":
+        batch = "\n".join([
+            f'''echo "TOTALS|$(condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true)"''',
+            f'''condor_q -af:t JobBatchName JobStatus Iwd 2>/dev/null | awk -F\'\\t\' -v rid={rid} \'$3 ~ rid {{ n[$1 "\\t" $2]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print "CONDOR|" a[1] "|" a[2] "|" n[k] }} }}\' || true''',
+        ])
+    elif host == "falcon":
+        batch = "\n".join([
+            # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            # recently finished jobs of this roast (failures are what you want to see)
+            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -6 | while IFS="|" read -r jid rest; do rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURMDONE|$jid|${{rule:-$(echo "$rest" | cut -d"|" -f1 | cut -c1-8)}}|$(echo "$rest" | cut -d"|" -f2-)"; done''',
+            f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
+        ])
+    else:
+        batch = "true"
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         live=$(pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} | wc -l)
@@ -742,12 +772,11 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
                 else st="stalled"; fi
             else st="not started"; fi
             win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
-            prog=$(ls -t .snakemake/log/*.snakemake.log 2>/dev/null | head -1 | xargs -r grep -h -o '[0-9]* of [0-9]* steps ([0-9]*%) done' 2>/dev/null | tail -1)
+            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | cut -c1-90)
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
-        echo "HOST|$({condor})"
-        {gpu}
+        {batch}
     """)
 
 
@@ -769,10 +798,28 @@ def cmd_status(args) -> None:
                     colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
                               else "\033[33m" if st == "running" else "")
                     print(f"  {host:7s} {s:14s} {colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip())
-                elif line.startswith("HOST|") and line[5:].strip():
-                    print(f"  {host:7s} condor: {line[5:].strip()}")
-                elif line.startswith("GPU "):
-                    print(f"  {host:7s} {line}")
+                elif line.startswith("TOTALS|") and line[7:].strip():
+                    print(f"  {host:7s} condor  {line[7:].strip()}")
+                elif line.startswith("CONDOR|"):
+                    _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
+                    states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
+                    print(f"  {host:7s} condor  {n:>4s} x {states.get(code, code):9s} {name}")
+                elif line.startswith("SLURM|"):
+                    f = (line.split("|") + [""] * 11)[:11]
+                    _, jid, rule, state, el, lim, node, cpus, mem, tres, tail = f
+                    rule = rule[5:] if rule.startswith("rule_") else rule
+                    colour = "\033[33m" if state == "RUNNING" else "\033[31m" if state not in ("PENDING", "COMPLETED") else ""
+                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':20s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
+                    if tail.strip():
+                        print(f"  {host:7s}                 {tail.strip()}")
+                elif line.startswith("SLURMDONE|"):
+                    _, jid, rule, state, el, rss = (line.split("|") + [""] * 6)[:6]
+                    rule = rule[5:] if rule.startswith("rule_") else rule
+                    colour = "\033[32m" if state == "COMPLETED" else "\033[31m"
+                    print(f"  {host:7s} slurm   {jid:>7s} {rule[:20]:20s} {colour}{state:9s}\033[0m {el:>8s}{('  maxrss=' + rss) if rss else ''}".rstrip())
+                elif line.startswith("SINFO|"):
+                    _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
+                    print(f"  {host:7s} cluster {part} {nodes} node(s) {state} {gres}")
                 elif line == "NOCHECKOUT":
                     print(f"  {host:7s} checkout missing at {hinfo['checkout']}")
         if r.get("publish", {}).get("url"):
@@ -867,7 +914,19 @@ def cmd_publish(args) -> None:
             log_event(r, "publish", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
-    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok}
+    # Remember the HTML pages that were shipped (plot galleries, cutflow closure tables, ...) so the
+    # docs page can link them; they are otherwise only reachable by knowing the output path.
+    pages = set(r.get("publish", {}).get("pages", []))
+    if not args.docs_only:
+        if not args.host:
+            pages = set()   # full publish: rebuild the list from what the hosts have now
+        for host in hosts:
+            ck = r["hosts"][host]["checkout"]
+            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+                          f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
+                          check=False)
+            pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
+    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok, "pages": sorted(pages)}
     save_roast(r)
     write_docs(cfg, r)
     write_index(cfg)
@@ -950,6 +1009,15 @@ def write_docs(cfg: dict, r: dict) -> None:
     for s in r["steps"]:
         log = f"[{s['name']}.log]({url}logs/{s['name']}.log)" if url else ""
         lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {log} |")
+    pages = r.get("publish", {}).get("pages", [])
+    if url and pages:
+        # galleries (…/index.html) and cutflow closure tables (…/cutflow_*.html), grouped by workflow dir
+        lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
+        for p in pages:
+            parts = p.split("/")
+            wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
+            name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
+            lines.append(f"| {wf} | [{name}]({url}{p}) |")
     if r.get("notes"):
         lines += ["", "## Notes", "", r["notes"]]
     lines += ["", "## History", ""]

@@ -136,6 +136,13 @@ def year_sort_key(year: str):
     return (num, sub, year)
 
 
+MULTIJET_MODES = {
+    "data3b-tt3b": "Multijet = data 3b &minus; tt 3b (JCM-only background model)",
+    "data3b": "Multijet = data 3b (3b weight already includes JCM &times; FvT, which models multijet + 3b ttbar)",
+}
+_multijet_mode = "data3b-tt3b"
+
+
 def derived(cell: dict, ttbar: list) -> dict:
     tt3 = sum(cell["tt3"].get(p, 0.0) for p in ttbar)
     tt4 = sum(cell["tt4"].get(p, 0.0) for p in ttbar)
@@ -145,7 +152,7 @@ def derived(cell: dict, ttbar: list) -> dict:
     alltag = cell["data3"] == cell["data4"] and tt3 == tt4 and cell["data3"] > 0
     if alltag:
         return {"tt3": tt3, "tt4": nan, "mj": nan, "bkg": nan, "ratio": nan, "err": nan, "tt3frac": nan, "alltag": True}
-    mj = cell["data3"] - tt3
+    mj = cell["data3"] - tt3 if _multijet_mode == "data3b-tt3b" else cell["data3"]
     bkg = mj + tt4
     ratio = cell["data4"] / bkg if bkg else nan
     n_raw = cell["data4_raw"]
@@ -264,8 +271,8 @@ td.ok{background:#e6f6ea} td.warn{background:#fff3d6} td.bad{background:#fde2e2}
 <label><input type="checkbox" id="det" onchange="document.body.classList.toggle('detailed',this.checked)"> show ttbar components and tt 3b / data 3b</label>
 <label><input type="checkbox" id="rawbox" onchange="document.body.classList.toggle('showraw',this.checked)"> show unweighted entry counts in parentheses</label>
 __TABLES__
-<div class="note">Counts are weighted (xsec &times; lumi &times; SFs, and JCM on 3b where applied); the optional parentheses are raw entry counts (unit weight).
-Multijet = data 3b &minus; tt 3b; Bkg = Multijet + tt 4b; data / Bkg error from the raw 4b data count only.
+<div class="note">Counts are weighted (xsec &times; lumi &times; SFs, and JCM/FvT on 3b where applied); the optional parentheses are raw entry counts (unit weight).
+__MULTIJET__; Bkg = Multijet + tt 4b; data / Bkg error from the raw 4b data count only.
 Ratio cell shading: |data/Bkg &minus; 1| &lt; 5% green, &lt; 20% amber, else red.</div>
 </body></html>
 """
@@ -310,6 +317,7 @@ def render_html(title: str, source: str, years: list, table, cuts: list, ttbar: 
     tables = [html_table("all years", cuts, table["all"], ttbar)] + [html_table(y, cuts, table[y], ttbar) for y in years]
     sub = f"source: {html.escape(source)} &middot; ttbar = {html.escape(', '.join(ttbar))} &middot; years: {html.escape(', '.join(years))}"
     return (PAGE.replace("__TITLE__", html.escape(title)).replace("__SUB__", sub)
+            .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode])
             .replace("__TABLES__", "\n".join(tables)))
 
 
@@ -323,8 +331,12 @@ def main(argv=None) -> int:
     ap.add_argument("--data", default="data", help="data process name (default: data)")
     ap.add_argument("--ttbar", nargs="+", default=DEFAULT_TTBAR, help="ttbar process names (3b subtraction + 4b component)")
     ap.add_argument("--cuts", nargs="+", default=None, help="cuts (rows) in order; default: order found in the input")
+    ap.add_argument("--multijet", choices=sorted(MULTIJET_MODES), default="data3b-tt3b",
+                    help="how the Multijet column is formed: data3b-tt3b (JCM-only model) or data3b (3b weight includes FvT)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
+    global _multijet_mode
+    _multijet_mode = args.multijet
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
     counts = load_counts(args.input)

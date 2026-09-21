@@ -192,26 +192,109 @@ The optional grep argument is matched against the job's `JobBatchName`, `Argumen
 
 Reproducible production runs ("roasts") of the Snakemake workflows, keyed on git hashes. A roast pins a barista sha, a coffea4bees sha and a captured `--configfile`, gets an **isolated checkout on each host** (outside the mutagen-synced dev trees), runs each step in a detached tmux window, and publishes results to the owner's CERNBox www area plus a catalogue page in the docs site (`docs/prod/`, "Cupping notes").
 
+### Commands
+
 ```bash
 bin/roast init --cmslpc-user jda102 --falcon-user jalison --cern-user johnda   # once, writes ~/.config/roast/config.json
-bin/roast proxy                      # voms-proxy-init on cmslpc (interactive, weekly); --check shows time left
-bin/roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,D,F
-bin/roast checkout <id>              # clone + checkout pinned shas on cmslpc and falcon
-bin/roast submit <id> --step B -n    # dry run (snakemake -n): plan only
-bin/roast submit <id> --step B -t    # test slice (--config test=true), runs locally on the node
-bin/roast submit <id> --step B       # Phase B for real on cmslpc, in tmux session "roast"
-bin/roast status <id>                # per-step exit codes, snakemake progress, condor / GPU
-bin/roast attach <id> [--step B]     # ssh -t into the host's roast tmux session on that window
-bin/roast submit <id> --step C       # when B is done: falcon
-bin/roast resume <id> --step C       # after a dead driver (reboot / oomd): --unlock + --rerun-incomplete, same args as last submit
-bin/roast publish <id>               # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md
-bin/roast archive <id>               # xrdcp heavy products (.coffea/.root/yml/json) to FNAL EOS eos.path/<id>/
+bin/roast proxy [--host cmslpc|falcon] [--check]   # voms-proxy-init on that host (interactive, weekly); default host cmslpc
+bin/roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,C4,D,F
+bin/roast checkout <id> [--host falcon]  # clone + checkout pinned shas on every host of the roast (or one)
+bin/roast submit <id> --step B -n        # dry run (snakemake -n): plan only — ALWAYS do this first
+bin/roast submit <id> --step B -t        # test slice (--config test=true), runs locally on the node
+bin/roast submit <id> --step B           # the real thing, tmux session "roast", window <label>_<date>_B
+bin/roast submit <id> --step B --extra "--touch"   # any extra snakemake args
+bin/roast status <id>                    # per-step state + batch-system detail for this roast's jobs
+bin/roast attach <id> [--step B]         # ssh -t into the host's roast tmux session on that window
+bin/roast resume <id> --step B           # after a failure / dead driver: --unlock + --rerun-incomplete, same args as last submit
+bin/roast publish <id> [-n] [--docs-only]   # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md
+bin/roast archive <id>                   # xrdcp heavy products (.coffea/.root/yml/json) to FNAL EOS eos.path/<id>/
 bin/roast pull <id> [--only '*.coffea']  # rsync a roast's output/ to output/roasts/<id>/ on this machine
+bin/roast rm <id> [--yes]                # delete a roast everywhere (dry run unless --yes): local, host checkouts, EOS archive, CERNBox
 bin/roast ls | show <id> | index
 ```
 
-Workflow configs may use the placeholder `{roast_id}` in paths (e.g. `make_classifier_input: root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/{roast_id}/classifier_inputs/` in `nominal_run2.yml`); `roast submit` passes `--config roast_id=<id>` and `helpers/common.smk` resolves the placeholder (defaulting to the config `label` outside roast), so each production run writes to its own EOS directory. Heavy products go to FNAL EOS with `archive` (rules in an `archive` block, defaults `*.coffea *.root *.yml *.yaml *.json *.pkl`, no size cap; destination `eos.url` + `eos.path/<id>/`, e.g. `root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/<id>/output/...`). What `publish` ships is controlled by a `publish` block (`include` filename globs, `exclude` path globs, `max_mb`) in `~/.config/roast/config.json`, overridable per roast under `publish_rules` in `roast.json`. Defaults: pdf/png/svg/yml/json/txt/log/md/csv/tex under 50 MB, excluding `*_test/`, Dask reports and `performance/` profiles; `logs/` and `roasts/<id>/` always go. `publish -n` lists the selection without copying; reruns skip files already on CERNBox with the same size.
+Step keys (`PHASES` in `roast.py`): `A` `B` `E` `F` `C4` on cmslpc, `C` `D` on falcon. `C4` is the FvT closure
+(`Snakefile_PhaseC_4_FvT_closure.smk`, a processor pass, hence cmslpc). Non-phase workflows use
+`--step host:Snakefile[:targets]`. Chaining across hosts is manual: submit the next step when `status` shows the
+previous one at `exit=0`. Steps not listed at `new` can be added later by appending to `steps` in
+`roasts/<id>/roast.json` (then `checkout --host <host>` if it is a new host).
 
-Ids are `<label>_<YYYYMMDD>_<barista7>-<coffea4bees7>`; any unique prefix works. The cmslpc ssh target follows `host_file` (`~/.cmslpc-claude-host`) when present, so re-pinning after a dead node is one file edit.
+### The nominal_run2 sequence (Run 2, config `coffea4bees/workflows/config/nominal_run2.yml`)
 
-Phases map to hosts as in `coffea4bees/workflows/README.md` (A, B, E, F on cmslpc; C, D on falcon). Non-phase workflows use `--step host:Snakefile[:targets]`, e.g. `--step falcon:coffea4bees/workflows/Snakefile_Run3_SvB_training.smk:output/Run3_quadjet_run2/SvB/train.done`. Chaining across hosts is manual: submit the next step when `status` shows the previous one at `exit=0`. Stdlib only; commit `roasts/<id>/` and `docs/prod/` so the Pages site picks them up.
+Each step below is `-n` first, then for real; `status` until `exit=0`. Between phases there are **handoffs**:
+files the next phase reads must be committed to coffea4bees and shipped into the checkouts (see next section),
+and the first run of every cutflow check only *dumps* its counts — bless the dump as the reference and ship it.
+
+| step | host | what runs | handoff afterwards |
+|---|---|---|---|
+| `B` | cmslpc | B.1: processor data+ttbar without JCM → fit JCM → rerun with JCM → NoFvT plots + gallery, cutflow checks (`known_fullCounts_JCM_{NoJCM,wJCM}.yml`), closure tables. B.2: classifier-input friend trees for `classifier_inputs.datasets` (data, ttbar, signals) → EOS `HH4b_prod/<id>/classifier_inputs/` | copy `output/<label>/computeJCM/JCM_<tag>/jetCombinatoricModel_SB_<tag>.yml` → `coffea4bees/metadata/weights/JCM/<id>/`; copy `output/<label>/classifier_inputs/classifier_inputs_friends.json` → `coffea4bees/metadata/datasets/classifier_inputs_<id>.json`; bless the two JCM cutflow dumps |
+| `C` | falcon | FvT: train (3-fold, GPU), analyze, evaluate → EOS `classifier/FvT_nominal`, `friend/FvT_nominal`; input/weight plots → CERNBox | none (the `fvt`/`svb`/`analysis_config` blocks reference `{eos_base}/friend/FvT_nominal` via `{roast_id}`) |
+| `C4` | cmslpc | FvT closure: processor on data with JCM×FvT (ttbar merged from B.1's wJCM singlefiles), `plotsAll` plots + gallery, cutflow check (`known_fullCounts_FvT_closure.yml`), closure table (Multijet = 3b data) | bless the cutflow dump; look at SR/SB data/Bkg in the closure table before training the SvB |
+| `D` | falcon | SvB: train (signal vs 3b×JCM×FvT + ttbar), analyze, evaluate → `classifier/SvB_nominal`, `friend/SvB_nominal` | none (Phase F reads `friends.SvB_MA` = `friend/SvB_nominal`) |
+| `F` | cmslpc | F.1: processor on `dataset:` (data, ttbar, signals) with JCM+FvT+SvB friends, blinding → `histAll_<label>.coffea`, cutflow check (`known_fullCounts_<label>.yml`), `plotsAll_ttbarWeights` plots + gallery. F.2: Combine inputs, workspaces, fits, limits, scans per channel | bless the cutflow dump; `publish`; `archive` |
+
+Handoff files are per roast (paths contain `{roast_id}`), so nothing in the analysis metadata points at another
+production by accident; `fvt.workflow_overrides` / `svb.workflow_overrides` replace only the input flags of the
+checked-in classifier templates (`helpers/common.smk: write_workflow_overrides`).
+
+```bash
+ID=<roast id>
+CK=~/nobackup/HH4b/prod/$ID/barista            # cmslpc checkout (prod_root in ~/.config/roast/config.json)
+# --- after B ---
+scp cmslpc:$CK/output/TESTRun2/computeJCM/JCM_2024_v2/jetCombinatoricModel_SB_2024_v2.yml coffea4bees/metadata/weights/JCM/$ID/
+scp cmslpc:$CK/output/TESTRun2/classifier_inputs/classifier_inputs_friends.json coffea4bees/metadata/datasets/classifier_inputs_$ID.json
+scp cmslpc:$CK/output/TESTRun2/computeJCM/cutflow_NoJCM.yml coffea4bees/analysis/tests/known_fullCounts_JCM_NoJCM.yml   # bless
+scp cmslpc:$CK/output/TESTRun2/computeJCM/cutflow_wJCM.yml  coffea4bees/analysis/tests/known_fullCounts_JCM_wJCM.yml
+# --- after C4 / F ---
+scp cmslpc:$CK/output/TESTRun2/FvT_closure/cutflow_FvT_closure.yml coffea4bees/analysis/tests/known_fullCounts_FvT_closure.yml
+scp cmslpc:$CK/output/TESTRun2/cutflow_TESTRun2.yml coffea4bees/analysis/tests/known_fullCounts_TESTRun2.yml
+```
+(when a check *fails*, the dump survives as `cutflow_<pass>_failed.yml` and the verdict as
+`cutflow_validation_<pass>_result.txt`; both are published.)
+
+### Updating code in a live roast
+
+A roast pins shas; the checkouts do **not** track a branch. To run newer commits (a fix, a blessed reference, a
+handoff file) without a new roast, ship them the way `checkout` does — a git push straight into the checkout,
+then detach it there. Do this for every host that will run the affected step:
+
+```bash
+git -C coffea4bees push jda102@cmslpc307.fnal.gov:$CK/coffea4bees "<sha>:refs/roasts/$ID-fix"
+ssh cmslpc307.fnal.gov "cd $CK/coffea4bees && git checkout -q --detach <sha>"
+# same with ~/work/prod/$ID/barista on falcon (jalison@falcon.phys.cmu.edu), and for barista itself without the /coffea4bees
+```
+`roast.json` keeps the *original* shas; the step log records the shas that actually ran (`=== barista … coffea4bees … ===`).
+Quote the refspec if the sha is in a variable (`"${SHA}:refs/…"` — zsh eats `$SHA:r`).
+
+### Gotchas
+
+* **The roast runs its captured `roasts/<id>/config.yml`, not the repo file.** After editing
+  `coffea4bees/workflows/config/nominal_run2.yml`, copy it over the captured one (and commit `roasts/`); `submit`
+  re-ships the roast dir (`scp -p`, mtimes preserved) and logs `config-edited`.
+* **Changing the config mid-roast reruns processor jobs.** `config.yml` is an input of the `create_*_config`
+  rules; a newer config regenerates them and every processor job downstream re-runs. If the generated processor
+  config is unaffected (or you patched it by hand on the host), `touch` the finished outputs
+  (`output/<label>/**/singlefiles/*.coffea` and the generated `*_config.yml`) before resuming, and check with `-n`.
+  `--rerun-triggers` without `mtime` does not prevent this in snakemake 9.25.
+* **Never run `submit -n` while that step is running.** It regenerates the step script; bash reads scripts
+  incrementally and the live run derails (no exit marker). The guard refuses only when a snakemake driver process
+  for the roast is alive; a leftover window with no driver is closed automatically.
+* **falcon** runs snakemake through the SLURM profile (`software/snakemake/profiles/falcon`); `roast` passes
+  `--jobs` for that. It needs its own proxy: `bin/roast proxy --host falcon`. Training jobs land on the GPU nodes
+  (`squeue -u <user>`), the FvT/SvB take ~1.5 h each.
+* **cmslpc processor steps** need a valid proxy in the checkout (`proxy/x509_proxy`, seeded from `/tmp/x509up_u<uid>` by
+  the step script) and use `--shared-dask --condor` (one long-lived dask daemon that tars `src/` + `coffea4bees/` once —
+  kill it after shipping code: `ps -u $USER -o pid=,args= | grep start-cluster-daemon`).
+* **Missing trigger weights are an error** (`require_trigWeight`, default true in `processor_HH4b`). A file with no
+  entry in the trigger-weight friend index stops the job with the dataset name; declare the exception
+  (`require_trigWeight: false` + comment) or regenerate the friends (Phase A.2, e.g. `trigweights_ZZ4b_UL16.yml`).
+* `publish` records the shipped HTML pages (galleries, cutflow closure tables) in `roast.json` and the docs page
+  links them under "Pages". Commit `roasts/<id>/` and `docs/prod/` afterwards so the Pages site picks them up.
+
+### Config knobs
+
+Workflow configs may use the placeholder `{roast_id}` in paths (e.g. `make_classifier_input: root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/{roast_id}/classifier_inputs/` in `nominal_run2.yml`); `roast submit` passes `--config roast_id=<id>` and `helpers/common.smk` resolves the placeholder (defaulting to the config `label` outside roast), so each production run writes to its own EOS directory. Heavy products go to FNAL EOS with `archive` (rules in an `archive` block, defaults `*.coffea *.root *.yml *.yaml *.json *.pkl`, no size cap; destination `eos.url` + `eos.path/<id>/`, e.g. `root://cmseos.fnal.gov//store/user/<you>/HH4b_prod/<id>/output/...`). What `publish` ships is controlled by a `publish` block (`include` filename globs, `exclude` path globs, `max_mb`) in `~/.config/roast/config.json`, overridable per roast under `publish_rules` in `roast.json`. Defaults: pdf/png/svg/html/yml/json/txt/log/md/csv/tex under 50 MB, excluding `*_test/`, Dask reports and `performance/` profiles; `logs/` and `roasts/<id>/` always go. `publish -n` lists the selection without copying; reruns skip files already on CERNBox with the same size.
+
+`status` reports each step as `not started`, `running` (a snakemake driver process is alive), `error` (the driver died after a job failed), `stalled` (died with no error) or `exit=N`, plus snakemake progress and the last log line. It also lists this roast's batch jobs, matched by the scheduler's record of the submitting directory: HTCondor batches by state on cmslpc, and on falcon each slurm job with its rule name, state, elapsed/limit, node, cpus/mem/gres and the last line of that job's own slurm log (training loss, batch counter), followed by jobs that finished in the last two days and a one-line cluster summary.
+
+Ids are `<label>_<YYYYMMDD>_<barista7>-<coffea4bees7>`; any unique prefix works. The cmslpc ssh target follows `host_file` (`~/.cmslpc-claude-host`) when present, so re-pinning after a dead node is one file edit. Stdlib only.

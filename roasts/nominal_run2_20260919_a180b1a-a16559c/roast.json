@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run2.yml",
     "captured": "config.yml",
-    "sha256": "7d92c192bfcb5f038a760c074b71d2c10a3c9239761483d7f16404ed682cffeb"
+    "sha256": "690de1bfeabc3b98a7229bf4b7ad15eeb33661f072d84cd9882bf86f82d9ff39"
   },
   "steps": [
     {
@@ -52,6 +52,216 @@
           "window": "nominal_run2_20260919_B",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "7d92c192bfcb"
+        },
+        {
+          "ts": "2026-09-20 11:44:55",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:45:17",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:45:57",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 11:46:15",
+          "cores": 8,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "83a8b041362d"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-20 12:14:51",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "83a8b041362d"
+        },
+        {
+          "ts": "2026-09-20 12:16:33",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        },
+        {
+          "ts": "2026-09-20 12:18:59",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        },
+        {
+          "ts": "2026-09-20 12:19:57",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "332c1fcc28cc"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-20 20:23:51",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C4",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "892b43f41aa7"
+        },
+        {
+          "ts": "2026-09-20 20:37:33",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_C4",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "bda587b0f95e"
+        },
+        {
+          "ts": "2026-09-20 20:38:43",
+          "cores": 8,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_C4",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "bda587b0f95e"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-20 23:29:27",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "bda587b0f95e"
+        },
+        {
+          "ts": "2026-09-20 23:35:31",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "0b681c33fe96"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-21 07:51:56",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "8828678e1d6b"
+        },
+        {
+          "ts": "2026-09-21 07:55:09",
+          "cores": 8,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "8828678e1d6b"
+        },
+        {
+          "ts": "2026-09-21 08:47:40",
+          "cores": 8,
+          "extra": "--rerun-triggers params input software-env code -n",
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 08:49:16",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 08:57:31",
+          "cores": 8,
+          "extra": "-n",
+          "resume": true,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 09:07:05",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
         }
       ]
     }
@@ -61,13 +271,26 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/barista",
       "ssh": "jda102@cmslpc307.fnal.gov",
       "checked_out": "2026-09-19 22:12:24"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run2_20260919_a180b1a-a16559c/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-20 11:48:18"
     }
   },
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/",
-    "ts": "2026-09-20 11:06:57",
-    "ok": true
+    "ts": "2026-09-21 09:25:27",
+    "ok": true,
+    "pages": [
+      "output/TESTRun2/FvT_closure/cutflow_FvT_closure.html",
+      "output/TESTRun2/FvT_closure/plots_FvT_closure/index.html",
+      "output/TESTRun2/computeJCM/cutflow_NoJCM.html",
+      "output/TESTRun2/computeJCM/cutflow_wJCM.html",
+      "output/TESTRun2/computeJCM/plots_wJCM/index.html",
+      "output/TESTRun2/plots_TESTRun2/index.html"
+    ]
   },
   "history": [
     {
@@ -112,6 +335,220 @@
       "ts": "2026-09-20 11:06:57",
       "event": "publish",
       "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 11:44:55",
+      "event": "config-edited",
+      "sha256": "83a8b041362d"
+    },
+    {
+      "ts": "2026-09-20 11:44:55",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:45:17",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:45:57",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:46:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 11:48:18",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:14:51",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:16:33",
+      "event": "config-edited",
+      "sha256": "332c1fcc28cc"
+    },
+    {
+      "ts": "2026-09-20 12:16:33",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:18:59",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 12:19:57",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 20:23:51",
+      "event": "config-edited",
+      "sha256": "892b43f41aa7"
+    },
+    {
+      "ts": "2026-09-20 20:23:51",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 20:37:33",
+      "event": "config-edited",
+      "sha256": "bda587b0f95e"
+    },
+    {
+      "ts": "2026-09-20 20:37:33",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 20:38:43",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-20 21:16:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 21:16:21",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 21:21:09",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 21:21:28",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 21:22:11",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 21:22:24",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-20 23:29:27",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 23:35:31",
+      "event": "config-edited",
+      "sha256": "0b681c33fe96"
+    },
+    {
+      "ts": "2026-09-20 23:35:31",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-21 07:51:56",
+      "event": "config-edited",
+      "sha256": "8828678e1d6b"
+    },
+    {
+      "ts": "2026-09-21 07:51:56",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 07:55:09",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 08:47:40",
+      "event": "config-edited",
+      "sha256": "690de1bfeabc"
+    },
+    {
+      "ts": "2026-09-21 08:47:40",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 08:49:16",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 08:57:31",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 08:58:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 08:59:19",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 09:07:05",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 09:25:15",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 09:25:26",
+      "event": "publish",
+      "host": "falcon",
       "ok": true
     }
   ],
