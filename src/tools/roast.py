@@ -643,11 +643,11 @@ def cmd_pull(args) -> None:
         src = f"{target}:{ckpt}/{rel}/"
         dst = ROOT / "output" / "roasts" / r["id"] / rel
         dst.mkdir(parents=True, exist_ok=True)
-        cmd = ["rsync", "-a", "--info=progress2", "--exclude=*_test", "--exclude=*_test/"]
+        cmd = ["rsync", "-a", "--progress", "--exclude=*_test", "--exclude=*_test/"]
         if not args.include_test:
             pass
         else:
-            cmd = ["rsync", "-a", "--info=progress2"]
+            cmd = ["rsync", "-a", "--progress"]
         for g in args.exclude or []:
             cmd.append(f"--exclude={g}")
         if args.only:
@@ -731,6 +731,115 @@ def cmd_rm(args) -> None:
     (DOCS_PROD / f"{rid}.md").unlink(missing_ok=True)
     write_index(cfg)
     info(f"removed roast {rid}")
+
+
+# ---------------------------------------------------------------------------
+# pourover: inspect a step's merged histograms locally with the config it ran with
+# ---------------------------------------------------------------------------
+
+POUROVER_DEFAULT_PYTHON = "~/python-environments/pourover/bin/python"
+
+
+def _plot_cmds(target: str, ckpt: str, step_name: str) -> list[dict]:
+    """The makePlots invocations a step actually ran, in order, deduped.
+
+    They are in the step log because the launcher runs snakemake with --printshellcmds,
+    so this is the config that produced the plots, not a guess from the workflow."""
+    script = textwrap.dedent(f"""\
+        cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
+        grep -hoE "makePlots\\.py [^ ]+ -o [^ ]+ -m [^ ]+" logs/{step_name}.log 2>/dev/null | awk '!seen[$0]++'
+    """)
+    res = ssh_run(target, script, check=False)
+    if res.returncode != 0:
+        die(f"ssh failed: {(res.stderr or res.stdout).strip()[:200]}")
+    out = []
+    for line in res.stdout.splitlines():
+        if line.strip() == "NOCHECKOUT":
+            die(f"checkout missing at {ckpt}")
+        t = line.split()
+        if len(t) < 6 or "-m" not in t or "-o" not in t:
+            continue
+        out.append({"coffea": t[1], "outdir": t[t.index("-o") + 1], "metadata": t[t.index("-m") + 1], "cmd": line})
+    return out
+
+
+def _rsync_from(target: str, ckpt: str, rel_paths: list[str], dest_root: Path) -> None:
+    """Pull specific files, preserving their paths under dest_root.  rsync is the cache:
+    a file already present with the same size and mtime is not transferred again."""
+    dest_root.mkdir(parents=True, exist_ok=True)
+    cmd = ["rsync", "-a", "-v", "--files-from=-",
+           "-e", "ssh " + " ".join(SSH_OPTS), f"{target}:{ckpt}/", str(dest_root) + "/"]
+    res = subprocess.run(cmd, text=True, input="\n".join(rel_paths) + "\n")
+    if res.returncode != 0:
+        die(f"rsync failed ({res.returncode})")
+
+
+def cmd_pourover(args) -> None:
+    cfg = load_config()
+    r = load_roast(args.id)
+    step = find_step(r, args.step)
+    host = args.host or step["host"]
+    if host not in r["hosts"]:
+        die(f"roast not checked out on {host}")
+    ckpt = r["hosts"][host]["checkout"]
+    target = resolve_ssh(host_cfg(cfg, host))
+    dest_root = ROOT / "output" / "roasts" / r["id"]
+
+    coffea_rel, meta_rel = args.coffea, args.config
+    if not (coffea_rel and meta_rel) or args.list:
+        cmds = _plot_cmds(target, ckpt, step["name"])
+        if not cmds:
+            die(f"no makePlots command found in logs/{step['name']}.log on {host}; "
+                f"pass --coffea and --config explicitly (paths relative to the checkout)")
+        if args.list:
+            for i, c in enumerate(cmds, 1):
+                print(f"{i}. {c['coffea']}\n   -m {c['metadata']}   (-o {c['outdir']})")
+            return
+        if args.match:
+            cmds = [c for c in cmds if args.match in c["cmd"]] or die(f"no makePlots command matching {args.match!r}")
+        if args.which:
+            if not 1 <= args.which <= len(cmds):
+                die(f"--which {args.which} out of range (1..{len(cmds)}); use --list")
+            chosen = cmds[args.which - 1]
+        elif len(cmds) > 1 and not args.match:
+            info(f"{len(cmds)} makePlots commands in this step; using the last (see --list, --which, --match)")
+            chosen = cmds[-1]
+        else:
+            chosen = cmds[-1]
+        coffea_rel = coffea_rel or chosen["coffea"]
+        meta_rel = meta_rel or chosen["metadata"]
+
+    want = [coffea_rel] + ([meta_rel] if not Path(meta_rel).is_absolute() else [])
+    if args.no_pull:
+        info("skipping the pull (--no-pull)")
+    else:
+        info(f"[{host}] pulling {', '.join(want)} -> {dest_root}")
+        _rsync_from(target, ckpt, want, dest_root)
+
+    coffea_local = dest_root / coffea_rel
+    if not coffea_local.exists():
+        die(f"{coffea_local} not present (pull it without --no-pull)")
+    # The metadata that ran is pulled alongside; a local override path is used as given.
+    meta_local = dest_root / meta_rel
+    if args.config and not (dest_root / args.config).exists():
+        meta_local = Path(args.config)
+    if not meta_local.exists():
+        die(f"plot config {meta_local} not found")
+
+    py = Path(cfg.get("pourover", {}).get("python", POUROVER_DEFAULT_PYTHON)).expanduser()
+    script = ROOT / "coffea4bees" / "plots" / "pourOver.py"
+    if not script.exists():
+        die(f"{script} not found")
+    cmd = [str(py) if py.exists() else sys.executable, str(script), str(coffea_local), "-m", str(meta_local),
+           "--port", str(args.port), "--output-dir", str(ROOT / "pourover_output" / "roasts" / f"{r['id']}_{step['name']}")]
+    if not py.exists():
+        info(f"{py} not found; falling back to {sys.executable} (see `pourover.python` in {CONFIG_PATH})")
+    cmd += shlex.split(args.extra or "")
+    log_event(r, "pourover", step=step["name"], coffea=coffea_rel, metadata=meta_rel)
+    save_roast(r)
+    info(f"{coffea_local.name}  -m {meta_local.name}   (pourOver serves in the background and prints how to stop it;"
+         f" add --extra=--foreground to keep it in this terminal)")
+    os.execv(cmd[0], cmd)
 
 
 def cmd_submit(args) -> None:
@@ -1140,6 +1249,18 @@ def main(argv=None) -> None:
     s.add_argument("--jobs", type=int, default=16); s.add_argument("--include-test", action="store_true")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be archived, copy nothing")
     s.set_defaults(func=cmd_archive)
+
+    s = sub.add_parser("pourover", help="serve a step's merged histograms locally with the plot config that step ran")
+    s.add_argument("id"); s.add_argument("--step", required=True); s.add_argument("--host")
+    s.add_argument("--list", action="store_true", help="show the makePlots commands this step ran, then exit")
+    s.add_argument("--which", type=int, help="pick the Nth command from --list (default: the last)")
+    s.add_argument("--match", help="pick the command containing this substring")
+    s.add_argument("--coffea", help="override the histogram file (path relative to the checkout)")
+    s.add_argument("--config", help="override the plot config (checkout-relative, or a local path)")
+    s.add_argument("--port", type=int, default=5000)
+    s.add_argument("--no-pull", action="store_true", help="use what is already under output/roasts/<id>/")
+    s.add_argument("--extra", help="further pourOver.py args, quoted (e.g. --extra=\"--pregallery -j 8\")")
+    s.set_defaults(func=cmd_pourover)
 
     s = sub.add_parser("pull", help="rsync a roast's output/ (or a sub-path) from its host to output/roasts/<id>/ here")
     s.add_argument("id"); s.add_argument("--host")

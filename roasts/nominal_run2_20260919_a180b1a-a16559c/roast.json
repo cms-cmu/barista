@@ -262,6 +262,42 @@
           "window": "nominal_run2_20260919_F",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 10:09:10",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 10:09:17",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 10:11:44",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "690de1bfeabc"
         }
       ]
     }
@@ -281,7 +317,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/",
-    "ts": "2026-09-21 09:25:27",
+    "ts": "2026-09-21 11:24:18",
     "ok": true,
     "pages": [
       "output/TESTRun2/FvT_closure/cutflow_FvT_closure.html",
@@ -289,6 +325,8 @@
       "output/TESTRun2/computeJCM/cutflow_NoJCM.html",
       "output/TESTRun2/computeJCM/cutflow_wJCM.html",
       "output/TESTRun2/computeJCM/plots_wJCM/index.html",
+      "output/TESTRun2/cutflow_TESTRun2.html",
+      "output/TESTRun2/cutflow_crosscheck_TESTRun2.html",
       "output/TESTRun2/plots_TESTRun2/index.html"
     ]
   },
@@ -547,6 +585,69 @@
     },
     {
       "ts": "2026-09-21 09:25:26",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 10:09:10",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 10:09:17",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 10:11:44",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 10:56:42",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 10:56:53",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 10:59:20",
+      "event": "pourover",
+      "step": "B",
+      "coffea": "output/TESTRun2/computeJCM/histAll_wJCM.coffea",
+      "metadata": "coffea4bees/plots/metadata/plotsAllNoFvT.yml"
+    },
+    {
+      "ts": "2026-09-21 11:00:17",
+      "event": "pourover",
+      "step": "B",
+      "coffea": "output/TESTRun2/computeJCM/histAll_wJCM.coffea",
+      "metadata": "coffea4bees/plots/metadata/plotsAllNoFvT.yml"
+    },
+    {
+      "ts": "2026-09-21 11:15:13",
+      "event": "pourover",
+      "step": "C4",
+      "coffea": "output/TESTRun2/FvT_closure/histAll_FvT_closure.coffea",
+      "metadata": "coffea4bees/plots/metadata/plotsAll.yml"
+    },
+    {
+      "ts": "2026-09-21 11:24:07",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 11:24:18",
       "event": "publish",
       "host": "falcon",
       "ok": true
