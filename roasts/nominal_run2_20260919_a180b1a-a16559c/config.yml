@@ -4,7 +4,13 @@
 label: "TESTRun2"
 output_path: "output/TESTRun2/"
 
+# Datasets for the main analysis processor (Phase F.1: per-era data jobs, per-year MC jobs).
+# Phase B.2 has its own list (classifier_inputs.datasets), B.1/C.4 use data + ttbar internally.
 dataset:
+  - "data"
+  - "TTToHadronic"
+  - "TTToSemiLeptonic"
+  - "TTTo2L2Nu"
   - "GluGluToHHTo4B_cHHH1"
   - "GluGluToHHTo4B_cHHH0"
   - "GluGluToHHTo4B_cHHH2p45"
@@ -161,6 +167,10 @@ analysis_config:
     # nominal_sel production referenced in metadata/friends/friends_HH4b.yml.
     friends:
       FvT: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/FvT_nominal/result.json@@analysis.0.merged
+      # SvB scores from THIS roast's Phase D evaluation (friend trees over the whole classifier-input
+      # manifest: data, ttbar, signals). The processor loads SvB* friends before falling back to
+      # on-the-fly evaluation; the friend key (SvB_MA) is the field name the analysis uses.
+      SvB_MA: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/SvB_nominal/result.json@@analysis.0.merged
     blind: true
     apply_FvT: true
     apply_JCM: true
@@ -168,12 +178,10 @@ analysis_config:
     apply_btagSF: true
     apply_boosted_veto: false
     run_SvB: true
-    # Per-roast SvB: evaluated on the fly from THIS roast's Phase D model (HCRModelMetadata list,
-    # same format as weights_HH4b_2024_v2.yml). `SvB_MA: true` would take the model from the
-    # weights file instead, i.e. the nominal_sel production.
-    SvB_MA:
-      - path: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/classifier/SvB_nominal/result.json
-        name: Final
+    # no on-the-fly SvB model: the scores come from the friend above. (`SvB_MA: true` would evaluate the
+    # model from the weights file, i.e. the nominal_sel production; a HCRModelMetadata list would
+    # evaluate this roast's classifier/SvB_nominal/result.json on the fly instead of using the friend.)
+    SvB_MA: null
     SvB: null
     top_reconstruction: fast
     plot_ttbar_with_weights: true
