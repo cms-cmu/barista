@@ -248,6 +248,11 @@ validation:
     - when: never
 
 pages:
+  # `pages` is the last stage, so without this it queues behind every analysis job and the
+  # docs site only updates when the whole CI is green.  An empty `needs` starts it right
+  # away, independent of the other stages: docs publish in a couple of minutes, and a
+  # failure elsewhere in the pipeline no longer blocks them.
+  needs: []
   before_script:
     - bash docs/sync_readmes.sh
     - bash docs/update_mkdocs_nav.sh
@@ -256,6 +261,8 @@ pages:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master")'
       when: always
+    # Escape hatch: publish the docs from any pipeline (e.g. Run pipeline on master with
+    # RUN_PAGES=true) without waiting for, or depending on, the analysis jobs.
     - if: '$RUN_PAGES == "true"'
       when: always
     - when: never
