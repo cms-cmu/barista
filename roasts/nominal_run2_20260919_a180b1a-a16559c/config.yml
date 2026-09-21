@@ -175,6 +175,11 @@ analysis_config:
     apply_FvT: true
     apply_JCM: true
     apply_trigWeight: true
+    # TEMPORARY (2026-09-21), same as classifier_inputs: ZZ4b UL16 picoAODs were re-skimmed and the
+    # trigger-weight index still points at the old files, so those 16 chunks run without a trigger
+    # weight (warning). The ZZ4b 2016 signal yield is therefore overestimated by ~1/eff(trigger).
+    # Remove once trigweights_ZZ4b_UL16.yml has been run and merged into the index.
+    require_trigWeight: false
     apply_btagSF: true
     apply_boosted_veto: false
     run_SvB: true
