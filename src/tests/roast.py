@@ -72,8 +72,14 @@ def bash_ok(script, name):
     return res.returncode == 0, f"{name}: {res.stderr.strip()}"
 
 
+@unittest.skipUnless((REPO / "coffea4bees" / "workflows").is_dir(),
+                     "coffea4bees not checked out (CI clones it in the setup stage; this job needs nothing)")
 class TestPhaseTable(unittest.TestCase):
-    """roast --phases maps to real Snakefiles; a workflow rename must not silently break it."""
+    """roast --phases maps to real Snakefiles; a workflow rename must not silently break it.
+
+    coffea4bees lives in its own repo and is cloned into the workspace by the `setup` stage,
+    so this class is skipped wherever it is absent and does its work in a full checkout
+    (your working tree, or any job that has the clone)."""
 
     def test_every_phase_snakefile_exists(self):
         for phase, (host, smk) in roast.PHASES.items():
