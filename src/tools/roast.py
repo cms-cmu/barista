@@ -902,7 +902,19 @@ def cmd_publish(args) -> None:
             log_event(r, "publish", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
-    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok}
+    # Remember the HTML pages that were shipped (plot galleries, cutflow closure tables, ...) so the
+    # docs page can link them; they are otherwise only reachable by knowing the output path.
+    pages = set(r.get("publish", {}).get("pages", []))
+    if not args.docs_only:
+        if not args.host:
+            pages = set()   # full publish: rebuild the list from what the hosts have now
+        for host in hosts:
+            ck = r["hosts"][host]["checkout"]
+            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+                          f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
+                          check=False)
+            pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
+    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok, "pages": sorted(pages)}
     save_roast(r)
     write_docs(cfg, r)
     write_index(cfg)
@@ -985,6 +997,15 @@ def write_docs(cfg: dict, r: dict) -> None:
     for s in r["steps"]:
         log = f"[{s['name']}.log]({url}logs/{s['name']}.log)" if url else ""
         lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {log} |")
+    pages = r.get("publish", {}).get("pages", [])
+    if url and pages:
+        # galleries (…/index.html) and cutflow closure tables (…/cutflow_*.html), grouped by workflow dir
+        lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
+        for p in pages:
+            parts = p.split("/")
+            wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
+            name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
+            lines.append(f"| {wf} | [{name}]({url}{p}) |")
     if r.get("notes"):
         lines += ["", "## Notes", "", r["notes"]]
     lines += ["", "## History", ""]

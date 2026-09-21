@@ -4,4 +4,4 @@ Production roasts of the barista workflows, one row per reproducible run. Each r
 
 | roast | date | owner | barista | coffea4bees | config | steps | results |
 |---|---|---|---|---|---|---|---|
-| [nominal_run2_20260919_a180b1a-a16559c](nominal_run2_20260919_a180b1a-a16559c.md) | 2026-09-19 | John Alison | [`a180b1a`](https://gitlab.cern.ch/cms-cmu/barista/-/commit/a180b1a6b5499706707ba04b2f7f4a0496ea0dfb) | [`a16559c`](https://gitlab.cern.ch/cms-cmu/coffea4bees/-/commit/a16559c7b91ff76be95f9547defa5439d2b23841) | `nominal_run2.yml` | B | [browse](https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/) |
+| [nominal_run2_20260919_a180b1a-a16559c](nominal_run2_20260919_a180b1a-a16559c.md) | 2026-09-19 | John Alison | [`a180b1a`](https://gitlab.cern.ch/cms-cmu/barista/-/commit/a180b1a6b5499706707ba04b2f7f4a0496ea0dfb) | [`a16559c`](https://gitlab.cern.ch/cms-cmu/coffea4bees/-/commit/a16559c7b91ff76be95f9547defa5439d2b23841) | `nominal_run2.yml` | B C C4 | [browse](https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/) |
