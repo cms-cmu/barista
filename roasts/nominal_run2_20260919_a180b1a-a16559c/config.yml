@@ -82,6 +82,13 @@ fvt:
     --JCM-weight: '"" coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
     '--friends ""': coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json@@HCR_input
 
+# PHASE C.4 (cmslpc, roast step C4): FvT closure — processor on data + ttbar with JCM x FvT (no SvB),
+# plots, cutflow check, closure table. Defaults live in Snakefile_PhaseC_4_FvT_closure.smk; the FvT
+# friend is analysis_config.config.friends.FvT below, the JCM the per-roast copy.
+fvt_closure:
+  datasets: [data, TTToHadronic, TTToSemiLeptonic, TTTo2L2Nu]
+  plot_config: "coffea4bees/plots/metadata/plotsAll.yml"
+
 svb:
   # Phase D (falcon). Same per-roast pattern as fvt; the FvT friend used for the background is
   # {eos_base}/friend/FvT_nominal, i.e. THIS roast's Phase C output (train_template below).

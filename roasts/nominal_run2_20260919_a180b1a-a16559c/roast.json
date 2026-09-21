@@ -135,6 +135,13 @@
           "config_sha256": "332c1fcc28cc"
         }
       ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
     }
   ],
   "hosts": {

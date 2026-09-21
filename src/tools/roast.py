@@ -59,6 +59,7 @@ PHASES = {
     "A": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseA.smk"),
     "B": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseB.smk"),
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
+    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
     "E": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseE.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
