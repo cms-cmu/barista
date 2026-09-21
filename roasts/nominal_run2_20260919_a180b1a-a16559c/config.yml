@@ -168,7 +168,12 @@ analysis_config:
     apply_btagSF: true
     apply_boosted_veto: false
     run_SvB: true
-    SvB_MA: true
+    # Per-roast SvB: evaluated on the fly from THIS roast's Phase D model (HCRModelMetadata list,
+    # same format as weights_HH4b_2024_v2.yml). `SvB_MA: true` would take the model from the
+    # weights file instead, i.e. the nominal_sel production.
+    SvB_MA:
+      - path: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/classifier/SvB_nominal/result.json
+        name: Final
     SvB: null
     top_reconstruction: fast
     plot_ttbar_with_weights: true

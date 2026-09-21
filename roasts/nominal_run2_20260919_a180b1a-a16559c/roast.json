@@ -171,6 +171,24 @@
           "config_sha256": "bda587b0f95e"
         }
       ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-20 23:29:27",
+          "cores": 4,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "bda587b0f95e"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -369,6 +387,12 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-20 23:29:27",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
     }
   ],
   "notes": "",
