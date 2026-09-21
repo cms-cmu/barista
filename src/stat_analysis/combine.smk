@@ -568,7 +568,14 @@ rule likelihood_scan:
         OBS_FILES=""
         for f in {input}; do
             rf=$(realpath $f)
-            if [[ "$f" == *"_exp_"* ]]; then
+            # The snapshot fit is only the chunks' input: its `limit` tree carries the
+            # inactive-POI branches (rggHH_kl_0/2p45/5, ...) that the -P scans drop, and
+            # hadd of trees with different branch sets silently keeps just the first
+            # file's entries -> plot1DScan "TGraph with zero or one point". Every chunk
+            # already stores the best-fit (quantileExpected = -1) point, so skip it.
+            if [[ "$f" == *"_snapshot_"* ]]; then
+                continue
+            elif [[ "$f" == *"_exp_"* ]]; then
                 EXP_FILES="$EXP_FILES $rf"
             elif [[ "$f" == *"_obs_"* ]]; then
                 OBS_FILES="$OBS_FILES $rf"
