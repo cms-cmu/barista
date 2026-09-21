@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast nominal_run2_20260919_a180b1a-a16559c step F -- generated 2026-09-21 10:11:42
+# roast nominal_run2_20260919_a180b1a-a16559c step F -- generated 2026-09-21 11:39:36
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {

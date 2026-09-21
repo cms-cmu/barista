@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run2.yml",
     "captured": "config.yml",
-    "sha256": "690de1bfeabc3b98a7229bf4b7ad15eeb33661f072d84cd9882bf86f82d9ff39"
+    "sha256": "7e0fcaaa294b99b836f2834434b770c402066cc5156b9ee35fcdb28689e49db7"
   },
   "steps": [
     {
@@ -298,6 +298,18 @@
           "window": "nominal_run2_20260919_F",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "690de1bfeabc"
+        },
+        {
+          "ts": "2026-09-21 11:39:38",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "7e0fcaaa294b"
         }
       ]
     }
@@ -317,7 +329,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/",
-    "ts": "2026-09-21 11:24:18",
+    "ts": "2026-09-21 12:45:29",
     "ok": true,
     "pages": [
       "output/TESTRun2/FvT_closure/cutflow_FvT_closure.html",
@@ -648,6 +660,29 @@
     },
     {
       "ts": "2026-09-21 11:24:18",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 11:39:38",
+      "event": "config-edited",
+      "sha256": "7e0fcaaa294b"
+    },
+    {
+      "ts": "2026-09-21 11:39:38",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-21 12:45:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 12:45:28",
       "event": "publish",
       "host": "falcon",
       "ok": true
