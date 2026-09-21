@@ -505,8 +505,16 @@ def _submit(args, resume: bool) -> None:
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     if resume and extra is None and not args.test and not args.dry_run and step.get("runs"):
-        extra = step["runs"][-1].get("extra", "")      # resume repeats the last submit's snakemake args
-        cores = args.cores or step["runs"][-1].get("cores", cores)
+        # resume repeats the snakemake args of the last REAL submit: skip dry runs (-n) and test
+        # slices, and take the user's extra args only (not the -n / test flags roast appended).
+        # (Replaying a `submit -n` here once turned a resume into a 12-second no-op.)
+        for run in reversed(step["runs"]):
+            if run.get("dry_run") or run.get("test") or "-n" in (run.get("extra") or "").split():
+                continue
+            extra = run.get("user_extra", run.get("extra", ""))
+            cores = args.cores or run.get("cores", cores)
+            break
+    user_extra = extra or ""
     parts = [extra or ""]
     if args.test:
         parts.append("--config test=true")             # workflows' small-slice mode (local execution, few files)
@@ -568,7 +576,9 @@ def _submit(args, resume: bool) -> None:
         info("captured config.yml changed since `new`; recording the new sha256")
         r["config"]["sha256"] = cfg_sha
         log_event(r, "config-edited", sha256=cfg_sha[:12])
-    step.setdefault("runs", []).append({"ts": now(), "cores": cores, "extra": args.extra or "", "resume": resume, "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
+    step.setdefault("runs", []).append({"ts": now(), "cores": cores, "extra": args.extra or "", "user_extra": user_extra,
+                                        "dry_run": bool(args.dry_run), "test": bool(args.test), "resume": resume,
+                                        "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
     save_roast(r)
     info(f"attach: ssh -t {target} tmux attach -t {TMUX_SESSION}    |    {TOOL} status {r['id']}")
@@ -744,9 +754,9 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     elif host == "falcon":
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
-            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); echo "SLURM|$jid|$rest|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
             # recently finished jobs of this roast (failures are what you want to see)
-            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print "SLURMDONE|" $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -4''',
+            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -6 | while IFS="|" read -r jid rest; do rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURMDONE|$jid|${{rule:-$(echo "$rest" | cut -d"|" -f1 | cut -c1-8)}}|$(echo "$rest" | cut -d"|" -f2-)"; done''',
             f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
         ])
     else:
@@ -762,7 +772,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
                 else st="stalled"; fi
             else st="not started"; fi
             win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
-            prog=$(ls -t .snakemake/log/*.snakemake.log 2>/dev/null | head -1 | xargs -r grep -h -o '[0-9]* of [0-9]* steps ([0-9]*%) done' 2>/dev/null | tail -1)
+            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | cut -c1-90)
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
@@ -797,14 +807,16 @@ def cmd_status(args) -> None:
                 elif line.startswith("SLURM|"):
                     f = (line.split("|") + [""] * 11)[:11]
                     _, jid, rule, state, el, lim, node, cpus, mem, tres, tail = f
+                    rule = rule[5:] if rule.startswith("rule_") else rule
                     colour = "\033[33m" if state == "RUNNING" else "\033[31m" if state not in ("PENDING", "COMPLETED") else ""
-                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':12s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
+                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':20s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
                     if tail.strip():
                         print(f"  {host:7s}                 {tail.strip()}")
                 elif line.startswith("SLURMDONE|"):
-                    _, jid, name, state, el, rss = (line.split("|") + [""] * 6)[:6]
+                    _, jid, rule, state, el, rss = (line.split("|") + [""] * 6)[:6]
+                    rule = rule[5:] if rule.startswith("rule_") else rule
                     colour = "\033[32m" if state == "COMPLETED" else "\033[31m"
-                    print(f"  {host:7s} slurm   {jid:>7s} {name[:12]:12s} {colour}{state:9s}\033[0m {el:>8s}          {('maxrss=' + rss) if rss else ''}".rstrip())
+                    print(f"  {host:7s} slurm   {jid:>7s} {rule[:20]:20s} {colour}{state:9s}\033[0m {el:>8s}{('  maxrss=' + rss) if rss else ''}".rstrip())
                 elif line.startswith("SINFO|"):
                     _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
                     print(f"  {host:7s} cluster {part} {nodes} node(s) {state} {gres}")
