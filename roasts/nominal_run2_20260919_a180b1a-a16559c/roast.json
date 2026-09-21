@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run2.yml",
     "captured": "config.yml",
-    "sha256": "bda587b0f95ec411203fac859ecb7ce6f9a4c68543ea43d01147f9ef1d6a869f"
+    "sha256": "8828678e1d6b1f4121697977d10a5dec97185345f254ca4a4908b89bf4ce54d5"
   },
   "steps": [
     {
@@ -187,6 +187,33 @@
           "window": "nominal_run2_20260919_D",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "bda587b0f95e"
+        },
+        {
+          "ts": "2026-09-20 23:35:31",
+          "cores": 4,
+          "extra": "",
+          "resume": false,
+          "window": "nominal_run2_20260919_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "0b681c33fe96"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-21 07:51:56",
+          "cores": 8,
+          "extra": "-n",
+          "resume": false,
+          "window": "nominal_run2_20260919_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "8828678e1d6b"
         }
       ]
     }
@@ -393,6 +420,28 @@
       "event": "submit",
       "step": "D",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-09-20 23:35:31",
+      "event": "config-edited",
+      "sha256": "0b681c33fe96"
+    },
+    {
+      "ts": "2026-09-20 23:35:31",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-21 07:51:56",
+      "event": "config-edited",
+      "sha256": "8828678e1d6b"
+    },
+    {
+      "ts": "2026-09-21 07:51:56",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
     }
   ],
   "notes": "",
