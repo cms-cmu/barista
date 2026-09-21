@@ -296,7 +296,8 @@ def cmd_init(args) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
-        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@cmslpc307.fnal.gov"
+        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node}.fnal.gov"
+        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
     if args.cern_user:
@@ -307,7 +308,12 @@ def cmd_init(args) -> None:
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
         f.write("\n")
-    info(f"wrote {CONFIG_PATH}; edit ssh targets, paths and cores to taste")
+    info(f"wrote {CONFIG_PATH}")
+    for key, val in (("cmslpc ssh", cfg["hosts"]["cmslpc"]["ssh"]), ("falcon ssh", cfg["hosts"]["falcon"]["ssh"]),
+                     ("EOS archive", cfg["eos"]["path"]), ("CERNBox", cfg["cernbox"]["url"])):
+        info(f"  {key:12s} {val}")
+    if any("<" in json.dumps(cfg[k]) for k in ("hosts", "cernbox", "eos")):
+        info("  placeholders in <angle brackets> still need editing")
 
 
 def cmd_new(args) -> None:
@@ -1195,7 +1201,10 @@ def main(argv=None) -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("init", help="write ~/.config/roast/config.json")
-    s.add_argument("--cmslpc-user"); s.add_argument("--falcon-user"); s.add_argument("--cern-user"); s.add_argument("--owner")
+    s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
+    s.add_argument("--cmslpc-node", default="cmslpc307", help="LPC interactive node to pin (default: cmslpc307)")
+    s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
 
