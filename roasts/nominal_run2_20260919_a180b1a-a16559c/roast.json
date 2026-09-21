@@ -329,7 +329,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run2_20260919_a180b1a-a16559c/",
-    "ts": "2026-09-21 12:45:29",
+    "ts": "2026-09-21 13:07:36",
     "ok": true,
     "pages": [
       "output/TESTRun2/FvT_closure/cutflow_FvT_closure.html",
@@ -339,7 +339,8 @@
       "output/TESTRun2/computeJCM/plots_wJCM/index.html",
       "output/TESTRun2/cutflow_TESTRun2.html",
       "output/TESTRun2/cutflow_crosscheck_TESTRun2.html",
-      "output/TESTRun2/plots_TESTRun2/index.html"
+      "output/TESTRun2/plots_TESTRun2/index.html",
+      "output/TESTRun2/stat_analysis/summary.html"
     ]
   },
   "history": [
@@ -683,6 +684,30 @@
     },
     {
       "ts": "2026-09-21 12:45:28",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 12:57:43",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 12:57:54",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 13:07:26",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-21 13:07:36",
       "event": "publish",
       "host": "falcon",
       "ok": true
