@@ -536,9 +536,8 @@ def _submit(args, resume: bool) -> None:
     # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
     guard = textwrap.dedent(f"""\
         tmux has-session -t {TMUX_SESSION} 2>/dev/null || tmux new-session -d -s {TMUX_SESSION} -n hub
-        live=$(pgrep -u "$USER" -f {shlex.quote(driver_pat)} | wc -l)
-        if [ "$live" != "0" ]; then
-            echo "a snakemake driver for this roast is still running on $(hostname) ($live proc); refusing to double-submit" >&2
+        if pgrep -u "$USER" -f {shlex.quote(driver_pat)} >/dev/null 2>&1; then
+            echo "a snakemake driver for this roast is still running on $(hostname); refusing to double-submit" >&2
             exit 3
         fi
         if tmux list-windows -t {TMUX_SESSION} -F '#W' | grep -qx {shlex.quote(window)}; then
@@ -872,7 +871,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
         batch = "true"
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
-        live=$(pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} | wc -l)
+        if pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} >/dev/null 2>&1; then live=1; else live=0; fi
         for S in {step_names}; do
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";
             elif [ -f logs/$S.log ]; then
