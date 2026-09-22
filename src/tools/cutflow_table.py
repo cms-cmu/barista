@@ -57,7 +57,7 @@ def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, st
             process, era_part = dataset, "Unknown"
 
         # Check for year/era in era_part
-        m = re.match(r"^((?:UL\d{2}(?:_preVFP|_postVFP)?|\d{4}(?:_preEE|_postEE|_BPix)?))(_[A-H]|[A-H])?$", era_part)
+        m = re.match(r"^((?:UL\d{2}(?:_preVFP|_postVFP)?|\d{4}(?:_preEE|_postEE|_EE|_preBPix|_postBPix|_BPix)?))(_[A-H]\d*|[A-H]\d*)?$", era_part)
         if m:
             year = m.group(1)
             sub_era = era_part
@@ -81,8 +81,9 @@ def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, st
             process = "TTbar"
         return process, year, sub_era
 
-    # Run 3 single underscore format: e.g. data_2022_preEEB, data_2022_preEE_B
-    pattern_run3 = r"^(.*?)_(\d{4}(?:_preEE|_postEE|_BPix)?)(?:_?([A-H]))?$"
+    # Run 3 single underscore format: e.g. data_2022_preEEB, data_2022_preEE_B, data_2022_EEG,
+    # TTToSemiLeptonic_stitched_2022_EE, data_2023_preBPixC1 (era letters may carry a digit in 2023)
+    pattern_run3 = r"^(.*?)_(\d{4}(?:_preEE|_postEE|_EE|_preBPix|_postBPix|_BPix)?)(?:_?([A-H]\d*))?$"
     match_r3 = re.match(pattern_run3, dataset)
     if match_r3:
         process = match_r3.group(1)
