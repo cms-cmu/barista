@@ -725,7 +725,10 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
     """Handle stack components that are sums of processes."""
     valid_sums = {}
     for sum_proc_name, sum_proc_config in proc_config["sum"].items():
-        sum_proc_config["year"] = proc_config["year"]
+        # `year` is a style key (see _STYLE_KEYS): it never reaches the hist indexing, which
+        # uses the `year` argument below. Keyed off proc_config with a default so a stack
+        # entry need not carry a dead `year:` just to keep this lookup from raising.
+        sum_proc_config["year"] = proc_config.get("year", year)
         var_to_plot = var_over_ride.get(sum_proc_name, var_to_plot)
 
         success = add_hist_data(cfg=cfg, config=sum_proc_config,
