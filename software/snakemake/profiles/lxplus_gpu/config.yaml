@@ -1,0 +1,21 @@
+# Snakemake profile for classifier training/evaluation on CERN lxplus.
+# GPU rules (train, evaluate*, or any rule with a gres/gpus resource) are submitted to HTCondor GPU
+# nodes by software/snakemake/scripts/lxplus_condor_submit.py; all other rules run locally on the
+# login node. The condor job runs the Snakemake jobscript (pixi python on AFS, MY.SendCredential),
+# which starts the rule container itself with the apptainer args below (--nv for CUDA).
+# Auto-selected by run_container for src/classifier/workflow/Snakefile and the Phase C/D/E.4
+# training workflows; pass --profile explicitly to override.
+executor: cluster-generic
+cluster-generic-submit-cmd: "python software/snakemake/scripts/lxplus_condor_submit.py"
+cluster-generic-status-cmd: "python software/snakemake/scripts/status_wrapper.py"
+cluster-generic-cancel-cmd: "condor_rm"
+software-deployment-method:
+  - apptainer
+apptainer-args: "--nv -B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /afs -B /eos --env X509_USER_PROXY=proxy/x509_proxy"
+default-resources:
+  - "tmpdir='/tmp'"
+  - "mem_mb=4000"
+jobs: 10
+latency-wait: 60
+retries: 1
+rerun-triggers: mtime

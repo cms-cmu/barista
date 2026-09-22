@@ -88,6 +88,32 @@ The `run_container` script automatically detects and configures for different co
 - **Storage Binding**: `/afs`, `/eos`, `/cvmfs`
 - **Grid Security**: Automatic mounting of grid certificates
 - **CVMFS Access**: Full access to CERN software repositories
+- **HTCondor (Dask workers)**: `runner.py --condor` auto-detects lxplus and submits Dask workers to
+  CERN HTCondor with [`dask_lxplus`](https://github.com/cernops/dask-lxplus) (`CernCluster`). Workers run
+  inside the analysis image (`MY.SingularityImage`, `+JobFlavour`, `MY.SendCredential`). The code tarball
+  is staged once on EOS and fetched by URL; worker `stdout`/`stderr` are delivered to
+  `<lxplus_eos_scratch>/condor_logs/<run>/` (default `/eos/cms/store/group/phys_higgs/ttHbb/$USER/4b/barista_scratch`).
+  Runner config keys: `condor_site`, `lxplus_job_flavour` (`workday`), `lxplus_disk_per_worker` (`10GB`),
+  `lxplus_death_timeout` (`3600`), `lxplus_scheduler_port` (`8786`), `lxplus_batch_name`,
+  `lxplus_worker_image`, `lxplus_eos_scratch`, `lxplus_send_credential`. `--condor-site lpc|lxplus` forces a backend.
+- **Condor client inside the container**: `run_container` binds `/etc/condor` and `/etc/sysconfig/ngbauth-submit`
+  (not `/etc/krb5.conf`: the host file needs an unbound `includedir` and breaks Kerberos in the image), skips the
+  host-only `myschedd` hook (`SKIP_LOCAL_CONFIG_FILE=TRUE`, explicit `_CONDOR_SCHEDD_HOST`/`_CONDOR_CREDD_HOST`),
+  copies your Kerberos cache to `/tmp/$USER/krb5cc_barista`
+  (it outlives the login session, unlike `/run/user/<uid>`) and stores the batch credential with
+  `condor_store_cred` so `MY.SendCredential` jobs can be submitted from the container.
+- **GPU jobs**: `./run_container classifier <cmd>` submits `<cmd>` as an HTCondor GPU job in the classifier
+  image (`software/condor/submit_classifier_lxplus.sh`; knobs `CONDOR_JOB_FLAVOUR`, `CONDOR_REQUEST_GPUS`,
+  `CONDOR_REQUEST_CPUS`, `CONDOR_REQUEST_MEMORY`, `CONDOR_GOOD_GPUS`, `CONDOR_INTERACTIVE`, `CONDOR_DRY_RUN`,
+  `CONDOR_LOG_DIR`). Snakemake training workflows are auto-dispatched to the `lxplus_gpu` profile, which sends
+  GPU rules to HTCondor through `software/snakemake/scripts/lxplus_condor_submit.py` and runs the rest locally.
+- **Setup**: `./run_container lxplus-setup` (EOS scratch dirs, credential, interim `dask_lxplus` install when
+  the image predates it) and `./run_container voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy`.
+- **Kerberos lifetime**: the copied ticket is valid ~24 h. For longer shared-dask daemons renew it
+  (`kinit -R` or a fresh `kinit`, then any `./run_container` call refreshes the copy); without a valid ticket the
+  daemon cannot submit or remove workers. Spooled worker logs that did not reach EOS can be fetched with
+  `condor_transfer_data <cluster>`.
+- **Pixi**: installed under `/afs/cern.ch/work/<u>/<user>/.pixi` when the work volume exists (`BARISTA_PIXI_DIR` overrides).
 
 ### Local/Custom Environments
 

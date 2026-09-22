@@ -119,6 +119,17 @@ def setup_config_defaults(config_runner, args):
         'slurm_walltime': '08:00:00',
         'slurm_log_directory': 'slurm_logs',
         'slurm_job_extra': [],
+        # HTCondor site for --condor: None = auto-detect (BARISTA_SITE env / hostname), 'lpc' or 'lxplus'
+        'condor_site': None,
+        # lxplus (CERN HTCondor via dask_lxplus) worker settings
+        'lxplus_job_flavour': 'workday',
+        'lxplus_disk_per_worker': '10GB',
+        'lxplus_death_timeout': 3600,
+        'lxplus_scheduler_port': 8786,
+        'lxplus_batch_name': 'barista-dask',
+        'lxplus_worker_image': None,
+        'lxplus_eos_scratch': '/eos/cms/store/group/phys_higgs/ttHbb/{user}/4b/barista_scratch',
+        'lxplus_send_credential': True,
     }
 
     for key, default_value in defaults.items():
