@@ -90,6 +90,9 @@ fi
     echo "output = ${JOB_DIR}/job.\$(ClusterId).\$(ProcId).out"
     echo "error = ${JOB_DIR}/job.\$(ClusterId).\$(ProcId).err"
     echo "log = ${JOB_DIR}/job.\$(ClusterId).log"
+    # stream stdout/stderr to AFS while the job runs (otherwise they only appear at job end)
+    echo "stream_output = True"
+    echo "stream_error = True"
     echo "MY.SendCredential = True"
     echo "MY.SingularityImage = \"${IMAGE}\""
     echo "+JobFlavour = \"${JOB_FLAVOUR}\""
