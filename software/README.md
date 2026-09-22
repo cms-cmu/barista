@@ -114,6 +114,17 @@ The `run_container` script automatically detects and configures for different co
   daemon cannot submit or remove workers. Spooled worker logs that did not reach EOS can be fetched with
   `condor_transfer_data <cluster>`.
 - **Pixi**: installed under `/afs/cern.ch/work/<u>/<user>/.pixi` when the work volume exists (`BARISTA_PIXI_DIR` overrides).
+- **Node firewall**: CERN opens the standard Dask port 8786 for inbound connections on lxplus nodes but not
+  arbitrary ports (a probe from a batch node reached lxplus954:8786 but not :8790), and some nodes block even
+  8786 (lxplus963); workers then fail with "Timed out trying to connect to tcp://<ip>:8786". `run_container`
+  probes port 8786 from an lxplus node on another network before a `--condor` run (`lxplus_check_scheduler_port`,
+  cached per node in `/tmp/$USER`) and warns if blocked; `./run_container lxplus-check` gives the definitive
+  answer from an HTCondor job. Keep `lxplus_scheduler_port` at 8786 and prefer `--shared-dask` so that one
+  scheduler per node uses it.
+- **Long runs**: lxplus kills a login session's processes at logout (`KillUserProcesses=yes`), including
+  `nohup` jobs and the shared-dask daemon. Start long productions with
+  `systemd-run --user --scope -- tmux new-session -d -s <name> "<command>"` (after `loginctl enable-linger $USER`)
+  and reattach with `tmux attach` on the same node.
 
 ### Local/Custom Environments
 

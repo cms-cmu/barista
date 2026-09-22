@@ -112,6 +112,86 @@ add_lxplus_condor_flags() {
     fi
 }
 
+lxplus_check_scheduler_port() {
+    # CERN opens the standard Dask scheduler port (8786) for inbound connections on lxplus nodes, but not
+    # arbitrary ports, and some nodes block even 8786 (seen on lxplus963: HTCondor workers die with
+    # "Timed out trying to connect to tcp://<ip>:8786"). lxplus VMs on the same network can still reach such a
+    # node, so the probe is only trusted when it comes from a node on a different network. Cached per node/port.
+    local port="${1:-8786}"
+    local host_short; host_short=$(hostname -s)
+    local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$ip" ] || return 0
+    local my_net="${ip%.*.*}"
+    local cache="/tmp/${USER}/lxplus_portcheck_${host_short}_${port}"
+    mkdir -p "/tmp/${USER}"
+    if [ ! -f "$cache" ]; then
+        # Temporary listener; if the port is busy (e.g. a running daemon) skip the check.
+        python3 -c "import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('$ip',$port)); s.listen(1); time.sleep(90)" >/dev/null 2>&1 &
+        local lpid=$!
+        sleep 1
+        kill -0 "$lpid" 2>/dev/null || return 0
+        # Probe from lxplus pool nodes on another /16 network (DNS round-robin alone tends to return
+        # same-network VMs, which are allowed through where batch nodes are not).
+        local res="" probe
+        for probe in $(getent ahostsv4 lxplus.cern.ch | awk '{print $1}' | sort -u | grep -v "^${my_net}\." | shuf | head -4); do
+            res=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$probe" \
+                  "timeout 5 bash -c 'echo > /dev/tcp/$ip/$port' 2>/dev/null && echo open || echo blocked" 2>/dev/null | tail -1)
+            case "$res" in open|blocked) break ;; esac
+        done
+        kill "$lpid" 2>/dev/null
+        case "$res" in
+            open|blocked) echo "$res" > "$cache" ;;
+            *) return 0 ;;   # no pool node on another network reachable over ssh: inconclusive, do not cache
+        esac
+    fi
+    if [ "$(cat "$cache")" = "blocked" ]; then
+        warning "Inbound TCP port ${port} on $(hostname) (${ip}) is blocked from other CERN networks."
+        warning "HTCondor Dask workers cannot reach a scheduler started here. Log in to another lxplus node"
+        warning "(e.g. lxplus954 accepted worker connections) and retry; '$0 lxplus-check' verifies a node from a batch job."
+        return 1
+    fi
+    return 0
+}
+
+run_lxplus_check() {
+    # Definitive check: an HTCondor job connects back to a listener on this node's scheduler port.
+    [[ $(hostname) != *lxplus* ]] && { error "lxplus-check is only meaningful on lxplus."; exit 1; }
+    local port="${1:-8786}"
+    local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    setup_lxplus_kerberos
+    local dir="$HOME/.barista/lxplus_check_$(date +%s)"
+    mkdir -p "$dir" || { error "cannot create $dir"; exit 1; }
+    python3 -c "import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('$ip',$port)); s.listen(1); time.sleep(600)" >/dev/null 2>&1 &
+    local lpid=$!
+    sleep 1
+    kill -0 "$lpid" 2>/dev/null || { error "Port ${port} is already in use on $(hostname) (a Dask scheduler running?). Stop it or pass another port."; exit 1; }
+    printf '#!/bin/bash\necho "probe from $(hostname) $(hostname -I)"\ntimeout 8 bash -c "echo > /dev/tcp/%s/%s" 2>/dev/null && echo "RESULT: OPEN" || echo "RESULT: BLOCKED"\n' "$ip" "$port" > "$dir/probe.sh"
+    chmod +x "$dir/probe.sh"
+    cat > "$dir/probe.sub" <<EOF
+universe = vanilla
+executable = $dir/probe.sh
+output = $dir/probe.\$(ClusterId).out
+error = $dir/probe.\$(ClusterId).err
+log = $dir/probe.\$(ClusterId).log
+MY.SendCredential = True
++JobFlavour = "espresso"
+request_memory = 512MB
+queue
+EOF
+    info "Submitting a probe job that connects back to ${ip}:${port} (usually 1-3 min)..."
+    local cid; cid=$(condor_submit "$dir/probe.sub" 2>&1 | sed -n 's/.*cluster \([0-9]*\).*/\1/p')
+    [ -n "$cid" ] || { error "condor_submit failed"; kill "$lpid" 2>/dev/null; exit 1; }
+    local waited=0
+    while [ -n "$(condor_q "$cid" -af JobStatus 2>/dev/null)" ] && [ $waited -lt 570 ]; do sleep 15; waited=$((waited+15)); done
+    kill "$lpid" 2>/dev/null
+    local res; res=$(grep -o "RESULT: .*" "$dir/probe.$cid.out" 2>/dev/null)
+    case "$res" in
+        *OPEN*)    info "Port ${port} on $(hostname) is reachable from HTCondor workers: $(head -1 "$dir/probe.$cid.out")"; echo open > "/tmp/${USER}/lxplus_portcheck_$(hostname -s)_${port}" ;;
+        *BLOCKED*) error "Port ${port} on $(hostname) is BLOCKED for HTCondor workers ($(head -1 "$dir/probe.$cid.out")). Use another lxplus node."; echo blocked > "/tmp/${USER}/lxplus_portcheck_$(hostname -s)_${port}"; exit 1 ;;
+        *)         warning "Probe job ${cid} did not finish in time; check condor_q ${cid} and $dir" ;;
+    esac
+}
+
 show_help() {
     cat << EOF
 Usage: $0 [command] [options]
@@ -129,6 +209,8 @@ Commands:
   snakemake_container   Run snakemake inside a container (backup option).
   lxplus-setup          One-time lxplus setup: EOS scratch dirs, Kerberos credential,
                         interim dask_lxplus install if the image lacks it.
+  lxplus-check [port]   Verify from an HTCondor job that Dask workers can reach a scheduler
+                        on this lxplus node (default port 8786; some nodes block it).
   --help                Show this help message.
 
 Examples:
@@ -453,6 +535,10 @@ run_coffea() {
             fi
         fi
     done
+
+    if [[ $HOST == *lxplus* ]] && $_wants_condor && [[ " $* " != *" --start-cluster-daemon "* ]]; then
+        lxplus_check_scheduler_port 8786 || true
+    fi
 
     if $_wants_shared_dask && ($_wants_condor || $_wants_slurm || $_wants_dask) && \
        [[ " $* " != *" --start-cluster-daemon "* ]]; then
@@ -1237,6 +1323,8 @@ run_lxplus_setup() {
     mkdir -p "${EOS_BASE}/barista_scratch/condor_logs" 2>/dev/null \
         || warning "Could not create ${EOS_BASE}/barista_scratch (check your EOS permissions or set lxplus_eos_scratch in the runner config)"
     setup_lxplus_kerberos
+    info "Checking that HTCondor workers can reach a Dask scheduler on this node (port 8786)..."
+    lxplus_check_scheduler_port 8786 && info "Port 8786 on $(hostname) is reachable from other CERN hosts."
     local SITE="${BARISTA_LXPLUS_SITE:-$PWD/.lxplus_site}"
     if run_coffea "python -c 'import dask_lxplus'" >/dev/null 2>&1; then
         info "dask_lxplus is available in the analysis image."
@@ -1269,6 +1357,7 @@ case "$1" in
     "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
     "lxplus-setup")        run_lxplus_setup ;;
+    "lxplus-check")        run_lxplus_check "${@:2}" ;;
     "pourover")            run_coffea "python coffea4bees/plots/pourOver.py --foreground ${@:2}" ;;
     "dev")                 run_coffea_dev "${@:2}" ;;
     *)                     run_coffea "$@" ;;
