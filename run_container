@@ -618,10 +618,13 @@ exit(1)
                     fi
                 fi
 
-                # Spawn daemon in the background on the host
+                # Spawn daemon in the background on the host. setsid detaches it from the controlling
+                # terminal and process group of the job that spawned it: otherwise closing that terminal
+                # (e.g. a tmux pane whose job finished) sends a SIGHUP that apptainer forwards into the
+                # container and kills the daemon, failing every other job still using the scheduler.
                 (
                     exec 9>&-
-                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                    nohup setsid "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 < /dev/null &
                 )
 
                 # Wait inside the lock for the daemon to become responsive
