@@ -12,7 +12,8 @@
 #   CONDOR_REQUEST_CPUS  (4)
 #   CONDOR_REQUEST_MEMORY (32GB)
 #   CONDOR_GOOD_GPUS     (0)         1 -> only A100/V100/H100/H200 (MIG slices are always excluded)
-#   CONDOR_LOG_DIR       (<workdir>/condor_logs/classifier)
+#   CONDOR_LOG_DIR       (<workdir>/condor_logs/classifier)  must NOT be under /eos: the standard
+#                                    schedds refuse /eos paths for executable/log/output/error (use AFS)
 #   CONDOR_EXTRA         ()          extra submit-file lines, separated by ';'
 #
 # Modelled on ttHbb_SPANet/scripts/submit_to_condor.py and jobs/classification.sh.
@@ -47,6 +48,11 @@ REQUEST_CPUS="${CONDOR_REQUEST_CPUS:-4}"
 REQUEST_MEMORY="${CONDOR_REQUEST_MEMORY:-32GB}"
 GOOD_GPUS="${CONDOR_GOOD_GPUS:-0}"
 LOG_DIR="${CONDOR_LOG_DIR:-${WORKDIR}/condor_logs/classifier}"
+case "$LOG_DIR" in /eos/*)
+    echo "[submit_classifier_lxplus] ERROR: CONDOR_LOG_DIR=$LOG_DIR is on /eos; the standard CERN schedds refuse /eos paths" >&2
+    echo "[submit_classifier_lxplus]        for executable/log/output/error. Set CONDOR_LOG_DIR to an AFS directory." >&2
+    exit 2 ;;
+esac
 JOB_DIR="${LOG_DIR}/$(date +%Y%m%d_%H%M%S)_$$"
 mkdir -p "$JOB_DIR"
 
