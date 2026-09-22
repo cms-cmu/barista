@@ -218,6 +218,38 @@ def _lxplus_worker_image(config_runner):
     return image
 
 
+def _port_is_free(port):
+    """True if `port` can be bound (SO_REUSEADDR, like Dask's listener), i.e. no live scheduler holds it."""
+    with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(('', int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def _wait_for_lxplus_port(port, timeout=90):
+    """Return `port` once it is bindable, waiting up to `timeout` s for a previous scheduler to release it.
+
+    On lxplus the scheduler must stay on the configured port: CERN opens 8786 for inbound worker
+    connections but blocks arbitrary ports, so falling back to an OS-chosen port would leave every
+    worker unable to connect. A port still held after the timeout is an error, not a fallback.
+    """
+    deadline = time.time() + timeout
+    while True:
+        if _port_is_free(port):
+            return int(port)
+        if time.time() >= deadline:
+            raise RuntimeError(
+                f"Port {port} on {socket.gethostname()} is still in use after {timeout}s. Another Dask "
+                "scheduler (a shared-dask daemon?) is probably running here; reuse it with --shared-dask "
+                "or stop it. lxplus workers can only reach the configured scheduler port."
+            )
+        logging.info(f"Scheduler port {port} busy, waiting for it to be released...")
+        time.sleep(5)
+
+
 def _lxplus_eos_scratch(config_runner):
     """Return the writable EOS scratch directory for tarball staging and worker logs, or None."""
     scratch = config_runner.get('lxplus_eos_scratch')
@@ -251,8 +283,6 @@ def setup_lxplus_condor_cluster(config_runner, tarball_path, proxy_path=None):
             "software/dockerfiles/Dockerfile_analysis (it lists dask-lxplus) or, as an interim measure on "
             "lxplus, run `./run_container lxplus-setup` to install it into .lxplus_site/."
         ) from e
-    from src.runner.orchestrator import find_free_port
-
     logging.info("Initializing lxplus HTCondor cluster configuration (dask_lxplus)...")
     image = _lxplus_worker_image(config_runner)
     eos_scratch = _lxplus_eos_scratch(config_runner)
@@ -308,7 +338,7 @@ def setup_lxplus_condor_cluster(config_runner, tarball_path, proxy_path=None):
     else:
         logging.warning("No X509 proxy passed to the workers (remote xrootd reads will fail without one).")
 
-    port = find_free_port(int(config_runner['lxplus_scheduler_port']))
+    port = _wait_for_lxplus_port(int(config_runner['lxplus_scheduler_port']))
     cluster_args = {
         'cores': int(config_runner['condor_cores']),
         'processes': 1,

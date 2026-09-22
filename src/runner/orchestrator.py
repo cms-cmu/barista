@@ -77,9 +77,14 @@ def compute_with_client(client, func, *args, **kwargs):
         return func(*args, dask=False, **kwargs)
 
 def find_free_port(preferred: int) -> int:
-    """Return preferred port if free, otherwise let the OS pick one."""
+    """Return preferred port if free, otherwise let the OS pick one.
+
+    SO_REUSEADDR makes the probe behave like Dask's own listener: a port whose previous
+    scheduler just exited (connections in TIME_WAIT) is reported free, not busy.
+    """
     import socket
     with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(('', preferred))
         except OSError:

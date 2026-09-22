@@ -293,7 +293,7 @@ class TestCondorSites(unittest.TestCase):
         fake_mod = MagicMock(CernCluster=fake_cls)
         with patch.dict(sys.modules, {"dask_lxplus": fake_mod}), \
              patch("dask.distributed.Client") as mock_client, \
-             patch("src.runner.orchestrator.find_free_port", return_value=8790), \
+             patch("src.runner.cluster._port_is_free", return_value=True), \
              patch.dict(os.environ, env):
             client, cluster, log_dir = setup_lxplus_condor_cluster(config, tarball, proxy)
         return fake_cls, mock_client, cluster, log_dir
@@ -314,7 +314,7 @@ class TestCondorSites(unittest.TestCase):
             self.assertEqual(kwargs["cores"], 2)
             self.assertEqual(kwargs["processes"], 1)
             self.assertEqual(kwargs["disk"], "10GB")
-            self.assertEqual(kwargs["scheduler_options"]["port"], 8790)
+            self.assertEqual(kwargs["scheduler_options"]["port"], 8786)  # the configured port, never a fallback
             self.assertEqual(kwargs["log_directory"], os.path.join(tmp, "logs"))
             self.assertIn("export X509_USER_PROXY=${X509_USER_PROXY:-$PWD/x509_proxy}", kwargs["job_script_prologue"])
             directives = kwargs["job_extra_directives"]
@@ -345,6 +345,11 @@ class TestCondorSites(unittest.TestCase):
             self.assertNotIn("MY.SendCredential", directives)
             self.assertNotIn("x509userproxy", directives)
             self.assertEqual(log_dir, "/eos/cms/store/group/test/logs")
+
+    def test_wait_for_lxplus_port_errors_when_busy(self):
+        with patch("src.runner.cluster._port_is_free", return_value=False), patch("time.sleep"):
+            with self.assertRaises(RuntimeError):
+                cluster_mod._wait_for_lxplus_port(8786, timeout=0)
 
     def test_setup_lxplus_condor_cluster_requires_dask_lxplus(self):
         with patch.dict(sys.modules, {"dask_lxplus": None}):
