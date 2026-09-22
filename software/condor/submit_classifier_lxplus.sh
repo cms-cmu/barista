@@ -10,7 +10,8 @@
 #   CONDOR_JOB_FLAVOUR   (tomorrow)  espresso|microcentury|longlunch|workday|tomorrow|testmatch|nextweek
 #   CONDOR_REQUEST_GPUS  (1)         number of GPUs; 0 submits a CPU-only job
 #   CONDOR_REQUEST_CPUS  (4)
-#   CONDOR_REQUEST_MEMORY (32GB)
+#   CONDOR_REQUEST_MEMORY (32GB)      CERN raises RequestCpus to memory/3GB (64GB -> 22 cores, which no
+#                                    single-GPU A100 machine [16 cores, 118GB] can offer); stay <= 48GB
 #   CONDOR_GOOD_GPUS     (0)         1 -> only A100/V100/H100/H200 (MIG slices are always excluded)
 #   CONDOR_LOG_DIR       (<workdir>/condor_logs/classifier)  must NOT be under /eos: the standard
 #                                    schedds refuse /eos paths for executable/log/output/error (use AFS)
