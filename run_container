@@ -145,9 +145,12 @@ lxplus_check_scheduler_port() {
         esac
     fi
     if [ "$(cat "$cache")" = "blocked" ]; then
-        warning "Inbound TCP port ${port} on $(hostname) (${ip}) is blocked from other CERN networks."
-        warning "HTCondor Dask workers cannot reach a scheduler started here. Log in to another lxplus node"
-        warning "(e.g. lxplus954 accepted worker connections) and retry; '$0 lxplus-check' verifies a node from a batch job."
+        # The ssh probe is indicative only: lxplus954 failed it while HTCondor workers connected to it fine
+        # (the batch networks are allowed through where the lxplus pool networks are not), so do not treat it
+        # as a failure; '$0 lxplus-check' (a probe from a batch job) is the definitive test.
+        warning "An lxplus node on another CERN network could not reach TCP port ${port} on $(hostname) (${ip})."
+        warning "If HTCondor Dask workers time out connecting to tcp://${ip}:${port}, this node's firewall blocks them:"
+        warning "log in to another lxplus node (lxplus954 is known to work); '$0 lxplus-check' verifies a node from a batch job."
         return 1
     fi
     return 0
