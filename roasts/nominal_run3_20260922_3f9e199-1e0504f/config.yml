@@ -84,6 +84,16 @@ classifier_setting:
   - module: HCR.InputBranch
     option:
       - feature_ancillary: [xW, nSelJets, xbW, year]
+      # Encode only SR/SB in the region index. The classifier ORs MassRegion values together,
+      # which assumes the channel flags decompose SR -- true for Run 2 (SR = ZZSR|ZHSR|HHSR),
+      # but Run 3 takes SR from the radial distance rhh and leaves ZZSR/ZHSR/HHSR as
+      # independent mass windows, so an event in the ZZ window and the Run 3 sideband encodes
+      # as ZZSR|SB = 7, which is not a MassRegion member and aborts the training.
+      # The processor still writes all five columns and the friend trees still carry them, so
+      # this reverts to the full decomposition simply by dropping this line once Run 3 ZZ/ZH
+      # samples exist. Neither Run 3 training reads them today: the FvT selects on (SB | SR),
+      # the SvB on --regions (default ["SR"]).
+      - mass_regions: [SR, SB]
 
 # ==============================================================================
 # PHASE B -> C/D HANDOFF
@@ -153,6 +163,8 @@ fvt_closure:
   # exist, so the hard error belongs here rather than analysis_config's blanket false.
   config:
     require_trigWeight: true
+    # JCM x FvT, no SvB (run_SvB is forced false in the snakefile).
+    friends_include: [trigWeight, FvT]
 
 svb:
   # Phase D (falcon). Same per-roast pattern as fvt; the FvT friend used for the background is
@@ -200,6 +212,11 @@ jcm_known_counts_wJCM: "coffea4bees/analysis/tests/known_fullCounts_JCM_wJCM_Run
 jcm:
   config:
     require_trigWeight: true
+    # B.1 nulls every SvB*/FvT key and runs with run_SvB false, so trigWeight is the only friend
+    # it reads -- but friends_HH4b.yml defines ~19 for the Run 3 years (FvT, MvD and sixteen SvB
+    # study trainings, ~25 MB of JSON). Every one was being fetched from EOS, parsed, and pickled
+    # into the processor shipped to each worker. Inject just the one.
+    friends_include: [trigWeight]
 # B.1's second pass plots with the NoFvT config. Shared with Run 2: the plot configs name both
 # runs' signal samples and makePlots drops the ones absent from the input file, and the year
 # comes from --year (the rule passes Run3 here), not from the config.
@@ -268,6 +285,10 @@ analysis_config:
     # earlier production's fit, and the 3b data / 3b ttbar normalisation is wrong.
     JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_v1.yml
     apply_trigWeight: true
+    # The only per-year friends F.1 reads. The FvT / SvB_MA entries under `friends:` above are
+    # named explicitly and are merged in after this filter, so they still override the per-year
+    # ones with THIS roast's Phase C/D outputs; the sixteen SvB study friends are not injected.
+    friends_include: [trigWeight, FvT, SvB_MA]
     # Same as classifier_inputs above: no trigger-weight friend for the Run 3 ggF signal yet,
     # so its yield is overestimated by ~1/eff(trigger) until Phase A.2 covers it.
     require_trigWeight: false

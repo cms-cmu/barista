@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast nominal_run3_20260922_3f9e199-1e0504f step C -- generated 2026-09-22 22:31:15
+# roast nominal_run3_20260922_3f9e199-1e0504f step C -- generated 2026-09-23 07:29:54
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -16,8 +16,8 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
     cp -f "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${X509_USER_PROXY:-/tmp/x509up_u$(id -u)} ===" | tee -a "$LOG"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseC.smk --configfile roasts/nominal_run3_20260922_3f9e199-1e0504f/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_20260922_3f9e199-1e0504f 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseC.smk --configfile roasts/nominal_run3_20260922_3f9e199-1e0504f/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_20260922_3f9e199-1e0504f --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseC.smk --configfile roasts/nominal_run3_20260922_3f9e199-1e0504f/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_20260922_3f9e199-1e0504f --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast nominal_run3_20260922_3f9e199-1e0504f step C exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
