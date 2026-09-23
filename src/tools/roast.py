@@ -134,7 +134,9 @@ def now() -> str:
 def sh(cmd, cwd=None, check=True, capture=True, input=None) -> subprocess.CompletedProcess:
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
-    return subprocess.run(cmd, cwd=cwd, check=check, text=True, input=input,
+    # errors="replace": remote logs carry progress bars and box drawing, and any tool on the
+    # far side may hand us a partial character.  Status must survive that.
+    return subprocess.run(cmd, cwd=cwd, check=check, text=True, errors="replace", input=input,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.PIPE if capture else None)
 
@@ -227,6 +229,56 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _merge_config(base: dict, over: dict) -> dict:
+    """Recursive dict merge, `over` winning; lists and scalars are replaced.
+    Same semantics as snakemake's own merge of repeated --configfile, so a layered config
+    run by hand as `--configfile <base> --configfile <file>` sees what the roast captured."""
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge_config(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def _load_layered_config(path: Path, seen: tuple = ()) -> tuple[dict, list[dict]]:
+    """Load a workflow config and the chain of `base:` configs under it.
+    Returns the merged dict and the bases, innermost first, as [{source, sha256}]."""
+    import yaml     # only layered configs need it; roast is otherwise stdlib (see CI job code_roast_barista)
+    if path.resolve() in seen:
+        die(f"config base cycle: {' -> '.join(str(p) for p in (*seen, path))}")
+    with open(path) as f:
+        cfg = yaml.safe_load(f) or {}
+    base = cfg.pop("base", None)
+    if base is None:
+        return cfg, []
+    base_path = ROOT / base      # relative to the barista root, like every other path in these configs
+    if not base_path.exists():
+        die(f"{path}: base config {base} not found")
+    merged, chain = _load_layered_config(base_path, (*seen, path.resolve()))
+    return _merge_config(merged, cfg), [*chain, {"source": str(base), "sha256": sha256_file(base_path)}]
+
+
+def capture_config(src: Path, dest: Path) -> list[dict]:
+    """Write the config a roast runs from.  A plain config is copied verbatim.  One with a
+    top-level `base: <path>` holds only its differences from that base: it is merged over
+    the base (recursively, bases may have bases) and the self-contained result is captured,
+    so the roast never depends on the base file changing later.  Returns the base chain."""
+    if not re.search(r"^base:", src.read_text(), re.M):
+        shutil.copy2(src, dest)
+        return []
+    try:
+        import yaml
+    except ImportError:
+        die(f"{src} has a `base:` key; capturing a layered config needs PyYAML")
+    merged, chain = _load_layered_config(src)
+    header = (f"# Captured by `roast new`: {src} merged over "
+              + " <- ".join(b["source"] for b in reversed(chain))
+              + ".\n# Comments are not carried over; read the sources for them.\n")
+    with open(dest, "w") as f:
+        f.write(header)
+        yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False, width=1000)
+    return chain
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +416,8 @@ def cmd_new(args) -> None:
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
-    shutil.copy2(config_src, d / "config.yml")   # verbatim; {roast_id} is resolved at run time via --config roast_id
+    # Verbatim, or merged over its `base:` chain; {roast_id} is resolved at run time via --config roast_id
+    config_bases = capture_config(config_src, d / "config.yml")
 
     r = {
         "id": rid,
@@ -373,7 +426,8 @@ def cmd_new(args) -> None:
         "owner": cfg.get("owner", getpass.getuser()),
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
-        "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml")},
+        "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
+                   **({"base": config_bases} if config_bases else {})},
         "steps": steps,
         "hosts": {},
         "publish": {},
@@ -930,7 +984,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     elif host == "falcon":
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
-            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
             # recently finished jobs of this roast (failures are what you want to see)
             f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -40 | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); if [ -z "$rule" ]; then rule=$(echo "$rest" | cut -d"|" -f1); case "$rule" in ????????-????-????-????-????????????) rule=${{rule%%-*}};; esac; fi; echo "SLURMDONE|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)"; done''',
             f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
@@ -949,7 +1003,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             else st="not started"; fi
             win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
             prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
-            last=$(tail -n 1 logs/$S.log 2>/dev/null | cut -c1-90)
+            last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
         {batch}
@@ -1022,7 +1076,7 @@ def _parse_status(stdout: str) -> dict:
             _, name, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
             colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
                       else "\033[33m" if st == "running" else "")
-            out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip()))
+            out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last[:90]}".rstrip()))
         elif line.startswith("TOTALS|") and line[7:].strip():
             out["extra"].append(f"condor  {line[7:].strip()}")
         elif line.startswith("CONDOR|"):
@@ -1032,7 +1086,8 @@ def _parse_status(stdout: str) -> dict:
         elif line.startswith("SLURM|"):
             f = (line.split("|") + [""] * 12)[:12]
             out["live"].setdefault(f[2], []).append(
-                dict(zip(("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail"), [f[1]] + f[3:])))
+                dict(zip(("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail"),
+                         [f[1]] + f[3:11] + [f[11][:100]])))
         elif line.startswith("SLURMDONE|"):
             f = (line.split("|") + [""] * 7)[:7]
             out["done"].setdefault(f[2], []).append(
@@ -1062,7 +1117,9 @@ def cmd_status(args) -> None:
                 st = _parse_status(res.stdout)
                 st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
                 parsed[host] = st
-        w = max(4, min(18, max((len(s["name"]) for s in r["steps"]), default=4)))
+        # Width follows the longest step name of THIS roast: a `--step host:Snakefile` name
+        # can be long, and truncating it would hide the argument you need to type back.
+        w = max(4, min(30, max((len(s["name"]) for s in r["steps"]), default=4)))
         pad = " " * (w + 8)
         for step in r["steps"]:
             name, host = step["name"], step["host"]

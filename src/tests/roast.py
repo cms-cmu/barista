@@ -15,6 +15,7 @@ Run it directly:
 """
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -229,6 +230,75 @@ class TestConcurrentRoasts(unittest.TestCase):
         self.assertNotIn(" ", w)
         self.assertNotIn(":", w)     # tmux target syntax is session:window
         self.assertLessEqual(len(w), 40)
+
+
+try:
+    import yaml
+except ImportError:          # the CI image is bare python; only the layered-config path needs PyYAML
+    yaml = None
+
+
+class TestCaptureConfig(unittest.TestCase):
+    """`roast new` captures the config the steps run from.  A config with `base:` holds only its
+    differences and must be captured merged, self-contained, so later edits to the base cannot
+    change what an existing roast runs."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.root = roast.ROOT
+        roast.ROOT = self.tmp            # base: paths resolve against the barista root
+
+    def tearDown(self):
+        roast.ROOT = self.root
+        shutil.rmtree(self.tmp)
+
+    def write(self, name, text):
+        p = self.tmp / name
+        p.write_text(text)
+        return p
+
+    def test_plain_config_is_copied_verbatim(self):
+        src = self.write("plain.yml", "# comment kept\nlabel: x\n")
+        self.assertEqual(roast.capture_config(src, self.tmp / "out.yml"), [])
+        self.assertEqual((self.tmp / "out.yml").read_text(), src.read_text())
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_layered_config_is_merged_over_its_base_chain(self):
+        self.write("root.yml", "label: a\noutput_path: output/a/\nlst: [1, 2]\n"
+                               "analysis_config:\n  processor: p.py\n  config:\n    run_SvB: true\n    tight: true\n")
+        self.write("mid.yml", "base: root.yml\nlst: [3]\n")
+        src = self.write("top.yml", "base: mid.yml\nlabel: b\noutput_path: output/b/\n"
+                                    "analysis_config:\n  config:\n    cand: q.yml\n")
+        chain = roast.capture_config(src, self.tmp / "out.yml")
+        self.assertEqual([b["source"] for b in chain], ["root.yml", "mid.yml"])
+        text = (self.tmp / "out.yml").read_text()
+        got = yaml.safe_load(text)
+        self.assertNotIn("base", got)
+        self.assertEqual(got["label"], "b")
+        self.assertEqual(got["lst"], [3])                           # lists replace, like snakemake
+        self.assertEqual(got["analysis_config"]["processor"], "p.py")
+        self.assertEqual(got["analysis_config"]["config"],
+                         {"run_SvB": True, "tight": True, "cand": "q.yml"})  # nested siblings survive
+        # roast status/submit read output_path back out of the captured text with this regex
+        m = re.search(r'^output_path:\s*["\']?([^"\'\s#]+)', text, re.M)
+        self.assertEqual(m.group(1), "output/b/")
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_placeholders_survive_the_round_trip(self):
+        self.write("root.yml", 'handoff:\n  eos_base: "root://x//{roast_id}/handoff"\n'
+                               "fvt:\n  workflow_overrides:\n    '--friends \"\"': a/{roast_id}.json@@HCR_input\n")
+        src = self.write("top.yml", "base: root.yml\nlabel: b\n")
+        roast.capture_config(src, self.tmp / "out.yml")
+        got = yaml.safe_load((self.tmp / "out.yml").read_text())
+        self.assertEqual(got["handoff"]["eos_base"], "root://x//{roast_id}/handoff")
+        self.assertEqual(got["fvt"]["workflow_overrides"]['--friends ""'], "a/{roast_id}.json@@HCR_input")
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_base_cycle_is_an_error(self):
+        self.write("a.yml", "base: b.yml\n")
+        src = self.write("b.yml", "base: a.yml\n")
+        with self.assertRaises(SystemExit):
+            roast.capture_config(src, self.tmp / "out.yml")
 
 
 class TestCopySettings(unittest.TestCase):

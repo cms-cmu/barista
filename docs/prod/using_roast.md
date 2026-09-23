@@ -96,6 +96,28 @@ everywhere in the config, so each production run writes to its own EOS directory
 cannot overwrite an earlier one. Outside roast the placeholder falls back to the config's
 `label`, so running Snakemake by hand still works.
 
+### Variant configs (`base:`)
+
+A variant of an existing production can hold only its differences, with a top-level
+`base:` naming the config it modifies (path relative to the barista root), as
+`nominal_run3_quadjet_run2.yml` does over `nominal_run3.yml`:
+
+```yaml
+base: coffea4bees/workflows/config/nominal_run3.yml
+label: "Run3_nominal_quadjet_run2"
+analysis_config:
+  config:
+    candidates_selection_cfg: "coffea4bees/analysis/metadata/candidates_selection_thresholds_quadjet_run2.yml"
+```
+
+`roast new` merges the variant over its base (dicts recursively, lists and scalars replaced;
+a base may itself have a `base:`) and captures the merged, self-contained result as
+`roasts/<id>/config.yml`. `roast.json` records each base's path and sha256 under
+`config.base`. Later edits to the base therefore never change an existing roast, and the
+captured file loses the sources' comments. Snakemake merges repeated `--configfile` the
+same way, so to run a variant by hand, pass the base first and then the variant.
+Capturing a layered config needs PyYAML; plain configs are still copied verbatim.
+
 ---
 
 ## Watching a run
