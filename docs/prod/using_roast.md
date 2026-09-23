@@ -102,6 +102,7 @@ cannot overwrite an earlier one. Outside roast the placeholder falls back to the
 
 ```bash
 bin/roast status <id>            # all steps, on every machine the roast uses
+bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
 
@@ -128,6 +129,31 @@ Below the steps, `status` lists this roast's own batch jobs, matched through the
 scheduler's record of the submitting directory: HTCondor batches by state on the LPC, and
 on falcon each Slurm job with its rule name, elapsed time against its limit, node,
 resources, and the last line of that job's log, which for a training is the live loss.
+
+### Reading a step's log
+
+`status` shows only the last line and `attach` needs the tmux window to still be there, so
+`log` is the one to reach for when a step has already finished, or when you want to read
+rather than watch. Everything it shows is scoped to the **most recent run** of that step,
+not the whole history of resubmissions appended to the same file.
+
+```bash
+bin/roast log <id> --step B             # the last 50 lines (-n to change)
+bin/roast log <id> --step B -f          # follow the live log (ctrl-c to stop)
+bin/roast log <id> --step B --stats     # the last "Job stats:" block
+bin/roast log <id> --step B --errors    # only the failure lines
+```
+
+`--stats` prints the job counts and the reasons Snakemake gives for them. It is the only
+way to see a **dry run's** job count: `-n` produces no `N of M steps done` lines, so
+`status` leaves the progress column empty for one, and `exit=0` from a dry run is
+indistinguishable from a real one. Check the count there before dropping the `-n`.
+
+`--errors` matches rule failures, `WorkflowError`, missing inputs or outputs, non-zero exits,
+OOM kills and the step's own exit line. It deliberately does **not** match `Traceback`: dask
+tears its client down noisily at the end of every successful job, so a dozen benign stacks
+per wave of jobs would bury the real failure. `-f --errors` follows and filters at once,
+which is the cheap way to sit on a long run without watching it.
 
 ## When something breaks
 

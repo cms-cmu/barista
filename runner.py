@@ -496,6 +496,21 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends
+    #
+    # `friends_include` (config, or the top level) restricts the injection to the friends this
+    # job actually reads. Every friend injected here is eagerly fetched from EOS and parsed by
+    # parse_friends, and the resulting index becomes part of the processor instance, which is
+    # pickled out to every worker -- so a phase that reads one friend still pays for all of
+    # them. friends_HH4b.yml defines ~19 for the Run 3 years (FvT, MvD and sixteen SvB study
+    # trainings, ~25 MB of JSON), while Phase B.1 uses only trigWeight: it nulls every SvB*/FvT
+    # config key and runs with run_SvB False, but friend_file has to stay for the trigger
+    # weights (dropping it silently disabled them for all ttbar MC in the Run 2 production).
+    #
+    # Omit the key to inject everything, which is the historical behaviour. The allowlist applies
+    # to the merged result, not just the per-year file: config.friends carries the per-roast FvT
+    # and SvB_MA, which B.1 does not read either (they point at this roast's Phase C/D outputs,
+    # which do not exist while B runs -- parse_friends drops them with a warning, so the old
+    # behaviour was to inject two friends that could never load).
     year_friends = {}
     if getattr(args, 'friends', None) and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
@@ -505,10 +520,34 @@ if __name__ == '__main__':
                 if k in year_friends and year_friends[k] != v:
                     logging.warning(f"Friends key '{k}' has conflicting values across years {args.years}; using value for {year}")
                 year_friends[k] = v
-        if year_friends:
-            existing_friends = configs.get('config', {}).get('friends') or {}
-            configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
-            logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
+
+        # pop, not get: this is a runner-level option, not a processor setting, and a processor
+        # taking **kwargs would otherwise be handed it (orchestrator only filters on the
+        # signature for processors that don't).
+        include = configs.get('config', {}).pop('friends_include', configs.pop('friends_include', None))
+
+        # config.friends wins over the per-year file: it is how a roast points FvT/SvB_MA at its
+        # own Phase C/D output instead of the production named in friends_HH4b.yml.
+        existing_friends = configs.get('config', {}).get('friends') or {}
+        merged = {**year_friends, **existing_friends}
+
+        if include is not None:
+            if isinstance(include, str):
+                include = [f.strip() for f in include.split(",") if f.strip()]
+            include = list(include)
+            missing = [f for f in include if f not in merged]
+            if missing:
+                logging.warning(f"friends_include names friends not available for {args.years} "
+                                f"(neither {args.friends} nor config.friends defines them): {missing}")
+            dropped = sorted(k for k in merged if k not in include)
+            merged = {k: v for k, v in merged.items() if k in include}
+            if dropped:
+                logging.info(f"friends_include={include}: not injecting {len(dropped)} unused "
+                             f"friend(s): {dropped}")
+
+        if merged:
+            configs.setdefault('config', {})['friends'] = merged
+            logging.info(f"Injected friends for {args.years}: {list(merged.keys())}")
 
     # Inject per-year weights if specified and accepted by the processor
     if getattr(args, 'weights', None) and 'weights' in inspect.signature(analysis_class.__init__).parameters:
