@@ -201,6 +201,36 @@ class TestRunScriptFlags(unittest.TestCase):
         self.assertIn("proxy/x509_proxy", self.script())
 
 
+class TestConcurrentRoasts(unittest.TestCase):
+    """Several roasts can be in flight at once, so nothing may be named per label alone.
+
+    submit closes a tmux window of the name it is about to use, so two roasts sharing a
+    window name would let one kill the other's running step.
+    """
+
+    def window(self, label, date, shas, step="D"):
+        r = fake_roast(step_name=step)
+        r.update(label=label, created=f"{date} 00:00:00", id=f"{label}_{date.replace('-', '')}_{shas}")
+        return roast._window_name(r, r["steps"][0])
+
+    def test_same_label_and_day_different_code_are_distinct(self):
+        a = self.window("nominal_run3", "2026-09-22", "3f9e199-1e0504f")
+        b = self.window("nominal_run3", "2026-09-22", "aaaaaaa-bbbbbbb")
+        self.assertNotEqual(a, b)
+
+    def test_steps_of_one_roast_are_distinct(self):
+        r = fake_roast()
+        c = dict(r["steps"][0], name="C")
+        d = dict(r["steps"][0], name="D")
+        self.assertNotEqual(roast._window_name(r, c), roast._window_name(r, d))
+
+    def test_name_is_tmux_safe(self):
+        w = self.window("nominal_run3", "2026-09-22", "3f9e199-1e0504f")
+        self.assertNotIn(" ", w)
+        self.assertNotIn(":", w)     # tmux target syntax is session:window
+        self.assertLessEqual(len(w), 40)
+
+
 class TestCopySettings(unittest.TestCase):
     def test_defaults(self):
         r = fake_roast()

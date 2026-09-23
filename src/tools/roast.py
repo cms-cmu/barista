@@ -445,6 +445,13 @@ def cmd_checkout(args) -> None:
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
 
 
+def _window_name(r: dict, step: dict) -> str:
+    """tmux window for a step.  Must identify the roast, not just its label and date:
+    submit closes a window of this name when no driver of *this* roast is alive, so two
+    roasts sharing a name would let one kill the other's running step."""
+    return f"{r['label'][:14]}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
+
+
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool) -> str:
     """The bash script that runs one step inside its tmux window."""
     name = step["name"]
@@ -536,7 +543,7 @@ def _submit(args, resume: bool) -> None:
     if args.dry_run:
         parts.append("-n")                             # snakemake dry run: plan only, nothing produced
     args.extra = " ".join(x for x in parts if x).strip()
-    window = f"{r['label'][:16]}_{r['created'][:10].replace('-', '')}_{step['name']}"
+    window = _window_name(r, step)
     driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
     # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
     # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
