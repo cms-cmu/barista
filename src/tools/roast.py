@@ -592,7 +592,8 @@ def _submit(args, resume: bool) -> None:
 # Lines worth seeing when scanning a step's log for what went wrong. `Traceback` is deliberately
 # absent: dask tears its client down noisily at the end of every successful job, so matching it
 # buries the real failures under a dozen benign stacks per wave of jobs.
-_LOG_ERROR_RE = (r"Error in rule|WorkflowError|Missing(Output|Input)Exception|"
+_LOG_ERROR_RE = (r"Error in rule|WorkflowError|LockException|[A-Za-z]*Error:|"
+                 r"Missing(Output|Input)Exception|"
                  r"Exiting because a job execution failed|Removing output files of failed job|"
                  r"JOB EXECUTION FAILED|exited with non-zero|unbound variable|"
                  r"Killed|Out of memory|Segmentation fault|=== roast .* exit ")
