@@ -243,7 +243,45 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 09:07:14",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 09:07:29",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 09:12:28",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        }
+      ]
     },
     {
       "name": "F",
@@ -268,9 +306,15 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f/",
-    "ts": "2026-09-23 08:33:01",
-    "ok": false,
-    "pages": []
+    "ts": "2026-09-23 08:59:05",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nominal/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_nominal/computeJCM/cutflow_wJCM.html",
+      "output/Run3_nominal/computeJCM/plots_wJCM/index.html"
+    ]
   },
   "history": [
     {
@@ -428,6 +472,36 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-23 08:58:53",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 08:59:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 09:07:14",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 09:07:29",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 09:12:28",
+      "event": "resume",
+      "step": "D",
+      "host": "falcon"
     }
   ],
   "notes": ""

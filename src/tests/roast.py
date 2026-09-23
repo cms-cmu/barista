@@ -294,6 +294,106 @@ class TestCommandLine(unittest.TestCase):
         self.assertIn("invalid choice", res.stderr)
 
 
+class TestStatusGrouping(unittest.TestCase):
+    """Slurm jobs are reported under the step that submitted them.
+
+    The step comes from whichever logs/<step>.log announced the job id, so two phases that
+    both run a rule called `train` keep their own attempts instead of one hiding the other.
+    """
+
+    OUT = "\n".join([
+        "STEP|C|exit=0|tmux=0|5 of 5 steps (100%) done|done",
+        "STEP|D|running|tmux=1||Job 1 submitted",
+        "SLURM|42722|D|rule_train|RUNNING|18:46|8:00:00|rogue02|8|62G|gres/mps:50|loss=0.47",
+        "SLURMDONE|42442|C|rule_train|COMPLETED|04:35:59|",
+        "SLURMDONE|42717|D|rule_train|FAILED|00:00:10|",
+        "SLURMDONE|42429||classifier_batch|FAILED|00:00:05|",
+        "SINFO|work*|2|mixed|gpu:1",
+    ])
+
+    def setUp(self):
+        self.st = roast._parse_status(self.OUT)
+
+    def test_steps_are_kept_in_order(self):
+        self.assertEqual([n for n, _ in self.st["steps"]], ["C", "D"])
+
+    def test_step_name_is_a_column_not_part_of_the_text(self):
+        # cmd_status prints the name itself, so leaving it in the text would double it.
+        for name, text in self.st["steps"]:
+            self.assertFalse(text.startswith(name), f"{name!r} repeated in its own line text")
+
+    def test_jobs_land_under_their_own_step(self):
+        self.assertEqual([j["jid"] for j in self.st["done"]["C"]], ["42442"])
+        self.assertEqual([j["jid"] for j in self.st["live"]["D"]], ["42722"])
+
+    def test_a_rule_shared_by_two_steps_is_not_merged(self):
+        # C's finished train must survive D's running train of the same rule name.
+        c = roast._slurm_rows(self.st["live"].get("C", []), self.st["done"].get("C", []))
+        d = roast._slurm_rows(self.st["live"].get("D", []), self.st["done"].get("D", []))
+        self.assertIn("42442", "\n".join(c))
+        self.assertIn("42722", "\n".join(d))
+        self.assertNotIn("42442", "\n".join(d))
+
+    def test_unattributed_jobs_go_to_the_empty_key(self):
+        self.assertEqual([j["jid"] for j in self.st["done"][""]], ["42429"])
+
+    def test_cluster_line_is_kept_aside(self):
+        self.assertTrue(any("cluster" in e for e in self.st["extra"]))
+
+    def test_missing_checkout_is_flagged(self):
+        self.assertTrue(roast._parse_status("NOCHECKOUT")["nocheckout"])
+
+
+class TestSlurmRowsSupersede(unittest.TestCase):
+    """A retried rule must show the attempt that replaced the failure, not the failure.
+
+    Snakemake resubmits failed rules and people retry jobs by hand, so the scheduler holds
+    several job ids per rule; listing them all made a fixed rule look broken.
+    """
+
+    LIVE = ("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail")
+    DONE = ("jid", "rule", "state", "el", "rss")
+
+    def live(self, **kw):
+        return dict({k: "" for k in self.LIVE}, **kw)
+
+    def done(self, **kw):
+        return dict({k: "" for k in self.DONE}, **kw)
+
+    def render(self, live, done):
+        return "\n".join(roast._slurm_rows(live, done))
+
+    def test_latest_finished_attempt_wins(self):
+        out = self.render([], [self.done(jid="41090", rule="rule_train", state="FAILED"),
+                               self.done(jid="41095", rule="rule_train", state="COMPLETED")])
+        self.assertIn("41095", out)
+        self.assertNotIn("41090", out)
+        self.assertIn("after 1 failed attempt", out)
+
+    def test_a_live_attempt_supersedes_finished_ones(self):
+        out = self.render([self.live(jid="41100", rule="rule_train", state="RUNNING")],
+                          [self.done(jid="41090", rule="rule_train", state="FAILED")])
+        self.assertIn("41100", out)
+        self.assertNotIn("41090", out)
+
+    def test_an_unretried_failure_is_still_reported(self):
+        out = self.render([], [self.done(jid="41099", rule="rule_analyze", state="FAILED")])
+        self.assertIn("41099", out)
+        self.assertIn("FAILED", out)
+
+    def test_other_rules_are_untouched(self):
+        out = self.render([], [self.done(jid="41090", rule="rule_train", state="FAILED"),
+                               self.done(jid="41095", rule="rule_train", state="COMPLETED"),
+                               self.done(jid="41096", rule="rule_evaluate", state="COMPLETED")])
+        self.assertIn("41096", out)
+        self.assertIn("evaluate", out)
+
+    def test_rule_prefix_is_stripped(self):
+        out = self.render([], [self.done(jid="1", rule="rule_plot_weights", state="COMPLETED")])
+        self.assertIn("plot_weights", out)
+        self.assertNotIn("rule_plot_weights", out)
+
+
 @unittest.skipIf(BASH is None or shutil.which("tac") is None, "needs bash and tac (GNU coreutils)")
 class TestStatusScriptBehaviour(unittest.TestCase):
     """The status script runs on the host; execute it here against a fake checkout.

@@ -106,14 +106,25 @@ bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
 
-`status` prints one line per step:
+`status` prints one line per step, with that step's batch jobs underneath:
 
 ```
-cmslpc  B   exit=0    tmux=0  29 of 29 steps (100%) done   === roast ... step B exit 0 ...
-falcon  C   running   tmux=1  3 of 7 steps (42%) done      Job 1 submitted with SLURM jobid 41037
-falcon  slurm   41037 train      RUNNING   22:01/8:00:00  rogue01  cpu=8 mem=62.50G gres/mps:50
-falcon                ⠼ 104/1630 batch training loss=0.8293
+B    cmslpc  exit=0    tmux=0  3 of 3 steps (100%) done     === roast ... step B exit 0 ...
+C    falcon  exit=0    tmux=0  5 of 5 steps (100%) done     === roast ... step C exit 0 ...
+          slurm 42442 train        COMPLETED 04:35:59   (after 2 failed attempts)
+          slurm 42468 evaluate     COMPLETED 01:22:47
+C4   cmslpc  exit=0    tmux=0  20 of 20 steps (100%) done   === roast ... step C4 exit 0 ...
+D    falcon  running   tmux=1                               Job 1 submitted with SLURM jobid 42722
+          slurm 42722 train        RUNNING   29:39/8:00:00  rogue02  cpu=8 mem=62.50G gres/mps:50
+                      ⠇ 34/603 batch training loss=0.4254
+F    cmslpc  not started
+     cmslpc  condor  Total for query: 0 jobs; 0 idle, 0 running, 0 held
+     falcon  cluster work* 2 node(s) mixed gpu:1,mps:100
 ```
+
+Steps are listed in the order the roast declares them, not grouped by machine, because a
+roast is a pipeline and where a phase happens to run matters less than how far along it is.
+Each line starts with the step, then the machine.
 
 The state column means:
 
@@ -125,10 +136,20 @@ The state column means:
 | `stalled` | the driver died with no error in the log, e.g. the node rebooted |
 | `exit=N` | finished, with that exit code |
 
-Below the steps, `status` lists this roast's own batch jobs, matched through the
-scheduler's record of the submitting directory: HTCondor batches by state on the LPC, and
+`status` also lists this roast's own batch jobs, found through the scheduler's record of
+the submitting directory: HTCondor batches by state on the LPC, and
 on falcon each Slurm job with its rule name, elapsed time against its limit, node,
 resources, and the last line of that job's log, which for a training is the live loss.
+
+Each job is listed under the step that submitted it, which `status` works out from the
+step log that announced the job id. That matters when two phases run a rule of the same
+name, as Phases C and D both do with `train`: their attempts stay apart instead of one
+hiding the other. Jobs the step logs do not account for are listed separately at the end.
+
+There is one line per rule, showing its latest attempt. Snakemake resubmits a rule that
+fails, so the scheduler holds several job ids for it; the attempts that were replaced are
+folded into a note like `(after 3 failed attempts)` instead of being listed beside the one
+that succeeded. A failure that was never retried still appears on its own.
 
 ### Reading a step's log
 

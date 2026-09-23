@@ -923,9 +923,9 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     elif host == "falcon":
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
-            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
             # recently finished jobs of this roast (failures are what you want to see)
-            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -6 | while IFS="|" read -r jid rest; do rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURMDONE|$jid|${{rule:-$(echo "$rest" | cut -d"|" -f1 | cut -c1-8)}}|$(echo "$rest" | cut -d"|" -f2-)"; done''',
+            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -40 | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); if [ -z "$rule" ]; then rule=$(echo "$rest" | cut -d"|" -f1); case "$rule" in ????????-????-????-????-????????????) rule=${{rule%%-*}};; esac; fi; echo "SLURMDONE|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)"; done''',
             f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
         ])
     else:
@@ -949,48 +949,137 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     """)
 
 
+def _jobnum(j: dict) -> int:
+    head = j["jid"].split("_")[0].split(".")[0]
+    return int(head) if head.isdigit() else 0
+
+
+def _slurm_rows(live: list[dict], done: list[dict]) -> list[str]:
+    """One line per rule, showing its latest attempt.
+
+    Snakemake resubmits a failed rule (and people retry jobs by hand), so the scheduler
+    keeps several job ids for the same rule.  Listing them all put stale failures next to
+    the attempt that replaced them, which reads as if the rule were still broken.  Older
+    attempts are folded into a note on the line that superseded them.
+    """
+    def strip(rule: str) -> str:
+        return rule[5:] if rule.startswith("rule_") else rule
+
+    for j in live + done:
+        j["rule"] = strip(j["rule"]) or "-"
+    latest_live = {j["rule"]: j for j in sorted(live, key=_jobnum)}
+    attempts: dict[str, list[dict]] = {}
+    for j in sorted(done, key=_jobnum):
+        attempts.setdefault(j["rule"], []).append(j)
+
+    def note(rule: str, superseded: list[dict]) -> str:
+        failed = [a for a in superseded if a["state"] != "COMPLETED"]
+        if not superseded:
+            return ""
+        if failed:
+            return f"   (after {len(failed)} failed attempt{'s' if len(failed) > 1 else ''})"
+        return f"   (attempt {len(superseded) + 1})"
+
+    rows = []
+    for rule, j in latest_live.items():
+        colour = "\033[33m" if j["state"] == "RUNNING" else "\033[31m" if j["state"] not in ("PENDING", "COMPLETED") else ""
+        rows.append((_jobnum(j),
+                     f"slurm   {j['jid']:>7s} {rule:20s} {colour}{j['state']:9s}\033[0m "
+                     f"{j['el']:>8s}/{j['lim']:<8s} {j['node']:12s} cpu={j['cpus']} mem={j['mem']} {j['tres']}"
+                     f"{note(rule, attempts.get(rule, []))}".rstrip()))
+        if j["tail"].strip():
+            rows.append((_jobnum(j) + 0.5, f"                {j['tail'].strip()}"))
+    finished = []
+    for rule, tries in attempts.items():
+        if rule in latest_live:      # a live attempt supersedes every finished one
+            continue
+        j = tries[-1]
+        colour = "\033[32m" if j["state"] == "COMPLETED" else "\033[31m"
+        finished.append((_jobnum(j),
+                         f"slurm   {j['jid']:>7s} {rule[:20]:20s} {colour}{j['state']:9s}\033[0m {j['el']:>8s}"
+                         f"{('  maxrss=' + j['rss']) if j['rss'] else ''}{note(rule, tries[:-1])}".rstrip()))
+    rows += sorted(finished)[-6:]
+    return [text for _, text in sorted(rows)]
+
+
+def _parse_status(stdout: str) -> dict:
+    """Turn the host script's output into {steps, live, done, extra, nocheckout}.
+
+    `live` and `done` are keyed by step name, so each step's jobs are rendered under it and
+    a rule that several steps happen to share (two phases both run `train`) is never merged.
+    Jobs the step logs do not account for land under the empty key.
+    """
+    out = {"steps": [], "live": {}, "done": {}, "extra": [], "nocheckout": False}
+    for line in stdout.splitlines():
+        if line.startswith("STEP|"):
+            _, name, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
+            colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
+                      else "\033[33m" if st == "running" else "")
+            out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip()))
+        elif line.startswith("TOTALS|") and line[7:].strip():
+            out["extra"].append(f"condor  {line[7:].strip()}")
+        elif line.startswith("CONDOR|"):
+            _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
+            states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
+            out["extra"].append(f"condor  {n:>4s} x {states.get(code, code):9s} {name}")
+        elif line.startswith("SLURM|"):
+            f = (line.split("|") + [""] * 12)[:12]
+            out["live"].setdefault(f[2], []).append(
+                dict(zip(("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail"), [f[1]] + f[3:])))
+        elif line.startswith("SLURMDONE|"):
+            f = (line.split("|") + [""] * 7)[:7]
+            out["done"].setdefault(f[2], []).append(
+                dict(zip(("jid", "rule", "state", "el", "rss"), [f[1]] + f[3:])))
+        elif line.startswith("SINFO|"):
+            _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
+            out["extra"].append(f"cluster {part} {nodes} node(s) {state} {gres}")
+        elif line == "NOCHECKOUT":
+            out["nocheckout"] = True
+    return out
+
+
 def cmd_status(args) -> None:
     cfg = load_config()
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
     for r in roasts:
         print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
+        # One ssh per host, but the report is ordered by step: a roast is a pipeline, and
+        # which machine a phase happens to run on matters less than where the pipeline is.
+        parsed = {}
         for host, hinfo in r["hosts"].items():
-            steps = [s for s in r["steps"] if s["host"] == host]
             target = resolve_ssh(host_cfg(cfg, host))
-            res = ssh_run(target, _status_script(r, hinfo["checkout"], steps, host), check=False)
+            res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
             if res.returncode != 0:
-                print(f"  {host:7s} ssh failed ({target}): {res.stderr.strip()[:100]}")
+                parsed[host] = {"error": f"ssh failed ({target}): {res.stderr.strip()[:80]}"}
+            else:
+                st = _parse_status(res.stdout)
+                st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
+                parsed[host] = st
+        w = max(4, min(18, max((len(s["name"]) for s in r["steps"]), default=4)))
+        pad = " " * (w + 8)
+        for step in r["steps"]:
+            name, host = step["name"], step["host"]
+            st = parsed.get(host)
+            if st is None:
+                print(f"  {name:<{w}s} {host:7s} not checked out")
                 continue
-            for line in res.stdout.splitlines():
-                if line.startswith("STEP|"):
-                    _, s, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
-                    colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
-                              else "\033[33m" if st == "running" else "")
-                    print(f"  {host:7s} {s:14s} {colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip())
-                elif line.startswith("TOTALS|") and line[7:].strip():
-                    print(f"  {host:7s} condor  {line[7:].strip()}")
-                elif line.startswith("CONDOR|"):
-                    _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
-                    states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
-                    print(f"  {host:7s} condor  {n:>4s} x {states.get(code, code):9s} {name}")
-                elif line.startswith("SLURM|"):
-                    f = (line.split("|") + [""] * 11)[:11]
-                    _, jid, rule, state, el, lim, node, cpus, mem, tres, tail = f
-                    rule = rule[5:] if rule.startswith("rule_") else rule
-                    colour = "\033[33m" if state == "RUNNING" else "\033[31m" if state not in ("PENDING", "COMPLETED") else ""
-                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':20s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
-                    if tail.strip():
-                        print(f"  {host:7s}                 {tail.strip()}")
-                elif line.startswith("SLURMDONE|"):
-                    _, jid, rule, state, el, rss = (line.split("|") + [""] * 6)[:6]
-                    rule = rule[5:] if rule.startswith("rule_") else rule
-                    colour = "\033[32m" if state == "COMPLETED" else "\033[31m"
-                    print(f"  {host:7s} slurm   {jid:>7s} {rule[:20]:20s} {colour}{state:9s}\033[0m {el:>8s}{('  maxrss=' + rss) if rss else ''}".rstrip())
-                elif line.startswith("SINFO|"):
-                    _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
-                    print(f"  {host:7s} cluster {part} {nodes} node(s) {state} {gres}")
-                elif line == "NOCHECKOUT":
-                    print(f"  {host:7s} checkout missing at {hinfo['checkout']}")
+            if st.get("error"):
+                print(f"  {name:<{w}s} {host:7s} {st['error']}")
+                continue
+            text = dict(st["steps"]).get(name)
+            print(f"  {name:<{w}s} {host:7s} {text if text is not None else 'not reported'}")
+            for row in _slurm_rows(st["live"].get(name, []), st["done"].get(name, [])):
+                print(f"{pad}{row}")
+        for host, st in parsed.items():
+            if st.get("error"):
+                continue
+            loose = _slurm_rows(st["live"].get("", []), st["done"].get("", []))
+            if loose:
+                print(f"  {'':<{w}s} {host:7s} (jobs not traced to a step)")
+                for row in loose:
+                    print(f"{pad}{row}")
+            for text in st["extra"]:
+                print(f"  {'':<{w}s} {host:7s} {text}")
         if r.get("publish", {}).get("url"):
             print(f"  published: {r['publish']['url']}")
 
