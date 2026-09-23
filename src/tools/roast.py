@@ -1073,13 +1073,24 @@ def cmd_status(args) -> None:
         for host, st in parsed.items():
             if st.get("error"):
                 continue
-            loose = _slurm_rows(st["live"].get("", []), st["done"].get("", []))
-            if loose:
-                print(f"  {'':<{w}s} {host:7s} (jobs not traced to a step)")
-                for row in loose:
-                    print(f"{pad}{row}")
             for text in st["extra"]:
                 print(f"  {'':<{w}s} {host:7s} {text}")
+        # Jobs submitted from the checkout that no step log accounts for: things run by hand.
+        # A live one is worth seeing (it is holding resources); finished ones are just history,
+        # so they are counted rather than listed unless asked for.
+        for host, st in parsed.items():
+            if st.get("error"):
+                continue
+            stray_live, stray_done = st["live"].get("", []), st["done"].get("", [])
+            if stray_live or (stray_done and args.all):
+                print(f"  {'':<{w}s} {host:7s} not part of any step (submitted by hand from the checkout):")
+                for row in _slurm_rows(stray_live, stray_done if args.all else []):
+                    print(f"{pad}{row}")
+            elif stray_done:
+                n = len(stray_done)
+                failed = sum(1 for j in stray_done if j["state"] != "COMPLETED")
+                detail = f", {failed} failed" if failed else ""
+                print(f"  {'':<{w}s} {host:7s} {n} finished job{'s' if n > 1 else ''} not part of any step{detail} (--all to list)")
         if r.get("publish", {}).get("url"):
             print(f"  published: {r['publish']['url']}")
 
@@ -1397,6 +1408,7 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("status", help="per-step state on each host")
     s.add_argument("id", nargs="?")
+    s.add_argument("--all", action="store_true", help="also list finished jobs that belong to no step")
     s.set_defaults(func=cmd_status)
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")

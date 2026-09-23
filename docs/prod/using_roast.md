@@ -120,6 +120,7 @@ D    falcon  running   tmux=1                               Job 1 submitted with
 F    cmslpc  not started
      cmslpc  condor  Total for query: 0 jobs; 0 idle, 0 running, 0 held
      falcon  cluster work* 2 node(s) mixed gpu:1,mps:100
+     falcon  1 finished job not part of any step, 1 failed (--all to list)
 ```
 
 Steps are listed in the order the roast declares them, not grouped by machine, because a
@@ -144,7 +145,10 @@ resources, and the last line of that job's log, which for a training is the live
 Each job is listed under the step that submitted it, which `status` works out from the
 step log that announced the job id. That matters when two phases run a rule of the same
 name, as Phases C and D both do with `train`: their attempts stay apart instead of one
-hiding the other. Jobs the step logs do not account for are listed separately at the end.
+hiding the other. Anything else submitted from the checkout, a one-off command you ran by hand for instance,
+belongs to no phase. Such a job is reported at the very bottom, well clear of the last
+step: if it is still running it is listed, because it is holding resources, and if it has
+finished it is only counted, since it is history. `status --all` lists those too.
 
 There is one line per rule, showing its latest attempt. Snakemake resubmits a rule that
 fails, so the scheduler holds several job ids for it; the attempts that were replaced are
