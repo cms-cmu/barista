@@ -90,11 +90,10 @@ ARCHIVE_DEFAULTS = {
 DEFAULT_CONFIG = {
     "hosts": {
         "cmslpc": {
-            "ssh": "<user>@cmslpc307.fnal.gov",
+            "ssh": "<user>@cmslpc-el9.fnal.gov",
             "prod_root": "~/nobackup/HH4b/prod",
             "reference": "~/nobackup/HH4b/Run3/barista",
             "cores": 8,
-            "host_file": "~/.cmslpc-claude-host",
         },
         "falcon": {
             "ssh": "<user>@falcon.phys.cmu.edu",
@@ -189,6 +188,18 @@ def resolve_ssh(hc: dict) -> str:
                 node = node + hostname[hostname.index("."):]
             target = f"{user}@{node}" if user else node
     return target
+
+
+def roast_ssh(cfg: dict, r: dict, host: str) -> str:
+    """The node to talk to for this roast.
+
+    Only the driver process and its tmux window are node-bound; the filesystem is shared
+    across LPC interactive nodes and HTCondor runs central schedds.  So the configured
+    target may be the round-robin gateway, and `checkout` records whichever node it landed
+    on.  Everything afterwards follows that record, because that is where the run lives.
+    """
+    node = (r.get("hosts", {}).get(host) or {}).get("ssh")
+    return node or resolve_ssh(host_cfg(cfg, host))
 
 
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
@@ -348,7 +359,7 @@ def cmd_init(args) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
-        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node}.fnal.gov"
+        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node or 'cmslpc-el9'}.fnal.gov"
         cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
@@ -450,6 +461,7 @@ def _checkout_script(hc: dict, r: dict, ckpt: str) -> str:
         if [ ! -d "$CK/.git" ]; then
             git clone -q --no-checkout {rq(ref)} "$CK"
         fi
+        echo "NODE|$(hostname -f)"
         cd "$CK"
         git remote set-url origin {shlex.quote(r['barista']['origin'])}
         if [ ! -d coffea4bees/.git ]; then
@@ -482,7 +494,13 @@ def cmd_checkout(args) -> None:
         ckpt = checkout_path(cfg, r, host)
         info(f"[{host}] preparing {ckpt}")
         res = ssh_run(target, _checkout_script(hc, r, ckpt))
-        print(res.stdout.strip())
+        node = next((l[5:].strip() for l in res.stdout.splitlines() if l.startswith("NODE|")), "")
+        print("\n".join(l for l in res.stdout.splitlines() if not l.startswith("NODE|")).strip())
+        if node and "@" in target:
+            user = target.split("@", 1)[0]
+            if f"{user}@{node}" != target:
+                info(f"[{host}] the gateway placed this roast on {node}")
+            target = f"{user}@{node}"
         # Ship the exact objects from here: works even if the remote's reference
         # tree never saw these commits and cannot reach GitLab non-interactively.
         info(f"[{host}] pushing pinned commits")
@@ -493,7 +511,7 @@ def cmd_checkout(args) -> None:
         print(res.stdout.strip())
         files = sorted(p for p in roast_dir(r["id"]).iterdir() if p.is_file())
         scp_to(target, files, f"{ckpt}/roasts/{r['id']}/")
-        r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}  # ssh = node used at checkout (record only)
+        r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}
         log_event(r, "checkout", host=host)
         save_roast(r)
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
@@ -568,7 +586,7 @@ def _submit(args, resume: bool) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
-    target = resolve_ssh(hc)
+    target = roast_ssh(cfg, r, host)
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     if resume and extra is None and not args.test and not args.dry_run and step.get("runs"):
@@ -617,6 +635,18 @@ def _submit(args, resume: bool) -> None:
         fi
     """)
     res = ssh_run(target, guard, check=False)
+    if res.returncode == 255:
+        # The node this roast was placed on is unreachable.  Its filesystem is shared, so
+        # go back through the gateway, take whichever node it gives, and re-pin the roast.
+        gateway = resolve_ssh(hc)
+        probe = ssh_run(gateway, "hostname -f", check=False) if gateway != target else None
+        if probe is not None and probe.returncode == 0 and probe.stdout.strip():
+            target = f"{target.split('@')[0]}@{probe.stdout.strip()}"
+            info(f"[{host}] {r['hosts'][host]['ssh']} is unreachable; moving this roast to {probe.stdout.strip()}")
+            r["hosts"][host]["ssh"] = target
+            log_event(r, "repin", host=host, node=probe.stdout.strip())
+            save_roast(r)
+            res = ssh_run(target, guard, check=False)
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     if res.stdout.strip():
@@ -669,7 +699,7 @@ def cmd_log(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     step = find_step(r, args.step)
-    target = resolve_ssh(host_cfg(cfg, step["host"]))
+    target = roast_ssh(cfg, r, step["host"])
     log = f"{checkout_path(cfg, r, step['host'])}/logs/{step['name']}.log"
 
     # Everything after the last start marker, i.e. the most recent run of this step rather than
@@ -708,7 +738,7 @@ def cmd_log(args) -> None:
 def cmd_attach(args) -> None:
     """Replace this process with `ssh -t <host> tmux attach -t roast`, selecting the step's window."""
     cfg = load_config()
-    window = None
+    window, r = None, None
     if args.id:
         r = load_roast(args.id)
         if args.step:
@@ -729,7 +759,7 @@ def cmd_attach(args) -> None:
         host = args.host
     else:
         die("give a roast id, or --host")
-    target = resolve_ssh(host_cfg(cfg, host))
+    target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
     tmux = f"tmux attach -t {TMUX_SESSION}"
     if window:
         tmux += f" \\; select-window -t {shlex.quote(window)}"
@@ -758,7 +788,7 @@ def cmd_pull(args) -> None:
     r = load_roast(args.id)
     hosts = [args.host] if args.host else list(r["hosts"])
     for host in hosts:
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         ckpt = r["hosts"][host]["checkout"]
         rel = args.path.strip("/")
         src = f"{target}:{ckpt}/{rel}/"
@@ -824,7 +854,7 @@ def cmd_rm(args) -> None:
         return
     # refuse while a step is running
     for host, h in r.get("hosts", {}).items():
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
@@ -832,14 +862,14 @@ def cmd_rm(args) -> None:
     # remote locations first, while we still have the manifest
     lpc = None
     for host, h in r.get("hosts", {}).items():
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         if host == "cmslpc":
             lpc = target
         if not args.keep_hosts:
             top = h["checkout"].rsplit("/", 1)[0]
             res = ssh_run(target, f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
             print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
-    lpc = lpc or resolve_ssh(host_cfg(cfg, "cmslpc"))
+    lpc = lpc or roast_ssh(cfg, r, "cmslpc")
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
         res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}"), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
@@ -903,7 +933,7 @@ def cmd_pourover(args) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}")
     ckpt = r["hosts"][host]["checkout"]
-    target = resolve_ssh(host_cfg(cfg, host))
+    target = roast_ssh(cfg, r, host)
     dest_root = ROOT / "output" / "roasts" / r["id"]
 
     coffea_rel, meta_rel = args.coffea, args.config
@@ -1109,9 +1139,13 @@ def cmd_status(args) -> None:
         # which machine a phase happens to run on matters less than where the pipeline is.
         parsed = {}
         for host, hinfo in r["hosts"].items():
-            target = resolve_ssh(host_cfg(cfg, host))
+            target = roast_ssh(cfg, r, host)
             res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
-            if res.returncode != 0:
+            if res.returncode == 255:
+                node = target.split("@")[-1]
+                parsed[host] = {"error": f"{node} unreachable — the driver is gone; "
+                                         f"`{TOOL} resume <id> --step <step>` moves this roast to a live node"}
+            elif res.returncode != 0:
                 parsed[host] = {"error": f"ssh failed ({target}): {res.stderr.strip()[:80]}"}
             else:
                 st = _parse_status(res.stdout)
@@ -1235,7 +1269,7 @@ def cmd_publish(args) -> None:
         for host in hosts:
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
-            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+            res = ssh_run(roast_ssh(cfg, r, host),
                           _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
                                        dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
             print((res.stdout + res.stderr).strip())
@@ -1255,7 +1289,7 @@ def cmd_publish(args) -> None:
             pages = set()   # full publish: rebuild the list from what the hosts have now
         for host in hosts:
             ck = r["hosts"][host]["checkout"]
-            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+            res = ssh_run(roast_ssh(cfg, r, host),
                           f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
                           check=False)
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
@@ -1284,7 +1318,7 @@ def cmd_archive(args) -> None:
     for host in hosts:
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
-        res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+        res = ssh_run(roast_ssh(cfg, r, host),
                       _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
                                    dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
         print((res.stdout + res.stderr).strip())
@@ -1421,7 +1455,8 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("init", help="write ~/.config/roast/config.json")
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
-    s.add_argument("--cmslpc-node", default="cmslpc307", help="LPC interactive node to pin (default: cmslpc307)")
+    s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
+                   "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
     s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")

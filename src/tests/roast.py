@@ -14,6 +14,7 @@ Run it directly:
     python3 src/tests/roast.py
 """
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -200,6 +201,26 @@ class TestRunScriptFlags(unittest.TestCase):
 
     def test_seeds_the_grid_proxy(self):
         self.assertIn("proxy/x509_proxy", self.script())
+
+
+class TestRoastSsh(unittest.TestCase):
+    """A roast follows the node it was placed on, not whatever the config says today."""
+
+    def test_recorded_node_wins_over_the_configured_target(self):
+        r = fake_roast()
+        r["hosts"]["cmslpc"]["ssh"] = "u@cmslpc361.fnal.gov"
+        cfg = json.loads(json.dumps(CFG))
+        cfg["hosts"]["cmslpc"]["ssh"] = "u@cmslpc-el9.fnal.gov"   # the round-robin gateway
+        self.assertEqual(roast.roast_ssh(cfg, r, "cmslpc"), "u@cmslpc361.fnal.gov")
+
+    def test_falls_back_to_the_config_before_checkout(self):
+        r = fake_roast()
+        r["hosts"] = {}
+        self.assertEqual(roast.roast_ssh(CFG, r, "cmslpc"), CFG["hosts"]["cmslpc"]["ssh"])
+
+    def test_checkout_asks_the_far_side_which_node_it_is(self):
+        script = roast._checkout_script(CFG["hosts"]["cmslpc"], fake_roast(), "~/prod/x/barista")
+        self.assertIn("hostname -f", script)
 
 
 class TestConcurrentRoasts(unittest.TestCase):

@@ -28,9 +28,13 @@ bin/roast init --cmslpc-user <lpc-user> --falcon-user <falcon-user> \
 This writes `~/.config/roast/config.json` and prints what it filled in. Check two things
 in that file:
 
-* `hosts.cmslpc.ssh` names one LPC interactive node (`cmslpc307` by default). Pass
-  `--cmslpc-node` to pick another. Your home area is shared across nodes, so this only
-  decides where the driver process and its `tmux` session live.
+* `hosts.cmslpc.ssh` is the `cmslpc-el9` gateway, so the load balancer picks an
+  interactive node per roast and the roast remembers it. Only the driver process and its
+  `tmux` window are tied to a node: the filesystem is shared across interactive nodes and
+  HTCondor runs central schedds, so a checkout, its logs and its jobs are reachable from
+  anywhere. If a roast's node goes down, the next `submit` or `resume` moves that roast to
+  a live one through the gateway and says so. `roast init --cmslpc-node <node>` pins every
+  roast to one node instead, which you rarely want.
 * `hosts.*.reference` points at your existing barista clone on each machine. New roast
   checkouts are cloned from it, which is far faster than cloning from GitLab.
 
