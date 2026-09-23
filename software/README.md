@@ -110,7 +110,8 @@ The `run_container` script automatically detects and configures for different co
   Two CERN constraints: the job directory (`CONDOR_LOG_DIR`) must stay on AFS, since the standard schedds refuse
   `/eos` paths for the executable and the log files; and the schedd raises `RequestCpus` to `RequestMemory / 3 GB`,
   so a 1-GPU job should ask for at most 48 GB (16 cores, one A100 machine); 64 GB becomes 22 cores and only
-  matches the few H100/H200 nodes. Stdout/stderr are streamed to the job directory while the job runs.
+  matches the few H100/H200 nodes. Job stdout/stderr reach the job directory only at job end
+  (the schedds refuse `stream_output`/`stream_error`); the tools' own `tee` logs on EOS show live progress.
 - **Setup**: `./run_container lxplus-setup` (EOS scratch dirs, credential, interim `dask_lxplus` install when
   the image predates it) and `./run_container voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy`.
 - **Kerberos lifetime**: the copied ticket is valid ~24 h. For longer shared-dask daemons renew it
