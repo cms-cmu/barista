@@ -296,7 +296,8 @@ def cmd_init(args) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
-        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@cmslpc307.fnal.gov"
+        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node}.fnal.gov"
+        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
     if args.cern_user:
@@ -307,7 +308,12 @@ def cmd_init(args) -> None:
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
         f.write("\n")
-    info(f"wrote {CONFIG_PATH}; edit ssh targets, paths and cores to taste")
+    info(f"wrote {CONFIG_PATH}")
+    for key, val in (("cmslpc ssh", cfg["hosts"]["cmslpc"]["ssh"]), ("falcon ssh", cfg["hosts"]["falcon"]["ssh"]),
+                     ("EOS archive", cfg["eos"]["path"]), ("CERNBox", cfg["cernbox"]["url"])):
+        info(f"  {key:12s} {val}")
+    if any("<" in json.dumps(cfg[k]) for k in ("hosts", "cernbox", "eos")):
+        info("  placeholders in <angle brackets> still need editing")
 
 
 def cmd_new(args) -> None:
@@ -581,6 +587,60 @@ def _submit(args, resume: bool) -> None:
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
     save_roast(r)
     info(f"attach: ssh -t {target} tmux attach -t {TMUX_SESSION}    |    {TOOL} status {r['id']}")
+
+
+# Lines worth seeing when scanning a step's log for what went wrong. `Traceback` is deliberately
+# absent: dask tears its client down noisily at the end of every successful job, so matching it
+# buries the real failures under a dozen benign stacks per wave of jobs.
+_LOG_ERROR_RE = (r"Error in rule|WorkflowError|Missing(Output|Input)Exception|"
+                 r"Exiting because a job execution failed|Removing output files of failed job|"
+                 r"JOB EXECUTION FAILED|exited with non-zero|unbound variable|"
+                 r"Killed|Out of memory|Segmentation fault|=== roast .* exit ")
+
+
+def cmd_log(args) -> None:
+    """Show, follow or summarise a step's log without taking over the terminal.
+
+    `attach` needs the tmux window to still exist and replaces this process; `status` shows only
+    the last line. This is the in-between: read the log of a finished or running step, over ssh.
+    """
+    cfg = load_config()
+    r = load_roast(args.id)
+    step = find_step(r, args.step)
+    target = resolve_ssh(host_cfg(cfg, step["host"]))
+    log = f"{checkout_path(cfg, r, step['host'])}/logs/{step['name']}.log"
+
+    # Everything after the last start marker, i.e. the most recent run of this step rather than
+    # the whole history of resubmissions appended to the same file.
+    since_start = f"tac {rq(log)} | sed '/=== roast .* start /q' | tac"
+
+    if args.follow:
+        info(f"following {step['host']}:{log}  (ctrl-c to stop)")
+        cmd = f"tail -n {int(args.lines)} -F {rq(log)}"
+        if args.errors:
+            cmd += f" | grep -E --line-buffered {shlex.quote(_LOG_ERROR_RE)}"
+        os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
+
+    if args.stats:
+        # The last "Job stats:" block: the job counts and the reasons snakemake gives for them.
+        # This is the only place a dry run's job count appears -- it prints no progress lines, so
+        # `status` shows an empty progress column for one.
+        script = (f"awk '/^Job stats:/{{n=NR}} {{a[NR]=$0}} "
+                  f"END{{if(!n){{print \"no Job stats block in this run\"; exit}} "
+                  f"for(i=n;i<=NR;i++) print a[i]}}' <({since_start})")
+    elif args.errors:
+        script = f"({since_start}) | grep -E {shlex.quote(_LOG_ERROR_RE)} || echo 'no failures in the last run'"
+    else:
+        script = f"({since_start}) | tail -n {int(args.lines)}"
+
+    res = ssh_run(target, f"set -o pipefail\n{script}\n", check=False)
+    out = (res.stdout or "").rstrip()
+    if out:
+        print(out)
+    elif res.returncode != 0:
+        die((res.stderr or "").strip() or f"could not read {log} on {step['host']}")
+    else:
+        info(f"{log} is empty on {step['host']}")
 
 
 def cmd_attach(args) -> None:
@@ -1195,7 +1255,10 @@ def main(argv=None) -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("init", help="write ~/.config/roast/config.json")
-    s.add_argument("--cmslpc-user"); s.add_argument("--falcon-user"); s.add_argument("--cern-user"); s.add_argument("--owner")
+    s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
+    s.add_argument("--cmslpc-node", default="cmslpc307", help="LPC interactive node to pin (default: cmslpc307)")
+    s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
 
@@ -1227,6 +1290,16 @@ def main(argv=None) -> None:
     s.add_argument("--host", default="cmslpc"); s.add_argument("--valid", default="168:00", help="hours:minutes (default 168:00)")
     s.add_argument("--check", action="store_true")
     s.set_defaults(func=cmd_proxy)
+
+    s = sub.add_parser("log", help="show, follow or summarise a step's log (no tmux needed)")
+    s.add_argument("id"); s.add_argument("--step", required=True)
+    s.add_argument("-n", "--lines", type=int, default=50, help="how many lines (default 50)")
+    s.add_argument("-f", "--follow", action="store_true", help="tail -F the live log")
+    s.add_argument("--stats", action="store_true",
+                   help="the last 'Job stats:' block — the job counts and snakemake's reasons, "
+                        "which for a dry run is the only place the count appears")
+    s.add_argument("--errors", action="store_true", help="only failure lines from the last run")
+    s.set_defaults(func=cmd_log)
 
     s = sub.add_parser("attach", help="open the host's roast tmux session, on the step's window")
     s.add_argument("id", nargs="?"); s.add_argument("--step"); s.add_argument("--host")
