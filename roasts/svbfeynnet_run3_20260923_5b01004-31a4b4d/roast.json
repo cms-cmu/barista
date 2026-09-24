@@ -1,0 +1,147 @@
+{
+  "id": "svbfeynnet_run3_20260923_5b01004-31a4b4d",
+  "label": "svbfeynnet_run3",
+  "created": "2026-09-23 14:47:31",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "5b01004b41154165e5c3afaa9e949384ce65939a",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "31a4b4da18aa4d1e8905c55781750ff80e12efa1",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/svbfeynnet_run3.yml",
+    "captured": "config.yml",
+    "sha256": "064371b7830e5864a23e867da67d3c3db9dd15ceca3c94d2f271597007a5c2cc"
+  },
+  "steps": [
+    {
+      "name": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_SvBFeynNet_friendtrees_Run3.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 14:57:15",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "064371b7830e"
+        },
+        {
+          "ts": "2026-09-23 15:26:09",
+          "cores": 8,
+          "extra": "--forcerun install_SvBFeynNet_friend_json -n",
+          "user_extra": "--forcerun install_SvBFeynNet_friend_json",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "064371b7830e"
+        },
+        {
+          "ts": "2026-09-23 16:14:35",
+          "cores": 8,
+          "extra": "--forcerun install_SvBFeynNet_friend_json --config test=true",
+          "user_extra": "--forcerun install_SvBFeynNet_friend_json",
+          "dry_run": false,
+          "test": true,
+          "resume": false,
+          "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "064371b7830e"
+        },
+        {
+          "ts": "2026-09-23 17:47:49",
+          "cores": 8,
+          "extra": "--forcerun install_SvBFeynNet_friend_json",
+          "user_extra": "--forcerun install_SvBFeynNet_friend_json",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "064371b7830e"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d/barista",
+      "ssh": "jda102@cmslpc307.fnal.gov",
+      "checked_out": "2026-09-23 14:56:10"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d/",
+    "ts": "2026-09-23 20:53:06",
+    "ok": true,
+    "pages": []
+  },
+  "history": [
+    {
+      "ts": "2026-09-23 14:47:31",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-23 14:56:10",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 14:57:15",
+      "event": "submit",
+      "step": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 15:26:09",
+      "event": "submit",
+      "step": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 16:14:35",
+      "event": "submit",
+      "step": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 17:47:49",
+      "event": "resume",
+      "step": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 20:52:43",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:53:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/svbfeynnet_run3_20260923_5b01004-31a4b4d",
+    "ts": "2026-09-23 20:52:43",
+    "ok": true
+  }
+}

@@ -1,0 +1,591 @@
+{
+  "id": "nominal_run3_20260922_3f9e199-1e0504f",
+  "label": "nominal_run3",
+  "created": "2026-09-22 14:57:35",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3.yml",
+    "captured": "config.yml",
+    "sha256": "1aed389a1dfe5639c0a1c782fa5bb0592e9cf313690129be7bc3616509500c55"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-22 15:00:29",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e6b363a5ba02"
+        },
+        {
+          "ts": "2026-09-22 15:31:50",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 15:33:34",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 21:46:37",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 21:48:07",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 22:13:15",
+          "cores": 8,
+          "extra": "--forcerun jcm_cutflow_closure_table -n",
+          "user_extra": "--forcerun jcm_cutflow_closure_table",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 22:17:15",
+          "cores": 8,
+          "extra": "--forcerun jcm_cutflow_closure_table",
+          "user_extra": "--forcerun jcm_cutflow_closure_table",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_B",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "e04b5bf485b1"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-22 22:25:37",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 22:31:16",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 23:04:35",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 23:05:06",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "e04b5bf485b1"
+        },
+        {
+          "ts": "2026-09-22 23:17:50",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-22 23:18:00",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-22 23:19:48",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 07:29:55",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_20260922_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 07:34:22",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_C4",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "1aed389a1dfe"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 09:07:14",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 09:07:29",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 09:12:28",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_20260922_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "1aed389a1dfe"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 17:48:51",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3f9e199-1e0504f_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "1aed389a1dfe"
+        },
+        {
+          "ts": "2026-09-23 17:51:32",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3f9e199-1e0504f_F",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "1aed389a1dfe"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f/barista",
+      "ssh": "jda102@cmslpc307.fnal.gov",
+      "checked_out": "2026-09-22 14:59:23"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_20260922_3f9e199-1e0504f/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-22 21:56:57"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f/",
+    "ts": "2026-09-23 20:45:04",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nominal/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_nominal/computeJCM/cutflow_wJCM.html",
+      "output/Run3_nominal/computeJCM/plots_wJCM/index.html",
+      "output/Run3_nominal/cutflow_Run3_nominal.html",
+      "output/Run3_nominal/cutflow_crosscheck_Run3_nominal.html",
+      "output/Run3_nominal/plots_Run3_nominal/index.html",
+      "output/Run3_nominal/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-22 14:57:35",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-22 14:59:23",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 15:00:29",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 15:31:50",
+      "event": "config-edited",
+      "sha256": "e04b5bf485b1"
+    },
+    {
+      "ts": "2026-09-22 15:31:50",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 15:33:34",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 21:46:37",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 21:48:07",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 21:56:57",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 22:00:13",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-22 22:00:25",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-22 22:13:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 22:17:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-22 22:18:04",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-22 22:18:15",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-22 22:25:37",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 22:31:16",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 23:04:35",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 23:05:06",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 23:17:50",
+      "event": "config-edited",
+      "sha256": "1aed389a1dfe"
+    },
+    {
+      "ts": "2026-09-22 23:17:50",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 23:18:00",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-22 23:19:48",
+      "event": "resume",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 07:29:55",
+      "event": "resume",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 07:34:22",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 08:32:45",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-09-23 08:33:01",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 08:58:53",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 08:59:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 09:07:14",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 09:07:29",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 09:12:28",
+      "event": "resume",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 17:48:51",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 17:51:32",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 20:34:46",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:35:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:43:53",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:43:57",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:44:54",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:45:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+    "ts": "2026-09-23 20:43:57",
+    "ok": true
+  }
+}

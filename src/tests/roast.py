@@ -14,7 +14,9 @@ Run it directly:
     python3 src/tests/roast.py
 """
 import importlib.util
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -201,6 +203,125 @@ class TestRunScriptFlags(unittest.TestCase):
         self.assertIn("proxy/x509_proxy", self.script())
 
 
+class TestRoastSsh(unittest.TestCase):
+    """A roast follows the node it was placed on, not whatever the config says today."""
+
+    def test_recorded_node_wins_over_the_configured_target(self):
+        r = fake_roast()
+        r["hosts"]["cmslpc"]["ssh"] = "u@cmslpc361.fnal.gov"
+        cfg = json.loads(json.dumps(CFG))
+        cfg["hosts"]["cmslpc"]["ssh"] = "u@cmslpc-el9.fnal.gov"   # the round-robin gateway
+        self.assertEqual(roast.roast_ssh(cfg, r, "cmslpc"), "u@cmslpc361.fnal.gov")
+
+    def test_falls_back_to_the_config_before_checkout(self):
+        r = fake_roast()
+        r["hosts"] = {}
+        self.assertEqual(roast.roast_ssh(CFG, r, "cmslpc"), CFG["hosts"]["cmslpc"]["ssh"])
+
+    def test_checkout_asks_the_far_side_which_node_it_is(self):
+        script = roast._checkout_script(CFG["hosts"]["cmslpc"], fake_roast(), "~/prod/x/barista")
+        self.assertIn("hostname -f", script)
+
+
+class TestConcurrentRoasts(unittest.TestCase):
+    """Several roasts can be in flight at once, so nothing may be named per label alone.
+
+    submit closes a tmux window of the name it is about to use, so two roasts sharing a
+    window name would let one kill the other's running step.
+    """
+
+    def window(self, label, date, shas, step="D"):
+        r = fake_roast(step_name=step)
+        r.update(label=label, created=f"{date} 00:00:00", id=f"{label}_{date.replace('-', '')}_{shas}")
+        return roast._window_name(r, r["steps"][0])
+
+    def test_same_label_and_day_different_code_are_distinct(self):
+        a = self.window("nominal_run3", "2026-09-22", "3f9e199-1e0504f")
+        b = self.window("nominal_run3", "2026-09-22", "aaaaaaa-bbbbbbb")
+        self.assertNotEqual(a, b)
+
+    def test_steps_of_one_roast_are_distinct(self):
+        r = fake_roast()
+        c = dict(r["steps"][0], name="C")
+        d = dict(r["steps"][0], name="D")
+        self.assertNotEqual(roast._window_name(r, c), roast._window_name(r, d))
+
+    def test_name_is_tmux_safe(self):
+        w = self.window("nominal_run3", "2026-09-22", "3f9e199-1e0504f")
+        self.assertNotIn(" ", w)
+        self.assertNotIn(":", w)     # tmux target syntax is session:window
+        self.assertLessEqual(len(w), 40)
+
+
+try:
+    import yaml
+except ImportError:          # the CI image is bare python; only the layered-config path needs PyYAML
+    yaml = None
+
+
+class TestCaptureConfig(unittest.TestCase):
+    """`roast new` captures the config the steps run from.  A config with `base:` holds only its
+    differences and must be captured merged, self-contained, so later edits to the base cannot
+    change what an existing roast runs."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.root = roast.ROOT
+        roast.ROOT = self.tmp            # base: paths resolve against the barista root
+
+    def tearDown(self):
+        roast.ROOT = self.root
+        shutil.rmtree(self.tmp)
+
+    def write(self, name, text):
+        p = self.tmp / name
+        p.write_text(text)
+        return p
+
+    def test_plain_config_is_copied_verbatim(self):
+        src = self.write("plain.yml", "# comment kept\nlabel: x\n")
+        self.assertEqual(roast.capture_config(src, self.tmp / "out.yml"), [])
+        self.assertEqual((self.tmp / "out.yml").read_text(), src.read_text())
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_layered_config_is_merged_over_its_base_chain(self):
+        self.write("root.yml", "label: a\noutput_path: output/a/\nlst: [1, 2]\n"
+                               "analysis_config:\n  processor: p.py\n  config:\n    run_SvB: true\n    tight: true\n")
+        self.write("mid.yml", "base: root.yml\nlst: [3]\n")
+        src = self.write("top.yml", "base: mid.yml\nlabel: b\noutput_path: output/b/\n"
+                                    "analysis_config:\n  config:\n    cand: q.yml\n")
+        chain = roast.capture_config(src, self.tmp / "out.yml")
+        self.assertEqual([b["source"] for b in chain], ["root.yml", "mid.yml"])
+        text = (self.tmp / "out.yml").read_text()
+        got = yaml.safe_load(text)
+        self.assertNotIn("base", got)
+        self.assertEqual(got["label"], "b")
+        self.assertEqual(got["lst"], [3])                           # lists replace, like snakemake
+        self.assertEqual(got["analysis_config"]["processor"], "p.py")
+        self.assertEqual(got["analysis_config"]["config"],
+                         {"run_SvB": True, "tight": True, "cand": "q.yml"})  # nested siblings survive
+        # roast status/submit read output_path back out of the captured text with this regex
+        m = re.search(r'^output_path:\s*["\']?([^"\'\s#]+)', text, re.M)
+        self.assertEqual(m.group(1), "output/b/")
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_placeholders_survive_the_round_trip(self):
+        self.write("root.yml", 'handoff:\n  eos_base: "root://x//{roast_id}/handoff"\n'
+                               "fvt:\n  workflow_overrides:\n    '--friends \"\"': a/{roast_id}.json@@HCR_input\n")
+        src = self.write("top.yml", "base: root.yml\nlabel: b\n")
+        roast.capture_config(src, self.tmp / "out.yml")
+        got = yaml.safe_load((self.tmp / "out.yml").read_text())
+        self.assertEqual(got["handoff"]["eos_base"], "root://x//{roast_id}/handoff")
+        self.assertEqual(got["fvt"]["workflow_overrides"]['--friends ""'], "a/{roast_id}.json@@HCR_input")
+
+    @unittest.skipIf(yaml is None, "PyYAML not installed")
+    def test_base_cycle_is_an_error(self):
+        self.write("a.yml", "base: b.yml\n")
+        src = self.write("b.yml", "base: a.yml\n")
+        with self.assertRaises(SystemExit):
+            roast.capture_config(src, self.tmp / "out.yml")
+
+
 class TestCopySettings(unittest.TestCase):
     def test_defaults(self):
         r = fake_roast()
@@ -292,6 +413,106 @@ class TestCommandLine(unittest.TestCase):
         res = self.run_roast("frappuccino")
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("invalid choice", res.stderr)
+
+
+class TestStatusGrouping(unittest.TestCase):
+    """Slurm jobs are reported under the step that submitted them.
+
+    The step comes from whichever logs/<step>.log announced the job id, so two phases that
+    both run a rule called `train` keep their own attempts instead of one hiding the other.
+    """
+
+    OUT = "\n".join([
+        "STEP|C|exit=0|tmux=0|5 of 5 steps (100%) done|done",
+        "STEP|D|running|tmux=1||Job 1 submitted",
+        "SLURM|42722|D|rule_train|RUNNING|18:46|8:00:00|rogue02|8|62G|gres/mps:50|loss=0.47",
+        "SLURMDONE|42442|C|rule_train|COMPLETED|04:35:59|",
+        "SLURMDONE|42717|D|rule_train|FAILED|00:00:10|",
+        "SLURMDONE|42429||classifier_batch|FAILED|00:00:05|",
+        "SINFO|work*|2|mixed|gpu:1",
+    ])
+
+    def setUp(self):
+        self.st = roast._parse_status(self.OUT)
+
+    def test_steps_are_kept_in_order(self):
+        self.assertEqual([n for n, _ in self.st["steps"]], ["C", "D"])
+
+    def test_step_name_is_a_column_not_part_of_the_text(self):
+        # cmd_status prints the name itself, so leaving it in the text would double it.
+        for name, text in self.st["steps"]:
+            self.assertFalse(text.startswith(name), f"{name!r} repeated in its own line text")
+
+    def test_jobs_land_under_their_own_step(self):
+        self.assertEqual([j["jid"] for j in self.st["done"]["C"]], ["42442"])
+        self.assertEqual([j["jid"] for j in self.st["live"]["D"]], ["42722"])
+
+    def test_a_rule_shared_by_two_steps_is_not_merged(self):
+        # C's finished train must survive D's running train of the same rule name.
+        c = roast._slurm_rows(self.st["live"].get("C", []), self.st["done"].get("C", []))
+        d = roast._slurm_rows(self.st["live"].get("D", []), self.st["done"].get("D", []))
+        self.assertIn("42442", "\n".join(c))
+        self.assertIn("42722", "\n".join(d))
+        self.assertNotIn("42442", "\n".join(d))
+
+    def test_unattributed_jobs_go_to_the_empty_key(self):
+        self.assertEqual([j["jid"] for j in self.st["done"][""]], ["42429"])
+
+    def test_cluster_line_is_kept_aside(self):
+        self.assertTrue(any("cluster" in e for e in self.st["extra"]))
+
+    def test_missing_checkout_is_flagged(self):
+        self.assertTrue(roast._parse_status("NOCHECKOUT")["nocheckout"])
+
+
+class TestSlurmRowsSupersede(unittest.TestCase):
+    """A retried rule must show the attempt that replaced the failure, not the failure.
+
+    Snakemake resubmits failed rules and people retry jobs by hand, so the scheduler holds
+    several job ids per rule; listing them all made a fixed rule look broken.
+    """
+
+    LIVE = ("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail")
+    DONE = ("jid", "rule", "state", "el", "rss")
+
+    def live(self, **kw):
+        return dict({k: "" for k in self.LIVE}, **kw)
+
+    def done(self, **kw):
+        return dict({k: "" for k in self.DONE}, **kw)
+
+    def render(self, live, done):
+        return "\n".join(roast._slurm_rows(live, done))
+
+    def test_latest_finished_attempt_wins(self):
+        out = self.render([], [self.done(jid="41090", rule="rule_train", state="FAILED"),
+                               self.done(jid="41095", rule="rule_train", state="COMPLETED")])
+        self.assertIn("41095", out)
+        self.assertNotIn("41090", out)
+        self.assertIn("after 1 failed attempt", out)
+
+    def test_a_live_attempt_supersedes_finished_ones(self):
+        out = self.render([self.live(jid="41100", rule="rule_train", state="RUNNING")],
+                          [self.done(jid="41090", rule="rule_train", state="FAILED")])
+        self.assertIn("41100", out)
+        self.assertNotIn("41090", out)
+
+    def test_an_unretried_failure_is_still_reported(self):
+        out = self.render([], [self.done(jid="41099", rule="rule_analyze", state="FAILED")])
+        self.assertIn("41099", out)
+        self.assertIn("FAILED", out)
+
+    def test_other_rules_are_untouched(self):
+        out = self.render([], [self.done(jid="41090", rule="rule_train", state="FAILED"),
+                               self.done(jid="41095", rule="rule_train", state="COMPLETED"),
+                               self.done(jid="41096", rule="rule_evaluate", state="COMPLETED")])
+        self.assertIn("41096", out)
+        self.assertIn("evaluate", out)
+
+    def test_rule_prefix_is_stripped(self):
+        out = self.render([], [self.done(jid="1", rule="rule_plot_weights", state="COMPLETED")])
+        self.assertIn("plot_weights", out)
+        self.assertNotIn("rule_plot_weights", out)
 
 
 @unittest.skipIf(BASH is None or shutil.which("tac") is None, "needs bash and tac (GNU coreutils)")

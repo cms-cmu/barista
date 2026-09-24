@@ -33,18 +33,37 @@ except ImportError:
     RichTable = None
 
 
+# Year and era patterns, shared by every branch of parse_dataset_name so they cannot drift.
+#
+# The Run 3 suffixes are exactly those used in metadata/datasets/data.yml. The alternation is
+# first-match, so the longer forms must come first: without `_preBPix` ahead of `_BPix` (and
+# `_preEE` ahead of `_EE`) the year is truncated and the whole entry falls through to
+# ("Unknown"). That is not hypothetical -- an earlier version listed only
+# (_preEE|_postEE|_BPix), which silently dropped 2022_EE and 2023_preBPix entirely and left
+# 2023_BPix showing ttbar with no data, because `data_2023_BPixD1` did not parse either.
+_UL_YEAR = r"UL\d{2}(?:_preVFP|_postVFP)?"
+_RUN3_YEAR = r"\d{4}(?:_preEE|_postEE|_preBPix|_BPix|_EE)?"
+_YEAR = f"(?:{_UL_YEAR}|{_RUN3_YEAR})"
+# Run 2 eras are a bare letter (UL17C). Run 3 eras carry digits too: C01, C02, C11, C12, C3,
+# C4 for 2023_preBPix and D1, D2 for 2023_BPix.
+_ERA = r"[A-H]\d*"
+
+
 def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, str, str]:
     """
     Parses dataset name into (process, year, sub_era).
-    Supports Run 2 (UL16_preVFP, UL17, etc.) and Run 3 (2022_preEE, 2023, etc.)
-    formats with single '_' or double '__' separators.
-    
+    Supports Run 2 (UL16_preVFP, UL17, etc.) and Run 3 (2022_preEE, 2022_EE, 2023_preBPix,
+    2023_BPix, 2024) formats with single '_' or double '__' separators.
+
     Examples:
       'data_UL16_preVFPC' -> ('data', 'UL16_preVFP', 'UL16_preVFPC')
       'data_UL17C'        -> ('data', 'UL17', 'UL17C')
       'ttHbb_UL16_preVFP' -> ('ttHbb', 'UL16_preVFP', 'UL16_preVFP')
       'TTToHadronic__2022_preEE' -> ('TTToHadronic' or 'TTbar', '2022_preEE', '2022_preEE')
       'data__2022_preEE_B' -> ('data', '2022_preEE', '2022_preEE_B')
+      'data_2022_EEE'      -> ('data', '2022_EE', '2022_EE_E')
+      'data_2023_preBPixC01' -> ('data', '2023_preBPix', '2023_preBPix_C01')
+      'data_2023_BPixD1'   -> ('data', '2023_BPix', '2023_BPix_D1')
     """
     # Check double underscore format first: <process>__<year/era> or <process>__<sample>__<year>
     if "__" in dataset:
@@ -57,7 +76,7 @@ def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, st
             process, era_part = dataset, "Unknown"
 
         # Check for year/era in era_part
-        m = re.match(r"^((?:UL\d{2}(?:_preVFP|_postVFP)?|\d{4}(?:_preEE|_postEE|_EE|_preBPix|_postBPix|_BPix)?))(_[A-H]\d*|[A-H]\d*)?$", era_part)
+        m = re.match(rf"^({_YEAR})(_?{_ERA})?$", era_part)
         if m:
             year = m.group(1)
             sub_era = era_part
@@ -70,7 +89,7 @@ def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, st
         return process, year, sub_era
 
     # Run 2 single underscore format: e.g. data_UL16_preVFPC, ttHbb_UL17, TTbar_from_d3_UL17D
-    pattern_run2 = r"^(.*?)_(UL\d{2}(?:_preVFP|_postVFP)?)([A-H])?$"
+    pattern_run2 = rf"^(.*?)_({_UL_YEAR})({_ERA})?$"
     match = re.match(pattern_run2, dataset)
     if match:
         process = match.group(1)
@@ -81,9 +100,8 @@ def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, st
             process = "TTbar"
         return process, year, sub_era
 
-    # Run 3 single underscore format: e.g. data_2022_preEEB, data_2022_preEE_B, data_2022_EEG,
-    # TTToSemiLeptonic_stitched_2022_EE, data_2023_preBPixC1 (era letters may carry a digit in 2023)
-    pattern_run3 = r"^(.*?)_(\d{4}(?:_preEE|_postEE|_EE|_preBPix|_postBPix|_BPix)?)(?:_?([A-H]\d*))?$"
+    # Run 3 single underscore format: e.g. data_2022_preEEB, data_2022_preEE_B
+    pattern_run3 = rf"^(.*?)_({_RUN3_YEAR})(?:_?({_ERA}))?$"
     match_r3 = re.match(pattern_run3, dataset)
     if match_r3:
         process = match_r3.group(1)
