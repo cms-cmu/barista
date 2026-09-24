@@ -61,6 +61,18 @@
           "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "064371b7830e"
+        },
+        {
+          "ts": "2026-09-23 17:47:49",
+          "cores": 8,
+          "extra": "--forcerun install_SvBFeynNet_friend_json",
+          "user_extra": "--forcerun install_SvBFeynNet_friend_json",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "svbfeynnet_run_5b01004-31a4b4d_SvBFeynNet_friendtrees_Run3",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "064371b7830e"
         }
       ]
     }
@@ -98,6 +110,12 @@
     {
       "ts": "2026-09-23 16:14:35",
       "event": "submit",
+      "step": "SvBFeynNet_friendtrees_Run3",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 17:47:49",
+      "event": "resume",
       "step": "SvBFeynNet_friendtrees_Run3",
       "host": "cmslpc"
     }
