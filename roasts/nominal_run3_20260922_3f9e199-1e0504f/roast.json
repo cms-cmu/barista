@@ -332,7 +332,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_20260922_3f9e199-1e0504f/",
-    "ts": "2026-09-23 20:35:05",
+    "ts": "2026-09-23 20:45:04",
     "ok": true,
     "pages": [
       "output/Run3_nominal/FvT_closure/cutflow_FvT_closure.html",
@@ -556,7 +556,36 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:43:53",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:43:57",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:44:54",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-23 20:45:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
-  "notes": ""
+  "notes": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+    "ts": "2026-09-23 20:43:57",
+    "ok": true
+  }
 }
