@@ -1214,6 +1214,11 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     size = f"-size -{int(ps['max_mb'])}M" if int(ps.get("max_mb") or 0) > 0 else ""
     extra_dirs = f"find logs roasts/{r['id']} -type f;" if with_logs else ""
     dry = "cat \"$LIST\"; echo; echo \"$(wc -l < \"$LIST\") files would be copied (dry run)\"; exit 0" if dry_run else ""
+    # Which kerberos realm the destination accepts; for CERN, hide a foreign ticket so xrootd does not
+    # authenticate with it (pinning XrdSecPROTOCOL=gsi instead fails on eosuser: "No protocols left").
+    cern = "cern.ch" in eos_url
+    krb_realm = "CERN\\.CH" if cern else "[A-Z.]*"
+    pin_gsi = "export KRB5CCNAME=FILE:/dev/null" if cern else ":"
     ht = textwrap.dedent(f"""\
         # CERN EOS websites return 403 on directories without an index; enable Apache listings once at the root.
         HT=$(mktemp); printf 'Options +Indexes\\n' > "$HT"
@@ -1226,8 +1231,12 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         set -uo pipefail
         cd {rq(ckpt)}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
-        # Auth: a kerberos ticket if present, else the grid proxy run_container keeps in ./proxy
-        if ! klist -s 2>/dev/null && [ -s proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; fi
+        # Auth: a kerberos ticket if present, else the grid proxy run_container keeps in ./proxy.
+        # For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which
+        # eosuser rejects ("[3010] ... unauthorized identity used"), so use the proxy and hide that ticket.
+        if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{krb_realm}$"; then :
+        elif [ -s proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; {pin_gsi}
+        fi
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
