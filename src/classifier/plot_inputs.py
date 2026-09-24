@@ -196,8 +196,13 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
     """Read metadata JSON and group friend tree paths by physics label.
 
     Only returns labels present in the `labels` list (from checkpoint).
+
+    fsspec, not open(): the classifier-input manifest is not necessarily a local file. A roast
+    publishes it to its EOS handoff area so nothing has to be copied into the falcon checkout,
+    and the workflow passes that root:// URL straight through as --metadata (the same METADATA
+    value reaches plot_inputs_raw, plot_inputs_dataprep and plot_weights).
     """
-    with open(metadata_path) as f:
+    with fsspec.open(metadata_path, "rt") as f:
         meta = json.load(f)[meta_key]
 
     label_set = set(labels)

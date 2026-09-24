@@ -73,6 +73,11 @@ def apply_jerc_corrections( event,
                     jet_corr_factor: float = 1.0
                     ):
 
+    """Legacy txt/tarball JERC path (``JEC_MC`` / ``JEC_DATA`` / ``JER_MC`` /
+    ``JES_uncertainties`` keys). Superseded by :func:`apply_jerc_corrections_jsonpog`
+    (``jec`` / ``jes_unc`` keys); kept for Run 2 only -- Run 3 eras carry no tarball
+    metadata and must use the JSON-POG path.
+    """
     logging.info(f"Applying JEC/JER corrections for {dataset}")
 
     if isMC:
@@ -253,6 +258,7 @@ def apply_jerc_corrections_jsonpog(
 
         jec:
           file:          <path to jet_jerc.json.gz>
+          jet_type:      AK4PFPuppi       # optional; overrides the AK4PFchs default
           jec_campaign:  Summer19UL18
           jec_version:   V5
           jer_campaign:  Summer19UL18      # optional; JER skipped if absent
@@ -301,7 +307,8 @@ def apply_jerc_corrections_jsonpog(
     jec_version  = jec_meta["jec_version"]
     jer_campaign = jec_meta.get("jer_campaign")
     jer_version  = jec_meta.get("jer_version")
-    junc_sources = corrections_metadata.get("jes_unc") if run_systematics else None
+    # JES uncertainty sources exist only in the MC payload; skip them for data.
+    junc_sources = corrections_metadata.get("jes_unc") if (run_systematics and isMC) else None
 
     # Resolve run_tag for DATA: match the dataset suffix against run_tags keys
     # (longest match first to handle multi-char eras like C01, D1, etc.)
@@ -371,12 +378,20 @@ def apply_jerc_corrections_jsonpog(
     jer   = None
     jersf = None
     if isMC and jer_campaign and jer_version:
-        jer   = _JsonPogJER(cset[f"{jer_campaign}_{jer_version}_MC_PtResolution{key_suffix}"])
-        jersf = _JsonPogJERSF(cset[f"{jer_campaign}_{jer_version}_MC_ScaleFactor{key_suffix}"])
+        jer_prefix = f"{jer_campaign}_{jer_version}_MC"
+        jer = _JsonPogJER(cset[f"{jer_prefix}_PtResolution{key_suffix}"])
+        # JRV2+/JRV3+ payloads split the SF into ScaleFactor (nominal only) and
+        # SFUncertainty; JRV1 and older carry a single ScaleFactor with a
+        # "systematic" input. The adapter handles both given the unc key when present.
+        jersf_unc_key = f"{jer_prefix}_SFUncertainty{key_suffix}"
+        jersf = _JsonPogJERSF(
+            cset[f"{jer_prefix}_ScaleFactor{key_suffix}"],
+            cset[jersf_unc_key] if jersf_unc_key in set(cset.keys()) else None,
+        )
 
     # ── JES uncertainty adapters ──────────────────────────────────────────────
     junc = None
-    if run_systematics and junc_sources is not None:
+    if run_systematics and isMC and junc_sources is not None:
         key_prefix   = f"{jec_campaign}_{jec_tag}_"
         sources      = junc_sources or _detect_junc_sources(cset, key_prefix, key_suffix)
         known_keys   = set(cset.keys())
@@ -409,6 +424,103 @@ def apply_jerc_corrections_jsonpog(
     from src.physics.objects.jetmet_tools import CorrectedJetsFactory
     jet_factory = CorrectedJetsFactory(name_map, jec_stack)
     return jet_factory.build(nominal_jet, event.event, seeds=seeds)
+
+
+# ── pT-regression jet types ───────────────────────────────────────────────────
+
+# NanoAOD ``Jet`` branches holding the raw-pt regression factor for each
+# regressed JERC jet type shipped by JME in ``regJet_jerc.json.gz``. The JEC
+# of these jet types is derived for ``pt_raw * prod(branches)``, so the same
+# product must be passed as ``jet_corr_factor`` when applying it.
+REGRESSION_PT_FACTOR_BRANCHES = {
+    "AK4PFPuppiPNetRegression":              ("PNetRegPtRawCorr",),
+    "AK4PFPuppiPNetRegressionPlusNeutrino":  ("PNetRegPtRawCorr", "PNetRegPtRawCorrNeutrino"),
+    "AK4PFPuppiUParTRegression":             ("UParTAK4RegPtRawCorr",),
+    "AK4PFPuppiUParTRegressionPlusNeutrino": ("UParTAK4RegPtRawCorr", "UParTAK4RegPtRawCorrNeutrino"),
+}
+
+
+def regression_pt_factor(jets, jet_type: str):
+    """Return the per-jet raw-pt regression factor matching *jet_type*.
+
+    Looks up the NanoAOD branches in :data:`REGRESSION_PT_FACTOR_BRANCHES` and
+    multiplies them (e.g. ``PNetRegPtRawCorr * PNetRegPtRawCorrNeutrino``).
+    """
+    try:
+        branches = REGRESSION_PT_FACTOR_BRANCHES[jet_type]
+    except KeyError:
+        raise KeyError(
+            f"Unknown regression jet type {jet_type!r}; known types: "
+            f"{sorted(REGRESSION_PT_FACTOR_BRANCHES)}"
+        ) from None
+    missing = [b for b in branches if b not in jets.fields]
+    if missing:
+        raise KeyError(
+            f"Jet collection has no branch(es) {missing} required by regression "
+            f"jet type {jet_type!r} (available: {[f for f in jets.fields if 'RegPtRaw' in f]})"
+        )
+    factor = jets[branches[0]]
+    for b in branches[1:]:
+        factor = factor * jets[b]
+    return factor
+
+
+def apply_jerc_corrections_regressed(
+    event,
+    corrections_metadata: dict,
+    isMC: bool,
+    dataset: str,
+    run_systematics: bool = False,
+    regression_mask=None,
+    jet_type: str = None,
+    regression_jet_type: str = None,
+    collection: str = "Jet",
+    seeds=("JER",),
+):
+    """JSON-POG JERC with a pT-regressed JEC on a subset of jets.
+
+    Jets flagged by *regression_mask* (jagged bool, aligned with
+    ``event[collection]``; typically the b-tagged jets) are corrected with the
+    *regression_jet_type* payload applied on top of the matching regression
+    factor (:func:`regression_pt_factor`); all other jets get the plain
+    *jet_type* payload. Both are built with the same *run_systematics*, so the
+    ``JER`` / ``JES_*`` variation records survive the per-jet merge.
+
+    ``jet_type`` defaults to ``corrections_metadata['jec']['jet_type']`` and
+    ``regression_jet_type`` to ``corrections_metadata['jec']['regression_jet_type']``;
+    when the latter is unset (Run 2, or an era without regression payloads) or
+    *regression_mask* is ``None`` this reduces to :func:`apply_jerc_corrections_jsonpog`.
+    """
+    jec_meta = corrections_metadata["jec"]
+    if jet_type is None:
+        jet_type = jec_meta.get("jet_type", "AK4PFchs")
+    if regression_jet_type is None:
+        regression_jet_type = jec_meta.get("regression_jet_type")
+
+    common = dict(
+        corrections_metadata=corrections_metadata, isMC=isMC, dataset=dataset,
+        run_systematics=run_systematics, collection=collection, seeds=seeds,
+    )
+    if not regression_jet_type or regression_mask is None:
+        if regression_jet_type and regression_mask is None:
+            logging.warning(
+                f"regression_jet_type={regression_jet_type!r} configured but no "
+                "regression_mask given; applying the plain {jet_type} JEC to all jets"
+            )
+        return apply_jerc_corrections_jsonpog(event, jet_type=jet_type, **common)
+
+    # Regressed first, plain last: each call rewrites event[collection].pt_raw,
+    # so the event ends up carrying the unscaled raw pt.
+    factor = regression_pt_factor(event[collection], regression_jet_type)
+    regressed = apply_jerc_corrections_jsonpog(
+        event, jet_type=regression_jet_type, jet_corr_factor=factor, **common
+    )
+    plain = apply_jerc_corrections_jsonpog(event, jet_type=jet_type, **common)
+    logging.info(
+        f"{dataset}: {regression_jet_type} JEC on {int(ak.sum(regression_mask))} / "
+        f"{int(ak.count(regression_mask))} jets, {jet_type} JEC on the rest"
+    )
+    return ak.where(regression_mask, regressed, plain)
 
 
 def apply_jet_veto_maps( corrections_metadata, jets, event_veto: bool = False ):

@@ -1,0 +1,235 @@
+{
+  "id": "nominal_run3_quadjet_run2_20260923_15e45e6-8998887",
+  "label": "nominal_run3_quadjet_run2",
+  "created": "2026-09-23 20:58:05",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "15e45e6b57fae95ae8ab4bde84e581e050706cc9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "899888798ea54187930c700b674968baf4876172",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_quadjet_run2.yml",
+    "captured": "config.yml",
+    "sha256": "6d4997fe0146dcad4965a24c06fa5fa43dd297cfe9a97d90b0e42e0471972dca",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "2d24abdc462816cf67c6038b6e883d0c97dcc3fca72f22399678e8b036dd5894"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 21:30:01",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_B",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "6d4997fe0146"
+        },
+        {
+          "ts": "2026-09-23 22:03:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_B",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "6d4997fe0146"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 21:30:19",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6d4997fe0146"
+        },
+        {
+          "ts": "2026-09-24 02:56:24",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6d4997fe0146"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 21:47:03",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_C4",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "6d4997fe0146"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 21:30:20",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6d4997fe0146"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 21:48:30",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_F",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "6d4997fe0146"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/barista",
+      "ssh": "jda102@cmslpc346.fnal.gov",
+      "checked_out": "2026-09-23 21:29:38"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-23 21:29:56"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-09-23 20:58:05",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-23 21:29:38",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 21:29:56",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 21:30:01",
+      "event": "config-edited",
+      "sha256": "6d4997fe0146"
+    },
+    {
+      "ts": "2026-09-23 21:30:01",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 21:30:19",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 21:30:20",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-23 21:47:03",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 21:48:30",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 22:03:17",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 02:56:24",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    }
+  ],
+  "notes": ""
+}

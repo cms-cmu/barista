@@ -1,21 +1,25 @@
 workflow:
   rules:
-    # Do not run if only markdown files changed
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
-      changes:
-        - "**/*.md"
-      when: never
     # Do not run for tags
     - if: '$CI_COMMIT_TAG'
       when: never
     # Do not run for branches with 'test' in the name
     - if: '$CI_COMMIT_BRANCH =~ /test/'
       when: never
-    # Run for master branch pushes/merges
+    # Run for master branch pushes/merges.  Must come BEFORE the markdown rule below:
+    # `changes:` matches if ANY listed path changed (there is no "only these changed"
+    # operator), so a master push touching one .md file would otherwise skip the whole
+    # pipeline — including the `pages` job that publishes the docs site.
     - if: '$CI_COMMIT_BRANCH == "master"'
       variables:
         DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
       when: always
+    # Skip doc-only pushes on feature branches (see the caveat above: this fires whenever
+    # a markdown file is among the changes, so keep it after the master rule)
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+      changes:
+        - "**/*.md"
+      when: never
     # Run for merge requests
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       variables:
@@ -244,6 +248,11 @@ validation:
     - when: never
 
 pages:
+  # `pages` is the last stage, so without this it queues behind every analysis job and the
+  # docs site only updates when the whole CI is green.  An empty `needs` starts it right
+  # away, independent of the other stages: docs publish in a couple of minutes, and a
+  # failure elsewhere in the pipeline no longer blocks them.
+  needs: []
   before_script:
     - bash docs/sync_readmes.sh
     - bash docs/update_mkdocs_nav.sh
@@ -252,6 +261,8 @@ pages:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master")'
       when: always
+    # Escape hatch: publish the docs from any pipeline (e.g. Run pipeline on master with
+    # RUN_PAGES=true) without waiting for, or depending on, the analysis jobs.
     - if: '$RUN_PAGES == "true"'
       when: always
     - when: never

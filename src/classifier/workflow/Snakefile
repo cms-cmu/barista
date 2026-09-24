@@ -75,6 +75,12 @@ rule all:
 
 
 rule train:
+    # A failed bind is not a failed training. The shell block draws the Monitor port with
+    # `shuf -i 10200-10300`, 101 possibilities, and multiprocessing's Listener does not set
+    # SO_REUSEADDR -- so a port still held (or in TIME_WAIT) on the assigned node aborts the job
+    # in ~10 s with "OSError: [Errno 98] Address already in use", and with no retries that takes
+    # the whole phase down. PORT is re-drawn inside the shell block, so an attempt re-rolls it.
+    retries: 0 if config.get("test", False) else config.get("retries", 3)
     output:
         flag = f"{OUTPUT_DIR}/train.done",
     log:
@@ -140,6 +146,12 @@ rule analyze:
 
 
 rule evaluate:
+    # A failed bind is not a failed training. The shell block draws the Monitor port with
+    # `shuf -i 10200-10300`, 101 possibilities, and multiprocessing's Listener does not set
+    # SO_REUSEADDR -- so a port still held (or in TIME_WAIT) on the assigned node aborts the job
+    # in ~10 s with "OSError: [Errno 98] Address already in use", and with no retries that takes
+    # the whole phase down. PORT is re-drawn inside the shell block, so an attempt re-rolls it.
+    retries: 0 if config.get("test", False) else config.get("retries", 3)
     input:
         f"{OUTPUT_DIR}/train.done",
     output:
