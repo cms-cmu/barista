@@ -184,3 +184,9 @@ channels:
     variable: SvB_FeynNet.p_ggHH_vs_bkg
     signal: GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
     closure_subdir: hh
+  HH4b_FeynNet_fine:
+    signallabel: ggHH_kl_1_kt_1_13p0TeV_hbbhbb
+    othersignal: ''
+    variable: SvB_FeynNet.p_ggHH_vs_bkg_fine
+    signal: GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+    closure_subdir: hh

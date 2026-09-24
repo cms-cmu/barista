@@ -821,12 +821,32 @@ def cmd_pull(args) -> None:
         info(f"pulled into {ROOT / 'output' / 'roasts' / r['id']}")
 
 
-def _eos_rm_tree_script(eos_url: str, path: str) -> str:
-    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first."""
+def _xrd_auth(eos_url: str, proxy: str) -> str:
+    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present, else
+    the grid proxy at `proxy` (a bash word, e.g. '"$PWD/proxy/x509_proxy"').
+
+    For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which eosuser
+    rejects ("[3010] ... unauthorized identity used"). Then use the proxy and hide that ticket with
+    KRB5CCNAME -- pinning XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try")."""
+    cern = "cern.ch" in eos_url
+    realm = "CERN\\.CH" if cern else "[A-Z.]*"
+    hide = "; export KRB5CCNAME=FILE:/dev/null" if cern else ""
+    return (f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
+            f'elif [ -s {proxy} ]; then export X509_USER_PROXY={proxy}{hide}; fi')
+
+
+def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"') -> str:
+    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first.
+    Only a "no such file" stat counts as absent; any other stat failure (auth) is an error, not a
+    silent success."""
     return textwrap.dedent(f"""\
         set -u
+        {_xrd_auth(eos_url, proxy)}
         EOS={eos_url}; P={shlex.quote(path)}
-        xrdfs $EOS stat "$P" >/dev/null 2>&1 || {{ echo "  (not present) $EOS/$P"; exit 0; }}
+        if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
+            if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "  (not present) $EOS/$P"; exit 0; fi
+            echo "  ERROR: cannot stat $EOS/$P: $ST" >&2; exit 1
+        fi
         xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 !~ /^d/ {{ print $NF }}' | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 ~ /^d/ {{ print $NF }}' | awk '{{ print length($0), $0 }}' | sort -rn | cut -d" " -f2- | while read -r d; do xrdfs $EOS rmdir "$d" >/dev/null 2>&1; done
         xrdfs $EOS rmdir "$P" >/dev/null 2>&1
@@ -859,23 +879,22 @@ def cmd_rm(args) -> None:
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
-    # remote locations first, while we still have the manifest
-    lpc = None
-    for host, h in r.get("hosts", {}).items():
-        target = roast_ssh(cfg, r, host)
-        if host == "cmslpc":
-            lpc = target
-        if not args.keep_hosts:
-            top = h["checkout"].rsplit("/", 1)[0]
-            res = ssh_run(target, f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
-            print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
-    lpc = lpc or roast_ssh(cfg, r, "cmslpc")
+    # remote locations first, while we still have the manifest -- and EOS before the host checkouts,
+    # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
+    lpc = roast_ssh(cfg, r, "cmslpc")
+    lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
+    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}"), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}"), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
+    for host, h in r.get("hosts", {}).items():
+        if not args.keep_hosts:
+            top = h["checkout"].rsplit("/", 1)[0]
+            res = ssh_run(roast_ssh(cfg, r, host), f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
+            print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not ok:
         die("some remote deletions failed; local manifest kept so you can retry")
     shutil.rmtree(roast_dir(rid), ignore_errors=True)
@@ -1214,11 +1233,6 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     size = f"-size -{int(ps['max_mb'])}M" if int(ps.get("max_mb") or 0) > 0 else ""
     extra_dirs = f"find logs roasts/{r['id']} -type f;" if with_logs else ""
     dry = "cat \"$LIST\"; echo; echo \"$(wc -l < \"$LIST\") files would be copied (dry run)\"; exit 0" if dry_run else ""
-    # Which kerberos realm the destination accepts; for CERN, hide a foreign ticket so xrootd does not
-    # authenticate with it (pinning XrdSecPROTOCOL=gsi instead fails on eosuser: "No protocols left").
-    cern = "cern.ch" in eos_url
-    krb_realm = "CERN\\.CH" if cern else "[A-Z.]*"
-    pin_gsi = "export KRB5CCNAME=FILE:/dev/null" if cern else ":"
     ht = textwrap.dedent(f"""\
         # CERN EOS websites return 403 on directories without an index; enable Apache listings once at the root.
         HT=$(mktemp); printf 'Options +Indexes\\n' > "$HT"
@@ -1231,12 +1245,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         set -uo pipefail
         cd {rq(ckpt)}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
-        # Auth: a kerberos ticket if present, else the grid proxy run_container keeps in ./proxy.
-        # For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which
-        # eosuser rejects ("[3010] ... unauthorized identity used"), so use the proxy and hide that ticket.
-        if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{krb_realm}$"; then :
-        elif [ -s proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; {pin_gsi}
-        fi
+        {_xrd_auth(eos_url, '"$PWD/proxy/x509_proxy"')}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
