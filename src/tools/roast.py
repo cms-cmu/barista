@@ -90,11 +90,10 @@ ARCHIVE_DEFAULTS = {
 DEFAULT_CONFIG = {
     "hosts": {
         "cmslpc": {
-            "ssh": "<user>@cmslpc307.fnal.gov",
+            "ssh": "<user>@cmslpc-el9.fnal.gov",
             "prod_root": "~/nobackup/HH4b/prod",
             "reference": "~/nobackup/HH4b/Run3/barista",
             "cores": 8,
-            "host_file": "~/.cmslpc-claude-host",
         },
         "falcon": {
             "ssh": "<user>@falcon.phys.cmu.edu",
@@ -134,7 +133,9 @@ def now() -> str:
 def sh(cmd, cwd=None, check=True, capture=True, input=None) -> subprocess.CompletedProcess:
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)
-    return subprocess.run(cmd, cwd=cwd, check=check, text=True, input=input,
+    # errors="replace": remote logs carry progress bars and box drawing, and any tool on the
+    # far side may hand us a partial character.  Status must survive that.
+    return subprocess.run(cmd, cwd=cwd, check=check, text=True, errors="replace", input=input,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.PIPE if capture else None)
 
@@ -189,6 +190,18 @@ def resolve_ssh(hc: dict) -> str:
     return target
 
 
+def roast_ssh(cfg: dict, r: dict, host: str) -> str:
+    """The node to talk to for this roast.
+
+    Only the driver process and its tmux window are node-bound; the filesystem is shared
+    across LPC interactive nodes and HTCondor runs central schedds.  So the configured
+    target may be the round-robin gateway, and `checkout` records whichever node it landed
+    on.  Everything afterwards follows that record, because that is where the run lives.
+    """
+    node = (r.get("hosts", {}).get(host) or {}).get("ssh")
+    return node or resolve_ssh(host_cfg(cfg, host))
+
+
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
     """Run a bash script on a remote host via stdin (no quoting games)."""
     return sh(["ssh", *SSH_OPTS, target, "bash -s"], check=check, capture=capture, input=script)
@@ -227,6 +240,56 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _merge_config(base: dict, over: dict) -> dict:
+    """Recursive dict merge, `over` winning; lists and scalars are replaced.
+    Same semantics as snakemake's own merge of repeated --configfile, so a layered config
+    run by hand as `--configfile <base> --configfile <file>` sees what the roast captured."""
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge_config(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def _load_layered_config(path: Path, seen: tuple = ()) -> tuple[dict, list[dict]]:
+    """Load a workflow config and the chain of `base:` configs under it.
+    Returns the merged dict and the bases, innermost first, as [{source, sha256}]."""
+    import yaml     # only layered configs need it; roast is otherwise stdlib (see CI job code_roast_barista)
+    if path.resolve() in seen:
+        die(f"config base cycle: {' -> '.join(str(p) for p in (*seen, path))}")
+    with open(path) as f:
+        cfg = yaml.safe_load(f) or {}
+    base = cfg.pop("base", None)
+    if base is None:
+        return cfg, []
+    base_path = ROOT / base      # relative to the barista root, like every other path in these configs
+    if not base_path.exists():
+        die(f"{path}: base config {base} not found")
+    merged, chain = _load_layered_config(base_path, (*seen, path.resolve()))
+    return _merge_config(merged, cfg), [*chain, {"source": str(base), "sha256": sha256_file(base_path)}]
+
+
+def capture_config(src: Path, dest: Path) -> list[dict]:
+    """Write the config a roast runs from.  A plain config is copied verbatim.  One with a
+    top-level `base: <path>` holds only its differences from that base: it is merged over
+    the base (recursively, bases may have bases) and the self-contained result is captured,
+    so the roast never depends on the base file changing later.  Returns the base chain."""
+    if not re.search(r"^base:", src.read_text(), re.M):
+        shutil.copy2(src, dest)
+        return []
+    try:
+        import yaml
+    except ImportError:
+        die(f"{src} has a `base:` key; capturing a layered config needs PyYAML")
+    merged, chain = _load_layered_config(src)
+    header = (f"# Captured by `roast new`: {src} merged over "
+              + " <- ".join(b["source"] for b in reversed(chain))
+              + ".\n# Comments are not carried over; read the sources for them.\n")
+    with open(dest, "w") as f:
+        f.write(header)
+        yaml.safe_dump(merged, f, sort_keys=False, default_flow_style=False, width=1000)
+    return chain
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +359,7 @@ def cmd_init(args) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
-        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node}.fnal.gov"
+        cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node or 'cmslpc-el9'}.fnal.gov"
         cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
@@ -364,7 +427,8 @@ def cmd_new(args) -> None:
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
-    shutil.copy2(config_src, d / "config.yml")   # verbatim; {roast_id} is resolved at run time via --config roast_id
+    # Verbatim, or merged over its `base:` chain; {roast_id} is resolved at run time via --config roast_id
+    config_bases = capture_config(config_src, d / "config.yml")
 
     r = {
         "id": rid,
@@ -373,7 +437,8 @@ def cmd_new(args) -> None:
         "owner": cfg.get("owner", getpass.getuser()),
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
-        "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml")},
+        "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
+                   **({"base": config_bases} if config_bases else {})},
         "steps": steps,
         "hosts": {},
         "publish": {},
@@ -396,6 +461,7 @@ def _checkout_script(hc: dict, r: dict, ckpt: str) -> str:
         if [ ! -d "$CK/.git" ]; then
             git clone -q --no-checkout {rq(ref)} "$CK"
         fi
+        echo "NODE|$(hostname -f)"
         cd "$CK"
         git remote set-url origin {shlex.quote(r['barista']['origin'])}
         if [ ! -d coffea4bees/.git ]; then
@@ -428,7 +494,13 @@ def cmd_checkout(args) -> None:
         ckpt = checkout_path(cfg, r, host)
         info(f"[{host}] preparing {ckpt}")
         res = ssh_run(target, _checkout_script(hc, r, ckpt))
-        print(res.stdout.strip())
+        node = next((l[5:].strip() for l in res.stdout.splitlines() if l.startswith("NODE|")), "")
+        print("\n".join(l for l in res.stdout.splitlines() if not l.startswith("NODE|")).strip())
+        if node and "@" in target:
+            user = target.split("@", 1)[0]
+            if f"{user}@{node}" != target:
+                info(f"[{host}] the gateway placed this roast on {node}")
+            target = f"{user}@{node}"
         # Ship the exact objects from here: works even if the remote's reference
         # tree never saw these commits and cannot reach GitLab non-interactively.
         info(f"[{host}] pushing pinned commits")
@@ -439,10 +511,17 @@ def cmd_checkout(args) -> None:
         print(res.stdout.strip())
         files = sorted(p for p in roast_dir(r["id"]).iterdir() if p.is_file())
         scp_to(target, files, f"{ckpt}/roasts/{r['id']}/")
-        r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}  # ssh = node used at checkout (record only)
+        r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}
         log_event(r, "checkout", host=host)
         save_roast(r)
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
+
+
+def _window_name(r: dict, step: dict) -> str:
+    """tmux window for a step.  Must identify the roast, not just its label and date:
+    submit closes a window of this name when no driver of *this* roast is alive, so two
+    roasts sharing a name would let one kill the other's running step."""
+    return f"{r['label'][:14]}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
 
 
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool) -> str:
@@ -507,7 +586,7 @@ def _submit(args, resume: bool) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
-    target = resolve_ssh(hc)
+    target = roast_ssh(cfg, r, host)
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     if resume and extra is None and not args.test and not args.dry_run and step.get("runs"):
@@ -536,7 +615,7 @@ def _submit(args, resume: bool) -> None:
     if args.dry_run:
         parts.append("-n")                             # snakemake dry run: plan only, nothing produced
     args.extra = " ".join(x for x in parts if x).strip()
-    window = f"{r['label'][:16]}_{r['created'][:10].replace('-', '')}_{step['name']}"
+    window = _window_name(r, step)
     driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
     # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
     # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
@@ -556,6 +635,18 @@ def _submit(args, resume: bool) -> None:
         fi
     """)
     res = ssh_run(target, guard, check=False)
+    if res.returncode == 255:
+        # The node this roast was placed on is unreachable.  Its filesystem is shared, so
+        # go back through the gateway, take whichever node it gives, and re-pin the roast.
+        gateway = resolve_ssh(hc)
+        probe = ssh_run(gateway, "hostname -f", check=False) if gateway != target else None
+        if probe is not None and probe.returncode == 0 and probe.stdout.strip():
+            target = f"{target.split('@')[0]}@{probe.stdout.strip()}"
+            info(f"[{host}] {r['hosts'][host]['ssh']} is unreachable; moving this roast to {probe.stdout.strip()}")
+            r["hosts"][host]["ssh"] = target
+            log_event(r, "repin", host=host, node=probe.stdout.strip())
+            save_roast(r)
+            res = ssh_run(target, guard, check=False)
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     if res.stdout.strip():
@@ -608,7 +699,7 @@ def cmd_log(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     step = find_step(r, args.step)
-    target = resolve_ssh(host_cfg(cfg, step["host"]))
+    target = roast_ssh(cfg, r, step["host"])
     log = f"{checkout_path(cfg, r, step['host'])}/logs/{step['name']}.log"
 
     # Everything after the last start marker, i.e. the most recent run of this step rather than
@@ -647,7 +738,7 @@ def cmd_log(args) -> None:
 def cmd_attach(args) -> None:
     """Replace this process with `ssh -t <host> tmux attach -t roast`, selecting the step's window."""
     cfg = load_config()
-    window = None
+    window, r = None, None
     if args.id:
         r = load_roast(args.id)
         if args.step:
@@ -668,7 +759,7 @@ def cmd_attach(args) -> None:
         host = args.host
     else:
         die("give a roast id, or --host")
-    target = resolve_ssh(host_cfg(cfg, host))
+    target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
     tmux = f"tmux attach -t {TMUX_SESSION}"
     if window:
         tmux += f" \\; select-window -t {shlex.quote(window)}"
@@ -697,7 +788,7 @@ def cmd_pull(args) -> None:
     r = load_roast(args.id)
     hosts = [args.host] if args.host else list(r["hosts"])
     for host in hosts:
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         ckpt = r["hosts"][host]["checkout"]
         rel = args.path.strip("/")
         src = f"{target}:{ckpt}/{rel}/"
@@ -763,7 +854,7 @@ def cmd_rm(args) -> None:
         return
     # refuse while a step is running
     for host, h in r.get("hosts", {}).items():
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
@@ -771,14 +862,14 @@ def cmd_rm(args) -> None:
     # remote locations first, while we still have the manifest
     lpc = None
     for host, h in r.get("hosts", {}).items():
-        target = resolve_ssh(host_cfg(cfg, host))
+        target = roast_ssh(cfg, r, host)
         if host == "cmslpc":
             lpc = target
         if not args.keep_hosts:
             top = h["checkout"].rsplit("/", 1)[0]
             res = ssh_run(target, f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
             print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
-    lpc = lpc or resolve_ssh(host_cfg(cfg, "cmslpc"))
+    lpc = lpc or roast_ssh(cfg, r, "cmslpc")
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
         res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}"), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
@@ -842,7 +933,7 @@ def cmd_pourover(args) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}")
     ckpt = r["hosts"][host]["checkout"]
-    target = resolve_ssh(host_cfg(cfg, host))
+    target = roast_ssh(cfg, r, host)
     dest_root = ROOT / "output" / "roasts" / r["id"]
 
     coffea_rel, meta_rel = args.coffea, args.config
@@ -923,9 +1014,9 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     elif host == "falcon":
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
-            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " " | cut -c1-100)"; done''',
+            f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
             # recently finished jobs of this roast (failures are what you want to see)
-            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -6 | while IFS="|" read -r jid rest; do rule=$(grep -h -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURMDONE|$jid|${{rule:-$(echo "$rest" | cut -d"|" -f1 | cut -c1-8)}}|$(echo "$rest" | cut -d"|" -f2-)"; done''',
+            f'''sacct -u "$USER" -S now-2days -P -n -o JobID,JobName,State,Elapsed,MaxRSS,WorkDir 2>/dev/null | awk -F\'|\' -v rid={rid} \'$1 !~ /\\./ && $6 ~ rid && $3 !~ /RUNNING|PENDING/ {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 }}\' | tail -40 | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); if [ -z "$rule" ]; then rule=$(echo "$rest" | cut -d"|" -f1); case "$rule" in ????????-????-????-????-????????????) rule=${{rule%%-*}};; esac; fi; echo "SLURMDONE|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)"; done''',
             f'''sinfo -h -o "SINFO|%P|%D|%T|%G" 2>/dev/null | head -3''',
         ])
     else:
@@ -942,11 +1033,101 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             else st="not started"; fi
             win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
             prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
-            last=$(tail -n 1 logs/$S.log 2>/dev/null | cut -c1-90)
+            last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
         {batch}
     """)
+
+
+def _jobnum(j: dict) -> int:
+    head = j["jid"].split("_")[0].split(".")[0]
+    return int(head) if head.isdigit() else 0
+
+
+def _slurm_rows(live: list[dict], done: list[dict]) -> list[str]:
+    """One line per rule, showing its latest attempt.
+
+    Snakemake resubmits a failed rule (and people retry jobs by hand), so the scheduler
+    keeps several job ids for the same rule.  Listing them all put stale failures next to
+    the attempt that replaced them, which reads as if the rule were still broken.  Older
+    attempts are folded into a note on the line that superseded them.
+    """
+    def strip(rule: str) -> str:
+        return rule[5:] if rule.startswith("rule_") else rule
+
+    for j in live + done:
+        j["rule"] = strip(j["rule"]) or "-"
+    latest_live = {j["rule"]: j for j in sorted(live, key=_jobnum)}
+    attempts: dict[str, list[dict]] = {}
+    for j in sorted(done, key=_jobnum):
+        attempts.setdefault(j["rule"], []).append(j)
+
+    def note(rule: str, superseded: list[dict]) -> str:
+        failed = [a for a in superseded if a["state"] != "COMPLETED"]
+        if not superseded:
+            return ""
+        if failed:
+            return f"   (after {len(failed)} failed attempt{'s' if len(failed) > 1 else ''})"
+        return f"   (attempt {len(superseded) + 1})"
+
+    rows = []
+    for rule, j in latest_live.items():
+        colour = "\033[33m" if j["state"] == "RUNNING" else "\033[31m" if j["state"] not in ("PENDING", "COMPLETED") else ""
+        rows.append((_jobnum(j),
+                     f"slurm   {j['jid']:>7s} {rule:20s} {colour}{j['state']:9s}\033[0m "
+                     f"{j['el']:>8s}/{j['lim']:<8s} {j['node']:12s} cpu={j['cpus']} mem={j['mem']} {j['tres']}"
+                     f"{note(rule, attempts.get(rule, []))}".rstrip()))
+        if j["tail"].strip():
+            rows.append((_jobnum(j) + 0.5, f"                {j['tail'].strip()}"))
+    finished = []
+    for rule, tries in attempts.items():
+        if rule in latest_live:      # a live attempt supersedes every finished one
+            continue
+        j = tries[-1]
+        colour = "\033[32m" if j["state"] == "COMPLETED" else "\033[31m"
+        finished.append((_jobnum(j),
+                         f"slurm   {j['jid']:>7s} {rule[:20]:20s} {colour}{j['state']:9s}\033[0m {j['el']:>8s}"
+                         f"{('  maxrss=' + j['rss']) if j['rss'] else ''}{note(rule, tries[:-1])}".rstrip()))
+    rows += sorted(finished)[-6:]
+    return [text for _, text in sorted(rows)]
+
+
+def _parse_status(stdout: str) -> dict:
+    """Turn the host script's output into {steps, live, done, extra, nocheckout}.
+
+    `live` and `done` are keyed by step name, so each step's jobs are rendered under it and
+    a rule that several steps happen to share (two phases both run `train`) is never merged.
+    Jobs the step logs do not account for land under the empty key.
+    """
+    out = {"steps": [], "live": {}, "done": {}, "extra": [], "nocheckout": False}
+    for line in stdout.splitlines():
+        if line.startswith("STEP|"):
+            _, name, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
+            colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
+                      else "\033[33m" if st == "running" else "")
+            out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last[:90]}".rstrip()))
+        elif line.startswith("TOTALS|") and line[7:].strip():
+            out["extra"].append(f"condor  {line[7:].strip()}")
+        elif line.startswith("CONDOR|"):
+            _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
+            states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
+            out["extra"].append(f"condor  {n:>4s} x {states.get(code, code):9s} {name}")
+        elif line.startswith("SLURM|"):
+            f = (line.split("|") + [""] * 12)[:12]
+            out["live"].setdefault(f[2], []).append(
+                dict(zip(("jid", "rule", "state", "el", "lim", "node", "cpus", "mem", "tres", "tail"),
+                         [f[1]] + f[3:11] + [f[11][:100]])))
+        elif line.startswith("SLURMDONE|"):
+            f = (line.split("|") + [""] * 7)[:7]
+            out["done"].setdefault(f[2], []).append(
+                dict(zip(("jid", "rule", "state", "el", "rss"), [f[1]] + f[3:])))
+        elif line.startswith("SINFO|"):
+            _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
+            out["extra"].append(f"cluster {part} {nodes} node(s) {state} {gres}")
+        elif line == "NOCHECKOUT":
+            out["nocheckout"] = True
+    return out
 
 
 def cmd_status(args) -> None:
@@ -954,43 +1135,60 @@ def cmd_status(args) -> None:
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
     for r in roasts:
         print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
+        # One ssh per host, but the report is ordered by step: a roast is a pipeline, and
+        # which machine a phase happens to run on matters less than where the pipeline is.
+        parsed = {}
         for host, hinfo in r["hosts"].items():
-            steps = [s for s in r["steps"] if s["host"] == host]
-            target = resolve_ssh(host_cfg(cfg, host))
-            res = ssh_run(target, _status_script(r, hinfo["checkout"], steps, host), check=False)
-            if res.returncode != 0:
-                print(f"  {host:7s} ssh failed ({target}): {res.stderr.strip()[:100]}")
+            target = roast_ssh(cfg, r, host)
+            res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
+            if res.returncode == 255:
+                node = target.split("@")[-1]
+                parsed[host] = {"error": f"{node} unreachable — the driver is gone; "
+                                         f"`{TOOL} resume <id> --step <step>` moves this roast to a live node"}
+            elif res.returncode != 0:
+                parsed[host] = {"error": f"ssh failed ({target}): {res.stderr.strip()[:80]}"}
+            else:
+                st = _parse_status(res.stdout)
+                st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
+                parsed[host] = st
+        # Width follows the longest step name of THIS roast: a `--step host:Snakefile` name
+        # can be long, and truncating it would hide the argument you need to type back.
+        w = max(4, min(30, max((len(s["name"]) for s in r["steps"]), default=4)))
+        pad = " " * (w + 8)
+        for step in r["steps"]:
+            name, host = step["name"], step["host"]
+            st = parsed.get(host)
+            if st is None:
+                print(f"  {name:<{w}s} {host:7s} not checked out")
                 continue
-            for line in res.stdout.splitlines():
-                if line.startswith("STEP|"):
-                    _, s, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
-                    colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
-                              else "\033[33m" if st == "running" else "")
-                    print(f"  {host:7s} {s:14s} {colour}{st:12s}\033[0m {win:7s} {prog:28s} {last}".rstrip())
-                elif line.startswith("TOTALS|") and line[7:].strip():
-                    print(f"  {host:7s} condor  {line[7:].strip()}")
-                elif line.startswith("CONDOR|"):
-                    _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
-                    states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
-                    print(f"  {host:7s} condor  {n:>4s} x {states.get(code, code):9s} {name}")
-                elif line.startswith("SLURM|"):
-                    f = (line.split("|") + [""] * 11)[:11]
-                    _, jid, rule, state, el, lim, node, cpus, mem, tres, tail = f
-                    rule = rule[5:] if rule.startswith("rule_") else rule
-                    colour = "\033[33m" if state == "RUNNING" else "\033[31m" if state not in ("PENDING", "COMPLETED") else ""
-                    print(f"  {host:7s} slurm   {jid:>7s} {rule or '-':20s} {colour}{state:9s}\033[0m {el:>8s}/{lim:<8s} {node:12s} cpu={cpus} mem={mem} {tres}".rstrip())
-                    if tail.strip():
-                        print(f"  {host:7s}                 {tail.strip()}")
-                elif line.startswith("SLURMDONE|"):
-                    _, jid, rule, state, el, rss = (line.split("|") + [""] * 6)[:6]
-                    rule = rule[5:] if rule.startswith("rule_") else rule
-                    colour = "\033[32m" if state == "COMPLETED" else "\033[31m"
-                    print(f"  {host:7s} slurm   {jid:>7s} {rule[:20]:20s} {colour}{state:9s}\033[0m {el:>8s}{('  maxrss=' + rss) if rss else ''}".rstrip())
-                elif line.startswith("SINFO|"):
-                    _, part, nodes, state, gres = (line.split("|") + [""] * 5)[:5]
-                    print(f"  {host:7s} cluster {part} {nodes} node(s) {state} {gres}")
-                elif line == "NOCHECKOUT":
-                    print(f"  {host:7s} checkout missing at {hinfo['checkout']}")
+            if st.get("error"):
+                print(f"  {name:<{w}s} {host:7s} {st['error']}")
+                continue
+            text = dict(st["steps"]).get(name)
+            print(f"  {name:<{w}s} {host:7s} {text if text is not None else 'not reported'}")
+            for row in _slurm_rows(st["live"].get(name, []), st["done"].get(name, [])):
+                print(f"{pad}{row}")
+        for host, st in parsed.items():
+            if st.get("error"):
+                continue
+            for text in st["extra"]:
+                print(f"  {'':<{w}s} {host:7s} {text}")
+        # Jobs submitted from the checkout that no step log accounts for: things run by hand.
+        # A live one is worth seeing (it is holding resources); finished ones are just history,
+        # so they are counted rather than listed unless asked for.
+        for host, st in parsed.items():
+            if st.get("error"):
+                continue
+            stray_live, stray_done = st["live"].get("", []), st["done"].get("", [])
+            if stray_live or (stray_done and args.all):
+                print(f"  {'':<{w}s} {host:7s} not part of any step (submitted by hand from the checkout):")
+                for row in _slurm_rows(stray_live, stray_done if args.all else []):
+                    print(f"{pad}{row}")
+            elif stray_done:
+                n = len(stray_done)
+                failed = sum(1 for j in stray_done if j["state"] != "COMPLETED")
+                detail = f", {failed} failed" if failed else ""
+                print(f"  {'':<{w}s} {host:7s} {n} finished job{'s' if n > 1 else ''} not part of any step{detail} (--all to list)")
         if r.get("publish", {}).get("url"):
             print(f"  published: {r['publish']['url']}")
 
@@ -1071,7 +1269,7 @@ def cmd_publish(args) -> None:
         for host in hosts:
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
-            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+            res = ssh_run(roast_ssh(cfg, r, host),
                           _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
                                        dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
             print((res.stdout + res.stderr).strip())
@@ -1091,7 +1289,7 @@ def cmd_publish(args) -> None:
             pages = set()   # full publish: rebuild the list from what the hosts have now
         for host in hosts:
             ck = r["hosts"][host]["checkout"]
-            res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+            res = ssh_run(roast_ssh(cfg, r, host),
                           f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
                           check=False)
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
@@ -1120,7 +1318,7 @@ def cmd_archive(args) -> None:
     for host in hosts:
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
-        res = ssh_run(resolve_ssh(host_cfg(cfg, host)),
+        res = ssh_run(roast_ssh(cfg, r, host),
                       _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
                                    dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
         print((res.stdout + res.stderr).strip())
@@ -1257,7 +1455,8 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("init", help="write ~/.config/roast/config.json")
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
-    s.add_argument("--cmslpc-node", default="cmslpc307", help="LPC interactive node to pin (default: cmslpc307)")
+    s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
+                   "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
     s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
@@ -1308,6 +1507,7 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("status", help="per-step state on each host")
     s.add_argument("id", nargs="?")
+    s.add_argument("--all", action="store_true", help="also list finished jobs that belong to no step")
     s.set_defaults(func=cmd_status)
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")

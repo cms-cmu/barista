@@ -28,9 +28,13 @@ bin/roast init --cmslpc-user <lpc-user> --falcon-user <falcon-user> \
 This writes `~/.config/roast/config.json` and prints what it filled in. Check two things
 in that file:
 
-* `hosts.cmslpc.ssh` names one LPC interactive node (`cmslpc307` by default). Pass
-  `--cmslpc-node` to pick another. Your home area is shared across nodes, so this only
-  decides where the driver process and its `tmux` session live.
+* `hosts.cmslpc.ssh` is the `cmslpc-el9` gateway, so the load balancer picks an
+  interactive node per roast and the roast remembers it. Only the driver process and its
+  `tmux` window are tied to a node: the filesystem is shared across interactive nodes and
+  HTCondor runs central schedds, so a checkout, its logs and its jobs are reachable from
+  anywhere. If a roast's node goes down, the next `submit` or `resume` moves that roast to
+  a live one through the gateway and says so. `roast init --cmslpc-node <node>` pins every
+  roast to one node instead, which you rarely want.
 * `hosts.*.reference` points at your existing barista clone on each machine. New roast
   checkouts are cloned from it, which is far faster than cloning from GitLab.
 
@@ -96,6 +100,28 @@ everywhere in the config, so each production run writes to its own EOS directory
 cannot overwrite an earlier one. Outside roast the placeholder falls back to the config's
 `label`, so running Snakemake by hand still works.
 
+### Variant configs (`base:`)
+
+A variant of an existing production can hold only its differences, with a top-level
+`base:` naming the config it modifies (path relative to the barista root), as
+`nominal_run3_quadjet_run2.yml` does over `nominal_run3.yml`:
+
+```yaml
+base: coffea4bees/workflows/config/nominal_run3.yml
+label: "Run3_nominal_quadjet_run2"
+analysis_config:
+  config:
+    candidates_selection_cfg: "coffea4bees/analysis/metadata/candidates_selection_thresholds_quadjet_run2.yml"
+```
+
+`roast new` merges the variant over its base (dicts recursively, lists and scalars replaced;
+a base may itself have a `base:`) and captures the merged, self-contained result as
+`roasts/<id>/config.yml`. `roast.json` records each base's path and sha256 under
+`config.base`. Later edits to the base therefore never change an existing roast, and the
+captured file loses the sources' comments. Snakemake merges repeated `--configfile` the
+same way, so to run a variant by hand, pass the base first and then the variant.
+Capturing a layered config needs PyYAML; plain configs are still copied verbatim.
+
 ---
 
 ## Watching a run
@@ -106,14 +132,26 @@ bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
 
-`status` prints one line per step:
+`status` prints one line per step, with that step's batch jobs underneath:
 
 ```
-cmslpc  B   exit=0    tmux=0  29 of 29 steps (100%) done   === roast ... step B exit 0 ...
-falcon  C   running   tmux=1  3 of 7 steps (42%) done      Job 1 submitted with SLURM jobid 41037
-falcon  slurm   41037 train      RUNNING   22:01/8:00:00  rogue01  cpu=8 mem=62.50G gres/mps:50
-falcon                ⠼ 104/1630 batch training loss=0.8293
+B    cmslpc  exit=0    tmux=0  3 of 3 steps (100%) done     === roast ... step B exit 0 ...
+C    falcon  exit=0    tmux=0  5 of 5 steps (100%) done     === roast ... step C exit 0 ...
+          slurm 42442 train        COMPLETED 04:35:59   (after 2 failed attempts)
+          slurm 42468 evaluate     COMPLETED 01:22:47
+C4   cmslpc  exit=0    tmux=0  20 of 20 steps (100%) done   === roast ... step C4 exit 0 ...
+D    falcon  running   tmux=1                               Job 1 submitted with SLURM jobid 42722
+          slurm 42722 train        RUNNING   29:39/8:00:00  rogue02  cpu=8 mem=62.50G gres/mps:50
+                      ⠇ 34/603 batch training loss=0.4254
+F    cmslpc  not started
+     cmslpc  condor  Total for query: 0 jobs; 0 idle, 0 running, 0 held
+     falcon  cluster work* 2 node(s) mixed gpu:1,mps:100
+     falcon  1 finished job not part of any step, 1 failed (--all to list)
 ```
+
+Steps are listed in the order the roast declares them, not grouped by machine, because a
+roast is a pipeline and where a phase happens to run matters less than how far along it is.
+Each line starts with the step, then the machine.
 
 The state column means:
 
@@ -125,10 +163,23 @@ The state column means:
 | `stalled` | the driver died with no error in the log, e.g. the node rebooted |
 | `exit=N` | finished, with that exit code |
 
-Below the steps, `status` lists this roast's own batch jobs, matched through the
-scheduler's record of the submitting directory: HTCondor batches by state on the LPC, and
+`status` also lists this roast's own batch jobs, found through the scheduler's record of
+the submitting directory: HTCondor batches by state on the LPC, and
 on falcon each Slurm job with its rule name, elapsed time against its limit, node,
 resources, and the last line of that job's log, which for a training is the live loss.
+
+Each job is listed under the step that submitted it, which `status` works out from the
+step log that announced the job id. That matters when two phases run a rule of the same
+name, as Phases C and D both do with `train`: their attempts stay apart instead of one
+hiding the other. Anything else submitted from the checkout, a one-off command you ran by hand for instance,
+belongs to no phase. Such a job is reported at the very bottom, well clear of the last
+step: if it is still running it is listed, because it is holding resources, and if it has
+finished it is only counted, since it is history. `status --all` lists those too.
+
+There is one line per rule, showing its latest attempt. Snakemake resubmits a rule that
+fails, so the scheduler holds several job ids for it; the attempts that were replaced are
+folded into a note like `(after 3 failed attempts)` instead of being listed beside the one
+that succeeded. A failure that was never retried still appears on its own.
 
 ### Reading a step's log
 
