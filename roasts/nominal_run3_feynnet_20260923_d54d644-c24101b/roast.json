@@ -1,0 +1,135 @@
+{
+  "id": "nominal_run3_feynnet_20260923_d54d644-c24101b",
+  "label": "nominal_run3_feynnet",
+  "created": "2026-09-23 22:13:25",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "d54d6441a2df56c3518cb1b9f8ca1e1f45478ddd",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "c24101b48f24023d25fc3a715a8bb3fd2a9dc186",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_feynnet.yml",
+    "captured": "config.yml",
+    "sha256": "d8910f87c105c18f9b0309de705f9e55580c6dae839a995f28d99d71a906ffda",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "2d24abdc462816cf67c6038b6e883d0c97dcc3fca72f22399678e8b036dd5894"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-23 22:17:37",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f_d54d644-c24101b_F",
+          "ssh": "jda102@cmslpc369.fnal.gov",
+          "config_sha256": "d8910f87c105"
+        },
+        {
+          "ts": "2026-09-23 22:34:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f_d54d644-c24101b_F",
+          "ssh": "jda102@cmslpc369.fnal.gov",
+          "config_sha256": "d8910f87c105"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_feynnet_20260923_d54d644-c24101b/barista",
+      "ssh": "jda102@cmslpc369.fnal.gov",
+      "checked_out": "2026-09-23 22:17:20"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_feynnet_20260923_d54d644-c24101b",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_feynnet_20260923_d54d644-c24101b/",
+    "ts": "2026-09-24 08:37:01",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal_feynnet/cutflow_Run3_nominal_feynnet.html",
+      "output/Run3_nominal_feynnet/cutflow_crosscheck_Run3_nominal_feynnet.html",
+      "output/Run3_nominal_feynnet/plots_Run3_nominal_feynnet/index.html",
+      "output/Run3_nominal_feynnet/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-23 22:13:25",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-23 22:17:20",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 22:17:37",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-23 22:34:24",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 07:40:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-09-24 07:46:52",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-09-24 08:28:31",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-09-24 08:36:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-24 08:37:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Phase F only: SvB_FeynNet.p_ggHH_vs_bkg limits vs SvB_MA baseline; upstream JCM/FvT/SvB_MA pinned to nominal_run3_20260922_3f9e199-1e0504f"
+}

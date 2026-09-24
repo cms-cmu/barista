@@ -76,6 +76,18 @@
           "window": "nominal_run3_q_15e45e6-8998887_C",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "6d4997fe0146"
+        },
+        {
+          "ts": "2026-09-24 02:56:24",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_q_15e45e6-8998887_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6d4997fe0146"
         }
       ]
     },
@@ -211,6 +223,12 @@
       "event": "submit",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 02:56:24",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
     }
   ],
   "notes": ""

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step C -- generated 2026-09-24 02:56:22
+# roast nominal_run3_feynnet_20260923_d54d644-c24101b step F -- generated 2026-09-23 22:34:23
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
-cd "$HOME/work/prod/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/barista" || exit 97
-LOG=logs/C.log
-EXIT=logs/C.exit
+cd "$HOME/nobackup/HH4b/prod/nominal_run3_feynnet_20260923_d54d644-c24101b/barista" || exit 97
+LOG=logs/F.log
+EXIT=logs/F.exit
 rm -f "$EXIT"
-echo "=== roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step C start $(date) on $(hostname) ===" | tee -a "$LOG"
+echo "=== roast nominal_run3_feynnet_20260923_d54d644-c24101b step F start $(date) on $(hostname) ===" | tee -a "$LOG"
 echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
 # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
 # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
@@ -17,12 +17,12 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseC.smk --configfile roasts/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_quadjet_run2_20260923_15e45e6-8998887 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseF.smk --configfile roasts/nominal_run3_feynnet_20260923_d54d644-c24101b/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_feynnet_20260923_d54d644-c24101b 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-echo "=== roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step C exit $RC $(date) ===" | tee -a "$LOG"
+echo "=== roast nominal_run3_feynnet_20260923_d54d644-c24101b step F exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
 if [ "$RC" != "0" ]; then
-    echo "step C FAILED (rc=$RC). Shell kept open for inspection; exit to close."
+    echo "step F FAILED (rc=$RC). Shell kept open for inspection; exit to close."
     exec bash
 fi
 sleep 5
