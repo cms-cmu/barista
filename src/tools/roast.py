@@ -270,6 +270,75 @@ def _load_layered_config(path: Path, seen: tuple = ()) -> tuple[dict, list[dict]
     return _merge_config(merged, cfg), [*chain, {"source": str(base), "sha256": sha256_file(base_path)}]
 
 
+def _norm_url(url: str) -> str:
+    """Compare EOS URLs by path: `root://host//store/x` and `root://host/store/x/` are one place."""
+    return re.sub(r"(?<!:)/{2,}", "/", url.split("@@", 1)[0]).rstrip("/")
+
+
+def _roast_eos(cfg: dict, up: dict) -> str:
+    """Where a roast's products live on EOS: its archive once archived, else the per-roast
+    namespace (eos.path/<id>) that its jobs write into while it runs."""
+    if up.get("archive", {}).get("eos"):
+        return up["archive"]["eos"]
+    eos = cfg.get("eos") or {}
+    if not eos.get("path") or "<" in eos["path"]:
+        die(f"upstream roast {up['id']} is not archived and eos.path is unset in {CONFIG_PATH}")
+    return f"{eos.get('url', 'root://cmseos.fnal.gov')}/{eos['path'].rstrip('/')}/{up['id']}"
+
+
+def check_inputs(cfg: dict, wf: dict) -> dict | None:
+    """Validate a workflow config's `inputs:` block: the products it reads from other roasts.
+
+        inputs:
+          upstream_roasts: [nominal_run3_...]      # str or list
+          FvT: root://.../HH4b_prod/nominal_run3_.../friend/FvT_nominal/result.json@@analysis.0.merged
+
+    Every other value under `inputs` (nested allowed) must be a URL inside the EOS area of one of
+    the named roasts. Otherwise a dependent roast can quietly read a hand-run product or another
+    production's, and nothing downstream would notice. Returns the record kept in roast.json.
+    """
+    block = wf.get("inputs")
+    if block is None:
+        return None
+    if not isinstance(block, dict):
+        die("config `inputs:` must be a mapping")
+    ids = block.get("upstream_roasts")
+    ids = [ids] if isinstance(ids, str) else list(ids or [])
+    if not ids:
+        die("config `inputs:` needs `upstream_roasts:` naming the roast(s) its URLs come from")
+    ups = [load_roast(i) for i in ids]
+    for up in ups:
+        if not up.get("archive", {}).get("ok"):
+            info(f"WARNING: upstream roast {up['id']} is not archived; its products may still change")
+    areas = {up["id"]: _norm_url(_roast_eos(cfg, up)) for up in ups}
+
+    refs, bad = {}, []
+    def walk(node, key):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{key}.{k}" if key else k)
+            return
+        if not isinstance(node, str):
+            bad.append(f"{key}: not a URL ({node!r})")
+            return
+        if "{roast_id}" in node:
+            bad.append(f"{key}: {{roast_id}} refers to this roast, not an upstream one")
+            return
+        url = _norm_url(node)
+        owner = next((i for i, a in areas.items() if url == a or url.startswith(a + "/")), None)
+        if owner is None:
+            bad.append(f"{key}: {node} is not under any upstream roast ({', '.join(areas.values())})")
+        else:
+            refs[key] = {"url": node, "roast": owner}
+    walk({k: v for k, v in block.items() if k != "upstream_roasts"}, "")
+    if bad:
+        die("config `inputs:` problems:\n  " + "\n  ".join(bad))
+    return {"upstream": [{"id": up["id"], "barista": up["barista"]["sha"], "coffea4bees": up["coffea4bees"]["sha"],
+                          "eos": _roast_eos(cfg, up), "archived": bool(up.get("archive", {}).get("ok"))}
+                         for up in ups],
+            "refs": refs}
+
+
 def capture_config(src: Path, dest: Path) -> list[dict]:
     """Write the config a roast runs from.  A plain config is copied verbatim.  One with a
     top-level `base: <path>` holds only its differences from that base: it is merged over
@@ -425,6 +494,15 @@ def cmd_new(args) -> None:
     if roast_dir(rid).exists():
         die(f"roast {rid} already exists")
 
+    # Products read from other roasts, checked before anything is written
+    inputs = None
+    if re.search(r"^(inputs|base):", config_src.read_text(), re.M):    # a base may carry the inputs
+        try:
+            import yaml  # noqa: F401  (only configs with `inputs:` or `base:` need it)
+        except ImportError:
+            die(f"{config_src} has an `inputs:` or `base:` block; reading it needs PyYAML")
+        inputs = check_inputs(cfg, _load_layered_config(config_src)[0])
+
     d = roast_dir(rid)
     d.mkdir(parents=True)
     # Verbatim, or merged over its `base:` chain; {roast_id} is resolved at run time via --config roast_id
@@ -439,6 +517,7 @@ def cmd_new(args) -> None:
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
                    **({"base": config_bases} if config_bases else {})},
+        **({"inputs": inputs} if inputs else {}),
         "steps": steps,
         "hosts": {},
         "publish": {},

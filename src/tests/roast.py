@@ -379,6 +379,81 @@ class TestCaptureConfig(unittest.TestCase):
             roast.capture_config(src, self.tmp / "out.yml")
 
 
+class TestCheckInputs(unittest.TestCase):
+    """A dependent roast (e.g. mixed-data production reading the nominal's FvT) names what it reads
+    from other roasts under `inputs:`.  `roast new` must refuse a URL that is not inside a named
+    upstream roast's EOS area -- a hand-run product or another production's would otherwise be
+    read silently."""
+
+    UP = "nominal_run3_20260922_3f9e199-1e0504f"
+    AREA = f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{UP}"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.roasts = roast.ROASTS
+        roast.ROASTS = self.tmp
+        self.add_roast(self.UP, archived=True)
+
+    def tearDown(self):
+        roast.ROASTS = self.roasts
+        shutil.rmtree(self.tmp)
+
+    def add_roast(self, rid, archived):
+        r = fake_roast()
+        r["id"] = rid
+        if archived:
+            r["archive"] = {"eos": f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{rid}", "ok": True}
+        (self.tmp / rid).mkdir()
+        (self.tmp / rid / "roast.json").write_text(json.dumps(r))
+
+    def check(self, inputs):
+        return roast.check_inputs(CFG, {"label": "x", "inputs": inputs})
+
+    def test_no_inputs_block(self):
+        self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
+
+    def test_urls_inside_the_upstream_area_are_recorded(self):
+        fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
+        rec = self.check({"upstream_roasts": self.UP, "FvT": fvt, "hemilib": {"registry": f"{self.AREA}/hemilib/h.yml"}})
+        self.assertEqual(rec["refs"]["FvT"], {"url": fvt, "roast": self.UP})
+        self.assertIn("hemilib.registry", rec["refs"])                       # nested keys, dotted
+        self.assertEqual(rec["upstream"][0]["id"], self.UP)
+        self.assertEqual(rec["upstream"][0]["barista"], "a" * 40)            # upstream code pinned in the record
+        self.assertTrue(rec["upstream"][0]["archived"])
+
+    def test_slash_differences_do_not_matter(self):
+        url = f"root://cmseos.fnal.gov/store/user/u/HH4b_prod/{self.UP}//friend/x.json"
+        self.assertIn("x", self.check({"upstream_roasts": [self.UP], "x": url})["refs"])
+
+    def test_url_outside_every_upstream_is_an_error(self):
+        handrun = "root://cmseos.fnal.gov//store/user/u/HH4b_Run3_v2/friend/FvT/result.json"
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "FvT": handrun})
+
+    def test_a_longer_id_is_not_inside_a_shorter_one(self):
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "x": f"{self.AREA}_rerun/friend/x.json"})
+
+    def test_local_paths_and_placeholders_are_errors(self):
+        for bad in ("coffea4bees/metadata/friends/x.json", f"{self.AREA}/{{roast_id}}/x", 3):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit):
+                self.check({"upstream_roasts": self.UP, "x": bad})
+
+    def test_upstream_must_be_named_and_exist(self):
+        with self.assertRaises(SystemExit):
+            self.check({"x": f"{self.AREA}/x"})
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": "no_such_roast_20260101_aaaaaaa-bbbbbbb", "x": f"{self.AREA}/x"})
+
+    def test_unarchived_upstream_uses_its_eos_namespace(self):
+        rid = "mixeddata_run3_20260925_ccccccc-ddddddd"
+        self.add_roast(rid, archived=False)
+        url = f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{rid}/hemilib/h.yml"
+        rec = self.check({"upstream_roasts": [self.UP, rid], "hemilib": url})
+        self.assertEqual(rec["refs"]["hemilib"]["roast"], rid)
+        self.assertFalse(rec["upstream"][1]["archived"])
+
+
 class TestCopySettings(unittest.TestCase):
     def test_defaults(self):
         r = fake_roast()
