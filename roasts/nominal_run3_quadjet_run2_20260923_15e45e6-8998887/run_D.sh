@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step D -- generated 2026-09-23 21:30:19
+# roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step D -- generated 2026-09-24 08:44:48
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -17,7 +17,7 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_quadjet_run2_20260923_15e45e6-8998887 -n 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/nominal_run3_quadjet_run2_20260923_15e45e6-8998887/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=nominal_run3_quadjet_run2_20260923_15e45e6-8998887 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast nominal_run3_quadjet_run2_20260923_15e45e6-8998887 step D exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

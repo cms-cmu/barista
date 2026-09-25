@@ -900,12 +900,32 @@ def cmd_pull(args) -> None:
         info(f"pulled into {ROOT / 'output' / 'roasts' / r['id']}")
 
 
-def _eos_rm_tree_script(eos_url: str, path: str) -> str:
-    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first."""
+def _xrd_auth(eos_url: str, proxy: str) -> str:
+    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present, else
+    the grid proxy at `proxy` (a bash word, e.g. '"$PWD/proxy/x509_proxy"').
+
+    For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which eosuser
+    rejects ("[3010] ... unauthorized identity used"). Then use the proxy and hide that ticket with
+    KRB5CCNAME -- pinning XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try")."""
+    cern = "cern.ch" in eos_url
+    realm = "CERN\\.CH" if cern else "[A-Z.]*"
+    hide = "; export KRB5CCNAME=FILE:/dev/null" if cern else ""
+    return (f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
+            f'elif [ -s {proxy} ]; then export X509_USER_PROXY={proxy}{hide}; fi')
+
+
+def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"') -> str:
+    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first.
+    Only a "no such file" stat counts as absent; any other stat failure (auth) is an error, not a
+    silent success."""
     return textwrap.dedent(f"""\
         set -u
+        {_xrd_auth(eos_url, proxy)}
         EOS={eos_url}; P={shlex.quote(path)}
-        xrdfs $EOS stat "$P" >/dev/null 2>&1 || {{ echo "  (not present) $EOS/$P"; exit 0; }}
+        if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
+            if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "  (not present) $EOS/$P"; exit 0; fi
+            echo "  ERROR: cannot stat $EOS/$P: $ST" >&2; exit 1
+        fi
         xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 !~ /^d/ {{ print $NF }}' | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 ~ /^d/ {{ print $NF }}' | awk '{{ print length($0), $0 }}' | sort -rn | cut -d" " -f2- | while read -r d; do xrdfs $EOS rmdir "$d" >/dev/null 2>&1; done
         xrdfs $EOS rmdir "$P" >/dev/null 2>&1
@@ -938,23 +958,22 @@ def cmd_rm(args) -> None:
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
-    # remote locations first, while we still have the manifest
-    lpc = None
-    for host, h in r.get("hosts", {}).items():
-        target = roast_ssh(cfg, r, host)
-        if host == "cmslpc":
-            lpc = target
-        if not args.keep_hosts:
-            top = h["checkout"].rsplit("/", 1)[0]
-            res = ssh_run(target, f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
-            print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
-    lpc = lpc or roast_ssh(cfg, r, "cmslpc")
+    # remote locations first, while we still have the manifest -- and EOS before the host checkouts,
+    # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
+    lpc = roast_ssh(cfg, r, "cmslpc")
+    lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
+    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}"), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}"), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
+    for host, h in r.get("hosts", {}).items():
+        if not args.keep_hosts:
+            top = h["checkout"].rsplit("/", 1)[0]
+            res = ssh_run(roast_ssh(cfg, r, host), f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
+            print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not ok:
         die("some remote deletions failed; local manifest kept so you can retry")
     shutil.rmtree(roast_dir(rid), ignore_errors=True)
@@ -1209,11 +1228,57 @@ def _parse_status(stdout: str) -> dict:
     return out
 
 
+STATE_GLYPH = {"exit=0": ("\u2713", "\033[32m"), "running": ("\u25cf", "\033[33m"),
+               "error": ("\u2717", "\033[31m"), "stalled": ("?", "\033[31m"),
+               "not started": ("\u00b7", ""), "unreachable": ("!", "\033[31m")}
+
+
+def _state_word(text: str) -> str:
+    """The bare state word out of a rendered step line."""
+    plain = re.sub(r"\033\[[0-9;]*m", "", text).strip()
+    word = plain.split("  ")[0].strip()
+    return word if word in STATE_GLYPH else ("exit=n" if word.startswith("exit=") else word)
+
+
+def _summary_line(r: dict, parsed: dict, width: int) -> str:
+    """One line per roast: what each step is, and what is happening right now."""
+    glyphs, running = [], []
+    for step in r["steps"]:
+        host, name = step["host"], step["name"]
+        st = parsed.get(host)
+        if st is None:
+            state = "not started"
+        elif st.get("error"):
+            state = "unreachable"
+        else:
+            state = _state_word(dict(st["steps"]).get(name, "not started"))
+        mark, colour = STATE_GLYPH.get(state, ("\u2717", "\033[31m"))
+        glyphs.append(f"{colour}{name[:8]}{mark}\033[0m")
+        if state == "running":
+            tail = ""
+            live = (st["live"].get(name) or [{}])[0] if st else {}
+            if live.get("tail"):
+                tail = live["tail"]
+            else:
+                tail = re.sub(r"\033\[[0-9;]*m", "", dict(st["steps"])[name]).split("  ")[-1]
+            # progress bars pad themselves with runs of spaces; squeeze so the budget buys signal
+            tail = " ".join(tail.split())
+            running.append(f"{name} on {host}: {tail[:46]}" if tail else f"{name} on {host}")
+    note = "  ".join(running) or ("published" if r.get("publish", {}).get("url") else "")
+    marks = " ".join(glyphs)
+    visible = len(re.sub(r"\033\[[0-9;]*m", "", marks))
+    return f"  {r['id']:<{width}s}  {marks}{' ' * max(1, 24 - visible)} {note}".rstrip()
+
+
 def cmd_status(args) -> None:
     cfg = load_config()
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
+    # Naming a roast means you want its detail; asking for all of them means you want the shape.
+    detail = args.detail or (bool(args.id) and not args.summary)
+    width = max((len(r["id"]) for r in roasts), default=10)
     for r in roasts:
-        print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
+        if detail:
+            print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
         # One ssh per host, but the report is ordered by step: a roast is a pipeline, and
         # which machine a phase happens to run on matters less than where the pipeline is.
         parsed = {}
@@ -1230,6 +1295,9 @@ def cmd_status(args) -> None:
                 st = _parse_status(res.stdout)
                 st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
                 parsed[host] = st
+        if not detail:
+            print(_summary_line(r, parsed, width))
+            continue
         # Width follows the longest step name of THIS roast: a `--step host:Snakefile` name
         # can be long, and truncating it would hide the argument you need to type back.
         w = max(4, min(30, max((len(s["name"]) for s in r["steps"]), default=4)))
@@ -1293,11 +1361,6 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     size = f"-size -{int(ps['max_mb'])}M" if int(ps.get("max_mb") or 0) > 0 else ""
     extra_dirs = f"find logs roasts/{r['id']} -type f;" if with_logs else ""
     dry = "cat \"$LIST\"; echo; echo \"$(wc -l < \"$LIST\") files would be copied (dry run)\"; exit 0" if dry_run else ""
-    # Which kerberos realm the destination accepts; for CERN, hide a foreign ticket so xrootd does not
-    # authenticate with it (pinning XrdSecPROTOCOL=gsi instead fails on eosuser: "No protocols left").
-    cern = "cern.ch" in eos_url
-    krb_realm = "CERN\\.CH" if cern else "[A-Z.]*"
-    pin_gsi = "export KRB5CCNAME=FILE:/dev/null" if cern else ":"
     ht = textwrap.dedent(f"""\
         # CERN EOS websites return 403 on directories without an index; enable Apache listings once at the root.
         HT=$(mktemp); printf 'Options +Indexes\\n' > "$HT"
@@ -1310,12 +1373,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         set -uo pipefail
         cd {rq(ckpt)}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
-        # Auth: a kerberos ticket if present, else the grid proxy run_container keeps in ./proxy.
-        # For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which
-        # eosuser rejects ("[3010] ... unauthorized identity used"), so use the proxy and hide that ticket.
-        if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{krb_realm}$"; then :
-        elif [ -s proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; {pin_gsi}
-        fi
+        {_xrd_auth(eos_url, '"$PWD/proxy/x509_proxy"')}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
@@ -1596,6 +1654,8 @@ def main(argv=None) -> None:
     s = sub.add_parser("status", help="per-step state on each host")
     s.add_argument("id", nargs="?")
     s.add_argument("--all", action="store_true", help="also list finished jobs that belong to no step")
+    s.add_argument("-d", "--detail", action="store_true", help="per-step lines and batch jobs (the default when you name a roast)")
+    s.add_argument("-s", "--summary", action="store_true", help="one line per roast, even for a single one")
     s.set_defaults(func=cmd_status)
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")
