@@ -1,0 +1,121 @@
+{
+  "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+  "label": "nominal_run3_nontight",
+  "created": "2026-09-25 14:15:05",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "193851fe045a93f086da6ee1222f1602161543b7",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_nontight.yml",
+    "captured": "config.yml",
+    "sha256": "712516aa54e39499582fd63357bf2dcff76cabca52eedc1412764243b887d9f1",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "2d24abdc462816cf67c6038b6e883d0c97dcc3fca72f22399678e8b036dd5894"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "PhaseB_1_computeJCM",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB_1_computeJCM.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 14:16:59",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_PhaseB_1_computeJCM",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "712516aa54e3"
+        },
+        {
+          "ts": "2026-09-25 14:29:09",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_PhaseB_1_computeJCM",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "712516aa54e3"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/barista",
+      "ssh": "jda102@cmslpc360.fnal.gov",
+      "checked_out": "2026-09-25 14:16:46"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/",
+    "ts": "2026-09-25 17:03:28",
+    "ok": true,
+    "pages": [
+      "output/Run3_nontight/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_nontight/computeJCM/cutflow_wJCM.html",
+      "output/Run3_nontight/computeJCM/plots_wJCM/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-25 14:15:05",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-25 14:16:46",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 14:16:59",
+      "event": "submit",
+      "step": "PhaseB_1_computeJCM",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 14:29:09",
+      "event": "submit",
+      "step": "PhaseB_1_computeJCM",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 17:03:27",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 17:03:33",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only.",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+    "ts": "2026-09-25 17:03:33",
+    "ok": true
+  }
+}
