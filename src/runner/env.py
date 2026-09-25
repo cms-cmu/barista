@@ -29,6 +29,7 @@ def print_reproducibility_info(args) -> None:
     logging.info(f"Output filename:    {os.path.join(args.output_path, args.output_file)}")
     logging.info(f"Test mode:          {'enabled' if getattr(args, 'test', False) else 'disabled'}")
     logging.info(f"Condor mode:        {'enabled' if getattr(args, 'condor', False) else 'disabled'}")
+    logging.info(f"Condor site:        {getattr(args, 'condor_site', None) or 'auto-detect'}")
     logging.info(f"Blind mode:         {'enabled' if getattr(args, 'blind', False) or getattr(args, 'job_yaml_path', None) else 'disabled'}")
     logging.info(f"Log file:           (none)")
     logging.info(f"Dashboard address:  {args.dashboard_address if args.dashboard_address else '(default: 10200)'}")

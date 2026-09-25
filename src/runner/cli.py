@@ -170,7 +170,14 @@ def make_parser() -> argparse.ArgumentParser:
         dest="condor",
         action="store_true",
         default=False,
-        help='Submit jobs to HTCondor cluster'
+        help='Submit Dask workers as HTCondor jobs (FNAL LPC via lpcjobqueue, CERN lxplus via dask_lxplus; site auto-detected)'
+    )
+    exec_group.add_argument(
+        '--condor-site',
+        dest="condor_site",
+        choices=['lpc', 'lxplus'],
+        default=None,
+        help='HTCondor site for --condor. Default: auto-detect from BARISTA_SITE / hostname. Overrides condor_site in the config file.'
     )
     exec_group.add_argument(
         '--slurm',
@@ -195,7 +202,7 @@ def make_parser() -> argparse.ArgumentParser:
         '--tmpdir',
         dest="tmpdir",
         default=None,
-        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER on LPC, /tmp/$USER/barista_scratch elsewhere)'
     )
     exec_group.add_argument(
         '--start-cluster-daemon',

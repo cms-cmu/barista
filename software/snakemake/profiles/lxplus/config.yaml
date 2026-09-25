@@ -1,4 +1,14 @@
-# Snakemake profile for CERN lxplus
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /afs -B /eos"
+# Snakemake profile for CERN lxplus (login-node execution).
+# Rules run locally on the lxplus node. runner.py rules submit their own Dask workers to
+# HTCondor through dask_lxplus (`--condor` auto-detects the site inside run_container).
+# GPU/training workflows are dispatched by run_container to the lxplus_gpu profile instead.
+software-deployment-method:
+  - apptainer
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /afs -B /eos --env X509_USER_PROXY=proxy/x509_proxy"
 default-resources:
-  tmpdir: "/tmp"
+  - "tmpdir='/tmp'"
+  - "mem_mb=4000"
+latency-wait: 60
+# Auto-retry: covers the shared-Dask-daemon startup race and transient HTCondor flakiness.
+retries: 2
+rerun-triggers: mtime

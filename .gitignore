@@ -207,3 +207,7 @@ pourover_output/
 apptainer_env.sh
 Documentation/
 scripts/
+
+# lxplus: interim dask_lxplus install and HTCondor job logs
+.lxplus_site/
+condor_logs/
