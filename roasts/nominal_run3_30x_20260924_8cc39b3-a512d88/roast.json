@@ -231,7 +231,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_30x_20260924_8cc39b3-a512d88",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_30x_20260924_8cc39b3-a512d88/",
-    "ts": "2026-09-25 07:29:01",
+    "ts": "2026-09-25 11:27:31",
     "ok": true,
     "pages": [
       "output/Run3_nominal_30x/FvT_closure/cutflow_FvT_closure.html",
@@ -352,6 +352,30 @@
       "event": "submit",
       "step": "D",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 08:46:31",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 08:46:47",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 11:27:14",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 11:27:29",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "falcon checkout hot-patch (2026-09-24 21:2x, step C resume): coffea4bees/workflows/helpers/common.smk replaced by its ee5d86b2 version (write_workflow_overrides can override main: options) so fvt --max-evaluators 2 lands; pinned sha a512d88 otherwise. Needed because FvT evaluate with 3 evaluators at n=54 exceeded the 40 GB MPS limit.\n2026-09-25 ~05:40: both checkouts hot-patched to coffea4bees fc29f44a for analysis/processors/processor_HH4b.py, classifier/config/dataset/HCR/SvB.py, workflows/helpers/common.smk (sha1 494a78dd / 7438676c / 6d7adf06): FvT_pd3_floor (processor) + --FvT-pd3-floor (SvB training), floor 0.01, because FvT_30x has p_d3~1e-30 outliers (|FvT| up to 2.6e28). C4 rerun with the floor; D retrained as SvB_30x_floor (unfloored SvB_30x kept on EOS). Config recaptured from source at fc29f44a."
