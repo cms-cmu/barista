@@ -4,7 +4,11 @@ import argparse
 import sys
 import os
 
+import tempfile
+import tarfile
+
 from runner import (
+    WorkerInitializer,
     make_parser,
     setup_config_defaults,
     get_dataset_type,
@@ -16,6 +20,14 @@ from runner import (
     find_free_port,
     setup_local_cluster,
     setup_shared_dask_client
+)
+from src.runner import cluster as cluster_mod
+from src.runner.cluster import (
+    detect_condor_site,
+    eos_xrootd_url,
+    setup_condor_cluster,
+    setup_lxplus_condor_cluster,
+    create_code_tarball,
 )
 
 
@@ -234,6 +246,163 @@ class TestRunner(unittest.TestCase):
         
         mock_client.assert_called_once_with("tcp://127.0.0.1:8786", timeout="30s")
         self.assertIsNone(cluster)
+
+
+class TestCondorSites(unittest.TestCase):
+    """HTCondor site selection and the lxplus (dask_lxplus) backend."""
+
+    LXPLUS_CONFIG = {
+        'condor_cores': 2, 'worker_memory': '4GB', 'dashboard_address': 10200,
+        'min_workers': 1, 'max_workers': 5,
+        'lxplus_job_flavour': 'workday', 'lxplus_disk_per_worker': '10GB', 'lxplus_death_timeout': 3600,
+        'lxplus_scheduler_port': 8786, 'lxplus_batch_name': 'barista-dask', 'lxplus_worker_image': None,
+        'lxplus_eos_scratch': None, 'lxplus_send_credential': True,
+    }
+
+    def test_detect_condor_site_precedence(self):
+        with patch.dict(os.environ, {"BARISTA_SITE": "lxplus"}):
+            self.assertEqual(detect_condor_site({"condor_site": "lpc"}), "lpc")
+            self.assertEqual(detect_condor_site({}), "lxplus")
+        with patch.dict(os.environ, {"BARISTA_SITE": "lpc_gpu"}):
+            self.assertEqual(detect_condor_site({}), "lpc")
+        with patch.dict(os.environ, {"BARISTA_SITE": ""}):
+            with patch("socket.gethostname", return_value="lxplus954.cern.ch"):
+                self.assertEqual(detect_condor_site({}), "lxplus")
+            with patch("socket.gethostname", return_value="cmslpc307.fnal.gov"):
+                self.assertEqual(detect_condor_site({}), "lpc")
+            with patch("socket.gethostname", return_value="falcon.phys.cmu.edu"):
+                self.assertEqual(detect_condor_site(None), "lpc")
+
+    def test_setup_condor_cluster_dispatch(self):
+        with patch.object(cluster_mod, "setup_lxplus_condor_cluster") as lx, \
+             patch.object(cluster_mod, "setup_lpc_condor_cluster") as lpc:
+            setup_condor_cluster({}, "/tmp/code.tar.gz", proxy_path="/tmp/proxy", site="lxplus")
+            lx.assert_called_once_with({}, "/tmp/code.tar.gz", "/tmp/proxy")
+            setup_condor_cluster({}, "/tmp/code.tar.gz", site="lpc")
+            lpc.assert_called_once_with({}, "/tmp/code.tar.gz")
+        with self.assertRaises(ValueError):
+            setup_condor_cluster({}, "/tmp/code.tar.gz", site="bogus")
+
+    def test_eos_xrootd_url(self):
+        self.assertEqual(eos_xrootd_url("/eos/cms/store/group/x"), "root://eoscms.cern.ch//eos/cms/store/group/x")
+        self.assertEqual(eos_xrootd_url("/eos/user/m/me/x"), "root://eosuser.cern.ch//eos/user/m/me/x")
+        self.assertIsNone(eos_xrootd_url("/tmp/x"))
+
+    def _run_lxplus_setup(self, config, tarball, proxy, env):
+        fake_cls = MagicMock(name="CernCluster")
+        fake_mod = MagicMock(CernCluster=fake_cls)
+        with patch.dict(sys.modules, {"dask_lxplus": fake_mod}), \
+             patch("dask.distributed.Client") as mock_client, \
+             patch("src.runner.cluster._port_is_free", return_value=True), \
+             patch.dict(os.environ, env):
+            client, cluster, log_dir = setup_lxplus_condor_cluster(config, tarball, proxy)
+        return fake_cls, mock_client, cluster, log_dir
+
+    def test_setup_lxplus_condor_cluster(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = os.path.join(tmp, "code_barista.tar.gz")
+            proxy = os.path.join(tmp, "x509_proxy")
+            for f in (tarball, proxy):
+                open(f, "w").close()
+            config = dict(self.LXPLUS_CONFIG, worker_log_directory=os.path.join(tmp, "logs"))
+            fake_cls, mock_client, cluster, log_dir = self._run_lxplus_setup(
+                config, tarball, proxy, {"WORKER_IMAGE": "/cvmfs/unpacked.cern.ch/barista:test"})
+
+            kwargs = fake_cls.call_args.kwargs
+            self.assertEqual(kwargs["container_runtime"], "singularity")
+            self.assertEqual(kwargs["worker_image"], "/cvmfs/unpacked.cern.ch/barista:test")
+            self.assertEqual(kwargs["cores"], 2)
+            self.assertEqual(kwargs["processes"], 1)
+            self.assertEqual(kwargs["disk"], "10GB")
+            self.assertEqual(kwargs["scheduler_options"]["port"], 8786)  # the configured port, never a fallback
+            self.assertEqual(kwargs["log_directory"], os.path.join(tmp, "logs"))
+            self.assertIn("export X509_USER_PROXY=${X509_USER_PROXY:-$PWD/x509_proxy}", kwargs["job_script_prologue"])
+            directives = kwargs["job_extra_directives"]
+            self.assertEqual(directives["+JobFlavour"], '"workday"')
+            self.assertEqual(directives["MY.SendCredential"], "True")
+            self.assertEqual(directives["x509userproxy"], proxy)
+            self.assertEqual(directives["transfer_input_files"], tarball)
+            self.assertEqual(directives["leave_in_queue"], "False")
+            self.assertEqual(directives["transfer_executable"], "False")
+            self.assertNotIn("output_destination", directives)  # log dir is not on EOS
+            fake_cls.return_value.adapt.assert_called_once_with(minimum=1, maximum=5)
+            mock_client.assert_called_once_with(fake_cls.return_value)
+            self.assertEqual(log_dir, os.path.join(tmp, "logs"))
+            self.assertEqual(cluster.barista_cleanup_paths, [])
+
+    def test_setup_lxplus_condor_cluster_eos_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = os.path.join(tmp, "code_barista.tar.gz")
+            open(tarball, "w").close()
+            config = dict(self.LXPLUS_CONFIG, worker_log_directory="/eos/cms/store/group/test/logs",
+                          lxplus_send_credential=False)
+            with patch("os.makedirs"):
+                fake_cls, _, _, log_dir = self._run_lxplus_setup(config, tarball, None, {"WORKER_IMAGE": "/cvmfs/x"})
+            directives = fake_cls.call_args.kwargs["job_extra_directives"]
+            self.assertEqual(directives["output_destination"], "root://eoscms.cern.ch//eos/cms/store/group/test/logs/")
+            self.assertEqual(directives["Output"], "worker-$(ClusterId).$(ProcId).out")
+            self.assertEqual(directives["MY.XRDCP_CREATE_DIR"], "True")
+            self.assertNotIn("MY.SendCredential", directives)
+            self.assertNotIn("x509userproxy", directives)
+            self.assertEqual(log_dir, "/eos/cms/store/group/test/logs")
+
+    def test_wait_for_lxplus_port_errors_when_busy(self):
+        with patch("src.runner.cluster._port_is_free", return_value=False), patch("time.sleep"):
+            with self.assertRaises(RuntimeError):
+                cluster_mod._wait_for_lxplus_port(8786, timeout=0)
+
+    def test_setup_lxplus_condor_cluster_requires_dask_lxplus(self):
+        with patch.dict(sys.modules, {"dask_lxplus": None}):
+            with self.assertRaises(ImportError):
+                setup_lxplus_condor_cluster(dict(self.LXPLUS_CONFIG), "/tmp/none.tar.gz")
+
+    def test_create_code_tarball_excludes_vcs_and_bytecode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                os.makedirs("pkg/.git/objects")
+                os.makedirs("pkg/__pycache__")
+                open("pkg/.git/objects/blob", "w").close()
+                open("pkg/__pycache__/mod.cpython-312.pyc", "w").close()
+                open("pkg/mod.py", "w").close()
+                tarball, temp_dir = create_code_tarball(["pkg"], tmpdir=os.path.join(tmp, "scratch"))
+                with tarfile.open(tarball) as tar:
+                    names = tar.getnames()
+            finally:
+                os.chdir(cwd)
+            self.assertIn("pkg/mod.py", names)
+            self.assertFalse(any(".git" in n or "__pycache__" in n for n in names), names)
+
+    def test_setup_config_defaults_lxplus_keys(self):
+        args = MagicMock(shared_dask=False, worker_memory=None, slurm_qos=None, test=False)
+        config_runner = {}
+        setup_config_defaults(config_runner, args)
+        self.assertIsNone(config_runner["condor_site"])
+        self.assertEqual(config_runner["lxplus_job_flavour"], "workday")
+        self.assertEqual(config_runner["lxplus_disk_per_worker"], "10GB")
+        self.assertIn("{user}", config_runner["lxplus_eos_scratch"])
+        self.assertTrue(config_runner["lxplus_send_credential"])
+
+    def test_make_parser_condor_site(self):
+        parser = make_parser()
+        self.assertIsNone(parser.parse_args([]).condor_site)
+        self.assertEqual(parser.parse_args(["--condor", "--condor-site", "lxplus"]).condor_site, "lxplus")
+        with open(os.devnull, 'w') as devnull, patch('sys.stderr', devnull):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["--condor-site", "falcon"])
+
+    def test_worker_initializer_absolutizes_relative_proxy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                open("x509_proxy", "w").close()
+                with patch.dict(os.environ, {"X509_USER_PROXY": "x509_proxy"}):
+                    WorkerInitializer().setup(worker=None)
+                    self.assertEqual(os.environ["X509_USER_PROXY"], os.path.join(os.path.realpath(tmp), "x509_proxy"))
+            finally:
+                os.chdir(cwd)
 
 
 if __name__ == '__main__':

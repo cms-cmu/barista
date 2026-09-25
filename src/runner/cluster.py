@@ -8,6 +8,7 @@ import logging
 import getpass
 import uuid
 import hashlib
+import shutil
 from rich.pretty import pretty_repr
 
 import dask
@@ -23,6 +24,49 @@ def get_default_scratch():
     fallback = f"/tmp/{user}/barista_scratch"
     os.makedirs(fallback, exist_ok=True)
     return fallback
+
+# ---------------------------------------------------------------------------
+# HTCondor site handling: 'lpc' (FNAL, lpcjobqueue) or 'lxplus' (CERN, dask_lxplus)
+# ---------------------------------------------------------------------------
+
+LXPLUS_DEFAULT_WORKER_IMAGE = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
+TARBALL_EXCLUDES = {".git", "__pycache__", ".pixi", ".pytest_cache", ".lxplus_site"}
+
+
+def detect_condor_site(config_runner=None):
+    """Return the HTCondor site used by --condor: 'lpc' or 'lxplus'.
+
+    Precedence: the runner config key `condor_site` (also set by --condor-site), the BARISTA_SITE
+    environment variable exported by run_container, then the hostname. Defaults to 'lpc' so the
+    historical meaning of --condor is preserved.
+    """
+    site = (config_runner or {}).get('condor_site')
+    if site:
+        return str(site).lower()
+    env_site = os.environ.get('BARISTA_SITE', '').lower()
+    if env_site.startswith('lxplus'):
+        return 'lxplus'
+    if env_site.startswith('lpc'):
+        return 'lpc'
+    if 'lxplus' in socket.gethostname():
+        return 'lxplus'
+    return 'lpc'
+
+
+def eos_xrootd_url(path):
+    """Map an EOS FUSE path to its xrootd URL, or None if `path` is not on a known EOS instance."""
+    if path.startswith('/eos/user/') or path.startswith('/eos/home-'):
+        return 'root://eosuser.cern.ch/' + path
+    if path.startswith('/eos/cms/'):
+        return 'root://eoscms.cern.ch/' + path
+    return None
+
+
+def _tarball_filter(tarinfo):
+    """Drop VCS, bytecode and local-environment directories from the code tarball."""
+    if any(part in TARBALL_EXCLUDES for part in tarinfo.name.split('/')):
+        return None
+    return tarinfo
 
 def create_code_tarball(condor_transfer_input_files, tmpdir=None):
     """Create a tarball of code in a temporary directory.
@@ -46,17 +90,70 @@ def create_code_tarball(condor_transfer_input_files, tmpdir=None):
         for path in condor_transfer_input_files:
             if os.path.exists(path):
                 logging.info(f"  Adding {path} to tarball...")
-                tar.add(path)
+                tar.add(path, filter=_tarball_filter)
             else:
                 logging.warning(f"  Warning: path {path} not found, skipping...")
                 
     logging.info(f"Code tarball created successfully at {tarball_path}")
     return tarball_path, temp_dir
 
-def setup_condor_cluster(config_runner, tarball_path):
+def register_worker_lost_logger(client, log_dir):
+    """Log permanently failed tasks together with the worker log that mentions the worker address."""
+
+    class WorkerLostLogger(SchedulerPlugin):
+        def _find_log(self, worker_addr):
+            import glob
+            try:
+                for path in glob.glob(f"{log_dir}/worker-*.err"):
+                    with open(path) as f:
+                        if worker_addr in f.read():
+                            return path
+            except OSError:
+                pass
+            return None
+
+        def transition(self, key, start, finish, *args, worker=None, **kwargs):
+            if finish != "erred":
+                return
+            exc = kwargs.get("exception")
+            exc_text = None
+            if exc is not None:
+                try:
+                    from distributed.protocol import deserialize
+                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
+                    exc_text = repr(err)
+                except Exception:
+                    exc_text = repr(exc)
+            if exc_text:
+                logging.error(f"Task failed: {key}: {exc_text}")
+            elif worker is not None:
+                log_file = self._find_log(worker)
+                if log_file:
+                    logging.error(f"Task permanently failed: {key} -> {log_file}")
+                else:
+                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
+
+    client.register_plugin(WorkerLostLogger())
+
+
+def setup_condor_cluster(config_runner, tarball_path, proxy_path=None, site=None):
+    """Create the HTCondor-backed Dask cluster for the detected (or given) site.
+
+    Returns (client, cluster, log_dir). 'lpc' uses lpcjobqueue (FNAL), 'lxplus' uses dask_lxplus (CERN).
+    """
+    site = site or detect_condor_site(config_runner)
+    if site == 'lxplus':
+        return setup_lxplus_condor_cluster(config_runner, tarball_path, proxy_path)
+    if site == 'lpc':
+        return setup_lpc_condor_cluster(config_runner, tarball_path)
+    raise ValueError(f"Unknown condor_site '{site}' (expected 'lpc' or 'lxplus')")
+
+
+def setup_lpc_condor_cluster(config_runner, tarball_path):
+    """Setup Dask LPCCondorCluster (FNAL LPC, lpcjobqueue)."""
     from lpcjobqueue import LPCCondorCluster
 
-    logging.info("Initializing HTCondor cluster configuration...")
+    logging.info("Initializing LPC HTCondor cluster configuration...")
 
     scratch = get_default_scratch()
     _log_base = f'{scratch}/condor_logs'
@@ -104,43 +201,190 @@ def setup_condor_cluster(config_runner, tarball_path):
 
     log_dir = cluster_args['log_directory']
     logging.info(f"Condor worker log directory: {log_dir}")
+    register_worker_lost_logger(client, log_dir)
 
-    class WorkerLostLogger(SchedulerPlugin):
-        def _find_log(self, worker_addr):
-            import glob
-            try:
-                for path in glob.glob(f"{log_dir}/worker-*.err"):
-                    with open(path) as f:
-                        if worker_addr in f.read():
-                            return path
-            except OSError:
-                pass
-            return None
+    logging.info('LPC HTCondor cluster setup complete!')
+    return client, cluster, log_dir
 
-        def transition(self, key, start, finish, *args, worker=None, **kwargs):
-            if finish != "erred":
-                return
-            exc = kwargs.get("exception")
-            exc_text = None
-            if exc is not None:
-                try:
-                    from distributed.protocol import deserialize
-                    err = deserialize(exc.header, exc.frames) if hasattr(exc, "header") else exc
-                    exc_text = repr(err)
-                except Exception:
-                    exc_text = repr(exc)
-            if exc_text:
-                logging.error(f"Task failed: {key}: {exc_text}")
-            elif worker is not None:
-                log_file = self._find_log(worker)
-                if log_file:
-                    logging.error(f"Task permanently failed: {key} -> {log_file}")
-                else:
-                    logging.error(f"Task permanently failed: {key} on {worker} (log not found, check {log_dir}/)")
 
-    client.register_plugin(WorkerLostLogger())
+def _lxplus_worker_image(config_runner):
+    image = (config_runner.get('lxplus_worker_image')
+             or os.environ.get('WORKER_IMAGE')
+             or os.environ.get('COFFEA_IMAGE_FULL')
+             or LXPLUS_DEFAULT_WORKER_IMAGE)
+    if not image.startswith('/cvmfs/'):
+        logging.warning(f"Worker image '{image}' is not a /cvmfs/unpacked.cern.ch path; "
+                        "CERN HTCondor expects unpacked images for MY.SingularityImage.")
+    return image
 
-    logging.info('HTCondor cluster setup complete!')
+
+def _port_is_free(port):
+    """True if `port` can be bound (SO_REUSEADDR, like Dask's listener), i.e. no live scheduler holds it."""
+    with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(('', int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def _wait_for_lxplus_port(port, timeout=90):
+    """Return `port` once it is bindable, waiting up to `timeout` s for a previous scheduler to release it.
+
+    On lxplus the scheduler must stay on the configured port: CERN opens 8786 for inbound worker
+    connections but blocks arbitrary ports, so falling back to an OS-chosen port would leave every
+    worker unable to connect. A port still held after the timeout is an error, not a fallback.
+    """
+    deadline = time.time() + timeout
+    while True:
+        if _port_is_free(port):
+            return int(port)
+        if time.time() >= deadline:
+            raise RuntimeError(
+                f"Port {port} on {socket.gethostname()} is still in use after {timeout}s. Another Dask "
+                "scheduler (a shared-dask daemon?) is probably running here; reuse it with --shared-dask "
+                "or stop it. lxplus workers can only reach the configured scheduler port."
+            )
+        logging.info(f"Scheduler port {port} busy, waiting for it to be released...")
+        time.sleep(5)
+
+
+def _lxplus_eos_scratch(config_runner):
+    """Return the writable EOS scratch directory for tarball staging and worker logs, or None."""
+    scratch = config_runner.get('lxplus_eos_scratch')
+    if not scratch:
+        return None
+    scratch = scratch.format(user=getpass.getuser())
+    try:
+        os.makedirs(scratch, exist_ok=True)
+        if not os.access(scratch, os.W_OK):
+            raise OSError("directory is not writable")
+    except OSError as e:
+        logging.warning(f"EOS scratch {scratch} is not usable ({e}). Falling back to /tmp: the code tarball "
+                        "is spooled with every worker job and worker stdout/stderr will not be retrievable.")
+        return None
+    return scratch
+
+
+def setup_lxplus_condor_cluster(config_runner, tarball_path, proxy_path=None):
+    """Setup Dask workers on CERN HTCondor from lxplus with dask_lxplus.CernCluster.
+
+    dask_lxplus submits with `condor_submit -spool` (the CERN schedd is a remote machine), runs the
+    workers inside the analysis image via MY.SingularityImage and gives every job the user's Kerberos
+    credential (MY.SendCredential). Because of the spooling, the code tarball is staged once on EOS and
+    fetched by URL, and worker stdout/stderr are delivered to EOS through `output_destination`.
+    """
+    try:
+        from dask_lxplus import CernCluster
+    except ImportError as e:
+        raise ImportError(
+            "dask_lxplus is not installed in this container. Use an analysis image built from the current "
+            "software/dockerfiles/Dockerfile_analysis (it lists dask-lxplus) or, as an interim measure on "
+            "lxplus, run `./run_container lxplus-setup` to install it into .lxplus_site/."
+        ) from e
+    logging.info("Initializing lxplus HTCondor cluster configuration (dask_lxplus)...")
+    image = _lxplus_worker_image(config_runner)
+    eos_scratch = _lxplus_eos_scratch(config_runner)
+    cleanup_paths = []
+
+    # Code tarball: stage once on EOS and hand the workers an xrootd URL, so the starter fetches it
+    # instead of -spool copying it onto the schedd for every worker job.
+    tarball_ref = tarball_path
+    if eos_scratch and not os.path.abspath(tarball_path).startswith(eos_scratch):
+        stage_dir = os.path.join(eos_scratch, 'condor_tmp', f"barista_{uuid.uuid4().hex[:8]}")
+        os.makedirs(stage_dir, exist_ok=True)
+        staged = os.path.join(stage_dir, os.path.basename(tarball_path))
+        shutil.copyfile(tarball_path, staged)
+        cleanup_paths.append(stage_dir)
+        tarball_ref = eos_xrootd_url(staged) or staged
+        logging.info(f"Code tarball staged on EOS: {tarball_ref}")
+    elif tarball_path.startswith('/eos/'):
+        tarball_ref = eos_xrootd_url(tarball_path) or tarball_path
+
+    # Worker logs: an EOS directory (delivered by the xrootd transfer plugin) unless overridden.
+    if config_runner.get('worker_log_directory'):
+        log_dir = config_runner['worker_log_directory']
+    elif eos_scratch:
+        log_dir = os.path.join(eos_scratch, 'condor_logs', f"dask_{uuid.uuid4().hex[:8]}")
+    else:
+        log_dir = f"{get_default_scratch()}/condor_logs_{uuid.uuid4().hex[:8]}"
+    os.makedirs(log_dir, exist_ok=True)
+
+    job_extra = {
+        '+JobFlavour': f'"{config_runner["lxplus_job_flavour"]}"',
+        'transfer_input_files': tarball_ref,
+        'should_transfer_files': 'YES',
+        'when_to_transfer_output': 'ON_EXIT',
+        'transfer_executable': 'False',
+        'leave_in_queue': 'False',
+        'periodic_remove': '(JobStatus == 5 && (CurrentTime - EnteredCurrentStatus) > 300)',
+    }
+    if config_runner.get('lxplus_send_credential', True):
+        job_extra['MY.SendCredential'] = 'True'
+    log_url = eos_xrootd_url(log_dir) if log_dir.startswith('/eos/') else None
+    if log_url:
+        job_extra.update({
+            'output_destination': log_url.rstrip('/') + '/',
+            'Output': 'worker-$(ClusterId).$(ProcId).out',
+            'Error': 'worker-$(ClusterId).$(ProcId).err',
+            'MY.XRDCP_CREATE_DIR': 'True',
+        })
+    else:
+        logging.warning(f"Worker log directory {log_dir} is not on EOS: with spooled submission the worker "
+                        "stdout/stderr stay in the schedd spool (see condor_transfer_data).")
+    if proxy_path and os.path.exists(proxy_path):
+        job_extra['x509userproxy'] = os.path.abspath(proxy_path)
+    else:
+        logging.warning("No X509 proxy passed to the workers (remote xrootd reads will fail without one).")
+
+    port = _wait_for_lxplus_port(int(config_runner['lxplus_scheduler_port']))
+    cluster_args = {
+        'cores': int(config_runner['condor_cores']),
+        'processes': 1,
+        'memory': config_runner['worker_memory'],
+        'disk': config_runner['lxplus_disk_per_worker'],
+        'worker_image': image,
+        'container_runtime': 'singularity',
+        'batch_name': config_runner['lxplus_batch_name'],
+        'death_timeout': config_runner['lxplus_death_timeout'],
+        # Spill to the HTCondor scratch directory (RequestDisk) instead of the container's /tmp.
+        'local_directory': '${_CONDOR_SCRATCH_DIR:-.}',
+        'log_directory': log_dir,
+        'scheduler_options': {
+            'host': socket.gethostname(),
+            'port': port,
+            'dashboard_address': f":{config_runner['dashboard_address']}",
+        },
+        'job_extra_directives': job_extra,
+        # Joined into the `/bin/sh -c` worker command: shell expansion works, condor $(macros) do not.
+        'job_script_prologue': [
+            'export PYTHONPATH=$PWD:$PYTHONPATH',
+            'export XRD_RUNFORKHANDLER=1',
+            'export MALLOC_TRIM_THRESHOLD_=0',
+            'export X509_USER_PROXY=${X509_USER_PROXY:-$PWD/x509_proxy}',
+        ],
+        'worker_extra_args': [],  # CernCluster appends --worker-port 10000:10100 itself
+    }
+
+    logging.info("Cluster arguments: ")
+    logging.info(pretty_repr(cluster_args))
+
+    logging.info("Creating CernCluster (HTCondor @ CERN)...")
+    cluster = CernCluster(**cluster_args)
+    cluster.barista_cleanup_paths = cleanup_paths
+
+    logging.info("Creating Dask client...")
+    client = dask.distributed.Client(cluster)
+
+    logging.info(f"Setting up adaptive scaling (min: {config_runner['min_workers']}, max: {config_runner['max_workers']})")
+    cluster.adapt(minimum=config_runner['min_workers'], maximum=config_runner['max_workers'])
+    logging.info(f"Dask dashboard: {client.dashboard_link}")
+    logging.info(f"Dask scheduler: {socket.gethostname()}:{port}")
+    logging.info(f"Condor worker log directory: {log_dir}")
+    register_worker_lost_logger(client, log_dir)
+
+    logging.info('lxplus HTCondor cluster setup complete!')
     return client, cluster, log_dir
 
 def setup_slurm_cluster(config_runner):
@@ -229,6 +473,16 @@ def setup_local_cluster(config_runner):
         logging.info(f"  SSH tunnel:   ssh -L {dashboard_addr}:<compute_node>:{dashboard_addr} <login_node>")
     return client, cluster
 
+def cleanup_cluster_paths(cluster):
+    """Remove staging directories (code tarball copies) recorded on the cluster object."""
+    for path in getattr(cluster, 'barista_cleanup_paths', None) or []:
+        try:
+            shutil.rmtree(path, ignore_errors=True)
+            logging.info(f"Removed staging directory: {path}")
+        except Exception as e:
+            logging.warning(f"Could not remove staging directory {path}: {e}")
+
+
 def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeout):
     """Monitor connected clients and active tasks, shut down when idle."""
     logging.info("Dask cluster daemon monitoring loop started.")
@@ -288,6 +542,7 @@ def run_daemon_monitoring_loop(client, cluster, scheduler_json_path, idle_timeou
         cluster.close()
     except Exception:
         pass
+    cleanup_cluster_paths(cluster)
     logging.info("Daemon shutdown complete. Exiting.")
 
 def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
@@ -365,9 +620,12 @@ def setup_shared_dask_client(args, config_runner, WorkerInitializer=None):
         logging.info("Initializing Dask cluster daemon...")
         log_dir = None
         if args.condor:
-            logging.info("Configuring LPCCondorCluster daemon...")
+            site = detect_condor_site(config_runner)
+            logging.info(f"Configuring HTCondor Dask cluster daemon (site: {site})...")
             tarball_path, temp_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-            client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+            client, cluster, log_dir = setup_condor_cluster(
+                config_runner, tarball_path, proxy_path=os.environ.get('X509_USER_PROXY'), site=site)
+            cluster.barista_cleanup_paths = list(getattr(cluster, 'barista_cleanup_paths', [])) + [temp_dir]
         elif args.slurm:
             logging.info("Configuring SLURMCluster daemon...")
             client, cluster = setup_slurm_cluster(config_runner)

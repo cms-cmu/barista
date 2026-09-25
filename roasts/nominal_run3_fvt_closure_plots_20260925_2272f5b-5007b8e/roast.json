@@ -1,0 +1,154 @@
+{
+  "id": "nominal_run3_fvt_closure_plots_20260925_2272f5b-5007b8e",
+  "label": "nominal_run3_fvt_closure_plots",
+  "created": "2026-09-25 11:51:35",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "2272f5b98d129c05f0c50e80ddc3950f1948699f",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "5007b8e2ac57f529b42d6d59ad070dfd58bbe6a3",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_fvt_closure_plots.yml",
+    "captured": "config.yml",
+    "sha256": "bde04f41440b3490a28eaf47c4d88e0771c64447033d05ad2dcb6267d02c7a8c",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "9d869f48d8c242bbc65cbdbc6aff46cced02c905a36877b30858ab42dd295dac"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "JCM": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/jetCombinatoricModel_SB_Run3_v1.yml",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "wJCM_ttbar": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/output/Run3_nominal/computeJCM/histAll_wJCM.coffea",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 12:02:23",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f_2272f5b-5007b8e_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "bde04f41440b"
+        },
+        {
+          "ts": "2026-09-25 12:17:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f_2272f5b-5007b8e_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "bde04f41440b"
+        },
+        {
+          "ts": "2026-09-25 13:43:08",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_f_2272f5b-5007b8e_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "bde04f41440b"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_fvt_closure_plots_20260925_2272f5b-5007b8e/barista",
+      "ssh": "jda102@cmslpc321.fnal.gov",
+      "checked_out": "2026-09-25 12:01:58"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_fvt_closure_plots_20260925_2272f5b-5007b8e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_fvt_closure_plots_20260925_2272f5b-5007b8e/",
+    "ts": "2026-09-25 14:35:52",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal_fvt_closure_plots/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal_fvt_closure_plots/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nominal_fvt_closure_plots/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_nominal_fvt_closure_plots/FvT_closure/ttbar_MC_vs_d3_cutflow.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-25 11:51:35",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-25 12:01:58",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 12:02:23",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 12:17:24",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 13:43:08",
+      "event": "resume",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 14:35:52",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": ""
+}

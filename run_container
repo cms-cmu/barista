@@ -35,6 +35,14 @@ info() { echo -e "\033[1;34m[INFO]\033[0m $1" >&2; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $1" >&2; }
 warning() { echo -e "\033[1;33m[WARNING]\033[0m $1" >&2; }
 
+# True if <path> (or <src>:<dst>) is already part of APPTAINER_BINDPATH
+_bind_listed() {
+    case ",${APPTAINER_BINDPATH:-}," in
+        *",$1,"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 check_apptainer() {
     command -v apptainer >/dev/null 2>&1 || { error "Apptainer is not installed. Aborting."; exit 1; }
 }
@@ -54,6 +62,139 @@ add_x509_proxy_flags() {
     esac
 }
 
+# --- lxplus (CERN HTCondor) Specific Logic ---
+LXPLUS_KRB_CACHE="/tmp/${USER}/krb5cc_barista"
+
+setup_lxplus_kerberos() {
+    # The login-session Kerberos cache lives on a tmpfs that vanishes at logout; copy it to a stable
+    # file so a long-running shared-dask daemon keeps a valid ticket, and store the batch credential in
+    # the CERN credd so jobs with MY.SendCredential can be submitted from inside the container (whose
+    # condor_submit cannot run the host-only credential producer).
+    [[ $(hostname) != *lxplus* ]] && return 0
+    local _src="${KRB5CCNAME#FILE:}"
+    [ -z "$_src" ] && _src="/run/user/$(id -u)/krb5cc"
+    mkdir -p "/tmp/${USER}"
+    if [ -r "$_src" ] && [ "$_src" != "$LXPLUS_KRB_CACHE" ]; then
+        cp "$_src" "${LXPLUS_KRB_CACHE}.tmp" && chmod 600 "${LXPLUS_KRB_CACHE}.tmp" && mv -f "${LXPLUS_KRB_CACHE}.tmp" "$LXPLUS_KRB_CACHE"
+    fi
+    if command -v condor_store_cred >/dev/null 2>&1; then
+        if ! { [ -x /usr/bin/batch_krb5_credential ] && /usr/bin/batch_krb5_credential 2>/dev/null | condor_store_cred add-krb -i - >/dev/null 2>&1; }; then
+            condor_store_cred add-krb -i "$_src" >/dev/null 2>&1 \
+                || warning "condor_store_cred failed: HTCondor jobs with MY.SendCredential may not start (run: condor_store_cred add-krb -i $_src)"
+        fi
+    fi
+}
+
+add_lxplus_condor_flags() {
+    # Make the CERN HTCondor client work inside the analysis container: host condor config + Kerberos,
+    # skip the host-only local-config hook, pin the user's schedd/credd, and tell runner.py the site.
+    local HOST="$1"
+    local -n LX_FLAGS_REF="$2"
+    [[ $HOST != *lxplus* ]] && return 0
+    setup_lxplus_kerberos
+    local _schedd _credd
+    _schedd=$(condor_config_val SCHEDD_HOST 2>/dev/null)
+    _credd=$(condor_config_val CREDD_HOST 2>/dev/null)
+    _bind_listed /afs || LX_FLAGS_REF+=( -B /afs )
+    LX_FLAGS_REF+=( -B /etc/condor -B /etc/sysconfig/ngbauth-submit
+        --env KRB5CCNAME="FILE:${LXPLUS_KRB_CACHE}"
+        --env SKIP_LOCAL_CONFIG_FILE=TRUE
+        --env _CONDOR_SEC_CREDENTIAL_PRODUCER=CREDENTIAL_ALREADY_STORED
+        --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE"
+        --env BARISTA_SITE=lxplus
+    )
+    [ -n "$_schedd" ] && LX_FLAGS_REF+=( --env _CONDOR_SCHEDD_HOST="$_schedd" )
+    [ -n "$_credd" ] && LX_FLAGS_REF+=( --env _CONDOR_CREDD_HOST="$_credd" )
+    # Interim dask_lxplus install (until the analysis image ships it): see `run_container lxplus-setup`
+    local _site="${BARISTA_LXPLUS_SITE:-$PWD/.lxplus_site}"
+    if [ -d "$_site" ]; then
+        LX_FLAGS_REF+=( --env PYTHONPATH="$(readlink -f "$_site")" )
+    fi
+}
+
+lxplus_check_scheduler_port() {
+    # CERN opens the standard Dask scheduler port (8786) for inbound connections on lxplus nodes, but not
+    # arbitrary ports, and some nodes block even 8786 (seen on lxplus963: HTCondor workers die with
+    # "Timed out trying to connect to tcp://<ip>:8786"). lxplus VMs on the same network can still reach such a
+    # node, so the probe is only trusted when it comes from a node on a different network. Cached per node/port.
+    local port="${1:-8786}"
+    local host_short; host_short=$(hostname -s)
+    local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$ip" ] || return 0
+    local my_net="${ip%.*.*}"
+    local cache="/tmp/${USER}/lxplus_portcheck_${host_short}_${port}"
+    mkdir -p "/tmp/${USER}"
+    if [ ! -f "$cache" ]; then
+        # Temporary listener; if the port is busy (e.g. a running daemon) skip the check.
+        python3 -c "import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('$ip',$port)); s.listen(1); time.sleep(90)" >/dev/null 2>&1 &
+        local lpid=$!
+        sleep 1
+        kill -0 "$lpid" 2>/dev/null || return 0
+        # Probe from lxplus pool nodes on another /16 network (DNS round-robin alone tends to return
+        # same-network VMs, which are allowed through where batch nodes are not).
+        local res="" probe
+        for probe in $(getent ahostsv4 lxplus.cern.ch | awk '{print $1}' | sort -u | grep -v "^${my_net}\." | shuf | head -4); do
+            res=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$probe" \
+                  "timeout 5 bash -c 'echo > /dev/tcp/$ip/$port' 2>/dev/null && echo open || echo blocked" 2>/dev/null | tail -1)
+            case "$res" in open|blocked) break ;; esac
+        done
+        kill "$lpid" 2>/dev/null
+        case "$res" in
+            open|blocked) echo "$res" > "$cache" ;;
+            *) return 0 ;;   # no pool node on another network reachable over ssh: inconclusive, do not cache
+        esac
+    fi
+    if [ "$(cat "$cache")" = "blocked" ]; then
+        # The ssh probe is indicative only: lxplus954 failed it while HTCondor workers connected to it fine
+        # (the batch networks are allowed through where the lxplus pool networks are not), so do not treat it
+        # as a failure; '$0 lxplus-check' (a probe from a batch job) is the definitive test.
+        warning "An lxplus node on another CERN network could not reach TCP port ${port} on $(hostname) (${ip})."
+        warning "If HTCondor Dask workers time out connecting to tcp://${ip}:${port}, this node's firewall blocks them:"
+        warning "log in to another lxplus node (lxplus954 is known to work); '$0 lxplus-check' verifies a node from a batch job."
+        return 1
+    fi
+    return 0
+}
+
+run_lxplus_check() {
+    # Definitive check: an HTCondor job connects back to a listener on this node's scheduler port.
+    [[ $(hostname) != *lxplus* ]] && { error "lxplus-check is only meaningful on lxplus."; exit 1; }
+    local port="${1:-8786}"
+    local ip; ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    setup_lxplus_kerberos
+    local dir="$HOME/.barista/lxplus_check_$(date +%s)"
+    mkdir -p "$dir" || { error "cannot create $dir"; exit 1; }
+    python3 -c "import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('$ip',$port)); s.listen(1); time.sleep(600)" >/dev/null 2>&1 &
+    local lpid=$!
+    sleep 1
+    kill -0 "$lpid" 2>/dev/null || { error "Port ${port} is already in use on $(hostname) (a Dask scheduler running?). Stop it or pass another port."; exit 1; }
+    printf '#!/bin/bash\necho "probe from $(hostname) $(hostname -I)"\ntimeout 8 bash -c "echo > /dev/tcp/%s/%s" 2>/dev/null && echo "RESULT: OPEN" || echo "RESULT: BLOCKED"\n' "$ip" "$port" > "$dir/probe.sh"
+    chmod +x "$dir/probe.sh"
+    cat > "$dir/probe.sub" <<EOF
+universe = vanilla
+executable = $dir/probe.sh
+output = $dir/probe.\$(ClusterId).out
+error = $dir/probe.\$(ClusterId).err
+log = $dir/probe.\$(ClusterId).log
+MY.SendCredential = True
++JobFlavour = "espresso"
+request_memory = 512MB
+queue
+EOF
+    info "Submitting a probe job that connects back to ${ip}:${port} (usually 1-3 min)..."
+    local cid; cid=$(condor_submit "$dir/probe.sub" 2>&1 | sed -n 's/.*cluster \([0-9]*\).*/\1/p')
+    [ -n "$cid" ] || { error "condor_submit failed"; kill "$lpid" 2>/dev/null; exit 1; }
+    local waited=0
+    while [ -n "$(condor_q "$cid" -af JobStatus 2>/dev/null)" ] && [ $waited -lt 570 ]; do sleep 15; waited=$((waited+15)); done
+    kill "$lpid" 2>/dev/null
+    local res; res=$(grep -o "RESULT: .*" "$dir/probe.$cid.out" 2>/dev/null)
+    case "$res" in
+        *OPEN*)    info "Port ${port} on $(hostname) is reachable from HTCondor workers: $(head -1 "$dir/probe.$cid.out")"; echo open > "/tmp/${USER}/lxplus_portcheck_$(hostname -s)_${port}" ;;
+        *BLOCKED*) error "Port ${port} on $(hostname) is BLOCKED for HTCondor workers ($(head -1 "$dir/probe.$cid.out")). Use another lxplus node."; echo blocked > "/tmp/${USER}/lxplus_portcheck_$(hostname -s)_${port}"; exit 1 ;;
+        *)         warning "Probe job ${cid} did not finish in time; check condor_q ${cid} and $dir" ;;
+    esac
+}
+
 show_help() {
     cat << EOF
 Usage: $0 [command] [options]
@@ -69,6 +210,10 @@ Commands:
                         Use --reinstall to clean environment.
   reana [opts]          Run reana-client using the local Pixi environment.
   snakemake_container   Run snakemake inside a container (backup option).
+  lxplus-setup          One-time lxplus setup: EOS scratch dirs, Kerberos credential,
+                        interim dask_lxplus install if the image lacks it.
+  lxplus-check [port]   Verify from an HTCondor job that Dask workers can reach a scheduler
+                        on this lxplus node (default port 8786; some nodes block it).
   --help                Show this help message.
 
 Examples:
@@ -78,6 +223,23 @@ Examples:
   $0 snakemake -s Snakefile
   $0 reana ls
   $0 classifier          Run commands inside the classifier container.
+
+CERN lxplus (HTCondor):
+  runner.py --condor auto-detects the site and submits Dask workers to CERN HTCondor
+  through dask_lxplus (workers run inside the analysis image via MY.SingularityImage).
+  Requires a grid proxy and a Kerberos ticket:
+    $0 lxplus-setup
+    $0 voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy
+    $0 python runner.py -p <proc.py> -c <cfg.yml> -m <meta/> -y UL18 --condor [--shared-dask]
+  Runner config keys (runner: block): lxplus_job_flavour (workday), lxplus_disk_per_worker (10GB),
+  lxplus_death_timeout (3600), lxplus_eos_scratch, lxplus_worker_image; --condor-site lpc|lxplus
+  forces the backend. Worker logs land in <lxplus_eos_scratch>/condor_logs/.
+
+  $0 classifier <cmd>    submits <cmd> as an HTCondor GPU job (classifier image). Knobs:
+    CONDOR_JOB_FLAVOUR=tomorrow CONDOR_REQUEST_GPUS=1 CONDOR_REQUEST_CPUS=4 CONDOR_REQUEST_MEMORY=32GB
+    CONDOR_GOOD_GPUS=1 (A100/V100/H100/H200 only) CONDOR_INTERACTIVE=1 CONDOR_DRY_RUN=1
+  $0 snakemake ...       classifier/training Snakefiles get the lxplus_gpu profile: GPU rules run
+                         as HTCondor jobs, everything else locally.
 
 SLURM execution (falcon.phys.cmu.edu):
   On the falcon login node, passing --slurm to runner.py auto-submits the job
@@ -222,7 +384,13 @@ setup_host_env() {
             CACHE_BASE="$HOME"
             ;;
         *lxplus*)
-            export APPTAINER_BINDPATH="${COMMON_BINDS},/afs,/eos"
+            # AFS home is 10 GB: keep the pixi environment on the (larger) work volume when it exists
+            local _work_dir="/afs/cern.ch/work/${USER:0:1}/${USER}"
+            [ -d "$_work_dir" ] && PIXI_DIR="${BARISTA_PIXI_DIR:-${_work_dir}/.pixi}"
+            # Complete the binds parsed from the lxplus profile instead of overwriting them
+            for _b in /afs /eos /cvmfs; do
+                _bind_listed "$_b" || export APPTAINER_BINDPATH="${APPTAINER_BINDPATH:+${APPTAINER_BINDPATH},}${_b}"
+            done
             ;;
         *falcon*|*rogue*)
             # 1. Basic Mounts
@@ -371,6 +539,10 @@ run_coffea() {
         fi
     done
 
+    if [[ $HOST == *lxplus* ]] && $_wants_condor && [[ " $* " != *" --start-cluster-daemon "* ]]; then
+        lxplus_check_scheduler_port 8786 || true
+    fi
+
     if $_wants_shared_dask && ($_wants_condor || $_wants_slurm || $_wants_dask) && \
        [[ " $* " != *" --start-cluster-daemon "* ]]; then
         
@@ -449,10 +621,13 @@ exit(1)
                     fi
                 fi
 
-                # Spawn daemon in the background on the host
+                # Spawn daemon in the background on the host. setsid detaches it from the controlling
+                # terminal and process group of the job that spawned it: otherwise closing that terminal
+                # (e.g. a tmux pane whose job finished) sends a SIGHUP that apptainer forwards into the
+                # container and kills the daemon, failing every other job still using the scheduler.
                 (
                     exec 9>&-
-                    nohup "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 &
+                    nohup setsid "$0" python runner.py --start-cluster-daemon "$DASK_FLAG" ${CONFIG_FILE:+-c "$CONFIG_FILE"} ${TMP_DIR:+--tmpdir "$TMP_DIR"} >"$DAEMON_LOG" 2>&1 < /dev/null &
                 )
 
                 # Wait inside the lock for the daemon to become responsive
@@ -495,7 +670,7 @@ exit(1)
         --env BARISTA_WORKSPACE_HASH="$WORKSPACE_HASH"
         --env PYTHONWARNINGS="ignore::FutureWarning:XRootD.client.finalize"
     )
-    if [ -d "/eos" ]; then
+    if [ -d "/eos" ] && ! _bind_listed /eos; then
         FLAGS+=( -B /eos )
     fi
     ulimit -n 65536
@@ -618,6 +793,7 @@ exit(1)
     fi
 
     add_x509_proxy_flags "$HOST" FLAGS
+    add_lxplus_condor_flags "$HOST" FLAGS
 
     # 3. EXECUTION LOGIC
     if [ -z "$*" ]; then
@@ -780,6 +956,7 @@ run_coffea_dev() {
     fi
 
     add_x509_proxy_flags "$HOST" FLAGS
+    add_lxplus_condor_flags "$HOST" FLAGS
 
     # 3. EXECUTION LOGIC
     if [ -z "$*" ]; then
@@ -870,6 +1047,25 @@ run_classifier() {
 
     # Collect user arguments
     local USER_CMD="$*"
+
+    # lxplus: submit the command as an HTCondor GPU job (mirrors the falcon sbatch path below).
+    # Without a command the classifier container opens locally (works on lxplus-gpu login nodes);
+    # CONDOR_INTERACTIVE=1 requests an interactive GPU job instead.
+    if [[ $HOST == *lxplus* ]] && [ -z "${_CONDOR_SCRATCH_DIR:-}" ] && { [ -n "$USER_CMD" ] || [ "${CONDOR_INTERACTIVE:-0}" = "1" ]; }; then
+        local SUBMIT_ARGS=( --image "$IMAGE" --workdir "$(readlink -f "$PWD")" )
+        [ -f "$PROXY" ] && SUBMIT_ARGS+=( --proxy "$(readlink -f "$PROXY")" )
+        [ "${CONDOR_INTERACTIVE:-0}" = "1" ] && SUBMIT_ARGS+=( --interactive )
+        [ "${CONDOR_DRY_RUN:-0}" = "1" ] && SUBMIT_ARGS+=( --dry-run )
+        if [ -n "$USER_CMD" ]; then
+            local USER_CMD_QUOTED
+            USER_CMD_QUOTED=$(printf '%q ' "$@")
+            SUBMIT_ARGS+=( --cmd "$USER_CMD_QUOTED" )
+        fi
+        setup_lxplus_kerberos
+        info "lxplus detected. Submitting the classifier command as an HTCondor GPU job..."
+        bash software/condor/submit_classifier_lxplus.sh "${SUBMIT_ARGS[@]}"
+        return
+    fi
 
     # GPU: Handle FALCON / BRIDGES2 interactive session
     if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
@@ -1002,6 +1198,20 @@ run_snakemake() {
         if $IS_COMBINE && [ -d "${PROFILE_DIR}/${CLUSTER_PROFILE}_combine" ]; then
             AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}_combine"
         fi
+        # Classifier training/evaluation workflows use the <profile>_gpu variant when one exists
+        # (lxplus_gpu: GPU rules become HTCondor jobs, the rest runs locally).
+        local IS_GPU_WORKFLOW=false
+        for arg in "${ARGS[@]}"; do
+            case "$arg" in
+                *src/classifier/workflow/Snakefile*|*PhaseC_2*|*PhaseC_3*|*PhaseD_2*|*PhaseD_3*|*PhaseE_4*|*_training.smk|*Snakefile_PhaseC.smk|*Snakefile_PhaseD.smk)
+                    IS_GPU_WORKFLOW=true
+                    break
+                    ;;
+            esac
+        done
+        if $IS_GPU_WORKFLOW && [ -d "${PROFILE_DIR}/${CLUSTER_PROFILE}_gpu" ]; then
+            AUTO_PROFILE="${PROFILE_DIR}/${CLUSTER_PROFILE}_gpu"
+        fi
         if [ -d "$AUTO_PROFILE" ]; then
             info "Auto-injecting Snakemake profile: $AUTO_PROFILE"
             ARGS=("--profile" "$AUTO_PROFILE" "${ARGS[@]}")
@@ -1110,6 +1320,32 @@ run_reana() {
     info "Execution finished successfully!"
 }
 
+# --- lxplus setup ---
+
+run_lxplus_setup() {
+    [[ $(hostname) != *lxplus* ]] && { error "lxplus-setup is only meaningful on lxplus."; exit 1; }
+    local EOS_BASE="${BARISTA_EOS_BASE:-/eos/cms/store/group/phys_higgs/ttHbb/${USER}/4b}"
+    info "Creating EOS scratch directories under ${EOS_BASE}..."
+    mkdir -p "${EOS_BASE}/barista_scratch/condor_logs" 2>/dev/null \
+        || warning "Could not create ${EOS_BASE}/barista_scratch (check your EOS permissions or set lxplus_eos_scratch in the runner config)"
+    setup_lxplus_kerberos
+    info "Checking that HTCondor workers can reach a Dask scheduler on this node (port 8786)..."
+    lxplus_check_scheduler_port 8786 && info "Port 8786 on $(hostname) is reachable from other CERN hosts."
+    local SITE="${BARISTA_LXPLUS_SITE:-$PWD/.lxplus_site}"
+    if run_coffea "python -c 'import dask_lxplus'" >/dev/null 2>&1; then
+        info "dask_lxplus is available in the analysis image."
+    else
+        info "dask_lxplus is missing from the analysis image: installing an interim copy into ${SITE}"
+        mkdir -p "$SITE" || { error "Cannot create ${SITE} (AFS quota?). Set BARISTA_LXPLUS_SITE to another directory."; exit 1; }
+        # --no-deps: dask-lxplus' unpinned dask requirement would otherwise shadow the image's dask
+        run_coffea "pip install --no-cache-dir --disable-pip-version-check --no-deps --target $(readlink -f "$SITE") dask-lxplus==0.3.3" \
+            || { error "pip install of dask-lxplus failed."; exit 1; }
+        run_coffea "python -c 'import dask_lxplus; print(\"dask_lxplus:\", dask_lxplus.__file__)'"
+    fi
+    info "lxplus setup done. Create or renew your grid proxy with:"
+    info "  $0 voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy"
+}
+
 # --- Main Dispatch ---
 
 setup_host_env
@@ -1126,6 +1362,8 @@ case "$1" in
     "snakemake")           run_snakemake "${@:2}" ;;
     "reana")               run_reana "${@:2}" ;;
     "classifier")          run_classifier "${@:2}" ;;
+    "lxplus-setup")        run_lxplus_setup ;;
+    "lxplus-check")        run_lxplus_check "${@:2}" ;;
     "pourover")            run_coffea "python coffea4bees/plots/pourOver.py --foreground ${@:2}" ;;
     "dev")                 run_coffea_dev "${@:2}" ;;
     *)                     run_coffea "$@" ;;

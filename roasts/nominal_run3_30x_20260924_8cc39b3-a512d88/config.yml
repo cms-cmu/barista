@@ -1,8 +1,8 @@
-# Captured by `roast new`: coffea4bees/workflows/config/nominal_run3_feynnet.yml merged over coffea4bees/workflows/config/nominal_run3.yml.
+# Captured by `roast new`: coffea4bees/workflows/config/nominal_run3_30x.yml merged over coffea4bees/workflows/config/nominal_run3.yml.
 # Comments are not carried over; read the sources for them.
 email: ''
-label: Run3_nominal_feynnet
-output_path: output/Run3_nominal_feynnet/
+label: Run3_nominal_30x
+output_path: output/Run3_nominal_30x/
 tag: Run3_v1
 dataset:
 - data
@@ -66,23 +66,29 @@ classifier_setting:
     - SB
 handoff:
   eos_base: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff
+  allow_external_refs: true
 fvt:
   eos_base: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}
   plot_base: root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod/{roast_id}/classifier
   classifier_config_paths: coffea4bees
   wfs_base: coffea4bees/classifier/config/workflows/HH4b_Run3/FvT
-  label: FvT_nominal
-  output_dir: output/FvT_nominal/
+  label: FvT_30x
+  output_dir: output/FvT_30x/
   plot_inputs: true
   model: '{eos_base}/classifier/{label}'
   friend: '{eos_base}/friend/{label}'
   train_template: 'model: {eos_base}/classifier/{label}'
   eval_template: 'model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}'
-  metadata: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
+  metadata: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/classifier_inputs_nominal_run3_20260922_3f9e199-1e0504f.json@@HCR_input
   workflow_overrides:
     --metadata: coffea4bees/metadata/datasets/
-    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_v1.yml@@JCM_weights'
-    --friends "": root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
+    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/jetCombinatoricModel_SB_Run3_v1.yml@@JCM_weights'
+    --friends "": root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/classifier_inputs_nominal_run3_20260922_3f9e199-1e0504f.json@@HCR_input
+    --max-evaluators: '2'
+  workflow_inserts:
+    --training:
+    - --architecture
+    - n_features: 54
 fvt_closure:
   datasets:
   - data
@@ -90,30 +96,38 @@ fvt_closure:
   - TTToSemiLeptonic
   - TTTo2L2Nu
   plot_config: coffea4bees/plots/metadata/plotsAll.yml
-  known_counts: coffea4bees/analysis/tests/known_fullCounts_FvT_closure_Run3.yml
+  known_counts: coffea4bees/analysis/tests/known_fullCounts_FvT_closure_Run3_30x.yml
   config:
     require_trigWeight: true
     friends_include:
     - trigWeight
     - FvT
+  JCM_file: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/jetCombinatoricModel_SB_Run3_v1.yml
+  reuse_wJCM_ttbar: false
 svb:
   eos_base: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}
   plot_base: root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod/{roast_id}/classifier
   classifier_config_paths: coffea4bees
   wfs_base: coffea4bees/classifier/config/workflows/HH4b_Run3/SvB
-  label: SvB_nominal
-  output_dir: output/SvB_nominal/
+  label: SvB_30x_floor
+  output_dir: output/SvB_30x_floor/
   plot_inputs: true
   evaluate: true
   model: '{eos_base}/classifier/{label}'
   friend: '{eos_base}/friend/{label}'
-  train_template: 'model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_nominal'
+  train_template: 'model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_30x'
   eval_template: 'model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}'
-  metadata: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
+  metadata: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/classifier_inputs_nominal_run3_20260922_3f9e199-1e0504f.json@@HCR_input
   workflow_overrides:
     --metadata: coffea4bees/metadata/datasets/
-    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_v1.yml@@JCM_weights'
-    --friends "": root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
+    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/jetCombinatoricModel_SB_Run3_v1.yml@@JCM_weights'
+    --friends "": root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/classifier_inputs_nominal_run3_20260922_3f9e199-1e0504f.json@@HCR_input
+  workflow_inserts:
+    --training:
+    - --architecture
+    - n_features: 54
+    --norm:
+    - --FvT-pd3-floor 0.01
 jcm_known_counts_NoJCM: coffea4bees/analysis/tests/known_fullCounts_JCM_NoJCM_Run3.yml
 jcm_known_counts_wJCM: coffea4bees/analysis/tests/known_fullCounts_JCM_wJCM_Run3.yml
 jcm:
@@ -143,8 +157,8 @@ analysis_config:
     dashboard_address: 0
   config:
     friends:
-      FvT: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged
-      SvB_MA: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/SvB_nominal/result.json@@analysis.0.merged
+      FvT: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/FvT_30x/result.json@@analysis.0.merged
+      SvB_MA: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/friend/SvB_30x_floor/result.json@@analysis.0.merged
     blind: false
     apply_FvT: true
     apply_JCM: true
@@ -154,7 +168,6 @@ analysis_config:
     - trigWeight
     - FvT
     - SvB_MA
-    - SvB_FeynNet
     require_trigWeight: false
     apply_btagSF: true
     apply_boosted_veto: false
@@ -164,10 +177,11 @@ analysis_config:
     top_reconstruction: fast
     plot_ttbar_with_weights: true
     fourTag_use_tight: true
-known_counts: coffea4bees/analysis/tests/known_fullCounts_Run3_nominal.yml
+    FvT_pd3_floor: 0.01
+known_counts: coffea4bees/analysis/tests/known_fullCounts_Run3_nominal_30x.yml
 plot_config: coffea4bees/plots/metadata/plotsAll_ttbarWeights.yml
 combine_flags: --blind
-combine_outdir: datacards/HH4b_run3_feynnet
+combine_outdir: datacards/HH4b_run3_30x
 metadata_template: coffea4bees/stats_analysis/metadata/HH4b_run3.yml
 make_combine_inputs:
   stat_only: --stat_only
@@ -176,11 +190,5 @@ channels:
     signallabel: ggHH_kl_1_kt_1_13p0TeV_hbbhbb
     othersignal: ''
     variable: SvB_MA.ps_hh_fine
-    signal: GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
-    closure_subdir: hh
-  HH4b_FeynNet:
-    signallabel: ggHH_kl_1_kt_1_13p0TeV_hbbhbb
-    othersignal: ''
-    variable: SvB_FeynNet.p_ggHH_vs_bkg
     signal: GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
     closure_subdir: hh

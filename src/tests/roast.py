@@ -222,6 +222,63 @@ class TestRunScriptFlags(unittest.TestCase):
         self.assertTrue(ns.n)
 
 
+class TestSummaryLine(unittest.TestCase):
+    """The default view is one line per roast: every step's state, and what is running now."""
+
+    def roast_with(self, *steps):
+        r = fake_roast()
+        r["steps"] = [{"name": n, "host": h, "snakefile": "x.smk", "targets": "", "extra": ""} for n, h in steps]
+        r["hosts"] = {h: {"checkout": "~/x", "ssh": "u@h"} for _, h in steps}
+        return r
+
+    def parsed(self, **states):
+        """states: step -> rendered text, as _parse_status would produce."""
+        by_host = {}
+        for step, text in states.items():
+            by_host.setdefault("cmslpc", {"steps": [], "live": {}, "done": {}, "extra": [], "error": None})
+            by_host["cmslpc"]["steps"].append((step, text))
+        return by_host
+
+    def plain(self, line):
+        return re.sub(r"\033\[[0-9;]*m", "", line)
+
+    def test_one_glyph_per_step(self):
+        r = self.roast_with(("B", "cmslpc"), ("F", "cmslpc"))
+        line = self.plain(roast._summary_line(r, self.parsed(B="exit=0      ", F="not started "), 20))
+        self.assertIn("B\u2713", line)
+        self.assertIn("F\u00b7", line)
+
+    def test_a_failure_is_marked(self):
+        r = self.roast_with(("F", "cmslpc"))
+        line = self.plain(roast._summary_line(r, self.parsed(F="exit=1      "), 20))
+        self.assertIn("F\u2717", line)
+        line = self.plain(roast._summary_line(r, self.parsed(F="error       "), 20))
+        self.assertIn("F\u2717", line)
+
+    def test_running_step_reports_what_it_is_doing(self):
+        r = self.roast_with(("C", "falcon"))
+        p = {"falcon": {"steps": [("C", "running      tmux=1  3 of 7   merging shards")],
+                        "live": {}, "done": {}, "extra": [], "error": None}}
+        line = self.plain(roast._summary_line(r, p, 20))
+        self.assertIn("C\u25cf", line)
+        self.assertIn("C on falcon", line)
+        self.assertIn("merging shards", line)
+
+    def test_unreachable_host_is_not_read_as_finished(self):
+        r = self.roast_with(("B", "cmslpc"))
+        line = self.plain(roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20))
+        self.assertIn("B!", line)
+
+    def test_published_is_noted_when_nothing_is_running(self):
+        r = self.roast_with(("B", "cmslpc"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        self.assertIn("published", roast._summary_line(r, self.parsed(B="exit=0      "), 20))
+
+    def test_state_word_ignores_colour_codes(self):
+        self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")
+        self.assertEqual(roast._state_word("\033[33mrunning     \033[0m tmux=1"), "running")
+
+
 class TestRoastSsh(unittest.TestCase):
     """A roast follows the node it was placed on, not whatever the config says today."""
 

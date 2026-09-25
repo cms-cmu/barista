@@ -1,0 +1,438 @@
+{
+  "id": "nominal_run3_30x_20260924_8cc39b3-a512d88",
+  "label": "nominal_run3_30x",
+  "created": "2026-09-24 15:14:32",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "8cc39b324cb9ee87127872b877efe1e648113b3f",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "a512d8815b199bf17a93f3996e6f1d596166ceb2",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_30x.yml",
+    "captured": "config.yml",
+    "sha256": "f444b51fbc5571aaa9bf782d9c28078d8c4caac17ffaa4230935b06efd25b6d4",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "2d24abdc462816cf67c6038b6e883d0c97dcc3fca72f22399678e8b036dd5894"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-24 15:20:34",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "59cea14fff5f"
+        },
+        {
+          "ts": "2026-09-24 15:21:18",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "59cea14fff5f"
+        },
+        {
+          "ts": "2026-09-24 21:16:40",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-24 21:17:51",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-24 21:23:06",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b347a8d15dae"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-24 23:18:31",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-24 23:26:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-25 07:49:16",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 08:26:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_C4",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-24 23:18:33",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-24 23:26:01",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b347a8d15dae"
+        },
+        {
+          "ts": "2026-09-25 08:08:14",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 08:26:19",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "f444b51fbc55"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 12:07:31",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 16:41:36",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 16:45:04",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_30x_20260924_8cc39b3-a512d88/barista",
+      "ssh": "jda102@cmslpc321.fnal.gov",
+      "checked_out": "2026-09-24 15:20:14"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_30x_20260924_8cc39b3-a512d88/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-24 15:20:19"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_30x_20260924_8cc39b3-a512d88",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_30x_20260924_8cc39b3-a512d88/",
+    "ts": "2026-09-25 11:27:31",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal_30x/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal_30x/FvT_closure/plots_FvT_closure/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-24 15:14:32",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-24 15:20:14",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 15:20:19",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 15:20:34",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 15:21:18",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 21:16:40",
+      "event": "config-edited",
+      "sha256": "b347a8d15dae"
+    },
+    {
+      "ts": "2026-09-24 21:16:40",
+      "event": "resume",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 21:17:51",
+      "event": "resume",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 21:23:06",
+      "event": "resume",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 23:18:31",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 23:18:33",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-24 23:26:00",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-24 23:26:01",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 07:28:38",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 07:29:00",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 07:49:16",
+      "event": "config-edited",
+      "sha256": "f444b51fbc55"
+    },
+    {
+      "ts": "2026-09-25 07:49:16",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 08:08:14",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 08:26:10",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 08:26:19",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 08:46:31",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 08:46:47",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 11:27:14",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 11:27:29",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 12:07:31",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 16:41:36",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 16:45:04",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "falcon checkout hot-patch (2026-09-24 21:2x, step C resume): coffea4bees/workflows/helpers/common.smk replaced by its ee5d86b2 version (write_workflow_overrides can override main: options) so fvt --max-evaluators 2 lands; pinned sha a512d88 otherwise. Needed because FvT evaluate with 3 evaluators at n=54 exceeded the 40 GB MPS limit.\n2026-09-25 ~05:40: both checkouts hot-patched to coffea4bees fc29f44a for analysis/processors/processor_HH4b.py, classifier/config/dataset/HCR/SvB.py, workflows/helpers/common.smk (sha1 494a78dd / 7438676c / 6d7adf06): FvT_pd3_floor (processor) + --FvT-pd3-floor (SvB training), floor 0.01, because FvT_30x has p_d3~1e-30 outliers (|FvT| up to 2.6e28). C4 rerun with the floor; D retrained as SvB_30x_floor (unfloored SvB_30x kept on EOS). Config recaptured from source at fc29f44a."
+}
