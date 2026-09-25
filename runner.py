@@ -100,7 +100,7 @@ from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, s
 from src.runner.dataset import (
     apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
-    process_data_dataset, add_fvt_metadata, apply_datasets_filter,
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter, load_datasets_metadata,
     expand_directory_files, list_of_files
 )
 from src.runner.orchestrator import (
@@ -290,30 +290,9 @@ if __name__ == '__main__':
         logging.info(f"Systematics to run: {args.systematics}")
         configs['config']['run_systematics'] = args.systematics
 
-    # Load datasets metadata (supports multiple files merging)
-    if getattr(args, 'datasets_metadata_files', None):
-        logging.info(">>> Merging datasets metadata files")
-        merged_datasets = {}
-        for fpath in args.datasets_metadata_files:
-            print(f"  Loading: {fpath}")
-            with open(fpath, 'r') as f:
-                f_data = yaml.safe_load(f)
-                if isinstance(f_data, dict):
-                    if 'datasets' in f_data:
-                        merged_datasets.update(f_data['datasets'])
-                    else:
-                        merged_datasets.update(f_data)
-        datasets = {'datasets': merged_datasets}
-        print(f"Merged datasets metadata: loaded {len(merged_datasets)} top-level dataset keys.")
-    else:
-        logging.info(f"Loading datasets metadata from: {args.metadata}")
-        if os.path.isdir(args.metadata):
-            files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
-            datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
-        else:
-            datasets = yaml.safe_load(open(args.metadata, 'r'))
-            if isinstance(datasets, dict) and 'datasets' not in datasets:
-                datasets = {'datasets': datasets}
+    # Load datasets metadata: one or more local dirs / local or remote (fsspec) YAML files
+    logging.info(f"Loading datasets metadata from: {args.metadata}")
+    datasets = load_datasets_metadata(args.metadata)
 
     # Apply dataset exclusions/filters
     if getattr(args, 'datasets_filter', None):

@@ -143,6 +143,67 @@ def apply_storage_remap(obj, remaps):
         return [apply_storage_remap(item, remaps) for item in obj]
     return obj
 
+def _load_metadata_path(path: str) -> dict:
+    """Load one datasets-metadata source into a {dataset: {...}} dict.
+
+    A local directory merges every .yml/.yaml in it (OmegaConf, later files win -- the historical
+    behaviour of `-m <dir>`). A file may be local or remote: it is opened through fsspec, so a
+    dataset YAML published to EOS by another roast (root://...) is read in place.
+    """
+    import yaml
+    if os.path.isdir(path):
+        from omegaconf import OmegaConf
+        # os.listdir order, unsorted, as before: the default directory has keys defined in two
+        # files (synthetic_data, mixeddata, friends), so sorting would change which one wins.
+        files = [OmegaConf.load(os.path.join(path, f)) for f in os.listdir(path)
+                 if f.endswith(('.yaml', '.yml'))]
+        if not files:
+            raise FileNotFoundError(f"datasets metadata directory {path} holds no .yml files")
+        return OmegaConf.to_container(OmegaConf.merge(*files), resolve=True)
+    import fsspec
+    with fsspec.open(path, 'r') as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"datasets metadata {path} is not a mapping")
+    return data['datasets'] if 'datasets' in data else data
+
+
+def load_datasets_metadata(paths) -> dict:
+    """Merge one or more datasets-metadata sources (see `_load_metadata_path`) in order.
+
+    Merged per dataset and per field under it (years, nSamples, xs, ...), so a Run 2 and a Run 3
+    source may both contribute years to one dataset key. A field defined in two sources must be
+    identical: anything else raises, naming both sources. Two productions of the same dataset
+    (e.g. a stale `mixeddata_4b.yml` in the default directory and a roast's published one)
+    would otherwise combine silently into a sample neither of them made.
+    """
+    if isinstance(paths, str):
+        paths = [paths]
+    merged, source = {}, {}
+    for path in paths:
+        for name, entry in _load_metadata_path(path).items():
+            if name not in merged:
+                merged[name] = copy(entry) if isinstance(entry, dict) else entry
+                if isinstance(entry, dict):
+                    source.update({(name, k): path for k in entry})
+                else:
+                    source[(name, None)] = path
+                continue
+            if not (isinstance(entry, dict) and isinstance(merged[name], dict)):
+                if entry != merged[name]:
+                    raise ValueError(f"datasets metadata: '{name}' is defined differently in "
+                                     f"{source.get((name, None))} and {path}")
+                continue
+            for field, value in entry.items():
+                if field in merged[name] and merged[name][field] != value:
+                    raise ValueError(f"datasets metadata: '{name}.{field}' is defined differently in "
+                                     f"{source[(name, field)]} and {path}")
+                if field not in merged[name]:
+                    merged[name][field] = value
+                    source[(name, field)] = path
+    return {'datasets': merged}
+
+
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
     if dataset_name == 'mixeddata':
