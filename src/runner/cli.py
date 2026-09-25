@@ -27,8 +27,11 @@ def make_parser() -> argparse.ArgumentParser:
     io_group.add_argument(
         '-m', '--metadata',
         dest="metadata",
+        nargs="+",
         default="coffea4bees/metadata/datasets/",
-        help='Path to the datasets metadata YAML file'
+        help='Datasets metadata: one or more local directories, local YAML files or remote '
+             '(root://, fsspec) YAML files, merged in order. A dataset/year defined differently '
+             'in two of them is an error.'
     )
     io_group.add_argument(
         '--triggers',
