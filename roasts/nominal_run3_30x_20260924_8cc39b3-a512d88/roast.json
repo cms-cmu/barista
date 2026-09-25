@@ -213,7 +213,45 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 12:07:31",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 16:41:36",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        },
+        {
+          "ts": "2026-09-25 16:45:04",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_3_8cc39b3-a512d88_F",
+          "ssh": "jda102@cmslpc321.fnal.gov",
+          "config_sha256": "f444b51fbc55"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -376,6 +414,24 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-25 12:07:31",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 16:41:36",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 16:45:04",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
     }
   ],
   "notes": "falcon checkout hot-patch (2026-09-24 21:2x, step C resume): coffea4bees/workflows/helpers/common.smk replaced by its ee5d86b2 version (write_workflow_overrides can override main: options) so fvt --max-evaluators 2 lands; pinned sha a512d88 otherwise. Needed because FvT evaluate with 3 evaluators at n=54 exceeded the 40 GB MPS limit.\n2026-09-25 ~05:40: both checkouts hot-patched to coffea4bees fc29f44a for analysis/processors/processor_HH4b.py, classifier/config/dataset/HCR/SvB.py, workflows/helpers/common.smk (sha1 494a78dd / 7438676c / 6d7adf06): FvT_pd3_floor (processor) + --FvT-pd3-floor (SvB training), floor 0.01, because FvT_30x has p_d3~1e-30 outliers (|FvT| up to 2.6e28). C4 rerun with the floor; D retrained as SvB_30x_floor (unfloored SvB_30x kept on EOS). Config recaptured from source at fc29f44a."
