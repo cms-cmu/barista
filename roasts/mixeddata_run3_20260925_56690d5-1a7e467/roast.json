@@ -1,0 +1,139 @@
+{
+  "id": "mixeddata_run3_20260925_56690d5-1a7e467",
+  "label": "mixeddata_run3",
+  "created": "2026-09-25 17:12:06",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "56690d53087cc51eec433248091260453e88d994",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "1a7e4675799d43aab67034112b1a0516e4b6593e",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3.yml",
+    "captured": "config.yml",
+    "sha256": "56f2f30893773438977ea02d11956d8abffe7de28987610476df7c3ecfe5249e"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "JCM": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 17:14:29",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_56690d5-1a7e467_MakeMixedData",
+          "ssh": "jda102@cmslpc303.fnal.gov",
+          "config_sha256": "56f2f3089377"
+        },
+        {
+          "ts": "2026-09-25 17:52:48",
+          "cores": 8,
+          "extra": "all_M1",
+          "user_extra": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_56690d5-1a7e467_MakeMixedData",
+          "ssh": "jda102@cmslpc303.fnal.gov",
+          "config_sha256": "56f2f3089377"
+        },
+        {
+          "ts": "2026-09-25 17:54:09",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_56690d5-1a7e467_MakeMixedData",
+          "ssh": "jda102@cmslpc303.fnal.gov",
+          "config_sha256": "56f2f3089377"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_20260925_56690d5-1a7e467/barista",
+      "ssh": "jda102@cmslpc303.fnal.gov",
+      "checked_out": "2026-09-25 17:14:07"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-09-25 17:12:06",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-25 17:14:07",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 17:14:29",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 17:52:48",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 17:54:09",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "Run 3 mixed-data datasets (mixeddata_all, mixeddata_4b N=16, ttbar_PSData). Inputs: FvT from nominal_run3_20260922_3f9e199-1e0504f; non-tight JCM + hists from nominal_run3_nontight_20260925_0c53380-193851f."
+}

@@ -17,6 +17,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -201,6 +202,24 @@ class TestRunScriptFlags(unittest.TestCase):
 
     def test_seeds_the_grid_proxy(self):
         self.assertIn("proxy/x509_proxy", self.script())
+
+    def test_targets_come_before_the_config_option(self):
+        # `--config` takes every argument after it: a target placed after `--config roast_id=...`
+        # is parsed as a malformed name=value entry and snakemake exits before running anything.
+        import argparse
+        step = {**self.step, "targets": "all_M1"}
+        s = roast._run_script(CFG, self.r, step, "~/prod/x/barista", 8, "-n", False, targets="all_M2 out/x.yml")
+        cmd = next(l for l in s.splitlines() if "snakemake -s" in l)
+        argv = shlex.split(cmd.split("snakemake", 1)[1].split("2>&1")[0].split("|")[0])
+        p = argparse.ArgumentParser()        # the shape of snakemake's own parser for these options
+        p.add_argument("targets", nargs="*")
+        p.add_argument("-s"); p.add_argument("--configfile"); p.add_argument("--cores"); p.add_argument("--jobs")
+        p.add_argument("--printshellcmds", action="store_true"); p.add_argument("-n", action="store_true")
+        p.add_argument("--config", nargs="*")
+        ns = p.parse_args(argv)
+        self.assertEqual(ns.targets, ["all_M1", "all_M2", "out/x.yml"])
+        self.assertEqual(ns.config, [f"roast_id={FAKE_ID}"])
+        self.assertTrue(ns.n)
 
 
 class TestRoastSsh(unittest.TestCase):
