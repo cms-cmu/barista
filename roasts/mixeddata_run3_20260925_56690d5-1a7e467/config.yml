@@ -1,0 +1,133 @@
+# ==============================================================================
+# MIXED-DATA DATASET PRODUCTION — Run 3 (2022 + 2023)
+# ==============================================================================
+# Driven by Snakefile_MakeMixedData.smk (design: M.1 hemisphere library -> M.2 mix -> M.3 validate
+# + mixed JCM -> M.4 subsamples -> M.5 ttbar pseudodata). Its products are dataset
+# YAMLs published to EOS under `publish_base`/handoff/, which the consumers (MvD: mixeddata_all,
+# closure: mixeddata_4b + ttbar_PSData) read in place with `runner.py -m <dir> <url> ...`.
+#
+# A standalone config, not a `base:` overlay: this roast *depends on* two others but does
+# something entirely different. Everything it reads from them is named under `inputs:`, which
+# `roast new` checks lies inside those roasts:
+#   * the nominal Run 3 roast            -> FvT (ttbar subtraction)
+#   * a non-tight Phase B.1 roast         -> JCM + its data/ttbar histograms
+#     (config/nominal_run3_nontight.yml, run and ARCHIVED first: B.1 has no EOS handoff)
+#
+#   roast new --config coffea4bees/workflows/config/mixeddata_run3.yml \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_MakeMixedData.smk
+#   roast submit <id> --step MakeMixedData --extra all_M1      # one sub-step at a time
+#
+label: "mixeddata_run3"
+output_path: "output/mixeddata_run3_{roast_id}/"
+# EOS area of this roast: hemisphere library, picoAODs and the handoff YAMLs all go here.
+publish_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
+
+# ------------------------------------------------------------------------------
+# Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
+# ------------------------------------------------------------------------------
+inputs:
+  upstream_roasts: [nominal_run3_20260922_3f9e199-1e0504f, nominal_run3_nontight_20260925_0c53380-193851f]
+  # ttbar subtraction in M.1 (4b data, FvT.d4_to_t4) and M.2 (3b data, FvT.d3_to_t3). Must cover
+  # the data picoAODs in analysis_config.dataset_location (same data.yml as the nominal roast).
+  FvT: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged"
+  # Non-tight JCM: M.2 applies it as pseudo-tag weights. Its data + ttbar histograms feed the
+  # mixed-data JCM fit (M.3), so both must come from the same selection as the mixing.
+  JCM: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml"
+  jcm_hists: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea"
+  # Optional: reuse another mixeddata roast's hemisphere library (its <publish_base>/hemilib) and
+  # skip M.1 -- e.g. when only the mixing rank / matcher changes. Add that roast to upstream_roasts.
+  # hemilib: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/<mixeddata roast id>/hemilib"
+
+# Eras as they appear in metadata/datasets/data.yml (picoAOD keys) — same as nominal_run3.yml.
+year_eras:
+  2022_preEE: ["B", "C", "D"]
+  2022_EE: ["E", "F", "G"]
+  2023_preBPix: ["C01", "C02", "C11", "C12", "C3", "C4"]
+  2023_BPix: ["D1", "D2"]
+
+# ttbar MC for the M.5 pseudodata. Must be the samples the upstream JCM roast histogrammed
+# (jcm_hists), so its B.1 `jcm.datasets` and this list cannot diverge.
+# Inclusive by default; for the stitched samples use
+#   ttbar: [TTTo2L2Nu_stitched, TTToSemiLeptonic_stitched, TTToHadronic_stitched]
+# (defined in metadata/datasets/TT_stitched.yml, which the dataset_location directory includes).
+ttbar: ["TTToHadronic", "TTToSemiLeptonic", "TTTo2L2Nu"]
+
+# ------------------------------------------------------------------------------
+# Selection shared by every processor pass in this roast
+# ------------------------------------------------------------------------------
+# The mixed data uses the NON-tight four-tag definition (nJet_tagged >= 4), deliberately, in
+# Run 2 and Run 3 alike -- in Run 2 it is simply the only definition. The nominal Run 3 roast
+# uses fourTag_use_tight: true, which is why the JCM comes from a separate non-tight B.1 roast.
+# Snakefile_MakeMixedData.smk refuses to run if this is anything but false.
+fourTag_use_tight: false
+
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+
+# ------------------------------------------------------------------------------
+# M.1: hemisphere library (4b data, ttbar subtracted with inputs.FvT)
+# ------------------------------------------------------------------------------
+hemi_library:
+  config_template: "coffea4bees/analysis/metadata/make_hemi_library_4b.yml"
+  study_threshold: 1000        # min per-category count for study_hemispheres.py
+
+# ------------------------------------------------------------------------------
+# M.2: mixing (3b data events, hemispheres replaced from the library)
+# ------------------------------------------------------------------------------
+mixing:
+  skimmer_template: "coffea4bees/skimmer/metadata/mixeddata_Run3.yml"
+  dataset_name: "mixeddata_all"
+  default_rank: 0              # int (same rank both sides) or [rp, rn]; 0 = nearest neighbour
+  use_topk_matching: true
+  k_neighbors: 10
+  collision_mode: retry        # ignore | drop | retry
+  use_boost_corrected_matching: true
+  worker_memory: 8GB
+  chunksize: 100000
+
+# ------------------------------------------------------------------------------
+# M.3: validation + mixed-data JCM (mixeddata_all as the "3b" sample, float_t)
+# ------------------------------------------------------------------------------
+# The mixed data is histogrammed with the upstream B.1 noJCM config itself (fetched next to
+# inputs.jcm_hists), so data, ttbar and mixed data share one selection and binning.
+mixed_jcm:
+  config: "coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config_Run3.yml"
+  float_t: true
+  study_template: "coffea4bees/analysis/metadata/study_mixed_data_Run3.yml"
+  # known_counts: <blessed cutflow_mixedJCM.yml, once the first roast has written one>
+
+# ------------------------------------------------------------------------------
+# M.4: subsamples -> mixeddata_4b (closure)
+# ------------------------------------------------------------------------------
+subsamples:
+  n: 16
+  dataset_name: "mixeddata_4b"
+  split_template: "coffea4bees/skimmer/metadata/split_mixeddata_Run3.yml"
+
+# ------------------------------------------------------------------------------
+# M.5: ttbar pseudodata -> ttbar_PSData (one sample, shared by every subsample)
+# ------------------------------------------------------------------------------
+ttbar_psdata:
+  dataset_name: "ttbar_PSData"
+  seed: 5
+  require_trigWeight: true     # trigweights_Run3_v1.json covers the inclusive TT samples
+  worker_memory: 6GB
+  chunksize: 100000
+  picosize: 100000

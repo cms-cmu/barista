@@ -603,7 +603,8 @@ def _window_name(r: dict, step: dict) -> str:
     return f"{r['label'][:14]}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
 
 
-def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool) -> str:
+def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
+                targets: str = "") -> str:
     """The bash script that runs one step inside its tmux window."""
     name = step["name"]
     smk = step["snakefile"]
@@ -612,9 +613,12 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # --config roast_id: resolves {roast_id} placeholders in the config (helpers/common.smk), e.g. run-scoped EOS paths
     # --jobs as well as --cores: hosts whose run_container injects a remote-executor snakemake profile
     # (falcon: software/snakemake/profiles/falcon, executor slurm) refuse to run without --jobs N.
-    base = f"./run_container snakemake -s {shlex.quote(smk)} --configfile {configfile} --cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}"
-    if step.get("targets"):
-        base += f" {step['targets']}"
+    # Targets go BEFORE the options: `--config` takes every argument after it, so a target
+    # appended after `--config roast_id=...` is parsed as a malformed name=value entry and
+    # snakemake exits ("Config entries have to be defined as name=value pairs").
+    tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
+    base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
+            f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}")
     if step.get("extra"):
         base += f" {step['extra']}"
     if extra:
@@ -668,6 +672,7 @@ def _submit(args, resume: bool) -> None:
     target = roast_ssh(cfg, r, host)
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
+    targets = getattr(args, "targets", None)
     if resume and extra is None and not args.test and not args.dry_run and step.get("runs"):
         # resume repeats the snakemake args of the last REAL submit: skip dry runs (-n) and test
         # slices, and take the user's extra args only (not the -n / test flags roast appended).
@@ -676,6 +681,8 @@ def _submit(args, resume: bool) -> None:
             if run.get("dry_run") or run.get("test") or "-n" in (run.get("extra") or "").split():
                 continue
             extra = run.get("user_extra", run.get("extra", ""))
+            if targets is None:
+                targets = run.get("targets", "")
             cores = args.cores or run.get("cores", cores)
             break
     user_extra = extra or ""
@@ -730,7 +737,7 @@ def _submit(args, resume: bool) -> None:
         die(res.stderr.strip() or res.stdout.strip())
     if res.stdout.strip():
         print(res.stdout.strip())
-    script = _run_script(cfg, r, step, ckpt, cores, args.extra, resume)
+    script = _run_script(cfg, r, step, ckpt, cores, args.extra, resume, targets or "")
     local = roast_dir(r["id"]) / f"run_{step['name']}.sh"
     local.write_text(script)
     # Re-ship the whole roast dir: the captured config.yml may have been edited since checkout.
@@ -752,6 +759,7 @@ def _submit(args, resume: bool) -> None:
         r["config"]["sha256"] = cfg_sha
         log_event(r, "config-edited", sha256=cfg_sha[:12])
     step.setdefault("runs", []).append({"ts": now(), "cores": cores, "extra": args.extra or "", "user_extra": user_extra,
+                                        "targets": targets or "",
                                         "dry_run": bool(args.dry_run), "test": bool(args.test), "resume": resume,
                                         "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
@@ -1628,6 +1636,9 @@ def main(argv=None) -> None:
         s = sub.add_parser(name, help=hlp)
         s.add_argument("id"); s.add_argument("--step", required=True)
         s.add_argument("--cores", type=int); s.add_argument("--extra", help="extra snakemake args, quoted (e.g. --extra=\"--resources gres=mps:25\")")
+        s.add_argument("--targets", help="snakemake targets (rules or files) for this run, quoted if several, e.g. "
+                                         "--targets all_M1; placed before the options (a target in --extra would "
+                                         "be swallowed by --config). resume reuses the last real run's targets")
         s.add_argument("-n", "--dry-run", action="store_true", help="snakemake -n: show the plan, run nothing")
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
         s.set_defaults(func=fn)
