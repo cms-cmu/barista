@@ -39,10 +39,16 @@ for _p in (os.getcwd(), os.path.abspath(os.path.join(_HERE, "..", ".."))):
 
 from src.tools.cutflow_table import parse_dataset_name  # noqa: E402
 from src.tools.cutflow_closure import (  # noqa: E402
-    DEFAULT_TTBAR, TT_SHORT, load_counts, cut_order, year_sort_key, cut_label, fnum, fraw, text_table,
+    DEFAULT_TTBAR, TT_SHORT, load_counts, cut_order, year_sort_key, cut_label, fnum, text_table,
 )
+from src.tools.cutflow_closure import fraw as _fraw  # noqa: E402
 
 logger = logging.getLogger("cutflow_ttbar_compare")
+
+
+def fraw(v: float) -> str:
+    """raw entry count in parentheses; nothing for a cut the source is not filled at"""
+    return "" if math.isnan(v) else _fraw(v)
 
 DEFAULT_ESTIMATE = "TTbar_from_d3"
 
@@ -55,7 +61,7 @@ def aggregate(counts: dict, mc: list, estimate: str, cuts: list):
     table = defaultdict(lambda: defaultdict(lambda: {
         "mc3": defaultdict(float), "mc4": defaultdict(float),
         "mc3_raw": defaultdict(float), "mc4_raw": defaultdict(float),
-        "est3": 0.0, "est4": 0.0, "est3_raw": 0.0, "est4_raw": 0.0}))
+        "est3": 0.0, "est4": 0.0, "est3_raw": 0.0, "est4_raw": 0.0, "est3_seen": False, "est4_seen": False}))
     for key, block in (("counts3", "3"), ("counts4", "4")):
         for ds, per_cut in counts[key].items():
             if not per_cut:
@@ -74,6 +80,7 @@ def aggregate(counts: dict, mc: list, estimate: str, cuts: list):
                     cell = table[y][cut]
                     if process == estimate:
                         cell[f"est{block}"] += v
+                        cell[f"est{block}_seen"] = True
                         cell[f"est{block}_raw"] += raw
                     else:
                         cell[f"mc{block}"][process] += v
@@ -86,6 +93,10 @@ def compare(cell: dict, block: str, mc: list) -> dict:
     nan = float("nan")
     m = sum(cell[f"mc{block}"].get(p, 0.0) for p in mc)
     m_raw = sum(cell[f"mc{block}_raw"].get(p, 0.0) for p in mc)
+    # a cut the estimate is never filled at (e.g. the *_woTrig rows: no trigger weight on data) is
+    # "-", not 0 and a ratio of 0
+    if not cell[f"est{block}_seen"]:
+        return {"mc": m, "mc_raw": m_raw, "est": nan, "est_raw": nan, "ratio": nan, "err": nan}
     e, e_raw = cell[f"est{block}"], cell[f"est{block}_raw"]
     ratio = e / m if m else nan
     err = ratio * math.sqrt(1 / m_raw + 1 / e_raw) if (m and m_raw > 0 and e_raw > 0) else nan
