@@ -94,6 +94,19 @@
           "window": "mixeddata_run3_56690d5-1a7e467_MakeMixedData",
           "ssh": "jda102@cmslpc303.fnal.gov",
           "config_sha256": "56f2f3089377"
+        },
+        {
+          "ts": "2026-09-25 18:50:30",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_56690d5-1a7e467_MakeMixedData",
+          "ssh": "jda102@cmslpc303.fnal.gov",
+          "config_sha256": "56f2f3089377"
         }
       ]
     }
@@ -133,7 +146,21 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 18:50:22",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "file": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "what": "EOS_PROXY single braces (was ${{X509_USER_PROXY:-}}: bad substitution killed every EOS publish/fetch rule); applied as git diff on top of 1a7e4675 in the checkout",
+      "fixed_upstream_in": "coffea4bees mixeddata-roast (commit after 1a7e4675)"
+    },
+    {
+      "ts": "2026-09-25 18:50:30",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
     }
   ],
-  "notes": "Run 3 mixed-data datasets (mixeddata_all, mixeddata_4b N=16, ttbar_PSData). Inputs: FvT from nominal_run3_20260922_3f9e199-1e0504f; non-tight JCM + hists from nominal_run3_nontight_20260925_0c53380-193851f."
+  "notes": "Run 3 mixed-data datasets (mixeddata_all, mixeddata_4b N=16, ttbar_PSData). Inputs: FvT from nominal_run3_20260922_3f9e199-1e0504f; non-tight JCM + hists from nominal_run3_nontight_20260925_0c53380-193851f. HOTPATCHED 2026-09-25: coffea4bees checkout = 1a7e4675 + EOS_PROXY brace fix in Snakefile_MakeMixedData.smk (see history)."
 }

@@ -124,14 +124,70 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 21:38:19",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 21:39:27",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
     },
     {
       "name": "C4",
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-26 02:18:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C4",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-26 02:19:30",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C4",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -149,9 +205,11 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/",
-    "ts": "2026-09-25 17:03:28",
+    "ts": "2026-09-26 02:46:48",
     "ok": true,
     "pages": [
+      "output/Run3_nontight/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nontight/FvT_closure/plots_FvT_closure/index.html",
       "output/Run3_nontight/computeJCM/cutflow_NoJCM.html",
       "output/Run3_nontight/computeJCM/cutflow_wJCM.html",
       "output/Run3_nontight/computeJCM/plots_wJCM/index.html"
@@ -245,12 +303,60 @@
       "ts": "2026-09-25 20:26:26",
       "event": "checkout",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 21:38:19",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 21:39:27",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-26 02:18:24",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 02:19:30",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 02:46:33",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:48",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:49",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:52",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only. Extended 2026-09-25 with B (B.2+handoff), C (non-tight FvT) and C4 (closure); config re-captured, see history.",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
-    "ts": "2026-09-25 17:03:33",
+    "ts": "2026-09-26 02:46:52",
     "ok": true
   }
 }
