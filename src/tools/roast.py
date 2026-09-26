@@ -681,9 +681,15 @@ def _submit(args, resume: bool) -> None:
             if run.get("dry_run") or run.get("test") or "-n" in (run.get("extra") or "").split():
                 continue
             extra = run.get("user_extra", run.get("extra", ""))
-            if targets is None:
-                targets = run.get("targets", "")
             cores = args.cores or run.get("cores", cores)
+            break
+    if resume and targets is None and step.get("runs"):
+        # Targets are reused even when --extra is given: a resume that adds e.g. --forcerun must
+        # still stop at the sub-step the last real run targeted, not run the whole workflow.
+        for run in reversed(step["runs"]):
+            if run.get("dry_run") or run.get("test") or "-n" in (run.get("extra") or "").split():
+                continue
+            targets = run.get("targets", "")
             break
     user_extra = extra or ""
     parts = [extra or ""]

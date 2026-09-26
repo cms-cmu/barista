@@ -494,8 +494,12 @@ def _resolve_hist_source(source: HistSource, plot_data: Dict) -> Tuple[np.ndarra
     if source.source == "hists":
         h = plot_data["hists"][source.key]
         return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
-    # source == "stack"
+    # source == "stack": the whole stack, or with a key one component of it (e.g. the ttbar part,
+    # so a ttbar pseudodata overlay can be ratioed to the MC it should follow)
     stack = plot_data["stack"]
+    if source.key:
+        h = stack[source.key]
+        return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
     values = np.sum([np.array(v["values"]) for v in stack.values()], axis=0)
     variances = np.sum([np.array(v["variances"]) for v in stack.values()], axis=0)
     first = next(iter(stack.values()))

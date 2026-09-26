@@ -6,19 +6,19 @@
 # YAMLs published to EOS under `publish_base`/handoff/, which the consumers (MvD: mixeddata_all,
 # closure: mixeddata_4b + ttbar_PSData) read in place with `runner.py -m <dir> <url> ...`.
 #
-# A standalone config, not a `base:` overlay: this roast *depends on* two others but does
-# something entirely different. Everything it reads from them is named under `inputs:`, which
-# `roast new` checks lies inside those roasts:
-#   * the nominal Run 3 roast            -> FvT (ttbar subtraction)
-#   * a non-tight Phase B.1 roast         -> JCM + its data/ttbar histograms
-#     (config/nominal_run3_nontight.yml, run and ARCHIVED first: B.1 has no EOS handoff)
+# A standalone config, not a `base:` overlay: this roast *depends on* another but does something
+# entirely different. Everything it reads from it is named under `inputs:`, which `roast new`
+# checks lies inside that roast: the NON-TIGHT production (config/nominal_run3_nontight.yml,
+# phases B.1, B, C, C4; archived first) -> JCM + its data/ttbar histograms, and the FvT.
+# All from the non-tight selection: the tight nominal FvT, used for the hemisphere library,
+# removed the 4b events that fail the tight definition (the library came out tight-4b).
 #
 #   roast new --config coffea4bees/workflows/config/mixeddata_run3.yml \
 #       --step cmslpc:coffea4bees/workflows/Snakefile_MakeMixedData.smk
-#   roast submit <id> --step MakeMixedData --extra all_M1      # one sub-step at a time
+#   roast submit <id> --step MakeMixedData --targets all_M1      # one sub-step at a time
 #
 label: "mixeddata_run3"
-output_path: "output/mixeddata_run3_{roast_id}/"
+output_path: "output/{roast_id}/"   # the roast id already carries the label
 # EOS area of this roast: hemisphere library, picoAODs and the handoff YAMLs all go here.
 publish_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
 
@@ -26,10 +26,11 @@ publish_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
 # Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
 # ------------------------------------------------------------------------------
 inputs:
-  upstream_roasts: [nominal_run3_20260922_3f9e199-1e0504f, nominal_run3_nontight_20260925_0c53380-193851f]
-  # ttbar subtraction in M.1 (4b data, FvT.d4_to_t4) and M.2 (3b data, FvT.d3_to_t3). Must cover
-  # the data picoAODs in analysis_config.dataset_location (same data.yml as the nominal roast).
-  FvT: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged"
+  upstream_roasts: [nominal_run3_nontight_20260925_0c53380-193851f]
+  # ttbar subtraction in M.1 (4b data, FvT.d4_to_t4) and M.2 (3b data, FvT.d3_to_t3): the
+  # non-tight FvT (Phase C of that roast; C.4 closure SR 1.003 +- 0.002). Must cover the data
+  # picoAODs in analysis_config.dataset_location (same data.yml as that roast).
+  FvT: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged"
   # Non-tight JCM: M.2 applies it as pseudo-tag weights. Its data + ttbar histograms feed the
   # mixed-data JCM fit (M.3), so both must come from the same selection as the mixing.
   JCM: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml"
