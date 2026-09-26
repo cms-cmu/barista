@@ -81,7 +81,7 @@ fvt:
   metadata: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
   workflow_overrides:
     --metadata: coffea4bees/metadata/datasets/
-    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_v1.yml@@JCM_weights'
+    --JCM-weight: '"" root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_nontight_v1.yml@@JCM_weights'
     --friends "": root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input
 fvt_closure:
   datasets:
@@ -90,7 +90,7 @@ fvt_closure:
   - TTToSemiLeptonic
   - TTTo2L2Nu
   plot_config: coffea4bees/plots/metadata/plotsAll.yml
-  known_counts: coffea4bees/analysis/tests/known_fullCounts_FvT_closure_Run3.yml
+  known_counts: coffea4bees/analysis/tests/known_fullCounts_FvT_closure_Run3_nontight.yml
   config:
     require_trigWeight: true
     friends_include:
@@ -128,7 +128,6 @@ classifier_inputs:
   - TTToHadronic
   - TTToSemiLeptonic
   - TTTo2L2Nu
-  - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
   config:
     make_classifier_input: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}/classifier_inputs/
     require_trigWeight: false
@@ -148,7 +147,7 @@ analysis_config:
     blind: false
     apply_FvT: true
     apply_JCM: true
-    JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_v1.yml
+    JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_nontight_v1.yml
     apply_trigWeight: true
     friends_include:
     - trigWeight

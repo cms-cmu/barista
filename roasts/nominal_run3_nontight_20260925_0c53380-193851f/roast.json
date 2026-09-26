@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run3_nontight.yml",
     "captured": "config.yml",
-    "sha256": "712516aa54e39499582fd63357bf2dcff76cabca52eedc1412764243b887d9f1",
+    "sha256": "02395172e0fef644b39d857acbdf3b4f9ae38d6605f40854684e42ba99ddecfe",
     "base": [
       {
         "source": "coffea4bees/workflows/config/nominal_run3.yml",
@@ -57,6 +57,81 @@
           "config_sha256": "712516aa54e3"
         }
       ]
+    },
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 20:23:08",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:23:50",
+          "cores": 8,
+          "extra": "--rerun-triggers code params software-env input -n",
+          "user_extra": "--rerun-triggers code params software-env input",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:24:53",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:25:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
     }
   ],
   "hosts": {
@@ -64,6 +139,11 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/barista",
       "ssh": "jda102@cmslpc360.fnal.gov",
       "checked_out": "2026-09-25 14:16:46"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_nontight_20260925_0c53380-193851f/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-25 20:26:26"
     }
   },
   "publish": {
@@ -110,9 +190,64 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-25 20:23:00",
+      "event": "steps-added",
+      "steps": [
+        "B",
+        "C",
+        "C4"
+      ],
+      "why": "train the non-tight FvT in the same roast (the tight nominal FvT removed the non-tight-only 4b events from the mixed-data hemisphere library); B reuses this roast's B.1 outputs in the checkout, runs B.2 + handoff"
+    },
+    {
+      "ts": "2026-09-25 20:23:00",
+      "event": "config-recaptured",
+      "source": "coffea4bees/workflows/config/nominal_run3_nontight.yml (B/C/C4 version)",
+      "changes": "fvt --JCM-weight + analysis_config.JCM_file -> Run3_nontight_v1; classifier_inputs.datasets data+TT; fvt_closure.known_counts -> *_Run3_nontight.yml; B.1 keys unchanged"
+    },
+    {
+      "ts": "2026-09-25 20:23:08",
+      "event": "config-edited",
+      "sha256": "02395172e0fe"
+    },
+    {
+      "ts": "2026-09-25 20:23:08",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:23:50",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:24:51",
+      "event": "config-mtime-reset",
+      "why": "re-captured config.yml is an input of B.1's create_noJCM_config; its new mtime made snakemake rerun all of B.1 although no key B.1 reads changed (see config-recaptured). mtime set to 2026-09-25 11:00 local, before B.1's run"
+    },
+    {
+      "ts": "2026-09-25 20:24:53",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:25:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:26:26",
+      "event": "checkout",
+      "host": "falcon"
     }
   ],
-  "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only.",
+  "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only. Extended 2026-09-25 with B (B.2+handoff), C (non-tight FvT) and C4 (closure); config re-captured, see history.",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
     "ts": "2026-09-25 17:03:33",
