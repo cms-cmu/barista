@@ -778,6 +778,10 @@ def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -
         num_data = plot_data["hists"][hist_config["key"]]
         return np.array(num_data["values"]), np.array(num_data["variances"]), num_data["centers"]
 
+    if hist_config["type"] == "stack" and hist_config.get("key"):
+        comp = plot_data["stack"][hist_config["key"]]          # one stack component
+        return np.array(comp["values"]), np.array(comp["variances"]), comp["centers"]
+
     if hist_config["type"] == "stack":
         return_values = np.sum([v["values"] for _, v in plot_data["stack"].items()], axis=0)
         return_variances = np.sum([v["variances"] for _, v in plot_data["stack"].items()], axis=0)
