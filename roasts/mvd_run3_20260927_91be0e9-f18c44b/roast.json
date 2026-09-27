@@ -164,7 +164,35 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-27 12:42:22",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_91be0e9-f18c44b_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b584869ccb82"
+        },
+        {
+          "ts": "2026-09-27 12:43:15",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_91be0e9-f18c44b_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "b584869ccb82"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -179,7 +207,13 @@
       "checked_out": "2026-09-27 09:27:09"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_20260927_91be0e9-f18c44b",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_20260927_91be0e9-f18c44b/",
+    "ts": "2026-09-27 14:37:43",
+    "ok": true,
+    "pages": []
+  },
   "history": [
     {
       "ts": "2026-09-27 09:24:48",
@@ -236,6 +270,30 @@
       "event": "submit",
       "step": "MvD_2_train",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-09-27 12:42:22",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-27 12:43:15",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-27 14:37:22",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-27 14:37:42",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "Run 3 MvD: mixeddata_all x tight mixed JCM x MvD background, SvB vs it, stat-only limits; inputs nominal_run3_20260922_3f9e199-1e0504f + mixeddata_run3_20260926_956d4bf-aca8a4e"
