@@ -1,0 +1,99 @@
+{
+  "id": "declustered_run3_20260927_ca9ed04-74bcc46",
+  "label": "declustered_run3",
+  "created": "2026-09-27 10:56:01",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "ca9ed0470214c074792c18dce771b9dbaf6c1b49",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "74bcc46df25a08d1615e480bbf75bf755e1d9ce4",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run3.yml",
+    "captured": "config.yml",
+    "sha256": "7b67bbde6d1f3ef5a12d2c7946944fbf6a4180017526bd77d08185483bb58240"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-27 10:57:14",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_ca9ed04-74bcc46_DeClustered",
+          "ssh": "jda102@cmslpc375.fnal.gov",
+          "config_sha256": "7b67bbde6d1f"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/declustered_run3_20260927_ca9ed04-74bcc46/barista",
+      "ssh": "jda102@cmslpc375.fnal.gov",
+      "checked_out": "2026-09-27 10:57:09"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-09-27 10:56:01",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-27 10:57:09",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 10:57:14",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "Run 3 DeClustered (synthetic) dataset, 1 seed, noTT (Snakefile_DeClustered.smk). Inputs: FvT from nominal_run3_20260922_3f9e199-1e0504f; non-tight data/ttbar hists + config from nominal_run3_nontight_20260925_0c53380-193851f."
+}
