@@ -27,7 +27,7 @@
 
 ## Notes
 
-Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page.
+Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page. HOTPATCH 7: equal-probability subsample wrap (see history).
 
 ## History
 
@@ -59,3 +59,8 @@ Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20
 - 2026-09-26 16:45:05 submit step=MakeMixedData host=cmslpc
 - 2026-09-26 16:45:24 submit step=MakeMixedData host=cmslpc
 - 2026-09-26 16:46:24 publish host=cmslpc ok=True
+- 2026-09-26 22:19:25 hotpatch host=cmslpc files=['coffea4bees/hemisphere_mixing/mixing_helpers.py'] what=assign_mixed_subsamples: overflow wraps modulo floor(1/w) (the event's valid slices) instead of a fixed 9. With w up to 0.43 the %9 targets above 1 dropped large-w (high jet multiplicity) events from high-v subsamples: sizes v0-v3 2.02 M vs v6-v15 1.77 M and a composition bias. M.3 study, M.4 splits and M.6 rerun.
+- 2026-09-26 22:19:27 submit step=MakeMixedData host=cmslpc
+- 2026-09-26 22:19:50 submit step=MakeMixedData host=cmslpc
+- 2026-09-27 00:15:59 publish host=cmslpc ok=True
+- 2026-09-27 00:16:01 archive host=cmslpc ok=True

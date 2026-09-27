@@ -298,7 +298,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/",
-    "ts": "2026-09-26 16:46:24",
+    "ts": "2026-09-27 00:16:00",
     "ok": true,
     "pages": [
       "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M6/cutflow_validation.html",
@@ -520,12 +520,24 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 00:15:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-27 00:16:01",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page. HOTPATCH 7: equal-probability subsample wrap (see history).",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
-    "ts": "2026-09-26 15:59:58",
+    "ts": "2026-09-27 00:16:01",
     "ok": true
   }
 }
