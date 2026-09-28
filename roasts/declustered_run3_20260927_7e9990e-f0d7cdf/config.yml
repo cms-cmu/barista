@@ -1,0 +1,133 @@
+# ==============================================================================
+# DECLUSTERED (SYNTHETIC) DATASET PRODUCTION — Run 3 (2022 + 2023)
+# ==============================================================================
+# Driven by Snakefile_DeClustered.smk (D.1 cluster -> D.2 PDFs -> D.3 decluster -> D.4 validate
+# -> D.5 monitoring), the Snakemake port of scripts/synthetic-dataset-*-Run3-all.sh. Its products are
+# multi-sample dataset YAMLs published to EOS under `publish_base`/handoff/, which consumers read in
+# place with `runner.py -m <dir> <url> ...`:
+#   synthetic_data_4b        declustered multijet (ttbar subtracted) + ttbar pseudodata  <- consumers
+#   synthetic_data_multijet  declustered multijet only
+#
+# A standalone config, not a `base:` overlay, for the same reason as mixeddata_run3.yml: this
+# roast *depends on* two others but does something entirely different, so no production config
+# is a sensible base (overlaying mixeddata_run3.yml would carry its mixing/subsample blocks along
+# as dead keys). Everything it reads is pinned under `inputs:`, which `roast new` checks lies
+# inside the named upstream roasts:
+#   * the NON-TIGHT production (config/nominal_run3_nontight.yml, phases B.1, B, C, C4; archived)
+#     -> the FvT (ttbar subtraction, D.1 + D.3) and the data/ttbar histograms + their runner
+#     config (D.4/D.5). All non-tight: the tight nominal FvT only covers tight-4b events, so it
+#     would silently drop the rest of the non-tight 4b sample (what happened to the mixed-data
+#     hemisphere library).
+#   * the mixeddata roast (config/mixeddata_run3.yml, M.5; archived) -> the ttbar pseudodata folded
+#     into the consumer dataset, the same sample mixeddata_4b folds in.
+#
+#   roast new --config coffea4bees/workflows/config/declustered_run3.yml --label declustered_run3 \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_DeClustered.smk
+#   roast submit <id> --step DeClustered --targets all_D1      # one sub-step at a time
+#
+label: "declustered_run3"
+output_path: "output/{roast_id}/"   # the roast id already carries the label
+# EOS area of this roast: PDFs, picoAODs and the handoff YAML all go here.
+publish_base: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/{roast_id}"
+
+# ------------------------------------------------------------------------------
+# Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
+# ------------------------------------------------------------------------------
+inputs:
+  upstream_roasts: [nominal_run3_nontight_20260925_0c53380-193851f, mixeddata_run3_20260926_956d4bf-aca8a4e]
+  # ttbar subtraction in D.1 (4b data, FvT.d4_to_t4), and in D.3 when declustering.subtract_ttbar:
+  # the non-tight FvT (Phase C of that roast; C.4 closure SR 1.003 +- 0.002), the file
+  # mixeddata_run3 uses. Must cover the data picoAODs in analysis_config.dataset_location.
+  FvT: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged"
+  # Non-tight data + ttbar histograms. D.4 histograms the synthetic data with the runner config
+  # written next to them (analysis_config_noJCM.yml) and merges, so synthetic and real 4b data
+  # share one selection. (Named jcm_hists as in mixeddata_run3.yml: it is B.1's JCM-fit input.)
+  jcm_hists: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea"
+  # ttbar pseudodata (sub_sample_MC.py, one unweighted sample) folded into synthetic_data_4b per
+  # year, as MakeMixedData M.4 folds it into mixeddata_4b. Needed with declustering.subtract_ttbar.
+  ttbar_psdata: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e/handoff/ttbar_PSData.yml"
+  # Optional: decluster with another declustered roast's PDFs (its <publish_base>/pdfs) and skip
+  # D.1 + D.2 -- e.g. to add seeds. Add that roast to upstream_roasts.
+  # pdfs: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/<declustered roast id>/pdfs"
+
+# Eras as they appear in metadata/datasets/data.yml (picoAOD keys) — same as nominal_run3.yml.
+year_eras:
+  2022_preEE: ["B", "C", "D"]
+  2022_EE: ["E", "F", "G"]
+  2023_preBPix: ["C01", "C02", "C11", "C12", "C3", "C4"]
+  2023_BPix: ["D1", "D2"]
+
+# ------------------------------------------------------------------------------
+# Selection shared by every processor pass in this roast
+# ------------------------------------------------------------------------------
+# NON-tight four-tag definition (nJet_tagged >= 4): make_declustered_data_4b.py has no tight
+# option, so the cluster and validation passes must match it. Same as the mixed data.
+# Snakefile_DeClustered.smk refuses to run if this is anything but false.
+fourTag_use_tight: false
+
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+
+# ------------------------------------------------------------------------------
+# D.1: cluster (4b data, ttbar subtracted with inputs.FvT) -> splitting histograms
+# ------------------------------------------------------------------------------
+cluster:
+  # runner (8GB workers, 20k chunks: the 2023 pt25 clustering is O(n^3) in jets) + config.
+  # The shared dask daemon is started by the first condor job of the roast -- this one -- and
+  # keeps its worker size for D.3/D.4, so it must be the largest any stage needs.
+  config_template: "coffea4bees/analysis/metadata/cluster_4b_Run3.yml"
+
+# ------------------------------------------------------------------------------
+# D.2: sampling PDFs (make_jet_splitting_PDFs.py) -> <publish_base>/pdfs/
+# ------------------------------------------------------------------------------
+pdfs: {}      # (no options yet)
+
+# ------------------------------------------------------------------------------
+# D.3: decluster -> <publish_base>/handoff/<dataset_name>.yml
+# ------------------------------------------------------------------------------
+declustering:
+  skimmer_template: "coffea4bees/skimmer/metadata/declustering_Run3.yml"
+  # Independent replicas, seeds 0..n_seeds-1 (runner.py expands seedXXX over range(nSamples)).
+  # Each seed is a full condor pass over the 4b data. Start with one.
+  n_seeds: 1
+  # true (default): subtract ttbar from the 4b data with inputs.FvT before declustering, so the
+  # declustered sample is multijet only; the consumer dataset adds inputs.ttbar_psdata.
+  # false: decluster the ttbar with the multijet (the old Run 3 synthetic_data_noTT), one dataset.
+  subtract_ttbar: true
+  # Names must start with synthetic_data (synthetic_data_noTT<...> iff subtract_ttbar is false:
+  # runner.py names the samples from it, syn_v<seed> / syn_noTT_v<seed>) and differ from the names
+  # in metadata/datasets/synthetic_data.yml.
+  dataset_name: "synthetic_data_4b"                  # multijet + ttbar pseudodata (consumers)
+  multijet_dataset_name: "synthetic_data_multijet"   # multijet only (D.4/D.5)
+  ttbar_psdata_name: "ttbar_PSData"                  # dataset key inside inputs.ttbar_psdata
+  # b_pt_threshold, dr_threshold, max_jet_retry, max_event_retry, worker_memory, chunksize:
+  # override the skimmer template's values here.
+
+# ------------------------------------------------------------------------------
+# D.4: validation (synthetic data histogrammed with the upstream non-tight config) and
+# D.5: monitoring (plots + cutflow page of the D.4 histograms, D.2 PDF gallery)
+# ------------------------------------------------------------------------------
+validation:
+  # ttbar MC in the upstream histograms (the non-tight roast's B.1 jcm.datasets)
+  ttbar: ["TTToHadronic", "TTToSemiLeptonic", "TTTo2L2Nu"]
+  plot_template: "coffea4bees/plots/metadata/plotsDeClustered_validation.yml"
+  # seed: 0          # seed plotted in D.5; default: drawn from the roast id
+  # known_counts: <blessed cutflow_declustered.yml, once the first roast has written one>
+  # error_threshold: 0.001
