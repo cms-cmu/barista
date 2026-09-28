@@ -58,6 +58,16 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 4
     qos: ""
+  analyze:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
+  analyze_fvt_subsample:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
   plot_inputs_raw:
     mem_mb: 3800
   plot_inputs_dataprep:
