@@ -10,10 +10,7 @@ self-contained HTML page (plus an optional plain-text version) with
     cut | data 3b | tt 3b | Multijet | tt 4b | Bkg | data 4b | data/Bkg
 
 where Multijet = data 3b - tt 3b and Bkg = Multijet + tt 4b, once summed over
-all years and once per year.  With ``--multijet-process`` the Multijet column is instead a
-four-tag multijet *sample* taken as is (declustered or mixed data: ``syn_v0``,
-``mixeddata_all``, ...), and ``--pseudodata`` adds a ttbar pseudodata column compared with
-the tt 4b MC.  A "detailed" toggle (always present in the text
+all years and once per year.  A "detailed" toggle (always present in the text
 output) breaks the ttbar columns down into their components and adds the
 tt 3b / data 3b fraction.  The data/Bkg statistical error uses the raw 4b data
 count when the ``*_unit`` counts are present.
@@ -22,11 +19,20 @@ Usage:
     python src/tools/cutflow_closure.py output/.../cutflow_wJCM.yml \
         -o output/.../cutflow_wJCM.html [--txt output/.../cutflow_wJCM_table.txt] \
         [--title T] [--data data] [--ttbar TTToHadronic TTToSemiLeptonic TTTo2L2Nu] \
-        [--cuts passJetMult passPreSel passDiJetMass SB SR] \
-        [--multijet-process syn_v0 [--pseudodata ttbar_PSData]]
+        [--cuts passJetMult passPreSel passDiJetMass SB SR]
 
 Notes: with the pre-JCM (unweighted 3b) cutflow the Multijet column is not
 normalised and data/Bkg is ~mu_qcd; with JCM applied it is the closure test.
+
+``--multijet mixed4b`` (the MvD closure, workflows/Snakefile_MvD_2c_closure.smk): Multijet is
+the four-tag cutflow of ``--multijet-process`` (default mixeddata_all, whose four-tag weight is
+JCM x MvD) and tt 4b the MvD-derived ttbar (``--ttbar TTbar4b_from_MvD``); the 3b columns are
+informational only.
+
+``--multijet sample4b`` (DeClustered D.5, workflows/Snakefile_DeClustered_5_monitoring.smk): the
+same arithmetic for any four-tag multijet sample taken as is (``--multijet-process syn_v0``),
+with tt 4b the ttbar MC. ``--pseudodata ttbar_PSData`` adds a ttbar pseudodata column compared
+with tt 4b.
 """
 
 from __future__ import annotations
@@ -87,19 +93,18 @@ def cut_order(counts: dict, requested: list | None) -> list:
 
 
 # --------------------------------------------------------------------------- aggregation
-def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list,
-              multijet: list | None = None, pseudodata: list | None = None):
+def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_process: str | None = None,
+              pseudodata: list | None = None):
     """Return (years, table) with table[year][cut] = dict of sums:
-    data3, data4, data4_raw, tt3[comp], tt4[comp], and -- for the processes named in
-    `multijet` / `pseudodata` -- mj3/mj4 and ps3/ps4 (+ *_raw)."""
-    multijet, pseudodata = list(multijet or []), list(pseudodata or [])
+    data3, data4, data4_raw, tt3[comp], tt4[comp], mj4 (four-tag multijet_process, if given) and
+    ps4 (the `pseudodata` processes, if given)."""
+    pseudodata = list(pseudodata or [])
     years = OrderedDict()
     table = defaultdict(lambda: defaultdict(lambda: {
         "data3": 0.0, "data4": 0.0, "data4_raw": 0.0, "data3_raw": 0.0,
-        "mj3": 0.0, "mj4": 0.0, "mj3_raw": 0.0, "mj4_raw": 0.0,
-        "ps3": 0.0, "ps4": 0.0, "ps3_raw": 0.0, "ps4_raw": 0.0,
         "tt3": defaultdict(float), "tt4": defaultdict(float),
-        "tt3_raw": defaultdict(float), "tt4_raw": defaultdict(float)}))
+        "tt3_raw": defaultdict(float), "tt4_raw": defaultdict(float),
+        "mj3": 0.0, "mj4": 0.0, "mj4_raw": 0.0, "ps4": 0.0, "ps4_raw": 0.0}))
     unknown = set()
     for key, block in (("counts3", "3"), ("counts4", "4")):
         for ds, per_cut in counts[key].items():
@@ -108,7 +113,7 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list,
             process, year, _ = parse_dataset_name(ds)
             if process == data_name:
                 kind = "data"
-            elif process in multijet:
+            elif multijet_process and process == multijet_process:
                 kind = "mj"
             elif process in pseudodata:
                 kind = "ps"
@@ -125,9 +130,17 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list,
                 v = float(per_cut[cut])
                 for y in (year, "all"):
                     cell = table[y][cut]
-                    if kind in ("data", "mj", "ps"):
-                        cell[f"{kind}{block}"] += v
-                        cell[f"{kind}{block}_raw"] += float(unit.get(cut, v))
+                    if kind == "data":
+                        cell[f"data{block}"] += v
+                        cell[f"data{block}_raw"] += float(unit.get(cut, v))
+                    elif kind == "mj":
+                        cell[f"mj{block}"] += v
+                        if block == "4":
+                            cell["mj4_raw"] += float(unit.get(cut, v))
+                    elif kind == "ps":
+                        if block == "4":
+                            cell["ps4"] += v
+                            cell["ps4_raw"] += float(unit.get(cut, v))
                     else:
                         cell[f"tt{block}"][kind] += v
                         cell[f"tt{block}_raw"][kind] += float(unit.get(cut, 0.0))
@@ -152,10 +165,12 @@ def year_sort_key(year: str):
 MULTIJET_MODES = {
     "data3b-tt3b": "Multijet = data 3b &minus; tt 3b (JCM-only background model)",
     "data3b": "Multijet = data 3b (3b weight already includes JCM &times; FvT, which models multijet + 3b ttbar)",
-    "process": "Multijet = the four-tag multijet sample __MJPROCS__, as is (e.g. declustered or mixed data)",
+    "mixed4b": "Multijet = four-tag mixed data (weight JCM &times; MvD); tt 4b = the MvD-derived ttbar (mixed &times; JCM &times; p_t4/p_mix4)",
+    "sample4b": "Multijet = the four-tag multijet sample __MJPROC__, as is (e.g. declustered data); tt 4b = ttbar MC",
 }
+_FOUR_TAG_MODES = ("mixed4b", "sample4b")      # Multijet = a four-tag sample (--multijet-process)
 _multijet_mode = "data3b-tt3b"
-_multijet_procs: list = []      # --multijet-process: sets _multijet_mode = "process"
+_multijet_process = ""
 _pseudodata: list = []          # --pseudodata: extra ttbar pseudodata column vs tt 4b
 
 
@@ -165,13 +180,15 @@ def derived(cell: dict, ttbar: list) -> dict:
     nan = float("nan")
     # Early cuts (before the tag split) are filled identically into both tag cutflows
     # ("allTag" fills): no background model there, show the totals only.
-    alltag = cell["data3"] == cell["data4"] and tt3 == tt4 and cell["data3"] > 0
+    if _multijet_mode in _FOUR_TAG_MODES:
+        # the MvD-derived ttbar is filled into the four-tag cutflow only, so tt3 != tt4 always;
+        # before the tag split the mixed data's two cutflows agree
+        alltag = cell["data3"] == cell["data4"] and cell["mj3"] == cell["mj4"] and cell["data3"] > 0
+    else:
+        alltag = cell["data3"] == cell["data4"] and tt3 == tt4 and cell["data3"] > 0
     if alltag:
         return {"tt3": tt3, "tt4": nan, "mj": nan, "bkg": nan, "ratio": nan, "err": nan, "tt3frac": nan, "alltag": True}
-    if _multijet_mode == "process":
-        mj = cell["mj4"]
-    else:
-        mj = cell["data3"] - tt3 if _multijet_mode == "data3b-tt3b" else cell["data3"]
+    mj = {"data3b-tt3b": cell["data3"] - tt3, "data3b": cell["data3"], "mixed4b": cell["mj4"], "sample4b": cell["mj4"]}[_multijet_mode]
     bkg = mj + tt4
     ratio = cell["data4"] / bkg if bkg else nan
     n_raw = cell["data4_raw"]
@@ -351,7 +368,7 @@ def render_html(title: str, source: str, years: list, table, cuts: list, ttbar: 
     tables = [html_table("all years", cuts, table["all"], ttbar)] + [html_table(y, cuts, table[y], ttbar) for y in years]
     sub = f"source: {html.escape(source)} &middot; ttbar = {html.escape(', '.join(ttbar))} &middot; years: {html.escape(', '.join(years))}"
     return (PAGE.replace("__TITLE__", html.escape(title)).replace("__SUB__", sub)
-            .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode].replace("__MJPROCS__", html.escape(" + ".join(_multijet_procs)))
+            .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode].replace("__MJPROC__", html.escape(_multijet_process))
                      + (f"; tt pseudodata = {html.escape(' + '.join(_pseudodata))}, compared with tt 4b MC (error from its raw count)"
                         if _pseudodata else ""))
             .replace("__TABLES__", "\n".join(tables)))
@@ -367,29 +384,32 @@ def main(argv=None) -> int:
     ap.add_argument("--data", default="data", help="data process name (default: data)")
     ap.add_argument("--ttbar", nargs="+", default=DEFAULT_TTBAR, help="ttbar process names (3b subtraction + 4b component)")
     ap.add_argument("--cuts", nargs="+", default=None, help="cuts (rows) in order; default: order found in the input")
-    ap.add_argument("--multijet", choices=sorted(m for m in MULTIJET_MODES if m != "process"), default="data3b-tt3b",
-                    help="how the Multijet column is formed: data3b-tt3b (JCM-only model) or data3b (3b weight includes FvT)")
-    ap.add_argument("--multijet-process", nargs="+", default=None, metavar="PROCESS",
-                    help="take the Multijet column from these four-tag multijet sample processes as is "
-                         "(e.g. syn_v0 for declustered data, mixeddata_all), instead of from data 3b")
+    ap.add_argument("--multijet", choices=sorted(MULTIJET_MODES), default="data3b-tt3b",
+                    help="how the Multijet column is formed: data3b-tt3b (JCM-only model), data3b (3b weight "
+                         "includes FvT), mixed4b (four-tag --multijet-process, weight JCM x MvD) or sample4b "
+                         "(four-tag --multijet-process as is, e.g. declustered data; tt 4b = ttbar MC)")
+    ap.add_argument("--multijet-process", default="mixeddata_all",
+                    help="process whose four-tag cutflow is the Multijet with --multijet mixed4b / sample4b")
     ap.add_argument("--pseudodata", nargs="+", default=None, metavar="PROCESS",
                     help="ttbar pseudodata processes (e.g. ttbar_PSData): extra column, compared with tt 4b MC")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
-    global _multijet_mode, _multijet_procs, _pseudodata
-    _multijet_mode = "process" if args.multijet_process else args.multijet
-    _multijet_procs = list(args.multijet_process or [])
+    global _multijet_mode, _multijet_process, _pseudodata
+    _multijet_mode = args.multijet
+    _multijet_process = args.multijet_process if args.multijet in _FOUR_TAG_MODES else ""
     _pseudodata = list(args.pseudodata or [])
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
     counts = load_counts(args.input)
     cuts = cut_order(counts, args.cuts)
-    years, table = aggregate(counts, args.data, args.ttbar, cuts, _multijet_procs, _pseudodata)
+    years, table = aggregate(counts, args.data, args.ttbar, cuts,
+                             multijet_process=_multijet_process or None, pseudodata=_pseudodata)
     if not years:
         raise SystemExit(f"no '{args.data}' or ttbar datasets found in {args.input}")
-    for name, procs, key in (("multijet", _multijet_procs, "mj4"), ("pseudodata", _pseudodata, "ps4")):
+    for name, procs, key in (("multijet-process", [_multijet_process] if _multijet_mode == "sample4b" else [], "mj4"),
+                             ("pseudodata", _pseudodata, "ps4")):
         if procs and not any(cell[key] for cell in table["all"].values()):
-            raise SystemExit(f"--{name} process(es) {procs} not found in the counts4 of {args.input}")
+            raise SystemExit(f"--{name} {procs} not found in the counts4 of {args.input}")
     title = args.title or os.path.splitext(os.path.basename(args.input))[0]
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
