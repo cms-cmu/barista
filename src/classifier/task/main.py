@@ -275,8 +275,10 @@ class EntryPoint:
             f"{self.args[_MAIN][0]}.Main", _MAIN, True
         )[1]
 
-        if cls.prelude is not NotImplemented:
+        try:
             cls.prelude()
+        except Exception:
+            pass
 
         all_cats = [*self._tasks]
         if not cls._no_init:
@@ -357,8 +359,8 @@ class Main(Task):
     _no_init = False
 
     @classmethod
-    @interface(optional=True)
-    def prelude(cls): ...
+    def prelude(cls):
+        pass
 
     @interface
     def run(self, parser: EntryPoint) -> Optional[dict[str]]: ...

@@ -28,10 +28,13 @@ class _Interface:
         self._optional = optional
 
     def __get__(self, _, owner):
+        return self
+
+    def __call__(self, *args, **kwargs):
         if self._optional:
-            return NotImplemented
+            return None
         else:
-            raise InterfaceError(owner, self._func)
+            raise InterfaceError(None, self._func)
 
 
 @overload
