@@ -24,10 +24,12 @@
 | D2 | [D2 gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/output/declustered_run3_20260927_7e9990e-f0d7cdf/D2/index.html) |
 | D5 | [cutflow_monitoring](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/output/declustered_run3_20260927_7e9990e-f0d7cdf/D5/cutflow_monitoring.html) |
 | D5 | [plots gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/output/declustered_run3_20260927_7e9990e-f0d7cdf/D5/plots/index.html) |
+| superseded_d3_to_t3 | [cutflow_monitoring](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/output/declustered_run3_20260927_7e9990e-f0d7cdf/superseded_d3_to_t3/D5/cutflow_monitoring.html) |
+| superseded_d3_to_t3 | [plots gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/output/declustered_run3_20260927_7e9990e-f0d7cdf/superseded_d3_to_t3/D5/plots/index.html) |
 
 ## Notes
 
-Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f. Hot-patch 2026-09-27 (after the run): D5/cutflow_monitoring.{html,txt} regenerated with barista src/tools/cutflow_closure.py from e5b762af (--multijet-process syn_v0 --pseudodata ttbar_PSData), the shared closure-table tool D.5 uses from coffea4bees 1d13a5c6; counts unchanged.
+Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f. Hot-patch 2026-09-27 (after the run): D5/cutflow_monitoring.{html,txt} regenerated with barista src/tools/cutflow_closure.py from e5b762af (--multijet-process syn_v0 --pseudodata ttbar_PSData), the shared closure-table tool D.5 uses from coffea4bees 1d13a5c6; counts unchanged. Rerun from D.3 (2026-09-27/28): first pass subtracted ttbar in the DeClusterer with FvT d3_to_t3 (helper default) on 4b events, removing 200k 4b events = 1.44x ttbar MC (D.1, correct d4_to_t4: 150k = 1.08x); data/model at passPreSel was 1.070. Hot-patched into the checkout from coffea4bees 40e6b7fd4: skimmer/processor/make_declustered_data_4b.py (the fix) + the D.5 closure-table files (rules/analysis.smk, Snakefile_DeClustered_5_monitoring.smk, scripts/declustered_validation_report.py); NOT the origin/master merge on that branch. First-pass D3/D4/D5 kept in output/<id>/superseded_d3_to_t3/; EOS picoAODs + handoff YAMLs overwritten by the rerun.
 
 ## History
 
@@ -37,3 +39,6 @@ Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_d
 - 2026-09-27 11:20:34 submit step=DeClustered host=cmslpc
 - 2026-09-27 22:57:41 publish host=cmslpc ok=True
 - 2026-09-27 23:09:07 publish host=cmslpc ok=True
+- 2026-09-27 23:21:23 submit step=DeClustered host=cmslpc
+- 2026-09-27 23:21:41 submit step=DeClustered host=cmslpc
+- 2026-09-28 07:20:16 publish host=cmslpc ok=True
