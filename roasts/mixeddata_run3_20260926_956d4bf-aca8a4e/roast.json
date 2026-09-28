@@ -297,6 +297,19 @@
           "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
           "ssh": "jda102@cmslpc346.fnal.gov",
           "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 20:49:45",
+          "cores": 8,
+          "extra": "--forcerun M3_study M4_split",
+          "user_extra": "--forcerun M3_study M4_split",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
         }
       ]
     }
@@ -557,6 +570,21 @@
     },
     {
       "ts": "2026-09-27 19:48:10",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 20:49:43",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/hemisphere_mixing/mixing_helpers.py"
+      ],
+      "what": "update_pseudoTagWeight_of_mixed_data (M.4 splitter + M.3 study): mixed-data JCM argument nSelJets-3 instead of nUntaggedLoose+1, the same fix as event_weights.py -- the subsamples were drawn with too small a probability for >=5-loose-tag events (M.6 after the processor fix: subsample/model 0.96 Run 3, 0.985 Run 2). Force-rerun M3_study + M4_split; M4 republishes handoff/mixeddata_4b.yml, M6 closure rebuilt."
+    },
+    {
+      "ts": "2026-09-27 20:49:45",
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
