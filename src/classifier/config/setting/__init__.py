@@ -216,13 +216,13 @@ class ResultKey(GlobalSetting):
 class ROOT(GlobalSetting):
     "ROOT related settings."
 
-    friend_allow_missing: bool = False
+    friend_allow_missing: bool = ...
     "allow missing friend tree chunks"
 
     @classmethod
     def set__friend_allow_missing(cls, value: bool):
         if value is ...:
-            value = False
+            return True
         from src.data_formats.root import Friend
 
         Friend.allow_missing = value
