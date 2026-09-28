@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/mvd_run3_30x.yml",
     "captured": "config.yml",
-    "sha256": "dbb0266e4becc4eb8bad71916700fb983277f0da051404ccb35c14d0d901adcf",
+    "sha256": "ffcdf54f78236cc860d4ddcba1a2dc98593e414f40cb0f54020ce2ffea91be1e",
     "base": [
       {
         "source": "coffea4bees/workflows/config/mvd_run3.yml",
@@ -173,6 +173,58 @@
           "window": "mvd_run3_30x_198aefc-9fbe2d0_MvD",
           "ssh": "jda102@cmslpc320.fnal.gov",
           "config_sha256": "dbb0266e4bec"
+        },
+        {
+          "ts": "2026-09-28 08:33:01",
+          "cores": 8,
+          "extra": "--forcerun V2c_config V4_config V4_config_signal -n",
+          "user_extra": "--forcerun V2c_config V4_config V4_config_signal",
+          "targets": "all_V2c all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_198aefc-9fbe2d0_MvD",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "ffcdf54f7823"
+        },
+        {
+          "ts": "2026-09-28 08:33:43",
+          "cores": 8,
+          "extra": "--forcerun V2c_config V4_config V4_config_signal",
+          "user_extra": "--forcerun V2c_config V4_config V4_config_signal",
+          "targets": "all_V2c all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_198aefc-9fbe2d0_MvD",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "ffcdf54f7823"
+        },
+        {
+          "ts": "2026-09-28 09:07:08",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_198aefc-9fbe2d0_MvD",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ffcdf54f7823"
+        },
+        {
+          "ts": "2026-09-28 09:07:24",
+          "cores": 8,
+          "extra": "--forcerun V2c_config V4_config V4_config_signal",
+          "user_extra": "--forcerun V2c_config V4_config V4_config_signal",
+          "targets": "all_V2c all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_198aefc-9fbe2d0_MvD",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ffcdf54f7823"
         }
       ]
     },
@@ -215,7 +267,7 @@
   "hosts": {
     "cmslpc": {
       "checkout": "~/nobackup/HH4b/prod/mvd_run3_30x_20260927_198aefc-9fbe2d0/barista",
-      "ssh": "jda102@cmslpc320.fnal.gov",
+      "ssh": "jda102@cmslpc331.fnal.gov",
       "checked_out": "2026-09-27 20:51:22"
     },
     "falcon": {
@@ -330,6 +382,52 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-28 08:32:57",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MvD.smk",
+        "roasts/mvd_run3_30x_20260927_198aefc-9fbe2d0/config.yml (mtime kept)"
+      ],
+      "what": "MvD p_mix4 floor 0.05 (processor MvD_pmix4_floor from coffea4bees 1fdc84a23; top-level mvd_pmix4_floor -> V2c/V4 configs): caps MvD at ~20. The 30x MvD tail (MvD>50 carried 19x the 1x weight; unfloored closure SB 0.977). Forcerun V2c_config V4_config V4_config_signal -> V.2c + V.4 rebuilt; V.3 (SvB) not rerun (its outlier cut already dropped these events)."
+    },
+    {
+      "ts": "2026-09-28 08:33:01",
+      "event": "config-edited",
+      "sha256": "ffcdf54f7823"
+    },
+    {
+      "ts": "2026-09-28 08:33:01",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 08:33:43",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 09:07:06",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc331.fnal.gov"
+    },
+    {
+      "ts": "2026-09-28 09:07:08",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 09:07:24",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
     }
   ],
   "notes": "Run 3 MvD with ~30x-capacity MvD and SvB (n_features 54); V.1 products from mvd_run3_20260927_91be0e9-f18c44b",

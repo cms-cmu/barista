@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD -- generated 2026-09-28 07:12:38
+# roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD -- generated 2026-09-28 09:07:22
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -16,8 +16,8 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
     cp -f "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${X509_USER_PROXY:-/tmp/x509up_u$(id -u)} ===" | tee -a "$LOG"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-
-./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD.smk all_V4 --configfile roasts/mvd_run3_30x_20260927_198aefc-9fbe2d0/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mvd_run3_30x_20260927_198aefc-9fbe2d0 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD.smk all_V2c all_V4 --configfile roasts/mvd_run3_30x_20260927_198aefc-9fbe2d0/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mvd_run3_30x_20260927_198aefc-9fbe2d0 --forcerun V2c_config V4_config V4_config_signal --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD.smk all_V2c all_V4 --configfile roasts/mvd_run3_30x_20260927_198aefc-9fbe2d0/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mvd_run3_30x_20260927_198aefc-9fbe2d0 --forcerun V2c_config V4_config V4_config_signal --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

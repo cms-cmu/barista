@@ -106,6 +106,7 @@ mvd:
     --training:
     - --architecture
     - n_features: 54
+mvd_pmix4_floor: 0.05
 closure:
   label: MvD_30x_closure
   known_counts: coffea4bees/analysis/tests/known_fullCounts_MvD_closure_Run3_30x.yml
