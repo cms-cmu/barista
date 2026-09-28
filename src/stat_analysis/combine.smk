@@ -625,6 +625,7 @@ rule impacts_initial_fit:
         mass = lambda wildcards: config.get("mass", "125"),
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
+        asimov_opt = lambda wildcards: "-t -1 --expectSignal=1" if is_channel_blinded(wildcards, config) else "",
         stat_only = lambda wildcards: config.get("stat_only", False)
     log: f"{log_dir}/impacts_initial_fit_{{path}}__{{signallabel}}.log"
     shell:
@@ -643,22 +644,22 @@ rule impacts_initial_fit:
         echo "[$(date)] Starting impacts_initial_fit rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping impacts initial fit."
             echo "stat_only" > $OUT_FILE
             exit 0
         fi
 
         # Check if there are any nuisance parameters
-        NUISANCES=$(find . -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
-        if [ "$NUISANCES" = "0" ] || [ -z "$NUISANCES" ]; then
+        NUISANCES=$(find output -maxdepth 5 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
+        if [ "$NUISANCES" = "0" ]; then
             echo "no_nuisances" > $OUT_FILE
             exit 0
         fi
 
         SET_ZERO_OPT=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 SET_ZERO_OPT="--setParameters $formatted_params"
             fi
@@ -678,7 +679,7 @@ rule impacts_initial_fit:
             --doInitialFit --robustFit 1 -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
-            $SET_ZERO_OPT \
+            $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input} .root) && \
             mv higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
@@ -699,6 +700,7 @@ rule impacts_do_fits:
         mass = lambda wildcards: config.get("mass", "125"),
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
+        asimov_opt = lambda wildcards: "-t -1 --expectSignal=1" if is_channel_blinded(wildcards, config) else "",
         stat_only = lambda wildcards: config.get("stat_only", False)
     log: f"{log_dir}/impacts_do_fits_{{path}}__{{signallabel}}.log"
     shell:
@@ -719,7 +721,7 @@ rule impacts_do_fits:
         echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode or no_nuisances mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "stat_only" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "stat_only" ]; then
             echo "stat_only" > $OUT_DIR/stat_only
             exit 0
         fi
@@ -754,7 +756,7 @@ rule impacts_do_fits:
             --doFits --robustFit 1 -m {params.mass} --parallel {threads} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
-            $SET_ZERO_OPT \
+            $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input.workspace} .root) && \
             cp $INIT_FIT_FILE $OUT_DIR/
         ) 2>&1 | tee {log}
@@ -791,7 +793,7 @@ rule impacts_collect:
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
             echo "stat_only is enabled. Creating dummy impacts plot."
             cat << 'EOF' > dummy_plot.py
 import sys
@@ -874,7 +876,7 @@ rule gof_data:
         (
         echo "[$(date)] Starting gof_data rule with signal {params.signallabel}"
 
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping GoF data fit."
             echo "stat_only" > $OUT_FILE
             exit 0
@@ -928,7 +930,7 @@ rule gof_toys_chunk:
         (
         echo "[$(date)] Starting gof_toys_chunk {wildcards.split_index} rule with signal {params.signallabel}"
 
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping GoF toys chunk."
             echo "stat_only" > $OUT_FILE
             exit 0
@@ -946,7 +948,7 @@ rule gof_toys_chunk:
         # Check if there are any nuisance parameters
         TOYS_OPT="--toysFrequentist"
         NUISANCES=$(find $DATACARD_DIR -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
-        if [ "$NUISANCES" = "0" ] || [ -z "$NUISANCES" ]; then
+        if [ "$NUISANCES" = "0" ]; then
             TOYS_OPT="--toysNoSystematics"
         fi
 
