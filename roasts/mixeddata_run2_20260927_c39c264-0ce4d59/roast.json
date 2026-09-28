@@ -168,7 +168,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run2_20260927_c39c264-0ce4d59",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run2_20260927_c39c264-0ce4d59/",
-    "ts": "2026-09-27 05:10:20",
+    "ts": "2026-09-27 22:57:28",
     "ok": true,
     "pages": [
       "output/mixeddata_run2_20260927_c39c264-0ce4d59/M6/cutflow_validation.html",
@@ -263,12 +263,24 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 22:57:28",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 00:15:39",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Run 2 mixed data (UL16_preVFP/postVFP/UL17/UL18), per-year hemisphere libraries; inputs from nominal_run2_20260919_a180b1a-a16559c",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
-    "ts": "2026-09-27 05:10:25",
+    "ts": "2026-09-28 00:15:39",
     "ok": true
   }
 }

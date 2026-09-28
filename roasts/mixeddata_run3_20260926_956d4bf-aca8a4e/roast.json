@@ -310,6 +310,45 @@
           "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
           "ssh": "jda102@cmslpc346.fnal.gov",
           "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:17:41",
+          "cores": 8,
+          "extra": "--jobs 3 -n",
+          "user_extra": "--jobs 3",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:18:36",
+          "cores": 8,
+          "extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml -n",
+          "user_extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:19:01",
+          "cores": 8,
+          "extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "user_extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
         }
       ]
     }
@@ -324,7 +363,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/",
-    "ts": "2026-09-27 00:16:00",
+    "ts": "2026-09-28 00:15:35",
     "ok": true,
     "pages": [
       "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M6/cutflow_validation.html",
@@ -588,12 +627,42 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:17:41",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:18:36",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:19:01",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 00:15:34",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 00:15:37",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page. HOTPATCH 7: equal-probability subsample wrap (see history).",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
-    "ts": "2026-09-27 00:16:01",
+    "ts": "2026-09-28 00:15:37",
     "ok": true
   }
 }
