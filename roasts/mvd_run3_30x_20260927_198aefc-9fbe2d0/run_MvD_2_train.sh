@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData -- generated 2026-09-27 20:49:45
+# roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD_2_train -- generated 2026-09-27 20:53:40
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
-cd "$HOME/nobackup/HH4b/prod/mixeddata_run2_20260927_c39c264-0ce4d59/barista" || exit 97
-LOG=logs/MakeMixedData.log
-EXIT=logs/MakeMixedData.exit
+cd "$HOME/work/prod/mvd_run3_30x_20260927_198aefc-9fbe2d0/barista" || exit 97
+LOG=logs/MvD_2_train.log
+EXIT=logs/MvD_2_train.exit
 rm -f "$EXIT"
-echo "=== roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData start $(date) on $(hostname) ===" | tee -a "$LOG"
+echo "=== roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD_2_train start $(date) on $(hostname) ===" | tee -a "$LOG"
 echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
 # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
 # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
@@ -17,12 +17,12 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_MakeMixedData.smk all_M3 all_M4 all_M6 --configfile roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mixeddata_run2_20260927_c39c264-0ce4d59 --forcerun M3_study M4_split 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD_2_train.smk --configfile roasts/mvd_run3_30x_20260927_198aefc-9fbe2d0/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=mvd_run3_30x_20260927_198aefc-9fbe2d0 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-echo "=== roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData exit $RC $(date) ===" | tee -a "$LOG"
+echo "=== roast mvd_run3_30x_20260927_198aefc-9fbe2d0 step MvD_2_train exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
 if [ "$RC" != "0" ]; then
-    echo "step MakeMixedData FAILED (rc=$RC). Shell kept open for inspection; exit to close."
+    echo "step MvD_2_train FAILED (rc=$RC). Shell kept open for inspection; exit to close."
     exec bash
 fi
 sleep 5

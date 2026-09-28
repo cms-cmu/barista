@@ -479,7 +479,24 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-27 19:43:30",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-27 19:43:35",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
-  "notes": "Run 3 MvD: mixeddata_all x tight mixed JCM x MvD background, SvB vs it, stat-only limits; inputs nominal_run3_20260922_3f9e199-1e0504f + mixeddata_run3_20260926_956d4bf-aca8a4e"
+  "notes": "Run 3 MvD: mixeddata_all x tight mixed JCM x MvD background, SvB vs it, stat-only limits; inputs nominal_run3_20260922_3f9e199-1e0504f + mixeddata_run3_20260926_956d4bf-aca8a4e",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_20260927_91be0e9-f18c44b",
+    "ts": "2026-09-27 19:43:35",
+    "ok": true
+  }
 }

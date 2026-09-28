@@ -15,7 +15,7 @@
 
 | step | host | snakefile | state | log |
 |---|---|---|---|---|
-| MakeMixedData | cmslpc | `coffea4bees/workflows/Snakefile_MakeMixedData.smk`  | submitted 2026-09-26 | [MakeMixedData.log](https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/logs/MakeMixedData.log) |
+| MakeMixedData | cmslpc | `coffea4bees/workflows/Snakefile_MakeMixedData.smk`  | submitted 2026-09-27 | [MakeMixedData.log](https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/logs/MakeMixedData.log) |
 
 ## Pages
 
@@ -64,3 +64,12 @@ Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20
 - 2026-09-26 22:19:50 submit step=MakeMixedData host=cmslpc
 - 2026-09-27 00:15:59 publish host=cmslpc ok=True
 - 2026-09-27 00:16:01 archive host=cmslpc ok=True
+- 2026-09-27 19:48:09 hotpatch host=cmslpc files=['coffea4bees/analysis/helpers/event_weights.py'] what=git apply of coffea4bees a7de466da's event_weights.py hunk: mixed-data JCM argument nSelJets-3 (the fit's variable) instead of nUntaggedLoose+1, which under-weighted mixed events with >=5 loose tags (MvD roast: -4.7% of the four-tag SB yield). Only M6_hists_mixed uses this path; force-rerun, M.6 downstream rebuilt.
+- 2026-09-27 19:48:10 submit step=MakeMixedData host=cmslpc
+- 2026-09-27 20:49:43 hotpatch host=cmslpc files=['coffea4bees/hemisphere_mixing/mixing_helpers.py'] what=update_pseudoTagWeight_of_mixed_data (M.4 splitter + M.3 study): mixed-data JCM argument nSelJets-3 instead of nUntaggedLoose+1, the same fix as event_weights.py -- the subsamples were drawn with too small a probability for >=5-loose-tag events (M.6 after the processor fix: subsample/model 0.96 Run 3, 0.985 Run 2). Force-rerun M3_study + M4_split; M4 republishes handoff/mixeddata_4b.yml, M6 closure rebuilt.
+- 2026-09-27 20:49:45 submit step=MakeMixedData host=cmslpc
+- 2026-09-27 23:17:41 resume step=MakeMixedData host=cmslpc
+- 2026-09-27 23:18:36 submit step=MakeMixedData host=cmslpc
+- 2026-09-27 23:19:01 submit step=MakeMixedData host=cmslpc
+- 2026-09-28 00:15:34 publish host=cmslpc ok=True
+- 2026-09-28 00:15:37 archive host=cmslpc ok=True
