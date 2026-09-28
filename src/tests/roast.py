@@ -17,6 +17,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -202,6 +203,81 @@ class TestRunScriptFlags(unittest.TestCase):
     def test_seeds_the_grid_proxy(self):
         self.assertIn("proxy/x509_proxy", self.script())
 
+    def test_targets_come_before_the_config_option(self):
+        # `--config` takes every argument after it: a target placed after `--config roast_id=...`
+        # is parsed as a malformed name=value entry and snakemake exits before running anything.
+        import argparse
+        step = {**self.step, "targets": "all_M1"}
+        s = roast._run_script(CFG, self.r, step, "~/prod/x/barista", 8, "-n", False, targets="all_M2 out/x.yml")
+        cmd = next(l for l in s.splitlines() if "snakemake -s" in l)
+        argv = shlex.split(cmd.split("snakemake", 1)[1].split("2>&1")[0].split("|")[0])
+        p = argparse.ArgumentParser()        # the shape of snakemake's own parser for these options
+        p.add_argument("targets", nargs="*")
+        p.add_argument("-s"); p.add_argument("--configfile"); p.add_argument("--cores"); p.add_argument("--jobs")
+        p.add_argument("--printshellcmds", action="store_true"); p.add_argument("-n", action="store_true")
+        p.add_argument("--config", nargs="*")
+        ns = p.parse_args(argv)
+        self.assertEqual(ns.targets, ["all_M1", "all_M2", "out/x.yml"])
+        self.assertEqual(ns.config, [f"roast_id={FAKE_ID}"])
+        self.assertTrue(ns.n)
+
+
+class TestSummaryLine(unittest.TestCase):
+    """The default view is one line per roast: every step's state, and what is running now."""
+
+    def roast_with(self, *steps):
+        r = fake_roast()
+        r["steps"] = [{"name": n, "host": h, "snakefile": "x.smk", "targets": "", "extra": ""} for n, h in steps]
+        r["hosts"] = {h: {"checkout": "~/x", "ssh": "u@h"} for _, h in steps}
+        return r
+
+    def parsed(self, **states):
+        """states: step -> rendered text, as _parse_status would produce."""
+        by_host = {}
+        for step, text in states.items():
+            by_host.setdefault("cmslpc", {"steps": [], "live": {}, "done": {}, "extra": [], "error": None})
+            by_host["cmslpc"]["steps"].append((step, text))
+        return by_host
+
+    def plain(self, line):
+        return re.sub(r"\033\[[0-9;]*m", "", line)
+
+    def test_one_glyph_per_step(self):
+        r = self.roast_with(("B", "cmslpc"), ("F", "cmslpc"))
+        line = self.plain(roast._summary_line(r, self.parsed(B="exit=0      ", F="not started "), 20))
+        self.assertIn("B\u2713", line)
+        self.assertIn("F\u00b7", line)
+
+    def test_a_failure_is_marked(self):
+        r = self.roast_with(("F", "cmslpc"))
+        line = self.plain(roast._summary_line(r, self.parsed(F="exit=1      "), 20))
+        self.assertIn("F\u2717", line)
+        line = self.plain(roast._summary_line(r, self.parsed(F="error       "), 20))
+        self.assertIn("F\u2717", line)
+
+    def test_running_step_reports_what_it_is_doing(self):
+        r = self.roast_with(("C", "falcon"))
+        p = {"falcon": {"steps": [("C", "running      tmux=1  3 of 7   merging shards")],
+                        "live": {}, "done": {}, "extra": [], "error": None}}
+        line = self.plain(roast._summary_line(r, p, 20))
+        self.assertIn("C\u25cf", line)
+        self.assertIn("C on falcon", line)
+        self.assertIn("merging shards", line)
+
+    def test_unreachable_host_is_not_read_as_finished(self):
+        r = self.roast_with(("B", "cmslpc"))
+        line = self.plain(roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20))
+        self.assertIn("B!", line)
+
+    def test_published_is_noted_when_nothing_is_running(self):
+        r = self.roast_with(("B", "cmslpc"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        self.assertIn("published", roast._summary_line(r, self.parsed(B="exit=0      "), 20))
+
+    def test_state_word_ignores_colour_codes(self):
+        self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")
+        self.assertEqual(roast._state_word("\033[33mrunning     \033[0m tmux=1"), "running")
+
 
 class TestRoastSsh(unittest.TestCase):
     """A roast follows the node it was placed on, not whatever the config says today."""
@@ -320,6 +396,81 @@ class TestCaptureConfig(unittest.TestCase):
         src = self.write("b.yml", "base: a.yml\n")
         with self.assertRaises(SystemExit):
             roast.capture_config(src, self.tmp / "out.yml")
+
+
+class TestCheckInputs(unittest.TestCase):
+    """A dependent roast (e.g. mixed-data production reading the nominal's FvT) names what it reads
+    from other roasts under `inputs:`.  `roast new` must refuse a URL that is not inside a named
+    upstream roast's EOS area -- a hand-run product or another production's would otherwise be
+    read silently."""
+
+    UP = "nominal_run3_20260922_3f9e199-1e0504f"
+    AREA = f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{UP}"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.roasts = roast.ROASTS
+        roast.ROASTS = self.tmp
+        self.add_roast(self.UP, archived=True)
+
+    def tearDown(self):
+        roast.ROASTS = self.roasts
+        shutil.rmtree(self.tmp)
+
+    def add_roast(self, rid, archived):
+        r = fake_roast()
+        r["id"] = rid
+        if archived:
+            r["archive"] = {"eos": f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{rid}", "ok": True}
+        (self.tmp / rid).mkdir()
+        (self.tmp / rid / "roast.json").write_text(json.dumps(r))
+
+    def check(self, inputs):
+        return roast.check_inputs(CFG, {"label": "x", "inputs": inputs})
+
+    def test_no_inputs_block(self):
+        self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
+
+    def test_urls_inside_the_upstream_area_are_recorded(self):
+        fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
+        rec = self.check({"upstream_roasts": self.UP, "FvT": fvt, "hemilib": {"registry": f"{self.AREA}/hemilib/h.yml"}})
+        self.assertEqual(rec["refs"]["FvT"], {"url": fvt, "roast": self.UP})
+        self.assertIn("hemilib.registry", rec["refs"])                       # nested keys, dotted
+        self.assertEqual(rec["upstream"][0]["id"], self.UP)
+        self.assertEqual(rec["upstream"][0]["barista"], "a" * 40)            # upstream code pinned in the record
+        self.assertTrue(rec["upstream"][0]["archived"])
+
+    def test_slash_differences_do_not_matter(self):
+        url = f"root://cmseos.fnal.gov/store/user/u/HH4b_prod/{self.UP}//friend/x.json"
+        self.assertIn("x", self.check({"upstream_roasts": [self.UP], "x": url})["refs"])
+
+    def test_url_outside_every_upstream_is_an_error(self):
+        handrun = "root://cmseos.fnal.gov//store/user/u/HH4b_Run3_v2/friend/FvT/result.json"
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "FvT": handrun})
+
+    def test_a_longer_id_is_not_inside_a_shorter_one(self):
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "x": f"{self.AREA}_rerun/friend/x.json"})
+
+    def test_local_paths_and_placeholders_are_errors(self):
+        for bad in ("coffea4bees/metadata/friends/x.json", f"{self.AREA}/{{roast_id}}/x", 3):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit):
+                self.check({"upstream_roasts": self.UP, "x": bad})
+
+    def test_upstream_must_be_named_and_exist(self):
+        with self.assertRaises(SystemExit):
+            self.check({"x": f"{self.AREA}/x"})
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": "no_such_roast_20260101_aaaaaaa-bbbbbbb", "x": f"{self.AREA}/x"})
+
+    def test_unarchived_upstream_uses_its_eos_namespace(self):
+        rid = "mixeddata_run3_20260925_ccccccc-ddddddd"
+        self.add_roast(rid, archived=False)
+        url = f"root://cmseos.fnal.gov//store/user/u/HH4b_prod/{rid}/hemilib/h.yml"
+        rec = self.check({"upstream_roasts": [self.UP, rid], "hemilib": url})
+        self.assertEqual(rec["refs"]["hemilib"]["roast"], rid)
+        self.assertFalse(rec["upstream"][1]["archived"])
 
 
 class TestCopySettings(unittest.TestCase):

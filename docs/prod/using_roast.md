@@ -127,12 +127,24 @@ Capturing a layered config needs PyYAML; plain configs are still copied verbatim
 ## Watching a run
 
 ```bash
-bin/roast status <id>            # all steps, on every machine the roast uses
+bin/roast status                 # one line per roast: where every one of them stands
+bin/roast status <id>            # that roast in full, step by step
+bin/roast status -s              # force the one-liner; -d forces the detail
 bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
 
-`status` prints one line per step, with that step's batch jobs underneath:
+With no arguments, `status` gives a line per roast: a mark per step, and what is running
+now. `✓` finished cleanly, `●` running, `✗` failed, `·` not started, `?` a driver that died
+quietly, `!` a machine that did not answer.
+
+```
+nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published
+nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
+svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          published
+```
+
+Naming a roast gives the detail: one line per step, with that step's batch jobs underneath.
 
 ```
 B    cmslpc  exit=0    tmux=0  3 of 3 steps (100%) done     === roast ... step B exit 0 ...

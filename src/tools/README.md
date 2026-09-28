@@ -203,7 +203,8 @@ bin/roast submit <id> --step B -n        # dry run (snakemake -n): plan only —
 bin/roast submit <id> --step B -t        # test slice (--config test=true), runs locally on the node
 bin/roast submit <id> --step B           # the real thing, tmux session "roast", window <label>_<date>_B
 bin/roast submit <id> --step B --extra "--touch"   # any extra snakemake args
-bin/roast status <id>                    # per-step state + batch-system detail for this roast's jobs
+bin/roast status                         # one line per roast: a mark per step + what is running now
+bin/roast status <id>                    # that roast in detail: per-step state + its batch jobs
 bin/roast attach <id> [--step B]         # ssh -t into the host's roast tmux session on that window
 bin/roast resume <id> --step B           # after a failure / dead driver: --unlock + --rerun-incomplete, same args as last submit
 bin/roast publish <id> [-n] [--docs-only]   # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md

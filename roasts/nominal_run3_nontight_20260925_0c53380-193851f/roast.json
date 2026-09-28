@@ -1,0 +1,362 @@
+{
+  "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+  "label": "nominal_run3_nontight",
+  "created": "2026-09-25 14:15:05",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "193851fe045a93f086da6ee1222f1602161543b7",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_nontight.yml",
+    "captured": "config.yml",
+    "sha256": "02395172e0fef644b39d857acbdf3b4f9ae38d6605f40854684e42ba99ddecfe",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "2d24abdc462816cf67c6038b6e883d0c97dcc3fca72f22399678e8b036dd5894"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "PhaseB_1_computeJCM",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB_1_computeJCM.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 14:16:59",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_PhaseB_1_computeJCM",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "712516aa54e3"
+        },
+        {
+          "ts": "2026-09-25 14:29:09",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_PhaseB_1_computeJCM",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "712516aa54e3"
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 20:23:08",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:23:50",
+          "cores": 8,
+          "extra": "--rerun-triggers code params software-env input -n",
+          "user_extra": "--rerun-triggers code params software-env input",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:24:53",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 20:25:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_B",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-25 21:38:19",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-25 21:39:27",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-26 02:18:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C4",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        },
+        {
+          "ts": "2026-09-26 02:19:30",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_n_0c53380-193851f_C4",
+          "ssh": "jda102@cmslpc360.fnal.gov",
+          "config_sha256": "02395172e0fe"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/barista",
+      "ssh": "jda102@cmslpc360.fnal.gov",
+      "checked_out": "2026-09-25 14:16:46"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_nontight_20260925_0c53380-193851f/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-25 20:26:26"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_nontight_20260925_0c53380-193851f/",
+    "ts": "2026-09-26 02:46:48",
+    "ok": true,
+    "pages": [
+      "output/Run3_nontight/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nontight/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nontight/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_nontight/computeJCM/cutflow_wJCM.html",
+      "output/Run3_nontight/computeJCM/plots_wJCM/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-25 14:15:05",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-25 14:16:46",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 14:16:59",
+      "event": "submit",
+      "step": "PhaseB_1_computeJCM",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 14:29:09",
+      "event": "submit",
+      "step": "PhaseB_1_computeJCM",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 17:03:27",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 17:03:33",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-25 20:23:00",
+      "event": "steps-added",
+      "steps": [
+        "B",
+        "C",
+        "C4"
+      ],
+      "why": "train the non-tight FvT in the same roast (the tight nominal FvT removed the non-tight-only 4b events from the mixed-data hemisphere library); B reuses this roast's B.1 outputs in the checkout, runs B.2 + handoff"
+    },
+    {
+      "ts": "2026-09-25 20:23:00",
+      "event": "config-recaptured",
+      "source": "coffea4bees/workflows/config/nominal_run3_nontight.yml (B/C/C4 version)",
+      "changes": "fvt --JCM-weight + analysis_config.JCM_file -> Run3_nontight_v1; classifier_inputs.datasets data+TT; fvt_closure.known_counts -> *_Run3_nontight.yml; B.1 keys unchanged"
+    },
+    {
+      "ts": "2026-09-25 20:23:08",
+      "event": "config-edited",
+      "sha256": "02395172e0fe"
+    },
+    {
+      "ts": "2026-09-25 20:23:08",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:23:50",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:24:51",
+      "event": "config-mtime-reset",
+      "why": "re-captured config.yml is an input of B.1's create_noJCM_config; its new mtime made snakemake rerun all of B.1 although no key B.1 reads changed (see config-recaptured). mtime set to 2026-09-25 11:00 local, before B.1's run"
+    },
+    {
+      "ts": "2026-09-25 20:24:53",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:25:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-25 20:26:26",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 21:38:19",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-25 21:39:27",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-26 02:18:24",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 02:19:30",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 02:46:33",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:48",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:49",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 02:46:52",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only. Extended 2026-09-25 with B (B.2+handoff), C (non-tight FvT) and C4 (closure); config re-captured, see history.",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+    "ts": "2026-09-26 02:46:52",
+    "ok": true
+  }
+}

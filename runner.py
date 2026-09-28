@@ -13,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from rich.pretty import pretty_repr
 from omegaconf import OmegaConf
 import copy
+import shutil
 
 # Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
 try:
@@ -86,6 +87,10 @@ class WorkerInitializer(WorkerPlugin):
                 logging.info("Code package extracted successfully")
         if os.getcwd() not in sys.path:
             sys.path.insert(0, os.getcwd())
+        # HTCondor may hand the worker a proxy path relative to its scratch dir; XRootD wants an absolute one.
+        proxy = os.environ.get("X509_USER_PROXY")
+        if proxy and not os.path.isabs(proxy) and os.path.exists(proxy):
+            os.environ["X509_USER_PROXY"] = os.path.abspath(proxy)
         if delays := self.uproot_xrootd_retry_delays:
             from src.data_formats.root.patch import uproot_XRootD_retry
             uproot_XRootD_retry(len(delays) + 1, delays)
@@ -100,7 +105,7 @@ from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, s
 from src.runner.dataset import (
     apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
-    process_data_dataset, add_fvt_metadata, apply_datasets_filter,
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter, load_datasets_metadata,
     expand_directory_files, list_of_files
 )
 from src.runner.orchestrator import (
@@ -142,6 +147,7 @@ if __name__ == '__main__':
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
     logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
+    logging.getLogger("dask_lxplus").setLevel(logging.WARNING)
 
     # Re-execute under mprof if requested and not already running under it
     if getattr(args, 'run_performance', False) and not os.environ.get("RUNNER_MPROF_ACTIVE"):
@@ -209,6 +215,8 @@ if __name__ == '__main__':
             config_runner['worker_memory'] = args.worker_memory
         if getattr(args, 'slurm_qos', None) is not None:
             config_runner['slurm_qos'] = args.slurm_qos
+        if getattr(args, 'condor_site', None):
+            config_runner['condor_site'] = args.condor_site
         if config_runner['dashboard_address'] != 0:
             requested = config_runner['dashboard_address']
             config_runner['dashboard_address'] = find_free_port(requested)
@@ -290,30 +298,9 @@ if __name__ == '__main__':
         logging.info(f"Systematics to run: {args.systematics}")
         configs['config']['run_systematics'] = args.systematics
 
-    # Load datasets metadata (supports multiple files merging)
-    if getattr(args, 'datasets_metadata_files', None):
-        logging.info(">>> Merging datasets metadata files")
-        merged_datasets = {}
-        for fpath in args.datasets_metadata_files:
-            print(f"  Loading: {fpath}")
-            with open(fpath, 'r') as f:
-                f_data = yaml.safe_load(f)
-                if isinstance(f_data, dict):
-                    if 'datasets' in f_data:
-                        merged_datasets.update(f_data['datasets'])
-                    else:
-                        merged_datasets.update(f_data)
-        datasets = {'datasets': merged_datasets}
-        print(f"Merged datasets metadata: loaded {len(merged_datasets)} top-level dataset keys.")
-    else:
-        logging.info(f"Loading datasets metadata from: {args.metadata}")
-        if os.path.isdir(args.metadata):
-            files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
-            datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
-        else:
-            datasets = yaml.safe_load(open(args.metadata, 'r'))
-            if isinstance(datasets, dict) and 'datasets' not in datasets:
-                datasets = {'datasets': datasets}
+    # Load datasets metadata: one or more local dirs / local or remote (fsspec) YAML files
+    logging.info(f"Loading datasets metadata from: {args.metadata}")
+    datasets = load_datasets_metadata(args.metadata)
 
     # Apply dataset exclusions/filters
     if getattr(args, 'datasets_filter', None):
@@ -361,6 +348,8 @@ if __name__ == '__main__':
         config_runner['worker_memory'] = args.worker_memory
     if getattr(args, 'slurm_qos', None) is not None:
         config_runner['slurm_qos'] = args.slurm_qos
+    if getattr(args, 'condor_site', None):
+        config_runner['condor_site'] = args.condor_site
 
     if config_runner['dashboard_address'] != 0:
         requested = config_runner['dashboard_address']
@@ -463,10 +452,12 @@ if __name__ == '__main__':
                 client = Client(args.scheduler_address)
                 cluster = None
             elif getattr(args, 'condor', False):
-                logging.info("Configuring standalone LPCCondorCluster...")
-                from src.runner.cluster import create_code_tarball
+                from src.runner.cluster import create_code_tarball, detect_condor_site
+                condor_site = detect_condor_site(config_runner)
+                logging.info(f"Configuring standalone HTCondor Dask cluster (site: {condor_site})...")
                 tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-                client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+                client, cluster, log_dir = setup_condor_cluster(
+                    config_runner, tarball_path, proxy_path=os.environ.get('X509_USER_PROXY'), site=condor_site)
             elif getattr(args, 'slurm', False):
                 logging.info("Configuring standalone SLURMCluster...")
                 client, cluster = setup_slurm_cluster(config_runner)
@@ -586,6 +577,8 @@ if __name__ == '__main__':
                     logging.info(f"Successfully closed {obj_name}")
                 except (RuntimeError, NameError, AttributeError) as e:
                     logging.warning(f"Error closing {obj_name}: {e}")
+        for _path in getattr(cluster, 'barista_cleanup_paths', None) or []:
+            shutil.rmtree(_path, ignore_errors=True)
 
         logging.info(f'Dask performance report saved in {dask_report_file}')
     else:
@@ -604,5 +597,6 @@ if __name__ == '__main__':
 
     # Sync and sleep to flush NFS writes before exiting
     sync_nfs_writes()
-    # Trigger CI pipeline rerun
+    # os._exit skips atexit handlers: clean the condor code-tarball directory explicitly
+    cleanup_temp_condor_dir()
     os._exit(0)

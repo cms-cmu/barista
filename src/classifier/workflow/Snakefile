@@ -52,7 +52,7 @@ INIT = "set -e && set +u && { [ -f /entrypoint.sh ] && source /entrypoint.sh || 
 
 
 def _all_targets():
-    targets = [f"{OUTPUT_DIR}/train.done"]
+    targets = [f"{OUTPUT_DIR}/train.done", f"{OUTPUT_DIR}/yields.html"]
     if EVALUATE:
         targets += [
             f"{OUTPUT_DIR}/evaluate.done",
@@ -98,10 +98,14 @@ rule train:
         wfs_base                = WFS_BASE,
         template_str            = TRAIN_TEMPLATE,
         common                  = COMMON,
+        # per-class counts / weights at the end of dataset loading (HCR datasets); see rule yields
+        yields                  = f"{OUTPUT_DIR}/yields_loaded.json",
     shell:
         """
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
+        rm -f {params.yields} && \
+        HCR_YIELDS_FILE=$PWD/{params.yields} \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
@@ -110,6 +114,31 @@ rule train:
             -flag debug \
             2>&1 | tee -a {log}
         touch {output.flag}
+        """
+
+
+rule yields:
+    # The per-class yields the training loaded, by region (and year): a page next to the step's
+    # logs, which `roast publish` ships with the other output/**/*.html. `yields_ratio` (a list of
+    # "num / den" class expressions) adds the data / starting-model line, e.g. "d4 / t4 + mix4"
+    # (MvD) or "d4 / d3 - t3 + t4" (FvT). Falls back to the tables in train.log for a training that
+    # predates $HCR_YIELDS_FILE. Plain python3, stdlib only: no container.
+    input:
+        f"{OUTPUT_DIR}/train.done",
+    output:
+        html = f"{OUTPUT_DIR}/yields.html",
+        json = f"{OUTPUT_DIR}/yields.json",
+    log:
+        f"{OUTPUT_DIR}/yields.log",
+    params:
+        loaded = f"{OUTPUT_DIR}/yields_loaded.json",
+        train_log = f"{OUTPUT_DIR}/train.log",
+        ratios = " ".join(f'--ratio "{r}"' for r in config.get("yields_ratio", []) or []),
+        title = LABEL,
+    shell:
+        """
+        python3 src/classifier/yields_report.py --yields {params.loaded} --log {params.train_log} \
+            {params.ratios} --title {params.title} -o {output.html} --json {output.json} 2>&1 | tee {log}
         """
 
 
@@ -286,3 +315,5 @@ rule plot_weights:
         touch {output.flag}
         """
 
+
+localrules: yields

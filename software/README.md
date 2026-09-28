@@ -88,6 +88,48 @@ The `run_container` script automatically detects and configures for different co
 - **Storage Binding**: `/afs`, `/eos`, `/cvmfs`
 - **Grid Security**: Automatic mounting of grid certificates
 - **CVMFS Access**: Full access to CERN software repositories
+- **HTCondor (Dask workers)**: `runner.py --condor` auto-detects lxplus and submits Dask workers to
+  CERN HTCondor with [`dask_lxplus`](https://github.com/cernops/dask-lxplus) (`CernCluster`). Workers run
+  inside the analysis image (`MY.SingularityImage`, `+JobFlavour`, `MY.SendCredential`). The code tarball
+  is staged once on EOS and fetched by URL; worker `stdout`/`stderr` are delivered to
+  `<lxplus_eos_scratch>/condor_logs/<run>/` (default `/eos/cms/store/group/phys_higgs/ttHbb/$USER/4b/barista_scratch`).
+  Runner config keys: `condor_site`, `lxplus_job_flavour` (`workday`), `lxplus_disk_per_worker` (`10GB`),
+  `lxplus_death_timeout` (`3600`), `lxplus_scheduler_port` (`8786`), `lxplus_batch_name`,
+  `lxplus_worker_image`, `lxplus_eos_scratch`, `lxplus_send_credential`. `--condor-site lpc|lxplus` forces a backend.
+- **Condor client inside the container**: `run_container` binds `/etc/condor` and `/etc/sysconfig/ngbauth-submit`
+  (not `/etc/krb5.conf`: the host file needs an unbound `includedir` and breaks Kerberos in the image), skips the
+  host-only `myschedd` hook (`SKIP_LOCAL_CONFIG_FILE=TRUE`, explicit `_CONDOR_SCHEDD_HOST`/`_CONDOR_CREDD_HOST`),
+  copies your Kerberos cache to `/tmp/$USER/krb5cc_barista`
+  (it outlives the login session, unlike `/run/user/<uid>`) and stores the batch credential with
+  `condor_store_cred` so `MY.SendCredential` jobs can be submitted from the container.
+- **GPU jobs**: `./run_container classifier <cmd>` submits `<cmd>` as an HTCondor GPU job in the classifier
+  image (`software/condor/submit_classifier_lxplus.sh`; knobs `CONDOR_JOB_FLAVOUR`, `CONDOR_REQUEST_GPUS`,
+  `CONDOR_REQUEST_CPUS`, `CONDOR_REQUEST_MEMORY`, `CONDOR_GOOD_GPUS`, `CONDOR_INTERACTIVE`, `CONDOR_DRY_RUN`,
+  `CONDOR_LOG_DIR`). Snakemake training workflows are auto-dispatched to the `lxplus_gpu` profile, which sends
+  GPU rules to HTCondor through `software/snakemake/scripts/lxplus_condor_submit.py` and runs the rest locally.
+  Two CERN constraints: the job directory (`CONDOR_LOG_DIR`) must stay on AFS, since the standard schedds refuse
+  `/eos` paths for the executable and the log files; and the schedd raises `RequestCpus` to `RequestMemory / 3 GB`,
+  so a 1-GPU job should ask for at most 48 GB (16 cores, one A100 machine); 64 GB becomes 22 cores and only
+  matches the few H100/H200 nodes. Job stdout/stderr reach the job directory only at job end
+  (the schedds refuse `stream_output`/`stream_error`); the tools' own `tee` logs on EOS show live progress.
+- **Setup**: `./run_container lxplus-setup` (EOS scratch dirs, credential, interim `dask_lxplus` install when
+  the image predates it) and `./run_container voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy`.
+- **Kerberos lifetime**: the copied ticket is valid ~24 h. For longer shared-dask daemons renew it
+  (`kinit -R` or a fresh `kinit`, then any `./run_container` call refreshes the copy); without a valid ticket the
+  daemon cannot submit or remove workers. Spooled worker logs that did not reach EOS can be fetched with
+  `condor_transfer_data <cluster>`.
+- **Pixi**: installed under `/afs/cern.ch/work/<u>/<user>/.pixi` when the work volume exists (`BARISTA_PIXI_DIR` overrides).
+- **Node firewall**: CERN opens the standard Dask port 8786 for inbound connections on lxplus nodes but not
+  arbitrary ports (a probe from a batch node reached lxplus954:8786 but not :8790), and some nodes block even
+  8786 (lxplus963); workers then fail with "Timed out trying to connect to tcp://<ip>:8786". `run_container`
+  probes port 8786 from an lxplus node on another network before a `--condor` run (`lxplus_check_scheduler_port`,
+  cached per node in `/tmp/$USER`) and warns if blocked; `./run_container lxplus-check` gives the definitive
+  answer from an HTCondor job. Keep `lxplus_scheduler_port` at 8786 and prefer `--shared-dask` so that one
+  scheduler per node uses it.
+- **Long runs**: lxplus kills a login session's processes at logout (`KillUserProcesses=yes`), including
+  `nohup` jobs and the shared-dask daemon. Start long productions with
+  `systemd-run --user --scope -- tmux new-session -d -s <name> "<command>"` (after `loginctl enable-linger $USER`)
+  and reattach with `tmux attach` on the same node.
 
 ### Local/Custom Environments
 
