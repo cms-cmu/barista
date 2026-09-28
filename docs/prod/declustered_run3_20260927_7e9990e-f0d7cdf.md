@@ -9,7 +9,7 @@
 | config | `coffea4bees/workflows/config/declustered_run3.yml` (sha256 `733a7d89c835`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/roasts/declustered_run3_20260927_7e9990e-f0d7cdf/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/roasts/declustered_run3_20260927_7e9990e-f0d7cdf/roast.json) |
-
+| archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declustered_run3_20260927_7e9990e-f0d7cdf/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/declustered_run3_20260927_7e9990e-f0d7cdf`) |
 
 ## Steps
 
@@ -42,3 +42,5 @@ Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_d
 - 2026-09-27 23:21:23 submit step=DeClustered host=cmslpc
 - 2026-09-27 23:21:41 submit step=DeClustered host=cmslpc
 - 2026-09-28 07:20:16 publish host=cmslpc ok=True
+- 2026-09-28 07:32:28 archive host=cmslpc ok=True
+- 2026-09-28 07:32:45 publish host=cmslpc ok=True
