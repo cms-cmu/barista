@@ -100,13 +100,14 @@ def _find_hist_obj(
             available_processes = None
         if available_processes is not None and process in available_processes:
             try:
-                _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+                if category_key in _input_data and _input_data[category_key] is not None:
+                    _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+                    for _key in unique_to_dict:
+                        hist_opts.pop(_key)
+                    if "variation" in _input_data[category_key]:
+                        hist_opts["variation"] = "nominal"
             except (KeyError, AttributeError) as e:
                 raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
-            for _key in unique_to_dict:
-                hist_opts.pop(_key)
-            if "variation" in _input_data[category_key]:
-                hist_opts["variation"] = "nominal"
             hist_obj = _input_data[hist_key][var]
             break
 
@@ -183,13 +184,13 @@ def _remove_missing_cut_keys(
     hist_obj: hist.Hist, hist_opts: Dict, cut_dict: Dict, debug: bool
 ) -> None:
     """Drop cut axes from hist_opts that are absent from this histogram (in-place)."""
-    for cut_key in cut_dict:
+    for opt_key in list(hist_opts.keys()):
         if debug:
-            print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
-        if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
+            print(f"Checking opt_key {opt_key} in hist_obj.axes {hist_obj.axes.name}")
+        if opt_key not in hist_obj.axes.name:
             if debug:
-                print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
-            hist_opts.pop(cut_key)
+                print(f"Removing opt_key {opt_key} from hist_opts {hist_opts}")
+            hist_opts.pop(opt_key)
 
 
 def _select_hist(
@@ -939,7 +940,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     var_over_ride = kwargs.get("var_over_ride", {})
 
     if cut:
-        cuts_to_check = cut if isinstance(cut, list) else [cut]
+        cuts_to_check = cut if isinstance(cut, list) else [c.strip() for c in cut.replace("+", ",").split(",") if c.strip()]
         for c in cuts_to_check:
             _bare_cut = c.lstrip("~")
             if _bare_cut not in cfg.cutList:
@@ -951,9 +952,15 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
         plot_data["is_2d_hist"] = True
 
     # Get histogram configuration
-    hist_config = cfg.plotConfig["hists"]
+    hist_config = cfg.plotConfig.get("hists", {})
     if process is not None:
-        hist_config = {key: hist_config[key] for key in process if key in hist_config}
+        filtered = {key: hist_config[key] for key in process if key in hist_config}
+        if not filtered and 'stack' in cfg.plotConfig:
+            stack_config = cfg.plotConfig["stack"]
+            filtered = {key: stack_config[key] for key in process if key in stack_config}
+        if not filtered:
+            filtered = {p: {"process": p, "tag": "fourTag", "label": p} for p in process}
+        hist_config = filtered
 
     # Process each histogram
     for _proc_name, _proc_config in hist_config.items():
