@@ -27,7 +27,7 @@
 
 ## Notes
 
-Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f.
+Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f. Hot-patch 2026-09-27 (after the run): D5/cutflow_monitoring.{html,txt} regenerated with barista src/tools/cutflow_closure.py from e5b762af (--multijet-process syn_v0 --pseudodata ttbar_PSData), the shared closure-table tool D.5 uses from coffea4bees 1d13a5c6; counts unchanged.
 
 ## History
 
@@ -36,3 +36,4 @@ Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_d
 - 2026-09-27 11:15:12 submit step=DeClustered host=cmslpc
 - 2026-09-27 11:20:34 submit step=DeClustered host=cmslpc
 - 2026-09-27 22:57:41 publish host=cmslpc ok=True
+- 2026-09-27 23:09:07 publish host=cmslpc ok=True

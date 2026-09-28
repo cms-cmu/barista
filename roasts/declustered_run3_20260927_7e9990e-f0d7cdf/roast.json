@@ -97,8 +97,8 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_20260927_7e9990e-f0d7cdf/",
-    "ts": "2026-09-27 22:57:41",
-    "ok": true,
+    "ts": "2026-09-27 23:09:16",
+    "ok": null,
     "pages": [
       "output/declustered_run3_20260927_7e9990e-f0d7cdf/D2/index.html",
       "output/declustered_run3_20260927_7e9990e-f0d7cdf/D5/cutflow_monitoring.html",
@@ -132,7 +132,13 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-27 23:09:07",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
-  "notes": "Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f."
+  "notes": "Run 3 DeClustered dataset, 1 seed, ttbar subtracted (non-tight FvT): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run3_20260926_956d4bf-aca8a4e). D.1-D.5. Hists/config/FvT from nominal_run3_nontight_20260925_0c53380-193851f. Hot-patch 2026-09-27 (after the run): D5/cutflow_monitoring.{html,txt} regenerated with barista src/tools/cutflow_closure.py from e5b762af (--multijet-process syn_v0 --pseudodata ttbar_PSData), the shared closure-table tool D.5 uses from coffea4bees 1d13a5c6; counts unchanged."
 }
