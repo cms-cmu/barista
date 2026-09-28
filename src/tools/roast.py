@@ -600,7 +600,9 @@ def _window_name(r: dict, step: dict) -> str:
     """tmux window for a step.  Must identify the roast, not just its label and date:
     submit closes a window of this name when no driver of *this* roast is alive, so two
     roasts sharing a name would let one kill the other's running step."""
-    return f"{r['label'][:14]}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
+    # The FULL label: a [:14] prefix made mvd_run3_30x_c5 / _c5b / _c6 (same shas, same step)
+    # collide, and submitting one closed the other's running window (2026-09-28).
+    return f"{r['label']}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
 
 
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
