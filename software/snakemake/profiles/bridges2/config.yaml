@@ -33,6 +33,26 @@ set-resources:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
+  train_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: ""
+  train_fvt_subsample:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: ""
+  evaluate_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: ""
+  evaluate_fvt_subsample:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: ""
   evaluate:
     slurm_partition: "RM-shared"
     mem_mb: 8000
