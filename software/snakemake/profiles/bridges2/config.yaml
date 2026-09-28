@@ -15,6 +15,20 @@ default-resources:
   tmpdir: "/tmp"
 
 set-resources:
+  train_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: ""
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "48h"
+  evaluate_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: ""
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "24h"
   train:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
@@ -60,6 +74,16 @@ set-resources:
     cpus_per_task: 4
     qos: ""
   evaluate_single_dataset_svb:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
+  analyze:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
+  analyze_fvt_subsample:
     slurm_partition: "RM-shared"
     mem_mb: 8000
     cpus_per_task: 4

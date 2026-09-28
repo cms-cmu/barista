@@ -130,68 +130,72 @@ def _draw_stack(stack_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool
     """Draw the stacked histogram. Stores uniform-bin metadata in plot_data when needed."""
     if not stack_dict:
         return
-    if uniform_bins:
-        stack_keys = list(stack_dict.keys())
-        stack_values_list = []
-        stack_edges = None
-        for k in stack_keys:
-            v = stack_dict[k]
-            vals = np.array(v["values"], dtype=float)
-            if add_flow:
-                vals = vals.copy()
-                vals[0] += v["under_flow"]
-                vals[-1] += v["over_flow"]
-            if norm:
-                total = vals.sum()
-                if total > 0:
-                    vals = vals / total
-            stack_values_list.append(vals)
-            if stack_edges is None:
-                stack_edges = np.array(v["edges"])
-        n = len(stack_values_list[0])
-        uniform_edges = np.arange(n + 1) - 0.5
-        bottoms = np.zeros(n)
-        fill_colors = [stack_dict[k].get("fillcolor") for k in stack_keys]
-        edge_colors = [stack_dict[k].get("edgecolor") for k in stack_keys]
-        for i, vals in enumerate(stack_values_list):
-            ax.stairs(vals + bottoms, uniform_edges,
-                      color=fill_colors[i], fill=True, baseline=bottoms, linewidth=0)
-            ax.stairs(vals + bottoms, uniform_edges,
-                      color=edge_colors[i], linewidth=1.0, baseline=bottoms)
-            bottoms += vals
-        plot_data["_uniform_bin_edges"] = stack_edges
-        plot_data["_uniform_n_bins"] = n
-    else:
-        # Pre-normalize by total combined integral when norm=True, so we can
-        # pass density=False to mplhep and avoid its per-component normalization
-        # which produces incorrectly scaled error bars for multi-component stacks.
-        total_integral = 1.0
-        if norm:
-            first_edges = np.array(next(iter(stack_dict.values()))["edges"])
-            bin_widths = np.diff(first_edges)
-            total_vals = sum(np.array(v["values"]) for v in stack_dict.values())
-            total_integral = np.dot(total_vals, bin_widths)
-            if total_integral <= 0:
-                total_integral = 1.0
+    stack_keys = list(stack_dict.keys())
+    stack_values_list = []
+    stack_edges = None
+    for k in stack_keys:
+        v = stack_dict[k]
+        vals = np.array(v["values"], dtype=float)
+        if add_flow:
+            vals = vals.copy()
+            vals[0] += v["under_flow"]
+            vals[-1] += v["over_flow"]
+        stack_values_list.append(vals)
+        if stack_edges is None:
+            stack_edges = np.array(v["edges"])
 
-        stack_dict_for_hist = {}
-        for k, v in stack_dict.items():
-            vals = np.array(v["values"], dtype=float)
-            varis = np.array(v["variances"], dtype=float)
-            if norm and total_integral > 0:
-                vals = vals / total_integral
-                varis = varis / (total_integral ** 2)
-            stack_dict_for_hist[k] = plot_helpers.make_hist(
-                edges=v["edges"], values=vals, variances=varis,
-                x_label=v["x_label"], under_flow=v["under_flow"], over_flow=v["over_flow"],
-                add_flow=add_flow
-            )
-        fill_colors = [v.get("fillcolor") for _, v in stack_dict.items()]
-        edge_colors = [v.get("edgecolor") for _, v in stack_dict.items()]
-        if stack_dict_for_hist:
-            s = hist.Stack.from_dict(stack_dict_for_hist)
-            s.plot(stack=True, histtype="fill", color=fill_colors, label=None, density=False)
-            s.plot(stack=True, histtype="step", color=edge_colors, label=None, density=False)
+    if norm:
+        total_vals = sum(stack_values_list)
+        if uniform_bins:
+            total_integral = total_vals.sum()
+        else:
+            bin_widths = np.diff(stack_edges)
+            total_integral = np.dot(total_vals, bin_widths)
+        if total_integral > 0:
+            stack_values_list = [v / total_integral for v in stack_values_list]
+
+    n_bins = len(stack_values_list[0])
+    fill_colors = [stack_dict[k].get("fillcolor") for k in stack_keys]
+    edge_colors = [stack_dict[k].get("edgecolor") for k in stack_keys]
+
+    comp_array = np.array(stack_values_list)  # shape (n_comp, n_bins)
+    tot_stack = np.sum(comp_array, axis=0)
+
+    visual_vals = np.zeros_like(comp_array)
+    for b in range(n_bins):
+        s = tot_stack[b]
+        bin_comps = comp_array[:, b]
+        if s <= 0:
+            continue
+        if np.all(bin_comps >= 0):
+            visual_vals[:, b] = bin_comps
+        else:
+            pos_mask = bin_comps > 0
+            sum_pos = np.sum(bin_comps[pos_mask])
+            if sum_pos > 0:
+                visual_vals[pos_mask, b] = bin_comps[pos_mask] * (s / sum_pos)
+            else:
+                visual_vals[:, b] = 0
+
+    if uniform_bins:
+        edges_to_use = np.arange(n_bins + 1) - 0.5
+        plot_data["_uniform_bin_edges"] = stack_edges
+        plot_data["_uniform_n_bins"] = n_bins
+    else:
+        edges_to_use = stack_edges
+
+    bottoms = np.zeros(n_bins)
+    for i in range(len(stack_keys)):
+        top = bottoms + visual_vals[i]
+        fc = fill_colors[i]
+        ec = edge_colors[i]
+        ax.stairs(top, edges_to_use, baseline=bottoms, fill=True, color=fc, linewidth=0)
+        if ec is not None and ec not in ["None", "none"]:
+            ax.stairs(top, edges_to_use, baseline=bottoms, color=ec, linewidth=0.5)
+        bottoms = top
+
+    # Draw total stack outline
+    ax.stairs(np.maximum(0, tot_stack), edges_to_use, color="k", linewidth=1.0)
 
 
 def _build_stack_legend_patches(stack_dict: Dict) -> List:
@@ -494,8 +498,12 @@ def _resolve_hist_source(source: HistSource, plot_data: Dict) -> Tuple[np.ndarra
     if source.source == "hists":
         h = plot_data["hists"][source.key]
         return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
-    # source == "stack"
+    # source == "stack": the whole stack, or with a key one component of it (e.g. the ttbar part,
+    # so a ttbar pseudodata overlay can be ratioed to the MC it should follow)
     stack = plot_data["stack"]
+    if source.key:
+        h = stack[source.key]
+        return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
     values = np.sum([np.array(v["values"]) for v in stack.values()], axis=0)
     variances = np.sum([np.array(v["variances"]) for v in stack.values()], axis=0)
     first = next(iter(stack.values()))
