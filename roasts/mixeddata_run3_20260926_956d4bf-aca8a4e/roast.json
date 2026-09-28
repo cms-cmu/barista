@@ -284,6 +284,19 @@
           "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
           "ssh": "jda102@cmslpc346.fnal.gov",
           "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 19:48:10",
+          "cores": 8,
+          "extra": "--forcerun M6_hists_mixed",
+          "user_extra": "--forcerun M6_hists_mixed",
+          "targets": "all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
         }
       ]
     }
@@ -532,6 +545,21 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-27 19:48:09",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/analysis/helpers/event_weights.py"
+      ],
+      "what": "git apply of coffea4bees a7de466da's event_weights.py hunk: mixed-data JCM argument nSelJets-3 (the fit's variable) instead of nUntaggedLoose+1, which under-weighted mixed events with >=5 loose tags (MvD roast: -4.7% of the four-tag SB yield). Only M6_hists_mixed uses this path; force-rerun, M.6 downstream rebuilt."
+    },
+    {
+      "ts": "2026-09-27 19:48:10",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
     }
   ],
   "notes": "Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page. HOTPATCH 7: equal-probability subsample wrap (see history).",

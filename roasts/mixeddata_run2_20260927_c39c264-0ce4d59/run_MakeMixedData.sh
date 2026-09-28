@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData -- generated 2026-09-27 04:05:10
+# roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData -- generated 2026-09-27 19:48:11
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -17,7 +17,7 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_MakeMixedData.smk all_M6 --configfile roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mixeddata_run2_20260927_c39c264-0ce4d59 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MakeMixedData.smk all_M6 --configfile roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mixeddata_run2_20260927_c39c264-0ce4d59 --forcerun M6_hists_mixed 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast mixeddata_run2_20260927_c39c264-0ce4d59 step MakeMixedData exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
