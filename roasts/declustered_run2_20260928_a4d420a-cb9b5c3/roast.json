@@ -1,0 +1,122 @@
+{
+  "id": "declustered_run2_20260928_a4d420a-cb9b5c3",
+  "label": "declustered_run2",
+  "created": "2026-09-28 07:43:21",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "a4d420a4bce14448708d59dc8ada8313a2d2ebc6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "cb9b5c311a082b5baf42991a2c2f66425e26e697",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run2.yml",
+    "captured": "config.yml",
+    "sha256": "197b95945acf3beab2e6de366ba31b940c75ac0f0df39c8dbec86b602217c231"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run2_20260919_a180b1a-a16559c",
+        "barista": "a180b1a6b5499706707ba04b2f7f4a0496ea0dfb",
+        "coffea4bees": "a16559c7b91ff76be95f9547defa5439d2b23841",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c/output/TESTRun2/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "ttbar_psdata": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-28 07:48:00",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_a4d420a-cb9b5c3_DeClustered",
+          "ssh": "jda102@cmslpc329.fnal.gov",
+          "config_sha256": "197b95945acf"
+        },
+        {
+          "ts": "2026-09-28 07:54:34",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_a4d420a-cb9b5c3_DeClustered",
+          "ssh": "jda102@cmslpc329.fnal.gov",
+          "config_sha256": "197b95945acf"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/declustered_run2_20260928_a4d420a-cb9b5c3/barista",
+      "ssh": "jda102@cmslpc329.fnal.gov",
+      "checked_out": "2026-09-28 07:47:59"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-09-28 07:43:21",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-28 07:47:59",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 07:48:00",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 07:54:34",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "Run 2 DeClustered dataset, 1 seed, ttbar subtracted (FvT d4_to_t4): synthetic_data_multijet + synthetic_data_4b (multijet + ttbar_PSData from mixeddata_run2_20260927_c39c264-0ce4d59). D.1-D.5. FvT + B.1 hists/config from nominal_run2_20260919_a180b1a-a16559c (blinded: no data SR)."
+}
