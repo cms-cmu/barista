@@ -218,7 +218,7 @@ class Friend(Configurable, namespace="root.Friend"):
     - :meth:`__exit__`: See :meth:`auto_dump`.
     """
 
-    allow_missing = config(True)
+    allow_missing = config(False)
 
     name: str
     """str : Name of the collection."""
