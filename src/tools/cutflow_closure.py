@@ -32,7 +32,8 @@ informational only.
 ``--multijet sample4b`` (DeClustered D.5, workflows/Snakefile_DeClustered_5_monitoring.smk): the
 same arithmetic for any four-tag multijet sample taken as is (``--multijet-process syn_v0``),
 with tt 4b the ttbar MC. ``--pseudodata ttbar_PSData`` adds a ttbar pseudodata column compared
-with tt 4b.
+with tt 4b, and ``--compare mix_v3`` a column per process compared with Bkg (a closure
+pseudo-experiment, e.g. one mixeddata_4b subsample: MakeMixedData M.6).
 """
 
 from __future__ import annotations
@@ -94,17 +95,19 @@ def cut_order(counts: dict, requested: list | None) -> list:
 
 # --------------------------------------------------------------------------- aggregation
 def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_process: str | None = None,
-              pseudodata: list | None = None):
+              pseudodata: list | None = None, compare: list | None = None):
     """Return (years, table) with table[year][cut] = dict of sums:
     data3, data4, data4_raw, tt3[comp], tt4[comp], mj4 (four-tag multijet_process, if given) and
     ps4 (the `pseudodata` processes, if given)."""
     pseudodata = list(pseudodata or [])
+    compare = list(compare or [])
     years = OrderedDict()
     table = defaultdict(lambda: defaultdict(lambda: {
         "data3": 0.0, "data4": 0.0, "data4_raw": 0.0, "data3_raw": 0.0,
         "tt3": defaultdict(float), "tt4": defaultdict(float),
         "tt3_raw": defaultdict(float), "tt4_raw": defaultdict(float),
-        "mj3": 0.0, "mj4": 0.0, "mj4_raw": 0.0, "ps4": 0.0, "ps4_raw": 0.0}))
+        "mj3": 0.0, "mj4": 0.0, "mj4_raw": 0.0, "ps4": 0.0, "ps4_raw": 0.0,
+        "cmp4": defaultdict(float), "cmp4_raw": defaultdict(float)}))
     unknown = set()
     for key, block in (("counts3", "3"), ("counts4", "4")):
         for ds, per_cut in counts[key].items():
@@ -117,6 +120,8 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_pr
                 kind = "mj"
             elif process in pseudodata:
                 kind = "ps"
+            elif process in compare:
+                kind = "cmp"
             elif process in ttbar:
                 kind = process
             else:
@@ -141,6 +146,10 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_pr
                         if block == "4":
                             cell["ps4"] += v
                             cell["ps4_raw"] += float(unit.get(cut, v))
+                    elif kind == "cmp":
+                        if block == "4":
+                            cell["cmp4"][process] += v
+                            cell["cmp4_raw"][process] += float(unit.get(cut, v))
                     else:
                         cell[f"tt{block}"][kind] += v
                         cell[f"tt{block}_raw"][kind] += float(unit.get(cut, 0.0))
@@ -172,6 +181,7 @@ _FOUR_TAG_MODES = ("mixed4b", "sample4b")      # Multijet = a four-tag sample (-
 _multijet_mode = "data3b-tt3b"
 _multijet_process = ""
 _pseudodata: list = []          # --pseudodata: extra ttbar pseudodata column vs tt 4b
+_compare: list = []             # --compare: extra column per process vs Bkg
 
 
 def derived(cell: dict, ttbar: list) -> dict:
@@ -198,8 +208,13 @@ def derived(cell: dict, ttbar: list) -> dict:
     ps = cell["ps4"]
     ps_ratio = ps / tt4 if (_pseudodata and tt4) else nan
     ps_err = ps_ratio / math.sqrt(cell["ps4_raw"]) if (not math.isnan(ps_ratio) and cell["ps4_raw"] > 0) else nan
+    cmp = {}
+    for p in _compare:
+        n, n_raw_p = cell["cmp4"].get(p, 0.0), cell["cmp4_raw"].get(p, 0.0)
+        r = n / bkg if bkg else nan
+        cmp[p] = (n, n_raw_p, r, r / math.sqrt(n_raw_p) if (not math.isnan(r) and n_raw_p > 0) else nan)
     return {"tt3": tt3, "tt4": tt4, "mj": mj, "bkg": bkg, "ratio": ratio, "err": err, "tt3frac": frac,
-            "ps": ps, "ps_ratio": ps_ratio, "ps_err": ps_err, "alltag": False}
+            "ps": ps, "ps_ratio": ps_ratio, "ps_err": ps_err, "cmp": cmp, "alltag": False}
 
 
 # --------------------------------------------------------------------------- formatting
@@ -248,6 +263,8 @@ def headers(ttbar: list, detailed: bool) -> list:
     h += ["Bkg", "data 4b", "data / Bkg"]
     if _pseudodata:
         h += ["tt pseudodata 4b", "pseudodata / tt 4b"]
+    for p in _compare:
+        h += [f"{p} 4b", f"{p} / Bkg"]
     return h
 
 
@@ -260,7 +277,7 @@ def row_values(cut: str, cell: dict, ttbar: list, detailed: bool) -> list:
         r += ["-", "-"]
         if detailed:
             r += ["-"] * len(ttbar)
-        return r + ["-", "-", "-"] + (["-", "-"] if _pseudodata else [])
+        return r + ["-", "-", "-"] + (["-", "-"] if _pseudodata else []) + ["-", "-"] * len(_compare)
     # detailed text view: weighted value followed by the raw entry count in parentheses
     w = (lambda v, raw: f"{fnum(v)} {fraw(raw)}") if detailed else (lambda v, raw: fnum(v))
     r = [cut_label(cut), w(cell["data3"], cell["data3_raw"]), w(d["tt3"], tt_raw(cell, "3", ttbar))]
@@ -272,6 +289,9 @@ def row_values(cut: str, cell: dict, ttbar: list, detailed: bool) -> list:
     r += [fnum(d["bkg"]), w(cell["data4"], cell["data4_raw"]), fratio(d["ratio"], d["err"])]
     if _pseudodata:
         r += [w(d["ps"], cell["ps4_raw"]), fratio(d["ps_ratio"], d["ps_err"])]
+    for p in _compare:
+        n, n_raw_p, cr, ce = d["cmp"][p]
+        r += [w(n, n_raw_p), fratio(cr, ce)]
     return r
 
 
@@ -336,6 +356,8 @@ def html_table(title: str, cuts: list, cells: dict, ttbar: list) -> str:
     hdr += [th("Bkg", "grp"), th("data 4b", "grp"), th("data / Bkg", "grp")]
     if _pseudodata:
         hdr += [th("tt pseudodata 4b"), th("pseudodata / tt 4b")]
+    for p in _compare:
+        hdr += [th(f"{p} 4b"), th(f"{p} / Bkg")]
     rows = []
     for c in cuts:
         if c not in cells:
@@ -345,7 +367,7 @@ def html_table(title: str, cuts: list, cells: dict, ttbar: list) -> str:
         if d["alltag"]:
             n_det = 2 * len(ttbar) + 1
             tds = [f"<td>{html.escape(cut_label(c))} <span style='color:#999'>(all tags)</span></td>", wr(cell['data3'], cell['data3_raw']),
-                   wr(d['tt3'], tt_raw(cell, '3', ttbar))] + ['<td class="det">-</td>'] * n_det + ["<td>-</td>"] * (7 if _pseudodata else 5)
+                   wr(d['tt3'], tt_raw(cell, '3', ttbar))] + ['<td class="det">-</td>'] * n_det + ["<td>-</td>"] * (5 + (2 if _pseudodata else 0) + 2 * len(_compare))
             rows.append("<tr>" + "".join(tds) + "</tr>")
             continue
         dev = abs(d["ratio"] - 1) if not math.isnan(d["ratio"]) else float("nan")
@@ -359,6 +381,11 @@ def html_table(title: str, cuts: list, cells: dict, ttbar: list) -> str:
             pdev = abs(d["ps_ratio"] - 1) if not math.isnan(d["ps_ratio"]) else float("nan")
             pcls = "ratio " + ("ok" if pdev < 0.05 else "warn" if pdev < 0.20 else "bad") if not math.isnan(pdev) else "ratio"
             tds += [wr(d["ps"], cell["ps4_raw"]), f'<td class="{pcls}">{fratio(d["ps_ratio"], d["ps_err"])}</td>']
+        for p in _compare:
+            n, n_raw_p, cr, ce = d["cmp"][p]
+            cdev = abs(cr - 1) if not math.isnan(cr) else float("nan")
+            ccls = "ratio " + ("ok" if cdev < 0.05 else "warn" if cdev < 0.20 else "bad") if not math.isnan(cdev) else "ratio"
+            tds += [wr(n, n_raw_p), f'<td class="{ccls}">{fratio(cr, ce)}</td>']
         rows.append("<tr>" + "".join(tds) + "</tr>")
     return (f"<h2>{html.escape(title)}</h2><div class=\"wrap\"><table><thead><tr>{''.join(hdr)}</tr></thead>"
             f"<tbody>{''.join(rows)}</tbody></table></div>")
@@ -370,7 +397,9 @@ def render_html(title: str, source: str, years: list, table, cuts: list, ttbar: 
     return (PAGE.replace("__TITLE__", html.escape(title)).replace("__SUB__", sub)
             .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode].replace("__MJPROC__", html.escape(_multijet_process))
                      + (f"; tt pseudodata = {html.escape(' + '.join(_pseudodata))}, compared with tt 4b MC (error from its raw count)"
-                        if _pseudodata else ""))
+                        if _pseudodata else "")
+                     + (f"; {html.escape(', '.join(_compare))} compared with Bkg (error from its raw count)"
+                        if _compare else ""))
             .replace("__TABLES__", "\n".join(tables)))
 
 
@@ -392,24 +421,31 @@ def main(argv=None) -> int:
                     help="process whose four-tag cutflow is the Multijet with --multijet mixed4b / sample4b")
     ap.add_argument("--pseudodata", nargs="+", default=None, metavar="PROCESS",
                     help="ttbar pseudodata processes (e.g. ttbar_PSData): extra column, compared with tt 4b MC")
+    ap.add_argument("--compare", nargs="+", default=None, metavar="PROCESS",
+                    help="four-tag processes shown as extra columns compared with Bkg (e.g. one mixeddata_4b "
+                         "subsample, mix_v3: a closure pseudo-experiment)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
-    global _multijet_mode, _multijet_process, _pseudodata
+    global _multijet_mode, _multijet_process, _pseudodata, _compare
     _multijet_mode = args.multijet
     _multijet_process = args.multijet_process if args.multijet in _FOUR_TAG_MODES else ""
     _pseudodata = list(args.pseudodata or [])
+    _compare = list(args.compare or [])
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
     counts = load_counts(args.input)
     cuts = cut_order(counts, args.cuts)
     years, table = aggregate(counts, args.data, args.ttbar, cuts,
-                             multijet_process=_multijet_process or None, pseudodata=_pseudodata)
+                             multijet_process=_multijet_process or None, pseudodata=_pseudodata, compare=_compare)
     if not years:
         raise SystemExit(f"no '{args.data}' or ttbar datasets found in {args.input}")
     for name, procs, key in (("multijet-process", [_multijet_process] if _multijet_mode == "sample4b" else [], "mj4"),
                              ("pseudodata", _pseudodata, "ps4")):
         if procs and not any(cell[key] for cell in table["all"].values()):
             raise SystemExit(f"--{name} {procs} not found in the counts4 of {args.input}")
+    for p in _compare:
+        if not any(cell["cmp4"].get(p) for cell in table["all"].values()):
+            raise SystemExit(f"--compare {p} not found in the counts4 of {args.input}")
     title = args.title or os.path.splitext(os.path.basename(args.input))[0]
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
