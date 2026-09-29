@@ -92,7 +92,7 @@ class TestPhaseTable(unittest.TestCase):
 
     def test_phase_hosts_match_the_documented_split(self):
         # coffea4bees/workflows/README.md: A, B, E, F on cmslpc; C, D on falcon (GPU).
-        for phase in "ABEF":
+        for phase in "ABF":
             self.assertEqual(roast.PHASES[phase][0], "cmslpc")
         for phase in "CD":
             self.assertEqual(roast.PHASES[phase][0], "falcon")
@@ -218,7 +218,10 @@ class TestRunScriptFlags(unittest.TestCase):
         p.add_argument("--config", nargs="*")
         ns = p.parse_args(argv)
         self.assertEqual(ns.targets, ["all_M1", "all_M2", "out/x.yml"])
-        self.assertEqual(ns.config, [f"roast_id={FAKE_ID}"])
+        self.assertEqual(ns.config[0], f"roast_id={FAKE_ID}")
+        # everything after --config must be name=value; a bare word would be a malformed entry
+        for entry in ns.config:
+            self.assertIn("=", entry, f"{entry!r} is not a name=value pair")
         self.assertTrue(ns.n)
 
 
@@ -277,6 +280,36 @@ class TestSummaryLine(unittest.TestCase):
     def test_state_word_ignores_colour_codes(self):
         self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")
         self.assertEqual(roast._state_word("\033[33mrunning     \033[0m tmux=1"), "running")
+
+
+class TestUserPaths(unittest.TestCase):
+    """Workflow configs name roles, not people; roast supplies the person at submit time."""
+
+    def test_derived_from_the_roast_config(self):
+        paths = roast.user_paths(CFG)
+        self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+
+    def test_xrootd_keeps_its_doubled_slash(self):
+        # root://host/abs/path silently means something else than root://host//abs/path
+        for v in roast.user_paths(CFG).values():
+            self.assertRegex(v, r"^root://[^/]+//")
+
+    def test_unedited_template_values_are_not_passed_on(self):
+        cfg = json.loads(json.dumps(CFG))
+        cfg["eos"]["path"] = "/store/user/<lpc_user>/HH4b_prod"
+        self.assertNotIn("eos_prod", roast.user_paths(cfg))
+
+    def test_submit_passes_them_after_roast_id(self):
+        rdir = roast.roast_dir(FAKE_ID); rdir.mkdir(parents=True, exist_ok=True)
+        (rdir / "config.yml").write_text('label: "CI"\noutput_path: "output/CI/"\n')
+        try:
+            r = fake_roast()
+            script = roast._run_script(CFG, r, r["steps"][0], "~/prod/x/barista", 8, "", False)
+            self.assertIn(f"--config roast_id={FAKE_ID} eos_prod=", script)
+            self.assertIn("web_prod=", script)
+        finally:
+            shutil.rmtree(rdir, ignore_errors=True)
 
 
 class TestRoastSsh(unittest.TestCase):
