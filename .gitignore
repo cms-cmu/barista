@@ -196,6 +196,8 @@ logs/
 notes/
 .bashrc
 .cmslpc-local.conf
+.cmslpc-local-conf
+inputs/
 coffea4bees
 bbreww
 .claude/

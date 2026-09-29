@@ -1036,6 +1036,19 @@ run_classifier() {
         info "FALCON cluster detected. Will submit jobs via SLURM."
     fi
 
+    if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+        FLAGS+=(
+            -B "${HOME}/.globus:${HOME}/.globus"
+            -B /cvmfs
+            -B /ocean/projects/phy260026p
+            -B /jet/home
+            -B /tmp:/tmp
+            --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+            --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
+        )
+    fi
+
     # Bind X509 proxy for XRootD authentication
     local PROXY="${PWD}/proxy/x509_proxy"
     if [ ! -f "$PROXY" ] && [ -n "${X509_USER_PROXY:-}" ] && [ -f "$X509_USER_PROXY" ]; then
