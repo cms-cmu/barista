@@ -84,6 +84,31 @@ bin/roast new --config coffea4bees/workflows/config/run3_SvB_c6mvd.yaml --label 
 To reproduce someone else's run with different code, take the config and shas from their
 manifest and pass `--barista` and `--coffea4bees` explicitly.
 
+### Who a run belongs to
+
+A workflow config in git names no one. Where it would name a person it writes a placeholder:
+
+```yaml
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+fvt:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+```
+
+`{eos_prod}` is your production area on FNAL EOS and `{web_prod}` your CERNBox web area.
+`roast submit` reads both from `~/.config/roast/config.json`, the file `roast init` wrote,
+and passes them alongside `{roast_id}`, so you never configure them twice. Running snakemake
+by hand without roast works too: `helpers/common.smk` falls back to
+`~/.config/coffea4bees/profile.yml` and then to values derived from your account names, so a
+dry run needs no setup at all.
+
+The point of resolving this at submit time rather than baking it into the captured config is
+that a roast stays shareable. Take a colleague's manifest and config, run them under your own
+profile, and the outputs land in your area rather than theirs. What each run actually resolved
+to is recorded in its manifest and shown on its page, so provenance still says where the
+results went.
+
 ### Run-scoped output paths
 
 A workflow config may contain the placeholder `{roast_id}`, as `nominal_run2.yml` does for

@@ -61,7 +61,6 @@ PHASES = {
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
     "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
-    "E": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseE.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
 }
 
@@ -596,6 +595,24 @@ def cmd_checkout(args) -> None:
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
 
 
+def user_paths(cfg: dict) -> dict:
+    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
+
+    Derived from what `roast init` already wrote, so a config in git never names a person,
+    and a colleague re-running your roast writes into their own area rather than yours.
+    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
+    """
+    out = {}
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
+    web = (cfg.get("cernbox") or {}).get("eos_path")
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
+
+
 def _window_name(r: dict, step: dict) -> str:
     """tmux window for a step.  Must identify the roast, not just its label and date:
     submit closes a window of this name when no driver of *this* roast is alive, so two
@@ -619,8 +636,12 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # appended after `--config roast_id=...` is parsed as a malformed name=value entry and
     # snakemake exits ("Config entries have to be defined as name=value pairs").
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
+    # --config carries what the captured YAML deliberately does not know: which run this is
+    # (from the manifest) and whose production area to write into (from ~/.config/roast/config.json).
+    # More name=value pairs are safe here; a bare target is not, hence tgts above.
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
     base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
-            f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}")
+            f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
         base += f" {step['extra']}"
     if extra:
@@ -761,6 +782,9 @@ def _submit(args, resume: bool) -> None:
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     print(res.stdout.strip())
+    paths = user_paths(cfg)
+    if paths and r.get("user_paths") != paths:
+        r["user_paths"] = paths          # where this run writes; the captured config stays user-neutral
     cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
     if cfg_sha != r["config"]["sha256"]:
         info("captured config.yml changed since `new`; recording the new sha256")
@@ -1527,6 +1551,7 @@ def write_docs(cfg: dict, r: dict) -> None:
         else f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) |",
         f"| results | [{url}]({url}) |" if url else "| results | not published |",
         f"| manifest | [roast.json]({url}roasts/{r['id']}/roast.json) |" if url else "",
+        (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
         (f"| archive (EOS) | `{r['archive']['eos']}/` (list: `xrdfs root://{r['archive']['eos'].split('//')[1]} ls -R /{r['archive']['eos'].split('//')[2]}`) |"
          if r.get("archive", {}).get("eos") else ""),
         "",
