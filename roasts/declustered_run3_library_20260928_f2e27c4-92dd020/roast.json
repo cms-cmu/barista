@@ -129,7 +129,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020/",
-    "ts": "2026-09-29 09:38:17",
+    "ts": "2026-09-29 09:54:52",
     "ok": true,
     "pages": [
       "output/declustered_run3_library_20260928_f2e27c4-92dd020/D2/index.html",
@@ -173,6 +173,12 @@
     },
     {
       "ts": "2026-09-29 09:38:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 09:54:51",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
