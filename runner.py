@@ -275,8 +275,8 @@ if __name__ == '__main__':
     if weights_val:
         args.weights = weights_val
 
-    metadata_val = configs.get('dataset_location') or configs.get('metadata') or cfg_runner.get('dataset_location') or cfg_runner.get('metadata')
-    if metadata_val:
+    metadata_val = configs.get('metadata') or cfg_runner.get('metadata') or configs.get('dataset_location') or cfg_runner.get('dataset_location')
+    if metadata_val and not getattr(args, 'metadata', None):
         args.metadata = metadata_val
 
     for r_key in ['condor', 'shared_dask', 'slurm', 'run_dask', 'worker_memory']:
