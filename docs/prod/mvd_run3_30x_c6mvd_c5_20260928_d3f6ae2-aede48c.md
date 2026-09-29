@@ -9,7 +9,7 @@
 | config | `coffea4bees/workflows/config/mvd_run3_30x_c6mvd_c5.yml` (sha256 `d75c1c3f119d`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/roast.json) |
-
+| archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c`) |
 
 ## Steps
 
@@ -22,6 +22,7 @@
 
 | workflow | page |
 |---|---|
+| SvB_MvD_30x_c5_c6mvd | [yields](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/output/SvB_MvD_30x_c5_c6mvd/yields.html) |
 | V4 | [plots_MvD_30x_c6mvd_c5 gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/output/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_c5/index.html) |
 | V4 | [summary](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/output/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/V4/stat_analysis/summary.html) |
 
@@ -41,3 +42,7 @@ c5 SvB against the c6-feature 30x MvD (mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede4
 - 2026-09-29 11:08:30 submit step=MvD host=cmslpc
 - 2026-09-29 11:10:10 submit step=MvD host=cmslpc
 - 2026-09-29 15:21:48 publish host=cmslpc ok=True
+- 2026-09-29 15:39:55 publish host=cmslpc ok=True
+- 2026-09-29 15:40:10 publish host=falcon ok=True
+- 2026-09-29 15:40:12 archive host=cmslpc ok=True
+- 2026-09-29 15:40:15 archive host=falcon ok=True
