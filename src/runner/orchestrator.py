@@ -162,7 +162,9 @@ def setup_pico_base_name(configs):
 
     # Check for special configurations
     if "declustering_rand_seed" in config_config:
-        return f'picoAOD_seed{config_config["declustering_rand_seed"]}'
+        # must match the DeClusterer's own pico_base_name (library-based declustering adds "lib_")
+        tag = "lib_" if config_config.get("declustering_method", "pdf") == "library" else ""
+        return f'picoAOD_{tag}seed{config_config["declustering_rand_seed"]}'
 
     class_name = config_runner.get("class_name")
     if class_name == "SubSampler":
