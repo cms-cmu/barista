@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/mvd_run3_30x_c6mvd_c5.yml",
     "captured": "config.yml",
-    "sha256": "13eab2f796d18d053ff2c58106b9b855e9dd461e37e9e554e7eab52d7ab25878",
+    "sha256": "d75c1c3f119d015f05b6d8f68b427ea4263c8f82881ad34e209dac8302dd48e4",
     "base": [
       {
         "source": "coffea4bees/workflows/config/mvd_run3.yml",
@@ -139,7 +139,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-29 11:08:30",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_c5_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "d75c1c3f119d"
+        },
+        {
+          "ts": "2026-09-29 11:10:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_c5_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "d75c1c3f119d"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -154,7 +182,16 @@
       "checked_out": "2026-09-28 19:16:45"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/",
+    "ts": "2026-09-29 15:21:48",
+    "ok": true,
+    "pages": [
+      "output/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_c5/index.html",
+      "output/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-09-28 19:15:36",
@@ -190,6 +227,29 @@
         "roasts/mvd_run3_30x_c6mvd_c5_20260928_d3f6ae2-aede48c/config.yml (mtime kept)"
       ],
       "what": "mvd_pmix4_floor -> 0.01 for the c6 MvD (floor scan on this MvD's V.2c: 0.05 SR/SB 1.043/1.059, 0.01 1.006/1.019, none 1.004/1.015; 0.05 clipped real weight of the sharper c6 MvD). Proposed by Claude overnight, pending John's confirmation."
+    },
+    {
+      "ts": "2026-09-29 11:08:30",
+      "event": "config-edited",
+      "sha256": "d75c1c3f119d"
+    },
+    {
+      "ts": "2026-09-29 11:08:30",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 11:10:10",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 15:21:48",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "c5 SvB against the c6-feature 30x MvD (mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c)"
