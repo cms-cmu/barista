@@ -275,8 +275,8 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a/",
-    "ts": "2026-09-30 07:47:01",
-    "ok": true,
+    "ts": "2026-09-30 09:01:48",
+    "ok": null,
     "pages": [
       "output/FvT_ttHbb_stitched/yields.html",
       "output/SvB_ttHbb_stitched/yields.html",
@@ -289,7 +289,11 @@
       "output/ttHbb/computeJCM/cutflow_NoJCM_stitchedttbar.html",
       "output/ttHbb/computeJCM/cutflow_wJCM.html",
       "output/ttHbb/computeJCM/cutflow_wJCM_stitchedttbar.html",
-      "output/ttHbb/computeJCM/plots_wJCM/index.html"
+      "output/ttHbb/computeJCM/plots_wJCM/index.html",
+      "output/ttHbb/cutflow_crosscheck_ttHbb.html",
+      "output/ttHbb/cutflow_ttHbb.html",
+      "output/ttHbb/plots_ttHbb/index.html",
+      "output/ttHbb/stat_analysis/summary.html"
     ]
   },
   "history": [
@@ -418,9 +422,21 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-09-30 09:01:09",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 09:01:21",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
-  "notes": "Run 2 ttHbb, stitched ttbar; F.1/C.4 on this roast's FvT/SvB/JCM",
+  "notes": "Run 2 ttHbb, stitched ttbar (TTTo*_stitched incl. TTbb). Phases B, C, C4, D, F (A skipped: picoAODs from algomez/XX4b/2024_v2). F.1/C.4 use this roast's own JCM, FvT and SvB (captured config overrides; the source analysis_ttHbb.yml keeps the static ttHbb_stitched friends for CI).\n\n**Results.** JCM fit (SB): \u03c7\u00b2/ndf = 20.2/12, closure 1.000 \u00b1 0.003. F.1 vs C.4 cutflow crosscheck: PASS (210 compared, 0 differ; blinded 4b data ignored). Combine (blinded, Asimov): expected significance 7.5\u03c3 / limit 0.26 \u00d7 SM for `ttHbb`; systematics are only the data-driven background shape basis (borrowed HIG-24-010 zz closure), lumi and BR, i.e. effectively stat-only.\n\n**Known issues.**\n- The C.4 and F.1 closure cutflow tables (`cutflow_FvT_closure.html`, `cutflow_closure_ttHbb.html`) show tt 4b = 0: `processor_ttHbb.fill_detailed_cutflows` does not call `_fill_ttbar_detailed_cutflows`, so the `TTbar_from_d3` cutflow entries are empty. The histograms (plots, Combine `tt` template) are unaffected. Fixed upstream after this roast; not rerun. Use [cutflow_FvT_closure_MCttbar](https://johnda.web.cern.ch/johnda/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a/output/ttHbb/FvT_closure/cutflow_FvT_closure_MCttbar.html) (4b ttbar from MC, made by hand): SR 1.072, SB 1.053.\n- The B.1 closure table (`computeJCM/cutflow_wJCM.html`) also shows tt = 0: the closure-table rule hardcodes non-stitched ttbar names. Hand-regenerated with the stitched names: [cutflow_wJCM_stitchedttbar](https://johnda.web.cern.ch/johnda/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a/output/ttHbb/computeJCM/cutflow_wJCM_stitchedttbar.html) (SB 1.000, SR 1.339).\n- B.1 JCM fit ran with `--data4bName data` (jcm_extra_arguments): make_jcm_weights.py replaces data4bName with the `-w` label when it contains \"v\".\n- Cutflow references are dump-only (no blessed ttHbb full-run counts yet); bless from this roast.",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
