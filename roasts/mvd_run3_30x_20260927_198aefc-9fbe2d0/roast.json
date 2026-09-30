@@ -279,7 +279,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_30x_20260927_198aefc-9fbe2d0",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_20260927_198aefc-9fbe2d0/",
-    "ts": "2026-09-28 07:49:50",
+    "ts": "2026-09-28 10:40:43",
     "ok": true,
     "pages": [
       "output/MvD_30x/yields.html",
@@ -428,12 +428,36 @@
       "event": "resume",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 10:40:28",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 10:40:42",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 10:40:44",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 10:40:45",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "Run 3 MvD with ~30x-capacity MvD and SvB (n_features 54); V.1 products from mvd_run3_20260927_91be0e9-f18c44b",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_20260927_198aefc-9fbe2d0",
-    "ts": "2026-09-28 07:49:57",
+    "ts": "2026-09-28 10:40:45",
     "ok": true
   }
 }
