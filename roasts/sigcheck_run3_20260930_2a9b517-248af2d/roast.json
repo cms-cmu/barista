@@ -106,6 +106,19 @@
           "window": "sigcheck_run3_2a9b517-248af2d_DeClustered",
           "ssh": "jda102@cmslpc312.fnal.gov",
           "config_sha256": "60572ed14721"
+        },
+        {
+          "ts": "2026-09-30 17:47:14",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "sigcheck_run3_2a9b517-248af2d_DeClustered",
+          "ssh": "jda102@cmslpc312.fnal.gov",
+          "config_sha256": "60572ed14721"
         }
       ]
     }
@@ -117,7 +130,16 @@
       "checked_out": "2026-09-30 14:27:08"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/sigcheck_run3_20260930_2a9b517-248af2d",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/sigcheck_run3_20260930_2a9b517-248af2d/",
+    "ts": "2026-09-30 17:56:35",
+    "ok": true,
+    "pages": [
+      "output/sigcheck_run3_20260930_2a9b517-248af2d/D6/plots_declustered/index.html",
+      "output/sigcheck_run3_20260930_2a9b517-248af2d/D6/plots_signal/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-09-30 14:25:15",
@@ -133,6 +155,18 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 17:47:14",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 17:56:32",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "D.6 signal check as the current M.7 (event_subsample 10, signal + declustered signal + declustered data, make_plots galleries) on the declustered_run3_library roast's library and data",
