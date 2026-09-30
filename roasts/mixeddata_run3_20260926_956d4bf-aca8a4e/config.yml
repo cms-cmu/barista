@@ -35,6 +35,9 @@ inputs:
   # mixed-data JCM fit (M.3), so both must come from the same selection as the mixing.
   JCM: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml"
   jcm_hists: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea"
+  # M.7 signal check (hot patch 2026-09-29): the analysis SvB, evaluated on the fly on the
+  # original and the mixed signal MC.
+  SvB_model: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json"
   # Optional: reuse another mixeddata roast's hemisphere library (its <publish_base>/hemilib) and
   # skip M.1 -- e.g. when only the mixing rank / matcher changes. Add that roast to upstream_roasts.
   # hemilib: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/<mixeddata roast id>/hemilib"
@@ -132,3 +135,13 @@ ttbar_psdata:
   worker_memory: 6GB
   chunksize: 100000
   picosize: 100000
+
+# ------------------------------------------------------------------------------
+# M.7: signal check (hot patch 2026-09-29) -- signal MC (every preselected event, 3b and 4b) mixed
+# with M.2's settings and M.1's library, histogrammed next to the original with SvB =
+# inputs.SvB_model on the fly.
+# ------------------------------------------------------------------------------
+signal_check:
+  enabled: true
+  datasets: ["GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"]   # the only Run 3 signal covering 2022 + 2023
+  chunksize: 20000
