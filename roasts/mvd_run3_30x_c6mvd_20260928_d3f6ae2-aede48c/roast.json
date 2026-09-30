@@ -322,9 +322,11 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/",
-    "ts": "2026-09-29 07:57:06",
+    "ts": "2026-09-29 15:39:41",
     "ok": true,
     "pages": [
+      "output/MvD_30x_c6/yields.html",
+      "output/SvB_MvD_30x_kin_c6mvd/yields.html",
       "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/cutflow_MvD_30x_c6_closure.html",
       "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/plots_MvD_30x_c6_closure/index.html",
       "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_kin/index.html",
@@ -494,7 +496,36 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:41",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:44",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:49",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
-  "notes": "30x MvD with the 16 c6 jet features (MvD >= SvB in features); kinematic SvB against it; c5/c5b/c6 SvB overlays reuse this MvD"
+  "notes": "30x MvD with the 16 c6 jet features (MvD >= SvB in features); kinematic SvB against it; c5/c5b/c6 SvB overlays reuse this MvD",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c",
+    "ts": "2026-09-29 15:39:49",
+    "ok": true
+  }
 }
