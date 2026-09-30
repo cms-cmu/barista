@@ -124,28 +124,140 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-30 02:20:25",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "ba9e31ee01d4"
+        },
+        {
+          "ts": "2026-09-30 02:21:27",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "ba9e31ee01d4"
+        }
+      ]
     },
     {
       "name": "C4",
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-30 04:28:35",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_C4",
+          "ssh": "jda102@cmslpc339.fnal.gov",
+          "config_sha256": "ba9e31ee01d4"
+        },
+        {
+          "ts": "2026-09-30 04:30:44",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_C4",
+          "ssh": "jda102@cmslpc339.fnal.gov",
+          "config_sha256": "ba9e31ee01d4"
+        }
+      ]
     },
     {
       "name": "D",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-30 04:29:27",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "ba9e31ee01d4"
+        },
+        {
+          "ts": "2026-09-30 04:31:29",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "ba9e31ee01d4"
+        }
+      ]
     },
     {
       "name": "F",
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-30 07:23:58",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_F",
+          "ssh": "jda102@cmslpc339.fnal.gov",
+          "config_sha256": "ba9e31ee01d4"
+        },
+        {
+          "ts": "2026-09-30 07:24:23",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_run2_a209210-6a2293a_F",
+          "ssh": "jda102@cmslpc339.fnal.gov",
+          "config_sha256": "ba9e31ee01d4"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -160,7 +272,26 @@
       "checked_out": "2026-09-29 15:46:49"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/ttHbb_run2_20260929_a209210-6a2293a/",
+    "ts": "2026-09-30 07:47:01",
+    "ok": true,
+    "pages": [
+      "output/FvT_ttHbb_stitched/yields.html",
+      "output/SvB_ttHbb_stitched/yields.html",
+      "output/ttHbb/FvT_closure/cutflow_FvT_closure.html",
+      "output/ttHbb/FvT_closure/cutflow_FvT_closure_MCttbar.html",
+      "output/ttHbb/FvT_closure/plots_FvT_closure/index.html",
+      "output/ttHbb/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/computeJCM/cutflow_NoJCM.html",
+      "output/ttHbb/computeJCM/cutflow_NoJCM_stitchedttbar.html",
+      "output/ttHbb/computeJCM/cutflow_wJCM.html",
+      "output/ttHbb/computeJCM/cutflow_wJCM_stitchedttbar.html",
+      "output/ttHbb/computeJCM/plots_wJCM/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-09-29 15:36:54",
@@ -227,6 +358,66 @@
       "event": "resume",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 02:20:25",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-30 02:21:27",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-30 04:28:35",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 04:29:27",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-30 04:30:44",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 04:31:29",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-30 07:23:58",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 07:24:23",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 07:46:37",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 07:47:01",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "Run 2 ttHbb, stitched ttbar; F.1/C.4 on this roast's FvT/SvB/JCM",
