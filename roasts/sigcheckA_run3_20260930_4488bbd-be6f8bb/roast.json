@@ -117,7 +117,15 @@
       "checked_out": "2026-09-30 09:16:31"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/sigcheckA_run3_20260930_4488bbd-be6f8bb",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/sigcheckA_run3_20260930_4488bbd-be6f8bb/",
+    "ts": "2026-09-30 12:09:23",
+    "ok": true,
+    "pages": [
+      "output/sigcheckA_run3_20260930_4488bbd-be6f8bb/D6/plots/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-09-30 09:14:52",
@@ -133,6 +141,12 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 12:09:23",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "D.6 signal check (M.7 pattern: into Phase F histAll, makePlots gallery), max_chunks 20, on the declustered_run3_library roast's library, variant A",
