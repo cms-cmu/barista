@@ -89,6 +89,32 @@
           "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
           "ssh": "jda102@cmslpc331.fnal.gov",
           "config_sha256": "ecc02ee45dd3"
+        },
+        {
+          "ts": "2026-09-29 02:34:57",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D3",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
+        },
+        {
+          "ts": "2026-09-29 08:43:16",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
         }
       ]
     }
@@ -100,7 +126,17 @@
       "checked_out": "2026-09-28 22:55:16"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020/",
+    "ts": "2026-09-29 09:54:52",
+    "ok": true,
+    "pages": [
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D2/index.html",
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D5/cutflow_monitoring.html",
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D5/plots/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-09-28 22:53:08",
@@ -122,6 +158,30 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 02:34:57",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 08:43:16",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 09:38:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 09:54:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Library-based (replacement) declustering, rank 0 (decluster-replacement branches)"
