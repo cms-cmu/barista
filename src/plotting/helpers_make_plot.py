@@ -288,6 +288,9 @@ def _draw_hists(hists_dict: Dict, plot_data: Dict, opts: RenderOptions) -> None:
             }
             if histtype == "errorbar":
                 plot_opts["markersize"] = DEFAULT_MARKERSIZE
+            elif hist_data.get("linestyle"):
+                # a config's `linestyle` (a _STYLE_KEYS entry) was accepted but never drawn
+                plot_opts["linestyle"] = hist_data["linestyle"]
             hist_obj.plot(**plot_opts)
 
 
