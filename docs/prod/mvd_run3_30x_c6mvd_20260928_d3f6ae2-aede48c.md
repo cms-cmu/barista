@@ -9,7 +9,7 @@
 | config | `coffea4bees/workflows/config/mvd_run3_30x_c6mvd.yml` (sha256 `2fad86282eea`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/roast.json) |
-
+| archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c`) |
 
 ## Steps
 
@@ -23,6 +23,8 @@
 
 | workflow | page |
 |---|---|
+| MvD_30x_c6 | [yields](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/output/MvD_30x_c6/yields.html) |
+| SvB_MvD_30x_kin_c6mvd | [yields](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/output/SvB_MvD_30x_kin_c6mvd/yields.html) |
 | V2c | [cutflow_MvD_30x_c6_closure](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/cutflow_MvD_30x_c6_closure.html) |
 | V2c | [plots_MvD_30x_c6_closure gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/plots_MvD_30x_c6_closure/index.html) |
 | V4 | [plots_MvD_30x_c6mvd_kin gallery](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_kin/index.html) |
@@ -61,3 +63,7 @@
 - 2026-09-29 07:30:10 submit step=MvD host=cmslpc
 - 2026-09-29 07:30:34 submit step=MvD host=cmslpc
 - 2026-09-29 07:57:06 publish host=cmslpc ok=True
+- 2026-09-29 15:39:16 publish host=cmslpc ok=True
+- 2026-09-29 15:39:41 publish host=falcon ok=True
+- 2026-09-29 15:39:44 archive host=cmslpc ok=True
+- 2026-09-29 15:39:49 archive host=falcon ok=True
