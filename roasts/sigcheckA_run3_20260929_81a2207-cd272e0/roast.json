@@ -113,7 +113,13 @@
       "checked_out": "2026-09-29 21:37:48"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/sigcheckA_run3_20260929_81a2207-cd272e0",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/sigcheckA_run3_20260929_81a2207-cd272e0/",
+    "ts": "2026-09-30 01:35:37",
+    "ok": true,
+    "pages": []
+  },
   "history": [
     {
       "ts": "2026-09-29 21:33:06",
@@ -129,6 +135,12 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 01:35:37",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "D.6 signal scrambling check (max_chunks 20/year) on the declustered_run3_library roast's library, variant A (current lookup)"
