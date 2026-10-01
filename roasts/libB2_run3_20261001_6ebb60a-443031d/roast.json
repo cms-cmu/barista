@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/declustered_run3_library_massmatch_reuseD1.yml",
     "captured": "config.yml",
-    "sha256": "6e7a781d1d0510b57577fcea603caa5f9903503b40aad362a84f66207925ac6c",
+    "sha256": "3857ce5c4b055ea760ba2da413b93dd7cbd5c106d8bb173cec0d1c139f23bfd2",
     "base": [
       {
         "source": "coffea4bees/workflows/config/declustered_run3.yml",
@@ -106,6 +106,19 @@
           "window": "libB2_run3_6ebb60a-443031d_DeClustered",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "6e7a781d1d05"
+        },
+        {
+          "ts": "2026-10-01 14:42:25",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libB2_run3_6ebb60a-443031d_DeClustered",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "3857ce5c4b05"
         }
       ]
     }
@@ -131,6 +144,17 @@
     {
       "ts": "2026-10-01 13:32:03",
       "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-01 14:42:25",
+      "event": "config-edited",
+      "sha256": "3857ce5c4b05"
+    },
+    {
+      "ts": "2026-10-01 14:42:25",
+      "event": "resume",
       "step": "DeClustered",
       "host": "cmslpc"
     }
