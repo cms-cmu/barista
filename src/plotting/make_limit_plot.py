@@ -25,6 +25,8 @@ if __name__ == '__main__':
                         default="r_{HH}", help="Label for the x-axis")
     parser.add_argument('--stat-only', dest='stat_only', action='store_true',
                         help="Only plot the stat. uncertainty (no systematics)")
+    parser.add_argument('--rlabel', dest='rlabel', default="135 fb$^{-1}$ (13 TeV)",
+                        help="right-hand CMS label, e.g. '62 fb$^{-1}$ (13.6 TeV)' for Run 3")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -58,8 +60,8 @@ if __name__ == '__main__':
         safe_label = label.replace('_', r'\_')
         ticks_labels.append(f"$\\bf\\mathrm{{{safe_label}}}${obs_line}\nExp:{limit['exp0']:.2f}")
         ax.vlines( limit['exp0'], i, i+0.98, color='k', linestyle='dashed', label=('expected' if i==0 else '') )
-        ax.fill_betweenx( [ i, i+0.98], 2*[limit['exp+2']], 2*[limit['exp-2']], color = '#85D1FBff', label=('68% expected' if i==0 else '' ) )
-        ax.fill_betweenx( [ i, i+0.98], 2*[limit['exp+1']], 2*[limit['exp-1']], color = '#FFDF7Fff', label=('95% expected' if i==0 else '' )  )
+        ax.fill_betweenx( [ i, i+0.98], 2*[limit['exp+2']], 2*[limit['exp-2']], color = '#85D1FBff', label=('95% expected' if i==0 else '' ) )
+        ax.fill_betweenx( [ i, i+0.98], 2*[limit['exp+1']], 2*[limit['exp-1']], color = '#FFDF7Fff', label=('68% expected' if i==0 else '' )  )
 
     ax.set_yticks( ticks )
     ax.set_yticklabels( ticks_labels )
@@ -67,7 +69,7 @@ if __name__ == '__main__':
     # ax.set_xlim([0, 10])
     ax.set_ylim([0, len(ticks)+1])
     # hep.cms.label("Supplementary", data=True, loc=1, ax=ax, rlabel="135 fb$^{-1}$ (13 TeV) & 62 fb$^{-1}$ (13.6 TeV)")
-    hep.cms.label("Work in Progress", data=True, loc=1, ax=ax, rlabel="135 fb$^{-1}$ (13 TeV)")
+    hep.cms.label("Work in Progress", data=True, loc=1, ax=ax, rlabel=args.rlabel)
     fig.tight_layout()
 
     # Style

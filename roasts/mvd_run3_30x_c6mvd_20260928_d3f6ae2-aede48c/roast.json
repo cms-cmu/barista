@@ -1,0 +1,531 @@
+{
+  "id": "mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c",
+  "label": "mvd_run3_30x_c6mvd",
+  "created": "2026-09-28 19:12:21",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "d3f6ae22cc3bc6be56c20b757afee1d884bf047a",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "aede48c9cf89f9f59c705d3e50071bd49e03cec6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mvd_run3_30x_c6mvd.yml",
+    "captured": "config.yml",
+    "sha256": "2fad86282eea4b09fb0e05eb5f118368d45f58bb1e2cb5091f392a4be3b3308b",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/mvd_run3.yml",
+        "sha256": "05dda4a63b262ed35c4e05ed12813b4eb68f8650e8dd6751177c2ca0192cf3dc"
+      },
+      {
+        "source": "coffea4bees/workflows/config/mvd_run3_30x.yml",
+        "sha256": "6218574988ca50dbd0439d058232baf4158e6bd6f167923065368e1036939cb9"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      },
+      {
+        "id": "mvd_run3_20260927_91be0e9-f18c44b",
+        "barista": "91be0e99ae799c0d1b050b01c64fea0a3a989cb3",
+        "coffea4bees": "f18c44bff7608d6defaef6ffd39cc585bf6e46cb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_20260927_91be0e9-f18c44b",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "classifier_inputs": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/classifier_inputs_nominal_run3_20260922_3f9e199-1e0504f.json",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "classifier_inputs_config": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/output/Run3_nominal/classifier_inputs/classifier_inputs_config.yml",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "JCM": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/handoff/jetCombinatoricModel_SB_Run3_v1.yml",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/output/Run3_nominal/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "analysis_config": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/output/Run3_nominal/analysis_config.yml",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "mixed_jcm": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_20260927_91be0e9-f18c44b/handoff/jetCombinatoricModel_SB_mixeddata_tight.yml",
+        "roast": "mvd_run3_20260927_91be0e9-f18c44b"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MvD_2_train",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-28 19:14:02",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "5c39cf6577c7"
+        },
+        {
+          "ts": "2026-09-28 19:14:53",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "5c39cf6577c7"
+        },
+        {
+          "ts": "2026-09-28 22:40:23",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6917d8a844f0"
+        },
+        {
+          "ts": "2026-09-28 22:40:45",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6917d8a844f0"
+        }
+      ]
+    },
+    {
+      "name": "MvD",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-29 00:28:06",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "6917d8a844f0"
+        },
+        {
+          "ts": "2026-09-29 00:29:32",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "6917d8a844f0"
+        },
+        {
+          "ts": "2026-09-29 00:58:26",
+          "cores": 8,
+          "extra": "--forcerun V2c_config",
+          "user_extra": "--forcerun V2c_config",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "2fad86282eea"
+        },
+        {
+          "ts": "2026-09-29 01:25:29",
+          "cores": 8,
+          "extra": "--forcerun V2c_config",
+          "user_extra": "--forcerun V2c_config",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "563983d34b70"
+        },
+        {
+          "ts": "2026-09-29 02:15:10",
+          "cores": 8,
+          "extra": "--forcerun V2c_config",
+          "user_extra": "--forcerun V2c_config",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "2fad86282eea"
+        },
+        {
+          "ts": "2026-09-29 07:30:10",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "2fad86282eea"
+        },
+        {
+          "ts": "2026-09-29 07:30:34",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD",
+          "ssh": "jda102@cmslpc325.fnal.gov",
+          "config_sha256": "2fad86282eea"
+        }
+      ]
+    },
+    {
+      "name": "MvD_3_svb",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-29 00:26:40",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6917d8a844f0"
+        },
+        {
+          "ts": "2026-09-29 00:27:59",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6917d8a844f0"
+        },
+        {
+          "ts": "2026-09-29 02:14:12",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "563983d34b70"
+        },
+        {
+          "ts": "2026-09-29 02:14:38",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_30x_c6mvd_d3f6ae2-aede48c_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "563983d34b70"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/barista",
+      "ssh": "jda102@cmslpc325.fnal.gov",
+      "checked_out": "2026-09-28 19:13:30"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-09-28 19:13:43"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/",
+    "ts": "2026-09-29 15:39:41",
+    "ok": true,
+    "pages": [
+      "output/MvD_30x_c6/yields.html",
+      "output/SvB_MvD_30x_kin_c6mvd/yields.html",
+      "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/cutflow_MvD_30x_c6_closure.html",
+      "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V2c/plots_MvD_30x_c6_closure/index.html",
+      "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_kin/index.html",
+      "output/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/V4/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-28 19:12:21",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-28 19:13:30",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 19:13:43",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-28 19:14:02",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-28 19:14:53",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-28 22:40:23",
+      "event": "config-edited",
+      "sha256": "6917d8a844f0"
+    },
+    {
+      "ts": "2026-09-28 22:40:23",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-28 22:40:45",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-29 00:26:40",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-29 00:27:59",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-29 00:28:06",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 00:29:32",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 00:58:14",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "roasts/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/config.yml (mtime kept)"
+      ],
+      "what": "floor study: mvd_pmix4_floor 0.05 -> 0.01 (cap MvD ~100). The c6 MvD is sharper (57 % of mixed x JCM SB weight at MvD<0.5, 3.2 % >5; kin 30x: 33 % / 1.8 %) and the 0.05 cap clipped real weight: <MvD> 0.954, closure SB 1.059 / SR 1.043. Floored-0.05 V2c outputs kept as *_floor0p05. V2c_config force-rerun."
+    },
+    {
+      "ts": "2026-09-29 00:58:26",
+      "event": "config-edited",
+      "sha256": "2fad86282eea"
+    },
+    {
+      "ts": "2026-09-29 00:58:26",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 01:25:27",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "roasts/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/config.yml (mtime kept)"
+      ],
+      "what": "floor study: 0.01 -> 0 (no floor). 0.01 gave closure SB 1.019 / SR 1.006 (0.05: 1.059 / 1.043). 0.01 outputs kept as *_floor0p01."
+    },
+    {
+      "ts": "2026-09-29 01:25:29",
+      "event": "config-edited",
+      "sha256": "563983d34b70"
+    },
+    {
+      "ts": "2026-09-29 01:25:29",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 02:14:12",
+      "event": "resume",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-29 02:14:38",
+      "event": "resume",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-09-29 02:15:05",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "roasts/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c/config.yml (mtime kept)"
+      ],
+      "what": "mvd_pmix4_floor -> 0.01 for the c6 MvD (floor scan on this MvD's V.2c: 0.05 SR/SB 1.043/1.059, 0.01 1.006/1.019, none 1.004/1.015; 0.05 clipped real weight of the sharper c6 MvD). Proposed by Claude overnight, pending John's confirmation."
+    },
+    {
+      "ts": "2026-09-29 02:15:10",
+      "event": "config-edited",
+      "sha256": "2fad86282eea"
+    },
+    {
+      "ts": "2026-09-29 02:15:10",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 06:22:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 07:30:10",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 07:30:34",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 07:57:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:41",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:44",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:39:49",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "30x MvD with the 16 c6 jet features (MvD >= SvB in features); kinematic SvB against it; c5/c5b/c6 SvB overlays reuse this MvD",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c",
+    "ts": "2026-09-29 15:39:49",
+    "ok": true
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "id": "declustered_run3_library_20260928_f2e27c4-92dd020",
+  "label": "declustered_run3_library",
+  "created": "2026-09-28 22:53:08",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "f2e27c4099bf52c3d193904e607e8b9c84b231ec",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "92dd02099413557204b4064adf24c3f219999967",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run3_library.yml",
+    "captured": "config.yml",
+    "sha256": "ecc02ee45dd399f650b146cf3a73969907a4067f140a62f42ed22e7fcd65939c",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/declustered_run3.yml",
+        "sha256": "733a7d89c83503d54ad12d5c8da3ef26ae688d4a33999d6e5c805ed842104c1d"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "ttbar_psdata": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-28 22:55:22",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
+        },
+        {
+          "ts": "2026-09-28 22:57:31",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
+        },
+        {
+          "ts": "2026-09-29 02:34:57",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D3",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
+        },
+        {
+          "ts": "2026-09-29 08:43:16",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declustered_ru_f2e27c4-92dd020_DeClustered",
+          "ssh": "jda102@cmslpc331.fnal.gov",
+          "config_sha256": "ecc02ee45dd3"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020/barista",
+      "ssh": "jda102@cmslpc331.fnal.gov",
+      "checked_out": "2026-09-28 22:55:16"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run3_library_20260928_f2e27c4-92dd020/",
+    "ts": "2026-09-29 09:54:52",
+    "ok": true,
+    "pages": [
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D2/index.html",
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D5/cutflow_monitoring.html",
+      "output/declustered_run3_library_20260928_f2e27c4-92dd020/D5/plots/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-28 22:53:08",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-28 22:55:16",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 22:55:22",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 22:57:31",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 02:34:57",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 08:43:16",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 09:38:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 09:54:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Library-based (replacement) declustering, rank 0 (decluster-replacement branches)"
+}
