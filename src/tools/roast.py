@@ -329,6 +329,13 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         resolved = node
         for ph, value in placeholders.items():
             resolved = resolved.replace(ph, value)
+        # {roast:<id>} names an upstream roast's own area (the workflow resolves it through that
+        # roast's manifest, helpers/common.smk); it must be one of upstream_roasts
+        unknown = [rid for rid in re.findall(r"\{roast:([^}]+)\}", resolved) if rid not in areas]
+        if unknown:
+            bad.append(f"{key}: {{roast:{unknown[0]}}} is not in upstream_roasts")
+            return
+        resolved = re.sub(r"\{roast:([^}]+)\}", lambda m: areas[m.group(1)], resolved)
         url = _norm_url(resolved)
         owner = next((i for i, a in areas.items() if url == a or url.startswith(a + "/")), None)
         if owner is None:

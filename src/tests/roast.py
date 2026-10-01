@@ -461,6 +461,15 @@ class TestCheckInputs(unittest.TestCase):
     def check(self, inputs):
         return roast.check_inputs(CFG, {"label": "x", "inputs": inputs})
 
+    def test_roast_placeholder_resolves_to_upstream_area(self):
+        rec = self.check({"upstream_roasts": self.UP,
+                          "FvT": f"{{roast:{self.UP}}}/friend/FvT_nominal/result.json@@analysis.0.merged"})
+        self.assertEqual(rec["refs"]["FvT"]["roast"], self.UP)
+
+    def test_roast_placeholder_must_be_an_upstream(self):
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "FvT": "{roast:some_other_roast}/friend/FvT/result.json"})
+
     def test_no_inputs_block(self):
         self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
 
