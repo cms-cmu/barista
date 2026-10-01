@@ -747,18 +747,24 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
         stack_variances = [v["variances"] for _, v in proc_config["sum"].items()]
         proc_config["variances"] = np.sum(stack_variances, axis=0).tolist()
 
-    # Copy metadata from first sum component
-    first_sum_entry = next(iter(proc_config["sum"].values()))
-    proc_config["centers"] = first_sum_entry["centers"]
-    proc_config["edges"] = first_sum_entry["edges"]
-    proc_config["x_label"] = first_sum_entry["x_label"]
+        # Copy metadata from first sum component
+        first_sum_entry = next(iter(proc_config["sum"].values()))
+        proc_config["centers"] = first_sum_entry["centers"]
+        proc_config["edges"] = first_sum_entry["edges"]
+        proc_config["x_label"] = first_sum_entry["x_label"]
 
-    # Combine under/overflow
-    stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
+        # Combine under/overflow
+        stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
 
-    stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+        stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+    else:
+        proc_name = proc_config.get("name", "unknown")
+        logger.warning(f"No valid sum components found for process {proc_name}")
+        proc_config["values"] = []
+        proc_config["variances"] = []
+        return False
 
 
 def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, List[float]]:
