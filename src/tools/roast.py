@@ -310,6 +310,9 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         if not up.get("archive", {}).get("ok"):
             info(f"WARNING: upstream roast {up['id']} is not archived; its products may still change")
     areas = {up["id"]: _norm_url(_roast_eos(cfg, up)) for up in ups}
+    # configs name the production area as {eos_prod} / {web_prod} (resolved at submit time):
+    # expand them the same way before checking where an input lives
+    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg).items()}
 
     refs, bad = {}, []
     def walk(node, key):
@@ -323,7 +326,10 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         if "{roast_id}" in node:
             bad.append(f"{key}: {{roast_id}} refers to this roast, not an upstream one")
             return
-        url = _norm_url(node)
+        resolved = node
+        for ph, value in placeholders.items():
+            resolved = resolved.replace(ph, value)
+        url = _norm_url(resolved)
         owner = next((i for i, a in areas.items() if url == a or url.startswith(a + "/")), None)
         if owner is None:
             bad.append(f"{key}: {node} is not under any upstream roast ({', '.join(areas.values())})")
@@ -806,7 +812,7 @@ _LOG_ERROR_RE = (r"Error in rule|WorkflowError|LockException|[A-Za-z]*Error:|"
                  r"Missing(Output|Input)Exception|"
                  r"Exiting because a job execution failed|Removing output files of failed job|"
                  r"JOB EXECUTION FAILED|exited with non-zero|unbound variable|"
-                 r"Killed|Out of memory|Segmentation fault|=== roast .* exit ")
+                 r"Killed|Out of memory|Segmentation fault|Cutflow check MISMATCH|=== roast .* exit ")
 
 
 def cmd_log(args) -> None:
