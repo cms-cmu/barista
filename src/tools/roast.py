@@ -812,7 +812,7 @@ _LOG_ERROR_RE = (r"Error in rule|WorkflowError|LockException|[A-Za-z]*Error:|"
                  r"Missing(Output|Input)Exception|"
                  r"Exiting because a job execution failed|Removing output files of failed job|"
                  r"JOB EXECUTION FAILED|exited with non-zero|unbound variable|"
-                 r"Killed|Out of memory|Segmentation fault|=== roast .* exit ")
+                 r"Killed|Out of memory|Segmentation fault|Cutflow check MISMATCH|=== roast .* exit ")
 
 
 def cmd_log(args) -> None:
