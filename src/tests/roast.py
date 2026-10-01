@@ -649,6 +649,44 @@ class TestStatusGrouping(unittest.TestCase):
         self.assertTrue(roast._parse_status("NOCHECKOUT")["nocheckout"])
 
 
+class TestCondorAttribution(unittest.TestCase):
+    """Condor workers are attributed to the step whose dask scheduler they serve.
+
+    Spooling overwrites the submit directory, so the surviving identifier is the scheduler
+    address in the worker's arguments, which the step log records when it starts one.
+    """
+
+    OUT = "\n".join([
+        "STEP|MakeMixedData|exit=0|tmux=0|10 of 10|done",
+        "CONDOR|MakeMixedData|tcp://1.2.3.4:10001|1|40",
+        "CONDOR|MakeMixedData|tcp://1.2.3.4:10001|2|10",
+        "CONDOR|?|tcp://9.9.9.9:10099|1|1000",
+    ])
+
+    def test_jobs_land_under_their_step(self):
+        st = roast._parse_status(self.OUT)
+        self.assertEqual(len(st["condor"]["MakeMixedData"]), 2)
+        self.assertIn("?", st["condor"])
+
+    def test_states_are_summed_per_scheduler(self):
+        st = roast._parse_status(self.OUT)
+        row = roast._condor_row(st["condor"]["MakeMixedData"])
+        self.assertIn("50 workers", row)          # 40 idle + 10 running
+        self.assertIn("40 idle", row)
+        self.assertIn("10 running", row)
+
+    def test_one_worker_is_singular(self):
+        self.assertIn("1 worker ", roast._condor_row([{"sched": "-", "state": "2", "n": "1"}]))
+
+    def test_held_jobs_are_flagged(self):
+        row = roast._condor_row([{"sched": "-", "state": "5", "n": "7"}])
+        self.assertIn("HELD", row)
+        self.assertIn("\033[31m", row)           # held work needs to catch the eye
+
+    def test_unknown_scheduler_is_not_printed_as_a_dash(self):
+        self.assertNotIn("-", roast._condor_row([{"sched": "-", "state": "1", "n": "3"}]).split("3 idle")[-1])
+
+
 class TestSlurmRowsSupersede(unittest.TestCase):
     """A retried rule must show the attempt that replaced the failure, not the failure.
 

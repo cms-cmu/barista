@@ -1152,8 +1152,11 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
     if host == "cmslpc":
         batch = "\n".join([
-            f'''echo "TOTALS|$(condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true)"''',
-            f'''condor_q -af:t JobBatchName JobStatus Iwd 2>/dev/null | awk -F\'\\t\' -v rid={rid} \'$3 ~ rid {{ n[$1 "\\t" $2]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print "CONDOR|" a[1] "|" a[2] "|" n[k] }} }}\' || true''',
+            # Attribute the queue to its step.  Spooling overwrites Iwd, so the submitting
+            # directory is gone; what survives is the dask scheduler each worker was told to
+            # call, and the step log records the scheduler it started.  Jobs no local log
+            # claims are reported too: they belong to a roast this checkout cannot see.
+            f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
     elif host == "falcon":
         batch = "\n".join([
@@ -1187,6 +1190,27 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
 def _jobnum(j: dict) -> int:
     head = j["jid"].split("_")[0].split(".")[0]
     return int(head) if head.isdigit() else 0
+
+
+CONDOR_STATES = {"1": "idle", "2": "running", "3": "removing", "4": "done",
+                 "5": "HELD", "6": "ERROR", "7": "suspended"}
+
+
+def _condor_row(groups: list[dict]) -> str:
+    """One line per dask cluster: how its workers are split across the queue."""
+    by_sched = {}
+    for g in groups:
+        by_sched.setdefault(g["sched"], {})[CONDOR_STATES.get(g["state"], g["state"])] = int(g["n"] or 0)
+    out = []
+    for sched, states in sorted(by_sched.items()):
+        total = sum(states.values())
+        detail = ", ".join(f"{v} {k}" for k, v in sorted(states.items(), key=lambda kv: -kv[1]))
+        word = "worker " if total == 1 else "workers"
+        body = f"{total:>5d} {word}"
+        if states.get("HELD"):
+            body = f"\033[31m{body}\033[0m"
+        out.append(f"condor  {body}  {detail}" + (f"   {sched}" if sched != "-" else ""))
+    return "\n".join(out)
 
 
 def _slurm_rows(live: list[dict], done: list[dict]) -> list[str]:
@@ -1244,19 +1268,16 @@ def _parse_status(stdout: str) -> dict:
     a rule that several steps happen to share (two phases both run `train`) is never merged.
     Jobs the step logs do not account for land under the empty key.
     """
-    out = {"steps": [], "live": {}, "done": {}, "extra": [], "nocheckout": False}
+    out = {"steps": [], "live": {}, "done": {}, "condor": {}, "extra": [], "nocheckout": False}
     for line in stdout.splitlines():
         if line.startswith("STEP|"):
             _, name, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
             colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
                       else "\033[33m" if st == "running" else "")
             out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last[:90]}".rstrip()))
-        elif line.startswith("TOTALS|") and line[7:].strip():
-            out["extra"].append(f"condor  {line[7:].strip()}")
         elif line.startswith("CONDOR|"):
-            _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
-            states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
-            out["extra"].append(f"condor  {n:>4s} x {states.get(code, code):9s} {name}")
+            _, step, sched, code, n = (line.split("|", 4) + [""] * 5)[:5]
+            out["condor"].setdefault(step, []).append({"sched": sched, "state": code, "n": n})
         elif line.startswith("SLURM|"):
             f = (line.split("|") + [""] * 12)[:12]
             out["live"].setdefault(f[2], []).append(
@@ -1359,6 +1380,9 @@ def cmd_status(args) -> None:
                 continue
             text = dict(st["steps"]).get(name)
             print(f"  {name:<{w}s} {host:7s} {text if text is not None else 'not reported'}")
+            if st.get("condor", {}).get(name):
+                for row in _condor_row(st["condor"][name]).splitlines():
+                    print(f"{pad}{row}")
             for row in _slurm_rows(st["live"].get(name, []), st["done"].get(name, [])):
                 print(f"{pad}{row}")
         for host, st in parsed.items():
@@ -1372,6 +1396,12 @@ def cmd_status(args) -> None:
         for host, st in parsed.items():
             if st.get("error"):
                 continue
+            for sched_step, groups in sorted(st.get("condor", {}).items()):
+                if sched_step in {n for n, _ in st["steps"]}:
+                    continue                      # already shown under its step
+                print(f"  {'':<{w}s} {host:7s} condor jobs from a roast this checkout does not know:")
+                for row in _condor_row(groups).splitlines():
+                    print(f"{pad}{row}")
             stray_live, stray_done = st["live"].get("", []), st["done"].get("", [])
             if stray_live or (stray_done and args.all):
                 print(f"  {'':<{w}s} {host:7s} not part of any step (submitted by hand from the checkout):")
