@@ -103,7 +103,7 @@ from src.runner.cli import parse_args, make_parser
 from src.runner.env import setup_environment, print_reproducibility_info, check_and_setup_proxy, sync_nfs_writes
 from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster
 from src.runner.dataset import (
-    apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
+    apply_storage_remap, find_matching_dataset, get_dataset_type, mixed_variant_prefix, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
     process_data_dataset, add_fvt_metadata, apply_datasets_filter, load_datasets_metadata,
     expand_directory_files, list_of_files
@@ -413,6 +413,8 @@ if __name__ == '__main__':
                 process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type in ['mixeddata_4b_pz']:
                 process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
+            elif dataset_type == 'mixeddata_4b_variant':
+                process_sample_based_dataset('mixeddata_4b', mixed_variant_prefix(matched_dataset), matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data_mixed':
                 process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'synthetic_data':

@@ -204,6 +204,15 @@ def load_datasets_metadata(paths) -> dict:
     return {'datasets': merged}
 
 
+def mixed_variant_prefix(dataset_name):
+    """Sample prefix of a multi-sample mixed-data variant `mixeddata_<tag>_4b` (e.g. the 4b-mixing
+    `mixeddata_4bmix_4b` -> `mix_4bmix`, samples `mix_4bmix_v<k>`), or None. Without this such a
+    name fell through to 'mc' and was weighted as MC."""
+    m = re.fullmatch(r"mixeddata_([A-Za-z0-9]+)_4b", dataset_name)
+    if m is None or m.group(1) in ('noTTSub',):
+        return None
+    return f"mix_{m.group(1)}"
+
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
     if dataset_name == 'mixeddata':
@@ -216,6 +225,8 @@ def get_dataset_type(dataset_name):
         return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
+    elif mixed_variant_prefix(dataset_name):
+        return 'mixeddata_4b_variant'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
     elif dataset_name.startswith('synthetic_data_noTT'):
