@@ -139,4 +139,6 @@ ttbar_psdata:
 signal_check:
   enabled: true
   datasets: ["GluGluToHHTo4B_cHHH1"]   # SM ggHH
+  subsample: 10             # mix only signal events with event % 10 == 0 (hot patch 2026-09-30)
+  mixeddata_subsample: 10   # mixeddata_all SvB pass at 1/10, weights x 10
   chunksize: 20000
