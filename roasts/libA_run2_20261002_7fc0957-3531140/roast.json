@@ -91,7 +91,18 @@
       "checked_out": "2026-10-02 09:00:53"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/libA_run2_20261002_7fc0957-3531140",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/libA_run2_20261002_7fc0957-3531140/",
+    "ts": "2026-10-02 11:01:04",
+    "ok": true,
+    "pages": [
+      "output/libA_run2_20261002_7fc0957-3531140/D5/cutflow_monitoring.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D5/plots/index.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D6/plots_declustered/index.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D6/plots_signal/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-02 08:59:46",
@@ -107,6 +118,12 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-02 11:01:04",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
