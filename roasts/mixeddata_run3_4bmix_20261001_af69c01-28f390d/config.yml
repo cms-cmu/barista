@@ -8,10 +8,10 @@ inputs:
   - nominal_run3_nontight_20260925_0c53380-193851f
   - nominal_run3_20260922_3f9e199-1e0504f
   - mixeddata_run3_20260926_956d4bf-aca8a4e
-  FvT: '{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged'
-  JCM: '{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml'
-  jcm_hists: '{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea'
-  SvB_model: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json
+  FvT: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/friend/FvT_nominal/result.json@@analysis.0.merged'
+  JCM: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml'
+  jcm_hists: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea'
+  SvB_model: '{eos_prod}/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json'
   hemilib: '{eos_prod}/mixeddata_run3_20260926_956d4bf-aca8a4e/hemilib'
 year_eras:
   2022_preEE:
@@ -67,7 +67,8 @@ mixing:
   k_neighbors: 10
   collision_mode: retry
   use_boost_corrected_matching: true
-  worker_memory: 8GB
+  boost_acceptance_eta: 2.4
+  worker_memory: 6GB
   chunksize: 100000
   source: fourTag
   k_random: 10
@@ -91,6 +92,8 @@ signal_check:
   enabled: true
   datasets:
   - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+  subsample: 10
+  mixeddata_subsample: 10
   chunksize: 20000
 validation:
   seed_study_years:
