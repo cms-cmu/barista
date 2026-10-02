@@ -213,3 +213,7 @@ scripts/
 # lxplus: interim dask_lxplus install and HTCondor job logs
 .lxplus_site/
 condor_logs/
+
+# Cupping notes: generated from roasts/*/roast.json by `roast index` and rebuilt by the
+# docs jobs.  Committing them made every parallel roast conflict on the shared index.
+docs/prod/

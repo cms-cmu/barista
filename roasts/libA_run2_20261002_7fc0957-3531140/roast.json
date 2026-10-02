@@ -147,5 +147,6 @@
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/libA_run2_20261002_7fc0957-3531140",
     "ts": "2026-10-02 11:59:10",
     "ok": true
-  }
+  },
+  "category": "declustered"
 }
