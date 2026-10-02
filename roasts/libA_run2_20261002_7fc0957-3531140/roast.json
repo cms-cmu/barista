@@ -94,8 +94,8 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/libA_run2_20261002_7fc0957-3531140",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/libA_run2_20261002_7fc0957-3531140/",
-    "ts": "2026-10-02 11:59:45",
-    "ok": true,
+    "ts": "2026-10-02 12:00:11",
+    "ok": null,
     "pages": [
       "output/libA_run2_20261002_7fc0957-3531140/D5/cutflow_monitoring.html",
       "output/libA_run2_20261002_7fc0957-3531140/D5/plots/index.html",
@@ -138,7 +138,7 @@
       "ok": true
     }
   ],
-  "notes": "",
+  "notes": "Run 2 library declustering, libA setup, on the numba clustering + per-process library + consolidated library files. Carry fields: btagScore, jetId, nConstituents, energy fractions (not puId: Run 2 drops puId<6 jets below 50 GeV). No missing chunks; event counts equal the Run 2 PDF roast. Whole roast ~2.5 h. Open: high SvB sentinel fraction in D.6 (declustered 0.66, original 0.15); the SR column of the D.4 closure despite blinded upstream B.1 histograms.",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
