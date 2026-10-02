@@ -90,7 +90,7 @@ validation:
   - TTToSemiLeptonic
   - TTTo2L2Nu
   plot_template: coffea4bees/plots/metadata/plotsDeClustered_validation.yml
-  known_counts: coffea4bees/analysis/tests/known_fullCounts_declustered_Run3.yml
+  known_counts: null   # hot-patch 2026-10-01: library mode has no blessed counts yet
 signal_check:
   enabled: true
   datasets:

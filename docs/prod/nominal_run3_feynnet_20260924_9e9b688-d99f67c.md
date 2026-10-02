@@ -9,6 +9,7 @@
 | config | `coffea4bees/workflows/config/nominal_run3_feynnet.yml` (sha256 `0d10f0c774d8`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c/roasts/nominal_run3_feynnet_20260924_9e9b688-d99f67c/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c/](https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c/roasts/nominal_run3_feynnet_20260924_9e9b688-d99f67c/roast.json) |
+
 | archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/nominal_run3_feynnet_20260924_9e9b688-d99f67c`) |
 
 ## Steps
