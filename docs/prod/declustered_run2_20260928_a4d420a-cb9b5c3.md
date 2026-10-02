@@ -9,6 +9,7 @@
 | config | `coffea4bees/workflows/config/declustered_run2.yml` (sha256 `197b95945acf`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run2_20260928_a4d420a-cb9b5c3/roasts/declustered_run2_20260928_a4d420a-cb9b5c3/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run2_20260928_a4d420a-cb9b5c3/](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run2_20260928_a4d420a-cb9b5c3/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/declustered_run2_20260928_a4d420a-cb9b5c3/roasts/declustered_run2_20260928_a4d420a-cb9b5c3/roast.json) |
+
 | archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declustered_run2_20260928_a4d420a-cb9b5c3/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/declustered_run2_20260928_a4d420a-cb9b5c3`) |
 
 ## Steps

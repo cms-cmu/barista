@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/declustered_run3_library_massmatch_reuseD1.yml",
     "captured": "config.yml",
-    "sha256": "3857ce5c4b055ea760ba2da413b93dd7cbd5c106d8bb173cec0d1c139f23bfd2",
+    "sha256": "d0562bdf26d5ef5dd403848fc21db6d8688d4cda8c5ae527f5b1962b3f88ad0a",
     "base": [
       {
         "source": "coffea4bees/workflows/config/declustered_run3.yml",
@@ -119,6 +119,19 @@
           "window": "libB2_run3_6ebb60a-443031d_DeClustered",
           "ssh": "jda102@cmslpc307.fnal.gov",
           "config_sha256": "3857ce5c4b05"
+        },
+        {
+          "ts": "2026-10-02 05:12:49",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libB2_run3_6ebb60a-443031d_DeClustered",
+          "ssh": "jda102@cmslpc307.fnal.gov",
+          "config_sha256": "d0562bdf26d5"
         }
       ]
     }
@@ -130,7 +143,18 @@
       "checked_out": "2026-10-01 13:31:52"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/libB2_run3_20261001_6ebb60a-443031d",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/libB2_run3_20261001_6ebb60a-443031d/",
+    "ts": "2026-10-02 06:27:14",
+    "ok": true,
+    "pages": [
+      "output/libB2_run3_20261001_6ebb60a-443031d/D5/cutflow_monitoring.html",
+      "output/libB2_run3_20261001_6ebb60a-443031d/D5/plots/index.html",
+      "output/libB2_run3_20261001_6ebb60a-443031d/D6/plots_declustered/index.html",
+      "output/libB2_run3_20261001_6ebb60a-443031d/D6/plots_signal/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-01 13:29:48",
@@ -157,6 +181,23 @@
       "event": "resume",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-02 05:12:49",
+      "event": "config-edited",
+      "sha256": "d0562bdf26d5"
+    },
+    {
+      "ts": "2026-10-02 05:12:49",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-02 06:27:13",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",

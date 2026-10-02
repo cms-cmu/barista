@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast libB2_run3_20261001_6ebb60a-443031d step DeClustered -- generated 2026-10-01 14:42:24
+# roast libB2_run3_20261001_6ebb60a-443031d step DeClustered -- generated 2026-10-02 05:12:47
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {

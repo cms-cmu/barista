@@ -9,6 +9,7 @@
 | config | `coffea4bees/workflows/config/mvd_run3_30x_c6mvd_c5b.yml` (sha256 `dcd8f231ed53`) — [captured copy](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/config.yml) |
 | results | [https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/) |
 | manifest | [roast.json](https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/roasts/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/roast.json) |
+
 | archive (EOS) | `root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c/` (list: `xrdfs root://cmseos.fnal.gov ls -R /store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_c5b_20260928_d3f6ae2-aede48c`) |
 
 ## Steps
