@@ -22,6 +22,27 @@ output_nav_for_folder() {
     done
 }
 
+# Cupping notes: list the landing page and the per-family pages only.  The per-roast pages
+# are reached from those tables; putting all of them in the nav is what made it unreadable.
+# They are still built -- mkdocs just reports them as not in the nav, at INFO level.
+output_nav_for_prod() {
+    local indent="$1" title="$2"
+    [ -f "$DOCS_ROOT/prod/index.md" ] || return 0
+    echo "${indent}- ${title}:" >> "$TMP_NAV"
+    echo "${indent}    - All families: prod/index.md" >> "$TMP_NAV"
+    for f in "$DOCS_ROOT/prod"/*.md; do
+        [ -f "$f" ] || continue
+        fname=$(basename "$f")
+        case "$fname" in
+            index.md) continue ;;
+            *_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*) continue ;;   # a roast page
+        esac
+        # the family page's own H1 is the display name, so ttHbb keeps its capitals
+        display_name=$(head -1 "$f" | sed 's/^#[[:space:]]*//')   # \s is GNU-only
+        echo "${indent}    - ${display_name}: prod/${fname}" >> "$TMP_NAV"
+    done
+}
+
 # Start nav output
 cat <<EOF > "$TMP_NAV"
     - Home: index.md
@@ -32,7 +53,7 @@ output_nav_for_folder "software" "    " "Software"
 output_nav_for_folder "classifier" "    " "Classifier"
 output_nav_for_folder "bbbb" "    " "HH4b Analysis"
 output_nav_for_folder "bbWW" "    " "bbWW Analysis"
-output_nav_for_folder "prod" "    " "Cupping Notes"
+output_nav_for_prod "    " "Cupping Notes"
 
 cat <<EOF >> "$TMP_NAV"
     - Documentation: readme.md

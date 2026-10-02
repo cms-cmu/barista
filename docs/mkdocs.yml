@@ -122,7 +122,11 @@ nav:
     - bbWW Analysis:
         - index: bbWW/index.md
     - Cupping Notes:
-        - index: prod/index.md
-        - nominal run2 20260919 a180b1a-a16559c: prod/nominal_run2_20260919_a180b1a-a16559c.md
-        - using roast: prod/using_roast.md
+        - All families: prod/index.md
+        - declustered: prod/declustered.md
+        - mixeddata: prod/mixeddata.md
+        - mvd: prod/mvd.md
+        - nominal: prod/nominal.md
+        - svbfeynnet: prod/svbfeynnet.md
+        - ttHbb: prod/tthbb.md
     - Documentation: readme.md
