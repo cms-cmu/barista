@@ -122,6 +122,7 @@ nav:
     - bbWW Analysis:
         - index: bbWW/index.md
     - Cupping Notes:
+        - Using roast: prod/using_roast.md
         - All families: prod/index.md
         - declustered: prod/declustered.md
         - mixeddata: prod/mixeddata.md

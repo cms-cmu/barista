@@ -547,6 +547,49 @@ class TestCopySettings(unittest.TestCase):
         self.assertTrue(any(e.startswith("output/") and e.endswith("logs") for e in ps["exclude"]))
 
 
+class TestCuppingNotesSweep(unittest.TestCase):
+    """write_index() deletes pages whose roast is gone.  It must not delete the prose.
+
+    The colleague guide lives in docs/prod so it sits in the same nav as the catalogue, and
+    was once swept away silently -- taking the URL mailed to the collaboration with it.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = (roast.DOCS_PROD, roast.ROASTS)
+        roast.DOCS_PROD = self.tmp / "prod"
+        roast.ROASTS = self.tmp / "roasts"
+        roast.DOCS_PROD.mkdir(parents=True)
+        d = roast.ROASTS / FAKE_ID
+        d.mkdir(parents=True)
+        (d / "roast.json").write_text(json.dumps(fake_roast()))
+
+    def tearDown(self):
+        roast.DOCS_PROD, roast.ROASTS = self.saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_handwritten_pages_survive_and_orphans_do_not(self):
+        guide = roast.DOCS_PROD / "using_roast.md"
+        guide.write_text("# Using roast\n")
+        orphan = roast.DOCS_PROD / "gone_20250101_dead-beef.md"
+        orphan.write_text("# a roast that no longer has a manifest\n")
+        roast.write_index()
+        self.assertTrue(guide.exists(), "the hand-written guide was swept away")
+        self.assertFalse(orphan.exists(), "a page with no roast should be removed")
+        self.assertTrue((roast.DOCS_PROD / "index.md").exists())
+
+    def test_every_handwritten_page_is_tracked_not_ignored(self):
+        """A page the sweep spares must also be committed, or CI rebuilds without it."""
+        root = Path(__file__).resolve().parents[2]
+        if not (root / ".git").exists() or shutil.which("git") is None:
+            self.skipTest("no git checkout, or no git (the CI image is python:slim)")
+        for stem in roast.HANDWRITTEN_PAGES - {"index"}:
+            rel = f"docs/prod/{stem}.md"
+            self.assertTrue((root / rel).exists(), f"{rel} is listed as hand-written but missing")
+            ignored = subprocess.run(["git", "check-ignore", "-q", rel], cwd=root).returncode == 0
+            self.assertFalse(ignored, f"{rel} is hand-written but .gitignore excludes it")
+
+
 class TestHelpers(unittest.TestCase):
     def test_rq_expands_a_leading_tilde_on_the_remote(self):
         self.assertEqual(roast.rq("~/work/x"), '"$HOME/work/x"')

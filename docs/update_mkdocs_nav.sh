@@ -29,12 +29,17 @@ output_nav_for_prod() {
     local indent="$1" title="$2"
     [ -f "$DOCS_ROOT/prod/index.md" ] || return 0
     echo "${indent}- ${title}:" >> "$TMP_NAV"
+    # the guide first: it is what a colleague arriving at the catalogue needs to read.
+    # An `if` rather than `test && echo`, which would abort the script under `set -e`.
+    if [ -f "$DOCS_ROOT/prod/using_roast.md" ]; then
+        echo "${indent}    - Using roast: prod/using_roast.md" >> "$TMP_NAV"
+    fi
     echo "${indent}    - All families: prod/index.md" >> "$TMP_NAV"
     for f in "$DOCS_ROOT/prod"/*.md; do
         [ -f "$f" ] || continue
         fname=$(basename "$f")
         case "$fname" in
-            index.md) continue ;;
+            index.md|using_roast.md) continue ;;
             *_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*) continue ;;   # a roast page
         esac
         # the family page's own H1 is the display name, so ttHbb keeps its capitals
