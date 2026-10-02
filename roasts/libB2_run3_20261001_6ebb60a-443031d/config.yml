@@ -58,7 +58,7 @@ cluster:
   config_template: coffea4bees/analysis/metadata/cluster_4b_Run3.yml
 pdfs: {}
 declustering:
-  worker_memory: 4GB   # hot-patch 2026-10-01: numba clustering + per-process library peak ~2.1 GB (was 8GB from the skimmer template)
+  worker_memory: 6GB   # hot-patch 2026-10-01: 4GB OOM-killed (two cached libraries per worker); was 8GB from the skimmer template
   skimmer_template: coffea4bees/skimmer/metadata/declustering_Run3.yml
   n_seeds: 1
   subtract_ttbar: true
