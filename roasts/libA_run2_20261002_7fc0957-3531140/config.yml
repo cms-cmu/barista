@@ -1,42 +1,42 @@
-# Captured by `roast new`: coffea4bees/workflows/config/declustered_run3_library.yml merged over coffea4bees/workflows/config/declustered_run3.yml.
+# Captured by `roast new`: coffea4bees/workflows/config/declustered_run2_library.yml merged over coffea4bees/workflows/config/declustered_run2.yml.
 # Comments are not carried over; read the sources for them.
-label: declustered_run3_library
+label: declustered_run2_library
 output_path: output/{roast_id}/
 publish_base: '{eos_prod}/{roast_id}'
 inputs:
   upstream_roasts:
-  - nominal_run3_nontight_20260925_0c53380-193851f
-  - mixeddata_run3_20260926_956d4bf-aca8a4e
-  - nominal_run3_20260922_3f9e199-1e0504f
-  FvT: '{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged'
-  jcm_hists: '{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea'
-  ttbar_psdata: '{eos_prod}/mixeddata_run3_20260926_956d4bf-aca8a4e/handoff/ttbar_PSData.yml'
-  SvB_model: root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json
+  - nominal_run2_20260919_a180b1a-a16559c
+  - mixeddata_run2_20260927_c39c264-0ce4d59
+  FvT: '{roast:nominal_run2_20260919_a180b1a-a16559c}/friend/FvT_nominal/result.json@@analysis.0.merged'
+  jcm_hists: '{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/histAll_NoJCM.coffea'
+  ttbar_psdata: '{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/ttbar_PSData.yml'
+  SvB_model: '{roast:nominal_run2_20260919_a180b1a-a16559c}/classifier/SvB_nominal/result.json'
 year_eras:
-  2022_preEE:
+  UL16_preVFP:
+  - C
+  - D
+  - E
+  - F
+  UL16_postVFP:
+  - F
+  - G
+  - H
+  UL17:
+  - C
+  - D
+  - E
+  - F
+  UL18:
+  - A
   - B
   - C
   - D
-  2022_EE:
-  - E
-  - F
-  - G
-  2023_preBPix:
-  - C01
-  - C02
-  - C11
-  - C12
-  - C3
-  - C4
-  2023_BPix:
-  - D1
-  - D2
 fourTag_use_tight: false
 analysis_config:
   processor: coffea4bees/analysis/processors/processor_HH4b.py
   dataset_location: coffea4bees/metadata/datasets/
   friend_file: coffea4bees/metadata/friends/friends_HH4b.yml
-  weights_file: coffea4bees/metadata/weights/weights_HH4b.yml
+  weights_file: coffea4bees/metadata/weights/weights_HH4b_2024_v2.yml
   runner:
     workers: 4
     worker_memory: 8GB
@@ -52,10 +52,14 @@ analysis_config:
     SvB: null
     fourTag_use_tight: false
 cluster:
-  config_template: coffea4bees/analysis/metadata/cluster_4b_Run3.yml
+  config_template: coffea4bees/analysis/metadata/cluster_4b.yml
+  chunksize: 20000
+  worker_memory: 8GB
 pdfs: {}
 declustering:
-  skimmer_template: coffea4bees/skimmer/metadata/declustering_Run3.yml
+  skimmer_template: coffea4bees/skimmer/metadata/declustering.yml
+  chunksize: 25000
+  worker_memory: 6GB
   n_seeds: 1
   subtract_ttbar: true
   dataset_name: synthetic_data_lib_4b
@@ -66,18 +70,12 @@ declustering:
     carry_fields:
     - btagScore
     - jetId
-    - btagPNetCvB
-    - btagPNetCvL
-    - btagPNetQvG
-    - btagPNetTauVJet
-    - PNetRegPtRawRes
-    - nSVs
+    - nConstituents
     - chHEF
     - neHEF
     - chEmEF
     - neEmEF
     - muEF
-    - nConstituents
     min_entries: 10
     scale_pt: true
     boost_z: true
@@ -90,11 +88,12 @@ validation:
   - TTToSemiLeptonic
   - TTTo2L2Nu
   plot_template: coffea4bees/plots/metadata/plotsDeClustered_validation.yml
-  known_counts: null   # hot-patch 2026-10-01: library mode has no blessed counts yet
+  known_counts: null
+max_workers: 200
 signal_check:
   enabled: true
   datasets:
-  - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+  - GluGluToHHTo4B_cHHH1
   seed: 0
   subsample: 10
   declustered_data_subsample: 10

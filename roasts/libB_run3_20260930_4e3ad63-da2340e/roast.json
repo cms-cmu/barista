@@ -104,6 +104,19 @@
           "window": "libB_run3_4e3ad63-da2340e_DeClustered",
           "ssh": "jda102@cmslpc350.fnal.gov",
           "config_sha256": "9961899177bd"
+        },
+        {
+          "ts": "2026-10-01 03:36:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libB_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "9961899177bd"
         }
       ]
     }
@@ -137,11 +150,18 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-01 03:36:12",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
     }
   ],
   "notes": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
-  }
+  },
+  "category": "declustered"
 }
