@@ -1,0 +1,105 @@
+# Captured by `roast new`: coffea4bees/workflows/config/mixeddata_run3_4bmix_noboost.yml merged over coffea4bees/workflows/config/mixeddata_run3_4bmix.yml <- coffea4bees/workflows/config/mixeddata_run3.yml.
+# Comments are not carried over; read the sources for them.
+label: mixeddata_run3_4bmix_noboost
+output_path: output/{roast_id}/
+publish_base: '{eos_prod}/{roast_id}'
+inputs:
+  upstream_roasts:
+  - nominal_run3_nontight_20260925_0c53380-193851f
+  - nominal_run3_20260922_3f9e199-1e0504f
+  - mixeddata_run3_20260926_956d4bf-aca8a4e
+  - mixeddata_run3_4bmix_20261001_af69c01-28f390d
+  FvT: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/friend/FvT_nominal/result.json@@analysis.0.merged'
+  JCM: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml'
+  jcm_hists: '{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea'
+  SvB_model: '{eos_prod}/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json'
+  hemilib: '{eos_prod}/mixeddata_run3_20260926_956d4bf-aca8a4e/hemilib'
+  data_4bskim: '{roast:mixeddata_run3_4bmix_20261001_af69c01-28f390d}/handoff/data__4bskim.yml'
+year_eras:
+  2022_preEE:
+  - B
+  - C
+  - D
+  2022_EE:
+  - E
+  - F
+  - G
+  2023_preBPix:
+  - C01
+  - C02
+  - C11
+  - C12
+  - C3
+  - C4
+  2023_BPix:
+  - D1
+  - D2
+ttbar:
+- TTToHadronic
+- TTToSemiLeptonic
+- TTTo2L2Nu
+fourTag_use_tight: false
+analysis_config:
+  processor: coffea4bees/analysis/processors/processor_HH4b.py
+  dataset_location: coffea4bees/metadata/datasets/
+  friend_file: coffea4bees/metadata/friends/friends_HH4b.yml
+  weights_file: coffea4bees/metadata/weights/weights_HH4b.yml
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+hemi_library:
+  config_template: coffea4bees/analysis/metadata/make_hemi_library_4b.yml
+  study_threshold: 1000
+mixing:
+  skimmer_template: coffea4bees/skimmer/metadata/mixeddata_Run3.yml
+  dataset_name: mixeddata_all_4bmixnoboost
+  default_rank: 0
+  use_topk_matching: true
+  k_neighbors: 10
+  collision_mode: retry
+  use_boost_corrected_matching: false
+  boost_acceptance_eta: null
+  worker_memory: 6GB
+  chunksize: 100000
+  source: fourTag
+  k_random: 10
+  picosize: 1000000000
+mixed_jcm:
+  config: coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config_Run3.yml
+  float_t: true
+  study_template: coffea4bees/analysis/metadata/study_mixed_data_Run3.yml
+subsamples:
+  n: 16
+  dataset_name: mixeddata_4bmixnoboost_4b
+  split_template: coffea4bees/skimmer/metadata/split_mixeddata_Run3.yml
+ttbar_psdata:
+  dataset_name: ttbar_PSData
+  seed: 5
+  require_trigWeight: true
+  worker_memory: 6GB
+  chunksize: 100000
+  picosize: 100000
+signal_check:
+  enabled: true
+  datasets:
+  - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+  subsample: 10
+  mixeddata_subsample: 10
+  chunksize: 20000
+validation:
+  seed_study_years:
+  - 2022_preEE
+  - 2022_EE
+  - 2023_preBPix
+  - 2023_BPix
