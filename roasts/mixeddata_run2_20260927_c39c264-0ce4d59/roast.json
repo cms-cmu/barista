@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/mixeddata_run2.yml",
     "captured": "config.yml",
-    "sha256": "1d6a8b78db25de9d4ff8b6d694402f66916bc2b85aabf42c942fb48e488a12fe"
+    "sha256": "0802ff8f53c9dc870260ff8f8a3f53d0352b95141de4c7337d24adf3d4707802"
   },
   "inputs": {
     "upstream": [
@@ -154,6 +154,71 @@
           "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
           "ssh": "jda102@cmslpc337.fnal.gov",
           "config_sha256": "1d6a8b78db25"
+        },
+        {
+          "ts": "2026-09-29 16:10:50",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
+          "ssh": "jda102@cmslpc337.fnal.gov",
+          "config_sha256": "e7c27c265c1d"
+        },
+        {
+          "ts": "2026-09-29 22:02:06",
+          "cores": 8,
+          "extra": "--forcerun M7_hist_config",
+          "user_extra": "--forcerun M7_hist_config",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
+          "ssh": "jda102@cmslpc337.fnal.gov",
+          "config_sha256": "e7c27c265c1d"
+        },
+        {
+          "ts": "2026-09-30 07:32:39",
+          "cores": 8,
+          "extra": "--forcerun M7_hist_config",
+          "user_extra": "--forcerun M7_hist_config",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
+          "ssh": "jda102@cmslpc337.fnal.gov",
+          "config_sha256": "0069e6a28512"
+        },
+        {
+          "ts": "2026-09-30 14:41:57",
+          "cores": 8,
+          "extra": "--forcerun M7_config",
+          "user_extra": "--forcerun M7_config",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
+          "ssh": "jda102@cmslpc337.fnal.gov",
+          "config_sha256": "0802ff8f53c9"
+        },
+        {
+          "ts": "2026-09-30 16:30:45",
+          "cores": 8,
+          "extra": "--forcerun M7_hist_config_signal",
+          "user_extra": "--forcerun M7_hist_config_signal",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run2_c39c264-0ce4d59_MakeMixedData",
+          "ssh": "jda102@cmslpc337.fnal.gov",
+          "config_sha256": "0802ff8f53c9"
         }
       ]
     }
@@ -168,12 +233,14 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run2_20260927_c39c264-0ce4d59",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run2_20260927_c39c264-0ce4d59/",
-    "ts": "2026-09-27 22:57:28",
+    "ts": "2026-09-30 17:57:42",
     "ok": true,
     "pages": [
       "output/mixeddata_run2_20260927_c39c264-0ce4d59/M6/cutflow_validation.html",
       "output/mixeddata_run2_20260927_c39c264-0ce4d59/M6/plots/index.html",
-      "output/mixeddata_run2_20260927_c39c264-0ce4d59/M6/study/index.html"
+      "output/mixeddata_run2_20260927_c39c264-0ce4d59/M6/study/index.html",
+      "output/mixeddata_run2_20260927_c39c264-0ce4d59/M7/plots_mixeddata/index.html",
+      "output/mixeddata_run2_20260927_c39c264-0ce4d59/M7/plots_signal/index.html"
     ]
   },
   "history": [
@@ -275,12 +342,131 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-29 16:10:37",
+      "event": "hotpatch",
+      "what": "M.7 signal check added: Snakefile_MakeMixedData_7_signal.smk + include/all_M7 in Snakefile_MakeMixedData.smk, workflows/scripts/mixeddata_signal_check.py, make_mixed_data.py (mix_tags, require_trigWeight, selection = cumulative cuts); captured config: inputs.SvB_model (nominal SvB_nominal result.json), signal_check.datasets [GluGluToHHTo4B_cHHH1]",
+      "why": "signal check of the mixing (John, 2026-09-29): all preselected signal mixed, SvB_nominal evaluated on the fly; only M7 jobs in the dry run",
+      "files": [
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "coffea4bees/skimmer/processor/make_mixed_data.py",
+        "roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-29 16:10:50",
+      "event": "config-edited",
+      "sha256": "e7c27c265c1d"
+    },
+    {
+      "ts": "2026-09-29 16:10:50",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 22:01:51",
+      "event": "hotpatch",
+      "what": "M.7 unblind: synthetic_mc was blinded (Run 2 upstream config blind: true; processor exempted MC/mixed/synthetic data but not isSyntheticMC) -> SR SvB>0.8 of the mixed signal dropped. Fix: processor_HH4b blinding exempts isSyntheticMC; M7_hist_config sets blind: false; report counts the ps_hh underflow in fractions. Rerun M7_hist_config onward.",
+      "files": [
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py"
+      ]
+    },
+    {
+      "ts": "2026-09-29 22:02:06",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 01:04:20",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 07:32:35",
+      "event": "hotpatch",
+      "what": "M.7 reworked for make_plots (John, 2026-09-30): mixed signal histogrammed with the nominal Phase F analysis config (inputs.phaseF_hists + analysis_config.yml next to it; FvT/SvB friends dropped, friends_include [trigWeight], no JCM, SvB on the fly, unblinded), merged into F's histAll, plotted with F's plotsAll_ttbarWeights.yml + HH4b_mixed via make_plots + gallery (M7/plots/). Report script: numbers only. Mixing (M7_mix) reused.",
+      "files": [
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-30 07:32:39",
+      "event": "config-edited",
+      "sha256": "0069e6a28512"
+    },
+    {
+      "ts": "2026-09-30 07:32:39",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 09:18:10",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 14:39:39",
+      "event": "hotpatch",
+      "what": "M.7 redesign (John, 2026-09-30; coffea4bees mvd-roast 0801341fc, barista f84db335): self-contained, no Phase F. Signal mixed at 1/10 (event % 10) with origin branches; histograms with the upstream config + SvB on the fly: 4b signal, 3b signal x M.2 JCM, mixed 3b x M.2 JCM (synthetic_mc_3b_*), mixed 4b (synthetic_mc_4b_*); mixeddata_all x M.3 JCM with SvB at 1/10 (weights x10). Galleries plots_signal/, plots_mixeddata/. Copied: make_mixed_data.py, processor_HH4b.py (brings the off-by-default MvD_pmix4_floor), M.7 smk + script; linestyle fix patched into src/plotting/helpers_make_plot.py only. Captured config: phaseF_hists dropped, subsample keys added.",
+      "files": [
+        "coffea4bees/skimmer/processor/make_mixed_data.py",
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "src/plotting/helpers_make_plot.py",
+        "roasts/mixeddata_run2_20260927_c39c264-0ce4d59/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-30 14:41:57",
+      "event": "config-edited",
+      "sha256": "0802ff8f53c9"
+    },
+    {
+      "ts": "2026-09-30 14:41:57",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 16:30:45",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 17:57:41",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 20:47:03",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Run 2 mixed data (UL16_preVFP/postVFP/UL17/UL18), per-year hemisphere libraries; inputs from nominal_run2_20260919_a180b1a-a16559c",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
-    "ts": "2026-09-28 00:15:39",
+    "ts": "2026-09-30 20:47:03",
     "ok": true
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
   }
 }

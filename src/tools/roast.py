@@ -61,7 +61,6 @@ PHASES = {
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
     "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
-    "E": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseE.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
 }
 
@@ -155,6 +154,11 @@ def repo_root() -> Path:
 ROOT = repo_root()
 ROASTS = ROOT / "roasts"
 DOCS_PROD = ROOT / "docs" / "prod"
+
+# Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
+# write_index() must leave them alone.  "index" is generated but always wanted; the rest are
+# prose that lives next to the catalogue because colleagues reach it from the same nav.
+HANDWRITTEN_PAGES = {"index", "using_roast"}
 
 
 def load_config() -> dict:
@@ -286,12 +290,42 @@ def _roast_eos(cfg: dict, up: dict) -> str:
     return f"{eos.get('url', 'root://cmseos.fnal.gov')}/{eos['path'].rstrip('/')}/{up['id']}"
 
 
+# {roast:<id>} -> that roast's EOS area; {roast:<id>:<key>} -> a value from its captured config
+# (key `id`: the roast id itself). <id> may also be an alias from a mapping-form upstream_roasts.
+# Same syntax as coffea4bees/workflows/helpers/common.smk, which resolves it at run time.
+UPSTREAM_REF = re.compile(r"\{roast:([^}:]+)(?::([^}]+))?\}")
+
+
+def upstream_aliases(upstream) -> dict:
+    """`upstream_roasts` as {name: roast id}: a mapping gives short aliases, a str / list names
+    the roasts by their own ids."""
+    if isinstance(upstream, dict):
+        return {str(k): str(v) for k, v in upstream.items()}
+    ids = [upstream] if isinstance(upstream, str) else list(upstream or [])
+    return {str(i): str(i) for i in ids}
+
+
+def upstream_config_value(rid: str, key: str) -> str:
+    """Top-level `key` of roast `rid`'s captured config, with its {roast_id} filled in."""
+    if key == "id":
+        return rid
+    import yaml     # as in _load_layered_config: roast is otherwise stdlib
+    captured = roast_dir(rid) / "config.yml"
+    if not captured.exists():
+        raise ValueError(f"{{roast:{rid}:{key}}}: no captured config {captured}")
+    value = (yaml.safe_load(captured.read_text()) or {}).get(key)
+    if not isinstance(value, str):
+        raise ValueError(f"{{roast:{rid}:{key}}}: {captured} has no top-level string {key!r}")
+    return value.replace("{roast_id}", rid)
+
+
 def check_inputs(cfg: dict, wf: dict) -> dict | None:
     """Validate a workflow config's `inputs:` block: the products it reads from other roasts.
 
         inputs:
-          upstream_roasts: [nominal_run3_...]      # str or list
+          upstream_roasts: [nominal_run3_...]      # str or list -- or {alias: id}
           FvT: root://.../HH4b_prod/nominal_run3_.../friend/FvT_nominal/result.json@@analysis.0.merged
+          JCM: "{roast:<id or alias>}/{roast:<id or alias>:output_path}computeJCM/..."
 
     Every other value under `inputs` (nested allowed) must be a URL inside the EOS area of one of
     the named roasts. Otherwise a dependent roast can quietly read a hand-run product or another
@@ -302,15 +336,19 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         return None
     if not isinstance(block, dict):
         die("config `inputs:` must be a mapping")
-    ids = block.get("upstream_roasts")
-    ids = [ids] if isinstance(ids, str) else list(ids or [])
-    if not ids:
+    aliases = upstream_aliases(block.get("upstream_roasts"))
+    if not aliases:
         die("config `inputs:` needs `upstream_roasts:` naming the roast(s) its URLs come from")
-    ups = [load_roast(i) for i in ids]
+    ups = [load_roast(i) for i in aliases.values()]
+    # name in the config -> the full id load_roast found (it also accepts a unique prefix)
+    aliases = {name: up["id"] for name, up in zip(aliases, ups)}
     for up in ups:
         if not up.get("archive", {}).get("ok"):
             info(f"WARNING: upstream roast {up['id']} is not archived; its products may still change")
     areas = {up["id"]: _norm_url(_roast_eos(cfg, up)) for up in ups}
+    # configs name the production area as {eos_prod} / {web_prod} (resolved at submit time):
+    # expand them the same way before checking where an input lives
+    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg).items()}
 
     refs, bad = {}, []
     def walk(node, key):
@@ -324,7 +362,26 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         if "{roast_id}" in node:
             bad.append(f"{key}: {{roast_id}} refers to this roast, not an upstream one")
             return
-        url = _norm_url(node)
+        resolved = node
+        for ph, value in placeholders.items():
+            resolved = resolved.replace(ph, value)
+        # {roast:<id>} names an upstream roast's own area (the workflow resolves it through that
+        # roast's manifest, helpers/common.smk); {roast:<id>:<key>} a top-level value of its
+        # captured config, e.g. output_path. The id must be one of upstream_roasts.
+        unknown = [name for name, _ in UPSTREAM_REF.findall(resolved)
+                   if aliases.get(name, name) not in areas]
+        if unknown:
+            bad.append(f"{key}: {{roast:{unknown[0]}}} is not in upstream_roasts")
+            return
+        def sub(m):
+            rid = aliases.get(m.group(1), m.group(1))
+            return upstream_config_value(rid, m.group(2)) if m.group(2) else areas[rid]
+        try:
+            resolved = UPSTREAM_REF.sub(sub, resolved)
+        except ValueError as e:
+            bad.append(f"{key}: {e}")
+            return
+        url = _norm_url(resolved)
         owner = next((i for i, a in areas.items() if url == a or url.startswith(a + "/")), None)
         if owner is None:
             bad.append(f"{key}: {node} is not under any upstream roast ({', '.join(areas.values())})")
@@ -523,6 +580,7 @@ def cmd_new(args) -> None:
         "publish": {},
         "history": [],
         "notes": args.notes or "",
+        "category": args.category or "",
     }
     log_event(r, "new")
     save_roast(r)
@@ -596,6 +654,24 @@ def cmd_checkout(args) -> None:
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
 
 
+def user_paths(cfg: dict) -> dict:
+    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
+
+    Derived from what `roast init` already wrote, so a config in git never names a person,
+    and a colleague re-running your roast writes into their own area rather than yours.
+    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
+    """
+    out = {}
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
+    web = (cfg.get("cernbox") or {}).get("eos_path")
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
+
+
 def _window_name(r: dict, step: dict) -> str:
     """tmux window for a step.  Must identify the roast, not just its label and date:
     submit closes a window of this name when no driver of *this* roast is alive, so two
@@ -619,8 +695,12 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # appended after `--config roast_id=...` is parsed as a malformed name=value entry and
     # snakemake exits ("Config entries have to be defined as name=value pairs").
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
+    # --config carries what the captured YAML deliberately does not know: which run this is
+    # (from the manifest) and whose production area to write into (from ~/.config/roast/config.json).
+    # More name=value pairs are safe here; a bare target is not, hence tgts above.
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
     base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
-            f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}")
+            f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
         base += f" {step['extra']}"
     if extra:
@@ -761,6 +841,9 @@ def _submit(args, resume: bool) -> None:
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     print(res.stdout.strip())
+    paths = user_paths(cfg)
+    if paths and r.get("user_paths") != paths:
+        r["user_paths"] = paths          # where this run writes; the captured config stays user-neutral
     cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
     if cfg_sha != r["config"]["sha256"]:
         info("captured config.yml changed since `new`; recording the new sha256")
@@ -782,7 +865,7 @@ _LOG_ERROR_RE = (r"Error in rule|WorkflowError|LockException|[A-Za-z]*Error:|"
                  r"Missing(Output|Input)Exception|"
                  r"Exiting because a job execution failed|Removing output files of failed job|"
                  r"JOB EXECUTION FAILED|exited with non-zero|unbound variable|"
-                 r"Killed|Out of memory|Segmentation fault|=== roast .* exit ")
+                 r"Killed|Out of memory|Segmentation fault|Cutflow check MISMATCH|=== roast .* exit ")
 
 
 def cmd_log(args) -> None:
@@ -994,7 +1077,7 @@ def cmd_rm(args) -> None:
         die("some remote deletions failed; local manifest kept so you can retry")
     shutil.rmtree(roast_dir(rid), ignore_errors=True)
     (DOCS_PROD / f"{rid}.md").unlink(missing_ok=True)
-    write_index(cfg)
+    write_index()
     info(f"removed roast {rid}")
 
 
@@ -1122,8 +1205,11 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
     if host == "cmslpc":
         batch = "\n".join([
-            f'''echo "TOTALS|$(condor_q -totals 2>/dev/null | grep -m1 "Total for query" || true)"''',
-            f'''condor_q -af:t JobBatchName JobStatus Iwd 2>/dev/null | awk -F\'\\t\' -v rid={rid} \'$3 ~ rid {{ n[$1 "\\t" $2]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print "CONDOR|" a[1] "|" a[2] "|" n[k] }} }}\' || true''',
+            # Attribute the queue to its step.  Spooling overwrites Iwd, so the submitting
+            # directory is gone; what survives is the dask scheduler each worker was told to
+            # call, and the step log records the scheduler it started.  Jobs no local log
+            # claims are reported too: they belong to a roast this checkout cannot see.
+            f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
     elif host == "falcon":
         batch = "\n".join([
@@ -1157,6 +1243,27 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
 def _jobnum(j: dict) -> int:
     head = j["jid"].split("_")[0].split(".")[0]
     return int(head) if head.isdigit() else 0
+
+
+CONDOR_STATES = {"1": "idle", "2": "running", "3": "removing", "4": "done",
+                 "5": "HELD", "6": "ERROR", "7": "suspended"}
+
+
+def _condor_row(groups: list[dict]) -> str:
+    """One line per dask cluster: how its workers are split across the queue."""
+    by_sched = {}
+    for g in groups:
+        by_sched.setdefault(g["sched"], {})[CONDOR_STATES.get(g["state"], g["state"])] = int(g["n"] or 0)
+    out = []
+    for sched, states in sorted(by_sched.items()):
+        total = sum(states.values())
+        detail = ", ".join(f"{v} {k}" for k, v in sorted(states.items(), key=lambda kv: -kv[1]))
+        word = "worker " if total == 1 else "workers"
+        body = f"{total:>5d} {word}"
+        if states.get("HELD"):
+            body = f"\033[31m{body}\033[0m"
+        out.append(f"condor  {body}  {detail}" + (f"   {sched}" if sched != "-" else ""))
+    return "\n".join(out)
 
 
 def _slurm_rows(live: list[dict], done: list[dict]) -> list[str]:
@@ -1214,19 +1321,16 @@ def _parse_status(stdout: str) -> dict:
     a rule that several steps happen to share (two phases both run `train`) is never merged.
     Jobs the step logs do not account for land under the empty key.
     """
-    out = {"steps": [], "live": {}, "done": {}, "extra": [], "nocheckout": False}
+    out = {"steps": [], "live": {}, "done": {}, "condor": {}, "extra": [], "nocheckout": False}
     for line in stdout.splitlines():
         if line.startswith("STEP|"):
             _, name, st, win, prog, last = (line.split("|", 5) + [""] * 6)[:6]
             colour = ("\033[32m" if st == "exit=0" else "\033[31m" if st.startswith("exit=") or st in ("error", "stalled")
                       else "\033[33m" if st == "running" else "")
             out["steps"].append((name, f"{colour}{st:12s}\033[0m {win:7s} {prog:28s} {last[:90]}".rstrip()))
-        elif line.startswith("TOTALS|") and line[7:].strip():
-            out["extra"].append(f"condor  {line[7:].strip()}")
         elif line.startswith("CONDOR|"):
-            _, name, code, n = (line.split("|", 3) + [""] * 4)[:4]
-            states = {"1": "idle", "2": "running", "3": "removing", "4": "done", "5": "HELD", "6": "ERROR", "7": "suspended"}
-            out["extra"].append(f"condor  {n:>4s} x {states.get(code, code):9s} {name}")
+            _, step, sched, code, n = (line.split("|", 4) + [""] * 5)[:5]
+            out["condor"].setdefault(step, []).append({"sched": sched, "state": code, "n": n})
         elif line.startswith("SLURM|"):
             f = (line.split("|") + [""] * 12)[:12]
             out["live"].setdefault(f[2], []).append(
@@ -1329,6 +1433,9 @@ def cmd_status(args) -> None:
                 continue
             text = dict(st["steps"]).get(name)
             print(f"  {name:<{w}s} {host:7s} {text if text is not None else 'not reported'}")
+            if st.get("condor", {}).get(name):
+                for row in _condor_row(st["condor"][name]).splitlines():
+                    print(f"{pad}{row}")
             for row in _slurm_rows(st["live"].get(name, []), st["done"].get(name, [])):
                 print(f"{pad}{row}")
         for host, st in parsed.items():
@@ -1342,6 +1449,12 @@ def cmd_status(args) -> None:
         for host, st in parsed.items():
             if st.get("error"):
                 continue
+            for sched_step, groups in sorted(st.get("condor", {}).items()):
+                if sched_step in {n for n, _ in st["steps"]}:
+                    continue                      # already shown under its step
+                print(f"  {'':<{w}s} {host:7s} condor jobs from a roast this checkout does not know:")
+                for row in _condor_row(groups).splitlines():
+                    print(f"{pad}{row}")
             stray_live, stray_done = st["live"].get("", []), st["done"].get("", [])
             if stray_live or (stray_done and args.all):
                 print(f"  {'':<{w}s} {host:7s} not part of any step (submitted by hand from the checkout):")
@@ -1457,8 +1570,8 @@ def cmd_publish(args) -> None:
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
     r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok, "pages": sorted(pages)}
     save_roast(r)
-    write_docs(cfg, r)
-    write_index(cfg)
+    write_docs(r)
+    write_index()
     info(f"results: {url}")
     info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; commit roasts/ and docs/prod/ to update the Pages site")
 
@@ -1494,8 +1607,8 @@ def cmd_archive(args) -> None:
         return
     r["archive"] = {"eos": f"{eos_url}/{dst_dir}", "ts": now(), "ok": ok}
     save_roast(r)
-    write_docs(cfg, r)
-    write_index(cfg)
+    write_docs(r)
+    write_index()
     info(f"archive: {eos_url}/{dst_dir}   (list: xrdfs {eos_url} ls -R {dst_dir})")
 
 
@@ -1510,7 +1623,7 @@ def _step_state(r: dict, step: dict) -> str:
     return f"submitted {runs[-1]['ts'][:10]}" + (" (resumed)" if runs[-1].get("resume") else "")
 
 
-def write_docs(cfg: dict, r: dict) -> None:
+def write_docs(r: dict) -> None:
     DOCS_PROD.mkdir(parents=True, exist_ok=True)
     b, c = r["barista"], r["coffea4bees"]
     url = r.get("publish", {}).get("url", "")
@@ -1527,6 +1640,7 @@ def write_docs(cfg: dict, r: dict) -> None:
         else f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) |",
         f"| results | [{url}]({url}) |" if url else "| results | not published |",
         f"| manifest | [roast.json]({url}roasts/{r['id']}/roast.json) |" if url else "",
+        (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
         (f"| archive (EOS) | `{r['archive']['eos']}/` (list: `xrdfs root://{r['archive']['eos'].split('//')[1]} ls -R /{r['archive']['eos'].split('//')[2]}`) |"
          if r.get("archive", {}).get("eos") else ""),
         "",
@@ -1556,36 +1670,82 @@ def write_docs(cfg: dict, r: dict) -> None:
     (DOCS_PROD / f"{r['id']}.md").write_text("\n".join(l for l in lines if l is not None) + "\n")
 
 
-def write_index(cfg: dict) -> None:
-    DOCS_PROD.mkdir(parents=True, exist_ok=True)
-    rs = sorted(all_roasts(), key=lambda r: r["created"], reverse=True)
-    lines = [
-        "# Cupping notes",
-        "",
-        "Production roasts of the barista workflows, one row per reproducible run. "
-        "Each roast pins a barista and a coffea4bees commit plus the exact workflow config; "
-        "results live in the owner's CERNBox area. Generated by `src/tools/roast.py`.",
-        "",
-        "| roast | date | owner | barista | coffea4bees | config | steps | results |",
-        "|---|---|---|---|---|---|---|---|",
-    ]
+def roast_category(r: dict) -> str:
+    """Which production family a roast belongs to, for the catalogue's sub-pages.
+
+    Taken from the label: everything before the run period, so nominal_run3_30x and
+    nominal_run2 share a page.  `roast new --category` overrides it when the label does not
+    say what the roast really is (libA_run3 is a DeClustered library build, not its own kind).
+    """
+    explicit = (r.get("category") or "").strip()
+    if explicit:
+        return explicit
+    label = r.get("label") or r["id"]
+    head = re.split(r"_run[23]\b", label)[0] or label
+    return head.split("_")[0] or "other"          # display case kept; the file name is slugged
+
+
+def _table(rs: list[dict]) -> list[str]:
+    lines = ["| roast | date | owner | barista | coffea4bees | config | steps | results |",
+             "|---|---|---|---|---|---|---|---|"]
     for r in rs:
         b, c = r["barista"], r["coffea4bees"]
         url = r.get("publish", {}).get("url", "")
         steps = " ".join(s["name"] for s in r["steps"])
-        res = f"[browse]({url})" if url else "—"
+        res = f"[browse]({url})" if url else "\u2014"
         lines.append(
             f"| [{r['id']}]({r['id']}.md) | {r['created'][:10]} | {r.get('owner','')} "
             f"| [`{b['sha'][:7]}`]({b['web']}/-/commit/{b['sha']}) | [`{c['sha'][:7]}`]({c['web']}/-/commit/{c['sha']}) "
             f"| `{Path(r['config']['source']).name}` | {steps} | {res} |")
+    return lines
+
+
+BLURB = ("Production roasts of the barista workflows, one row per reproducible run. "
+         "Each roast pins a barista and a coffea4bees commit plus the exact workflow config; "
+         "results live in the owner's CERNBox area.")
+
+
+def write_index() -> None:
+    """The catalogue: a landing page per family, and one page per family.
+
+    Everything here is derived from roasts/*/roast.json and regenerated by the docs build,
+    so none of it is committed -- which is what stops two people publishing roasts from
+    conflicting on the same table.
+    """
+    DOCS_PROD.mkdir(parents=True, exist_ok=True)
+    rs = sorted(all_roasts(), key=lambda r: r["created"], reverse=True)
+    families = {}
+    for r in rs:
+        families.setdefault(roast_category(r), []).append(r)
+
+    lines = ["# Cupping notes", "", BLURB, "",
+             "Generated from the roast manifests by `src/tools/roast.py`; do not edit by hand.", "",
+             "| family | roasts | most recent |", "|---|---|---|"]
+    for fam, members in sorted(families.items()):
+        newest = members[0]
+        lines.append(f"| [{fam}]({fam.lower()}.md) | {len(members)} | [{newest['id']}]({newest['id']}.md) "
+                     f"({newest['created'][:10]}) |")
     (DOCS_PROD / "index.md").write_text("\n".join(lines) + "\n")
+
+    for fam, members in families.items():
+        page = [f"# {fam}", "", f"{len(members)} roast{'s' if len(members) != 1 else ''}. "
+                f"[All families](index.md).", ""] + _table(members)
+        (DOCS_PROD / f"{fam.lower()}.md").write_text("\n".join(page) + "\n")
+
+    # a family page whose roasts have all been removed would otherwise linger
+    for stale in DOCS_PROD.glob("*.md"):
+        if stale.stem in HANDWRITTEN_PAGES or stale.stem in {f.lower() for f in families}:
+            continue
+        if not any(stale.stem == r["id"] for r in rs):
+            stale.unlink()
 
 
 def cmd_index(args) -> None:
-    cfg = load_config()
+    # No load_config(): the pages are a pure function of roasts/*/roast.json, and the docs
+    # jobs regenerate them in a clone that has no ~/.config/roast/config.json.
     for r in all_roasts():
-        write_docs(cfg, r)
-    write_index(cfg)
+        write_docs(r)
+    write_index()
     info(f"regenerated {DOCS_PROD}")
 
 
@@ -1633,6 +1793,7 @@ def main(argv=None) -> None:
     s.add_argument("--label", help="short label (default: config file stem)")
     s.add_argument("--id", help="override the generated roast id")
     s.add_argument("--notes", help="free text for the cupping notes")
+    s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")

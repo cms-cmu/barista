@@ -84,6 +84,31 @@ bin/roast new --config coffea4bees/workflows/config/run3_SvB_c6mvd.yaml --label 
 To reproduce someone else's run with different code, take the config and shas from their
 manifest and pass `--barista` and `--coffea4bees` explicitly.
 
+### Who a run belongs to
+
+A workflow config in git names no one. Where it would name a person it writes a placeholder:
+
+```yaml
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+fvt:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+```
+
+`{eos_prod}` is your production area on FNAL EOS and `{web_prod}` your CERNBox web area.
+`roast submit` reads both from `~/.config/roast/config.json`, the file `roast init` wrote,
+and passes them alongside `{roast_id}`, so you never configure them twice. Running snakemake
+by hand without roast works too: `helpers/common.smk` falls back to
+`~/.config/coffea4bees/profile.yml` and then to values derived from your account names, so a
+dry run needs no setup at all.
+
+The point of resolving this at submit time rather than baking it into the captured config is
+that a roast stays shareable. Take a colleague's manifest and config, run them under your own
+profile, and the outputs land in your area rather than theirs. What each run actually resolved
+to is recorded in its manifest and shown on its page, so provenance still says where the
+results went.
+
 ### Run-scoped output paths
 
 A workflow config may contain the placeholder `{roast_id}`, as `nominal_run2.yml` does for
@@ -175,8 +200,22 @@ The state column means:
 | `stalled` | the driver died with no error in the log, e.g. the node rebooted |
 | `exit=N` | finished, with that exit code |
 
-`status` also lists this roast's own batch jobs, found through the scheduler's record of
-the submitting directory: HTCondor batches by state on the LPC, and
+`status` also lists this roast's own batch jobs. On the LPC they are dask workers, and
+HTCondor spooling overwrites the directory they were submitted from, so the surviving
+identifier is the dask scheduler address in each worker's arguments, which the step log
+records when it starts one. Workers are therefore grouped by scheduler and shown under
+the step they serve:
+
+```
+MakeMixedData cmslpc  running   tmux=1  4 of 10 steps (40%) done
+                 condor    200 workers  190 idle, 10 running   tcp://131.225.191.81:10079
+```
+
+A group no step log claims is listed separately, as `condor jobs from a roast this
+checkout does not know`. That is the common case when a roast's manifest lives on another
+branch, and it is worth seeing: those jobs are competing for the same pool slots.
+On falcon the equivalent information comes from the scheduler's own record of the
+submitting directory: HTCondor batches by state on the LPC, and
 on falcon each Slurm job with its rule name, elapsed time against its limit, node,
 resources, and the last line of that job's log, which for a training is the live loss.
 
@@ -260,7 +299,7 @@ at the destination with the same size, so re-running after another step is cheap
 |---|---|---|
 | **FNAL EOS**, `/store/user/<you>/HH4b_prod/<id>/` | merged `.coffea` histograms, fitted JCM weights, friend-tree manifests, the config and the manifest | `xrdfs root://cmseos.fnal.gov ls -R /store/user/<you>/HH4b_prod/<id>` |
 | **CERNBox**, `https://<you>.web.cern.ch/<you>/HH4b/prod/<id>/` | plots, cutflows, limits, the step log, the roast manifest | open it in a browser |
-| **[Cupping notes](index.md)** | one row per roast with both commit hashes linked to GitLab, the config, the steps, and a link into the CERNBox area | this documentation site |
+| **[Cupping notes](index.md)** | a page per family, each with one row per roast: both commit hashes linked to GitLab, the config, the steps, and a link into the CERNBox area | this documentation site |
 
 Archiving deliberately keeps only merged products: per-dataset `singlefiles`, per-dataset
 classifier-input manifests, per-job logs, Dask reports and memory profiles stay on the

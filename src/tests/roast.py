@@ -92,7 +92,7 @@ class TestPhaseTable(unittest.TestCase):
 
     def test_phase_hosts_match_the_documented_split(self):
         # coffea4bees/workflows/README.md: A, B, E, F on cmslpc; C, D on falcon (GPU).
-        for phase in "ABEF":
+        for phase in "ABF":
             self.assertEqual(roast.PHASES[phase][0], "cmslpc")
         for phase in "CD":
             self.assertEqual(roast.PHASES[phase][0], "falcon")
@@ -218,7 +218,10 @@ class TestRunScriptFlags(unittest.TestCase):
         p.add_argument("--config", nargs="*")
         ns = p.parse_args(argv)
         self.assertEqual(ns.targets, ["all_M1", "all_M2", "out/x.yml"])
-        self.assertEqual(ns.config, [f"roast_id={FAKE_ID}"])
+        self.assertEqual(ns.config[0], f"roast_id={FAKE_ID}")
+        # everything after --config must be name=value; a bare word would be a malformed entry
+        for entry in ns.config:
+            self.assertIn("=", entry, f"{entry!r} is not a name=value pair")
         self.assertTrue(ns.n)
 
 
@@ -277,6 +280,36 @@ class TestSummaryLine(unittest.TestCase):
     def test_state_word_ignores_colour_codes(self):
         self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")
         self.assertEqual(roast._state_word("\033[33mrunning     \033[0m tmux=1"), "running")
+
+
+class TestUserPaths(unittest.TestCase):
+    """Workflow configs name roles, not people; roast supplies the person at submit time."""
+
+    def test_derived_from_the_roast_config(self):
+        paths = roast.user_paths(CFG)
+        self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+
+    def test_xrootd_keeps_its_doubled_slash(self):
+        # root://host/abs/path silently means something else than root://host//abs/path
+        for v in roast.user_paths(CFG).values():
+            self.assertRegex(v, r"^root://[^/]+//")
+
+    def test_unedited_template_values_are_not_passed_on(self):
+        cfg = json.loads(json.dumps(CFG))
+        cfg["eos"]["path"] = "/store/user/<lpc_user>/HH4b_prod"
+        self.assertNotIn("eos_prod", roast.user_paths(cfg))
+
+    def test_submit_passes_them_after_roast_id(self):
+        rdir = roast.roast_dir(FAKE_ID); rdir.mkdir(parents=True, exist_ok=True)
+        (rdir / "config.yml").write_text('label: "CI"\noutput_path: "output/CI/"\n')
+        try:
+            r = fake_roast()
+            script = roast._run_script(CFG, r, r["steps"][0], "~/prod/x/barista", 8, "", False)
+            self.assertIn(f"--config roast_id={FAKE_ID} eos_prod=", script)
+            self.assertIn("web_prod=", script)
+        finally:
+            shutil.rmtree(rdir, ignore_errors=True)
 
 
 class TestRoastSsh(unittest.TestCase):
@@ -428,6 +461,44 @@ class TestCheckInputs(unittest.TestCase):
     def check(self, inputs):
         return roast.check_inputs(CFG, {"label": "x", "inputs": inputs})
 
+    def test_roast_placeholder_resolves_to_upstream_area(self):
+        rec = self.check({"upstream_roasts": self.UP,
+                          "FvT": f"{{roast:{self.UP}}}/friend/FvT_nominal/result.json@@analysis.0.merged"})
+        self.assertEqual(rec["refs"]["FvT"]["roast"], self.UP)
+
+    def test_roast_config_placeholder_reads_the_captured_config(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\noutput_path: "output/{roast_id}/"\n')
+        url = (f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}computeJCM/"
+               f"histAll_{{roast:{self.UP}:label}}.coffea")
+        rec = self.check({"upstream_roasts": self.UP, "jcm_hists": url})
+        self.assertEqual(rec["refs"]["jcm_hists"]["roast"], self.UP)
+        resolved = roast.UPSTREAM_REF.sub(
+            lambda m: roast.upstream_config_value(m.group(1), m.group(2)) if m.group(2) else self.AREA, url)
+        self.assertEqual(resolved, f"{self.AREA}/output/{self.UP}/computeJCM/histAll_Run3.coffea")
+
+    def test_upstream_aliases(self):
+        """upstream_roasts as {alias: id}: {roast:<alias>} and {roast:<alias>:<key>} resolve through
+        it, and {roast:<alias>:id} is the id itself."""
+        (self.tmp / self.UP / "config.yml").write_text('output_path: "output/x/"\n')
+        rec = self.check({"upstream_roasts": {"nominal": self.UP},
+                          "jcm": "{roast:nominal}/{roast:nominal:output_path}jcm.yml",
+                          "ci": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json"})
+        self.assertEqual(rec["refs"]["jcm"]["roast"], self.UP)
+        self.assertEqual(rec["refs"]["ci"]["roast"], self.UP)
+        self.assertEqual(roast.upstream_config_value(self.UP, "id"), self.UP)
+        with self.assertRaises(SystemExit):     # an alias that is not defined
+            self.check({"upstream_roasts": {"nominal": self.UP}, "jcm": "{roast:mixed}/jcm.yml"})
+
+    def test_roast_config_placeholder_needs_the_key(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\n')
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP,
+                        "jcm_hists": f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}histAll_NoJCM.coffea"})
+
+    def test_roast_placeholder_must_be_an_upstream(self):
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP, "FvT": "{roast:some_other_roast}/friend/FvT/result.json"})
+
     def test_no_inputs_block(self):
         self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
 
@@ -503,6 +574,49 @@ class TestCopySettings(unittest.TestCase):
         ps = roast.copy_settings("publish", CFG, fake_roast())
         self.assertTrue(any("dask-report" in e for e in ps["exclude"]))
         self.assertTrue(any(e.startswith("output/") and e.endswith("logs") for e in ps["exclude"]))
+
+
+class TestCuppingNotesSweep(unittest.TestCase):
+    """write_index() deletes pages whose roast is gone.  It must not delete the prose.
+
+    The colleague guide lives in docs/prod so it sits in the same nav as the catalogue, and
+    was once swept away silently -- taking the URL mailed to the collaboration with it.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = (roast.DOCS_PROD, roast.ROASTS)
+        roast.DOCS_PROD = self.tmp / "prod"
+        roast.ROASTS = self.tmp / "roasts"
+        roast.DOCS_PROD.mkdir(parents=True)
+        d = roast.ROASTS / FAKE_ID
+        d.mkdir(parents=True)
+        (d / "roast.json").write_text(json.dumps(fake_roast()))
+
+    def tearDown(self):
+        roast.DOCS_PROD, roast.ROASTS = self.saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_handwritten_pages_survive_and_orphans_do_not(self):
+        guide = roast.DOCS_PROD / "using_roast.md"
+        guide.write_text("# Using roast\n")
+        orphan = roast.DOCS_PROD / "gone_20250101_dead-beef.md"
+        orphan.write_text("# a roast that no longer has a manifest\n")
+        roast.write_index()
+        self.assertTrue(guide.exists(), "the hand-written guide was swept away")
+        self.assertFalse(orphan.exists(), "a page with no roast should be removed")
+        self.assertTrue((roast.DOCS_PROD / "index.md").exists())
+
+    def test_every_handwritten_page_is_tracked_not_ignored(self):
+        """A page the sweep spares must also be committed, or CI rebuilds without it."""
+        root = Path(__file__).resolve().parents[2]
+        if not (root / ".git").exists() or shutil.which("git") is None:
+            self.skipTest("no git checkout, or no git (the CI image is python:slim)")
+        for stem in roast.HANDWRITTEN_PAGES - {"index"}:
+            rel = f"docs/prod/{stem}.md"
+            self.assertTrue((root / rel).exists(), f"{rel} is listed as hand-written but missing")
+            ignored = subprocess.run(["git", "check-ignore", "-q", rel], cwd=root).returncode == 0
+            self.assertFalse(ignored, f"{rel} is hand-written but .gitignore excludes it")
 
 
 class TestHelpers(unittest.TestCase):
@@ -614,6 +728,44 @@ class TestStatusGrouping(unittest.TestCase):
 
     def test_missing_checkout_is_flagged(self):
         self.assertTrue(roast._parse_status("NOCHECKOUT")["nocheckout"])
+
+
+class TestCondorAttribution(unittest.TestCase):
+    """Condor workers are attributed to the step whose dask scheduler they serve.
+
+    Spooling overwrites the submit directory, so the surviving identifier is the scheduler
+    address in the worker's arguments, which the step log records when it starts one.
+    """
+
+    OUT = "\n".join([
+        "STEP|MakeMixedData|exit=0|tmux=0|10 of 10|done",
+        "CONDOR|MakeMixedData|tcp://1.2.3.4:10001|1|40",
+        "CONDOR|MakeMixedData|tcp://1.2.3.4:10001|2|10",
+        "CONDOR|?|tcp://9.9.9.9:10099|1|1000",
+    ])
+
+    def test_jobs_land_under_their_step(self):
+        st = roast._parse_status(self.OUT)
+        self.assertEqual(len(st["condor"]["MakeMixedData"]), 2)
+        self.assertIn("?", st["condor"])
+
+    def test_states_are_summed_per_scheduler(self):
+        st = roast._parse_status(self.OUT)
+        row = roast._condor_row(st["condor"]["MakeMixedData"])
+        self.assertIn("50 workers", row)          # 40 idle + 10 running
+        self.assertIn("40 idle", row)
+        self.assertIn("10 running", row)
+
+    def test_one_worker_is_singular(self):
+        self.assertIn("1 worker ", roast._condor_row([{"sched": "-", "state": "2", "n": "1"}]))
+
+    def test_held_jobs_are_flagged(self):
+        row = roast._condor_row([{"sched": "-", "state": "5", "n": "7"}])
+        self.assertIn("HELD", row)
+        self.assertIn("\033[31m", row)           # held work needs to catch the eye
+
+    def test_unknown_scheduler_is_not_printed_as_a_dash(self):
+        self.assertNotIn("-", roast._condor_row([{"sched": "-", "state": "1", "n": "3"}]).split("3 idle")[-1])
 
 
 class TestSlurmRowsSupersede(unittest.TestCase):

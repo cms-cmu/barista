@@ -180,6 +180,7 @@ MULTIJET_MODES = {
 _FOUR_TAG_MODES = ("mixed4b", "sample4b")      # Multijet = a four-tag sample (--multijet-process)
 _multijet_mode = "data3b-tt3b"
 _multijet_process = ""
+_multijet_scale = 1.0           # --multijet-scale: e.g. 1/N for a multijet sample made of N seeds
 _pseudodata: list = []          # --pseudodata: extra ttbar pseudodata column vs tt 4b
 _compare: list = []             # --compare: extra column per process vs Bkg
 
@@ -199,6 +200,8 @@ def derived(cell: dict, ttbar: list) -> dict:
     if alltag:
         return {"tt3": tt3, "tt4": nan, "mj": nan, "bkg": nan, "ratio": nan, "err": nan, "tt3frac": nan, "alltag": True}
     mj = {"data3b-tt3b": cell["data3"] - tt3, "data3b": cell["data3"], "mixed4b": cell["mj4"], "sample4b": cell["mj4"]}[_multijet_mode]
+    if _multijet_mode in _FOUR_TAG_MODES:
+        mj *= _multijet_scale
     bkg = mj + tt4
     ratio = cell["data4"] / bkg if bkg else nan
     n_raw = cell["data4_raw"]
@@ -419,6 +422,9 @@ def main(argv=None) -> int:
                          "(four-tag --multijet-process as is, e.g. declustered data; tt 4b = ttbar MC)")
     ap.add_argument("--multijet-process", default="mixeddata_all",
                     help="process whose four-tag cutflow is the Multijet with --multijet mixed4b / sample4b")
+    ap.add_argument("--multijet-scale", type=float, default=1.0,
+                    help="scale of the --multijet-process yields (mixed4b / sample4b), e.g. 1/N when it is the "
+                         "union of N equivalent samples (the 4b mixing's mixeddata_all_4bmix)")
     ap.add_argument("--pseudodata", nargs="+", default=None, metavar="PROCESS",
                     help="ttbar pseudodata processes (e.g. ttbar_PSData): extra column, compared with tt 4b MC")
     ap.add_argument("--compare", nargs="+", default=None, metavar="PROCESS",
@@ -426,8 +432,9 @@ def main(argv=None) -> int:
                          "subsample, mix_v3: a closure pseudo-experiment)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
-    global _multijet_mode, _multijet_process, _pseudodata, _compare
+    global _multijet_mode, _multijet_process, _multijet_scale, _pseudodata, _compare
     _multijet_mode = args.multijet
+    _multijet_scale = args.multijet_scale
     _multijet_process = args.multijet_process if args.multijet in _FOUR_TAG_MODES else ""
     _pseudodata = list(args.pseudodata or [])
     _compare = list(args.compare or [])

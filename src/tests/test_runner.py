@@ -134,6 +134,17 @@ class TestRunner(unittest.TestCase):
         self.assertEqual(get_dataset_type("data_3b_for_mixed"), "data_for_mix")
         self.assertEqual(get_dataset_type("TTToSemiLeptonic_for_mixed"), "tt_for_mixed")
 
+    def test_mixed_variant_datasets(self):
+        """Multi-sample mixed-data variants (mixeddata_<tag>_4b) are not read as MC."""
+        from src.runner.dataset import mixed_variant_prefix
+        self.assertEqual(get_dataset_type("mixeddata_4b"), "mixeddata_4b")
+        self.assertEqual(get_dataset_type("mixeddata_noTTSub_4b"), "mixeddata_4b")
+        self.assertEqual(get_dataset_type("mixeddata_4bmix_4b"), "mixeddata_4b_variant")
+        self.assertEqual(mixed_variant_prefix("mixeddata_4bmix_4b"), "mix_4bmix")
+        self.assertIsNone(mixed_variant_prefix("mixeddata_4b"))
+        self.assertIsNone(mixed_variant_prefix("mixeddata_noTTSub_4b"))
+        self.assertEqual(get_dataset_type("mixeddata_all_4bmix"), "mixeddata_all")
+
     def test_apply_storage_remap(self):
         """Test apply_storage_remap utility."""
         remaps = [

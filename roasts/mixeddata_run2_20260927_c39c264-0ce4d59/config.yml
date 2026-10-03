@@ -32,6 +32,9 @@ inputs:
   # histograms feed the mixed-data JCM fit (M.3).
   JCM: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c/output/TESTRun2/computeJCM/JCM_2024_v2/jetCombinatoricModel_SB_2024_v2.yml"
   jcm_hists: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c/output/TESTRun2/computeJCM/histAll_NoJCM.coffea"
+  # M.7 signal check (hot patch 2026-09-29): the analysis SvB, evaluated on the fly on the
+  # original and the mixed signal MC.
+  SvB_model: "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c/classifier/SvB_nominal/result.json"
 
 # Eras as they appear in metadata/datasets/data.yml (picoAOD keys) — same as nominal_run2.yml.
 year_eras:
@@ -127,3 +130,15 @@ ttbar_psdata:
   worker_memory: 6GB
   chunksize: 100000
   picosize: 100000
+
+# ------------------------------------------------------------------------------
+# M.7: signal check (hot patch 2026-09-29) -- signal MC (every preselected event, 3b and 4b) mixed
+# with M.2's settings and M.1's library, histogrammed next to the original with SvB =
+# inputs.SvB_model on the fly.
+# ------------------------------------------------------------------------------
+signal_check:
+  enabled: true
+  datasets: ["GluGluToHHTo4B_cHHH1"]   # SM ggHH
+  subsample: 10             # mix only signal events with event % 10 == 0 (hot patch 2026-09-30)
+  mixeddata_subsample: 10   # mixeddata_all SvB pass at 1/10, weights x 10
+  chunksize: 20000

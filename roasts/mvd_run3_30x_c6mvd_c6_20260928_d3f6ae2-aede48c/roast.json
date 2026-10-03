@@ -185,9 +185,10 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_30x_c6mvd_c6_20260928_d3f6ae2-aede48c",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_30x_c6mvd_c6_20260928_d3f6ae2-aede48c/",
-    "ts": "2026-09-29 06:20:00",
+    "ts": "2026-09-29 15:41:07",
     "ok": true,
     "pages": [
+      "output/SvB_MvD_30x_c6_c6mvd/yields.html",
       "output/mvd_run3_30x_c6mvd_c6_20260928_d3f6ae2-aede48c/V4/plots_MvD_30x_c6mvd_c6/index.html",
       "output/mvd_run3_30x_c6mvd_c6_20260928_d3f6ae2-aede48c/V4/stat_analysis/summary.html"
     ]
@@ -250,7 +251,36 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:40:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:41:06",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:41:08",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 15:41:11",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
-  "notes": "c6 SvB against the c6-feature 30x MvD (mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c)"
+  "notes": "c6 SvB against the c6-feature 30x MvD (mvd_run3_30x_c6mvd_20260928_d3f6ae2-aede48c)",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_c6mvd_c6_20260928_d3f6ae2-aede48c",
+    "ts": "2026-09-29 15:41:11",
+    "ok": true
+  }
 }

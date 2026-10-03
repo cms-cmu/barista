@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast declustered_run3_library_20260928_f2e27c4-92dd020 step DeClustered -- generated 2026-09-28 22:57:30
+# roast declustered_run3_library_20260928_f2e27c4-92dd020 step DeClustered -- generated 2026-09-29 08:43:15
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -17,7 +17,7 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk all_D1 --configfile roasts/declustered_run3_library_20260928_f2e27c4-92dd020/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=declustered_run3_library_20260928_f2e27c4-92dd020 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk --configfile roasts/declustered_run3_library_20260928_f2e27c4-92dd020/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=declustered_run3_library_20260928_f2e27c4-92dd020 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast declustered_run3_library_20260928_f2e27c4-92dd020 step DeClustered exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

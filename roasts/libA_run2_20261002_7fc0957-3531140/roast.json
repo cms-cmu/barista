@@ -1,0 +1,152 @@
+{
+  "id": "libA_run2_20261002_7fc0957-3531140",
+  "label": "libA_run2",
+  "created": "2026-10-02 08:59:46",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "7fc0957d8ee886c26107a492f401cc6aadfd1fff",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "3531140e346eadb196bba88d13a3bbbd2dbdab33",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run2_library.yml",
+    "captured": "config.yml",
+    "sha256": "1cabdb839c5375ab91ca55f537effc86cb2a3cd164bd54d1fd82865a6b081576",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2.yml",
+        "sha256": "0e02c4247fc5a8c4085d5494120165327ced07429f434e8c8a34eb8e5e0fd6d2"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run2_20260919_a180b1a-a16559c",
+        "barista": "a180b1a6b5499706707ba04b2f7f4a0496ea0dfb",
+        "coffea4bees": "a16559c7b91ff76be95f9547defa5439d2b23841",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c",
+        "archived": false
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-02 09:00:54",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "libA_run2_7fc0957-3531140_DeClustered",
+          "ssh": "jda102@cmslpc349.fnal.gov",
+          "config_sha256": "1cabdb839c53"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/libA_run2_20261002_7fc0957-3531140/barista",
+      "ssh": "jda102@cmslpc349.fnal.gov",
+      "checked_out": "2026-10-02 09:00:53"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/libA_run2_20261002_7fc0957-3531140",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/libA_run2_20261002_7fc0957-3531140/",
+    "ts": "2026-10-02 14:54:19",
+    "ok": null,
+    "pages": [
+      "output/libA_run2_20261002_7fc0957-3531140/D5/cutflow_monitoring.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D5/plots/index.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D6/plots_declustered/index.html",
+      "output/libA_run2_20261002_7fc0957-3531140/D6/plots_signal/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-02 08:59:46",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-02 09:00:53",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-02 09:00:54",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-02 11:01:04",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-02 11:59:10",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-02 11:59:44",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Run 2 library declustering, libA setup, on the numba clustering + per-process library + consolidated library files. Carry fields: btagScore, jetId, nConstituents, energy fractions (not puId: Run 2 drops puId<6 jets below 50 GeV). No missing chunks; event counts equal the Run 2 PDF roast. Whole roast ~2.5 h. D.6 SvB sentinel (declustered 0.66, original 0.15) explained: the Run 2 SvB is multi-class and ps_hh is only defined when HH is the largest signal class. SR yield shares (HH/ZZ/ZH-largest/all p<=0.01): original ggHH 0.85/0.04/0.11/0.00, declustered ggHH 0.34/0.30/0.35/0.01, declustered data 0.26/0.39/0.32/0.03 (Run 3's binary SvB has no ZZ/ZH channel). The report counts sentinels in its fraction denominators, so the fractions and yield ratios stand. Open: the SR column of the D.4 closure despite blinded upstream B.1 histograms.",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/libA_run2_20261002_7fc0957-3531140",
+    "ts": "2026-10-02 11:59:10",
+    "ok": true
+  },
+  "category": "declustered"
+}
