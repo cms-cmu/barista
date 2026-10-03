@@ -466,6 +466,35 @@ class TestCheckInputs(unittest.TestCase):
                           "FvT": f"{{roast:{self.UP}}}/friend/FvT_nominal/result.json@@analysis.0.merged"})
         self.assertEqual(rec["refs"]["FvT"]["roast"], self.UP)
 
+    def test_roast_config_placeholder_reads_the_captured_config(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\noutput_path: "output/{roast_id}/"\n')
+        url = (f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}computeJCM/"
+               f"histAll_{{roast:{self.UP}:label}}.coffea")
+        rec = self.check({"upstream_roasts": self.UP, "jcm_hists": url})
+        self.assertEqual(rec["refs"]["jcm_hists"]["roast"], self.UP)
+        resolved = roast.UPSTREAM_REF.sub(
+            lambda m: roast.upstream_config_value(m.group(1), m.group(2)) if m.group(2) else self.AREA, url)
+        self.assertEqual(resolved, f"{self.AREA}/output/{self.UP}/computeJCM/histAll_Run3.coffea")
+
+    def test_upstream_aliases(self):
+        """upstream_roasts as {alias: id}: {roast:<alias>} and {roast:<alias>:<key>} resolve through
+        it, and {roast:<alias>:id} is the id itself."""
+        (self.tmp / self.UP / "config.yml").write_text('output_path: "output/x/"\n')
+        rec = self.check({"upstream_roasts": {"nominal": self.UP},
+                          "jcm": "{roast:nominal}/{roast:nominal:output_path}jcm.yml",
+                          "ci": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json"})
+        self.assertEqual(rec["refs"]["jcm"]["roast"], self.UP)
+        self.assertEqual(rec["refs"]["ci"]["roast"], self.UP)
+        self.assertEqual(roast.upstream_config_value(self.UP, "id"), self.UP)
+        with self.assertRaises(SystemExit):     # an alias that is not defined
+            self.check({"upstream_roasts": {"nominal": self.UP}, "jcm": "{roast:mixed}/jcm.yml"})
+
+    def test_roast_config_placeholder_needs_the_key(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\n')
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP,
+                        "jcm_hists": f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}histAll_NoJCM.coffea"})
+
     def test_roast_placeholder_must_be_an_upstream(self):
         with self.assertRaises(SystemExit):
             self.check({"upstream_roasts": self.UP, "FvT": "{roast:some_other_roast}/friend/FvT/result.json"})

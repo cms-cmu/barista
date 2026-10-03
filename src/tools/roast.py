@@ -290,12 +290,42 @@ def _roast_eos(cfg: dict, up: dict) -> str:
     return f"{eos.get('url', 'root://cmseos.fnal.gov')}/{eos['path'].rstrip('/')}/{up['id']}"
 
 
+# {roast:<id>} -> that roast's EOS area; {roast:<id>:<key>} -> a value from its captured config
+# (key `id`: the roast id itself). <id> may also be an alias from a mapping-form upstream_roasts.
+# Same syntax as coffea4bees/workflows/helpers/common.smk, which resolves it at run time.
+UPSTREAM_REF = re.compile(r"\{roast:([^}:]+)(?::([^}]+))?\}")
+
+
+def upstream_aliases(upstream) -> dict:
+    """`upstream_roasts` as {name: roast id}: a mapping gives short aliases, a str / list names
+    the roasts by their own ids."""
+    if isinstance(upstream, dict):
+        return {str(k): str(v) for k, v in upstream.items()}
+    ids = [upstream] if isinstance(upstream, str) else list(upstream or [])
+    return {str(i): str(i) for i in ids}
+
+
+def upstream_config_value(rid: str, key: str) -> str:
+    """Top-level `key` of roast `rid`'s captured config, with its {roast_id} filled in."""
+    if key == "id":
+        return rid
+    import yaml     # as in _load_layered_config: roast is otherwise stdlib
+    captured = roast_dir(rid) / "config.yml"
+    if not captured.exists():
+        raise ValueError(f"{{roast:{rid}:{key}}}: no captured config {captured}")
+    value = (yaml.safe_load(captured.read_text()) or {}).get(key)
+    if not isinstance(value, str):
+        raise ValueError(f"{{roast:{rid}:{key}}}: {captured} has no top-level string {key!r}")
+    return value.replace("{roast_id}", rid)
+
+
 def check_inputs(cfg: dict, wf: dict) -> dict | None:
     """Validate a workflow config's `inputs:` block: the products it reads from other roasts.
 
         inputs:
-          upstream_roasts: [nominal_run3_...]      # str or list
+          upstream_roasts: [nominal_run3_...]      # str or list -- or {alias: id}
           FvT: root://.../HH4b_prod/nominal_run3_.../friend/FvT_nominal/result.json@@analysis.0.merged
+          JCM: "{roast:<id or alias>}/{roast:<id or alias>:output_path}computeJCM/..."
 
     Every other value under `inputs` (nested allowed) must be a URL inside the EOS area of one of
     the named roasts. Otherwise a dependent roast can quietly read a hand-run product or another
@@ -306,11 +336,12 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         return None
     if not isinstance(block, dict):
         die("config `inputs:` must be a mapping")
-    ids = block.get("upstream_roasts")
-    ids = [ids] if isinstance(ids, str) else list(ids or [])
-    if not ids:
+    aliases = upstream_aliases(block.get("upstream_roasts"))
+    if not aliases:
         die("config `inputs:` needs `upstream_roasts:` naming the roast(s) its URLs come from")
-    ups = [load_roast(i) for i in ids]
+    ups = [load_roast(i) for i in aliases.values()]
+    # name in the config -> the full id load_roast found (it also accepts a unique prefix)
+    aliases = {name: up["id"] for name, up in zip(aliases, ups)}
     for up in ups:
         if not up.get("archive", {}).get("ok"):
             info(f"WARNING: upstream roast {up['id']} is not archived; its products may still change")
@@ -335,12 +366,21 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         for ph, value in placeholders.items():
             resolved = resolved.replace(ph, value)
         # {roast:<id>} names an upstream roast's own area (the workflow resolves it through that
-        # roast's manifest, helpers/common.smk); it must be one of upstream_roasts
-        unknown = [rid for rid in re.findall(r"\{roast:([^}]+)\}", resolved) if rid not in areas]
+        # roast's manifest, helpers/common.smk); {roast:<id>:<key>} a top-level value of its
+        # captured config, e.g. output_path. The id must be one of upstream_roasts.
+        unknown = [name for name, _ in UPSTREAM_REF.findall(resolved)
+                   if aliases.get(name, name) not in areas]
         if unknown:
             bad.append(f"{key}: {{roast:{unknown[0]}}} is not in upstream_roasts")
             return
-        resolved = re.sub(r"\{roast:([^}]+)\}", lambda m: areas[m.group(1)], resolved)
+        def sub(m):
+            rid = aliases.get(m.group(1), m.group(1))
+            return upstream_config_value(rid, m.group(2)) if m.group(2) else areas[rid]
+        try:
+            resolved = UPSTREAM_REF.sub(sub, resolved)
+        except ValueError as e:
+            bad.append(f"{key}: {e}")
+            return
         url = _norm_url(resolved)
         owner = next((i for i, a in areas.items() if url == a or url.startswith(a + "/")), None)
         if owner is None:
