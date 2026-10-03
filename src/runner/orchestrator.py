@@ -330,16 +330,23 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
                 fname = f'{path1}_{fname}'
             return f'{dir_name}/{fname}'
 
-        merge_kw = {
-            'step': config_runner["friend_merge_step"],
-            'base_path': friend_base,
-            'naming': _merge_naming,
-            'transform': NanoAOD(regular=False, jagged=True),
-        }
+        def _get_merge_kw(friend_name):
+            base = friend_base
+            cfg = configs.get("config", {}) if isinstance(configs, dict) else {}
+            if friend_name == "HCR_input" and cfg.get("make_classifier_input"):
+                base = cfg["make_classifier_input"]
+            elif friend_name == "SvB" and cfg.get("make_friend_SvB"):
+                base = cfg["make_friend_SvB"]
+            return {
+                'step': config_runner["friend_merge_step"],
+                'base_path': base,
+                'naming': _merge_naming,
+                'transform': NanoAOD(regular=False, jagged=True),
+            }
 
         if args.run_dask:
             merged_friends = client.compute(
-                {k: friends[k].merge(**merge_kw, clean=False, dask=True)
+                {k: friends[k].merge(**_get_merge_kw(k), clean=False, dask=True)
                  for k in friends},
                 sync=True,
                 retries=3,
@@ -349,7 +356,7 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
             friends = merged_friends
         else:
             for k, v in friends.items():
-                friends[k] = v.merge(**merge_kw)
+                friends[k] = v.merge(**_get_merge_kw(k))
 
         from src.storage.eos import EOS
         from src.utils.json import DefaultEncoder

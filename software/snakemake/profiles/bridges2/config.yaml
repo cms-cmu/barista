@@ -32,7 +32,9 @@ set-resources:
   train:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
-    mem_mb: 20000
+    mem_mb: 22000
+    cpus_per_task: 4
+    runtime: "24h"
   train_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
@@ -54,10 +56,16 @@ set-resources:
     mem_mb: 20000
     qos: ""
   evaluate:
-    slurm_partition: "RM-shared"
-    mem_mb: 8000
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 22000
     cpus_per_task: 4
-    qos: ""
+    runtime: "24h"
+  extract_friend_manifest:
+    slurm_partition: "RM-shared"
+    mem_mb: 4000
+    cpus_per_task: 2
+    runtime: "1h"
   evaluate_all:
     slurm_partition: "RM-shared"
     mem_mb: 8000
