@@ -108,6 +108,19 @@
           "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
           "ssh": "jda102@cmslpc305.fnal.gov",
           "config_sha256": "7f55c2997fe6"
+        },
+        {
+          "ts": "2026-10-03 16:23:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
         }
       ]
     }
@@ -141,9 +154,15 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 16:23:17",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
     }
   ],
-  "notes": "16-seed libA Run 2 declustered sample on libA_run2's library (no D.1, D.6 off): mixeddata_all_declib16 (all seeds, one sample) + synthetic_data_lib16_{4b,multijet}; D.5 seed study (Jet_lib_index, N_eff). First consumer: ttH systematics.",
+  "notes": "16-seed libA Run 2 declustered sample on libA_run2's library (no D.1, D.6 off): mixeddata_all_declib16 (all seeds, one sample) + synthetic_data_lib16_{4b,multijet}; D.5 seed study (Jet_lib_index, N_eff). First consumer: ttH systematics. HOT PATCH 2026-10-03 15:20: first D.3 pass failed (No module named coffea4bees.skimmer: without D.1, D.3 starts the shared dask daemon with the Run 2 skimmer template's transfer list). Checkout's Snakefile_DeClustered_3_decluster.smk replaced by coffea4bees 9ba4eb531 (D3_config ships src + coffea4bees), D3 configs regenerated, step resumed.",
   "category": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
