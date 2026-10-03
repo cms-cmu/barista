@@ -216,4 +216,7 @@ condor_logs/
 
 # Cupping notes: generated from roasts/*/roast.json by `roast index` and rebuilt by the
 # docs jobs.  Committing them made every parallel roast conflict on the shared index.
-docs/prod/
+# Ignore the contents rather than the directory itself: git cannot re-include a file whose
+# parent directory is excluded, and using_roast.md is hand-written and must stay tracked.
+docs/prod/*
+!docs/prod/using_roast.md

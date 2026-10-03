@@ -155,6 +155,11 @@ ROOT = repo_root()
 ROASTS = ROOT / "roasts"
 DOCS_PROD = ROOT / "docs" / "prod"
 
+# Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
+# write_index() must leave them alone.  "index" is generated but always wanted; the rest are
+# prose that lives next to the catalogue because colleagues reach it from the same nav.
+HANDWRITTEN_PAGES = {"index", "using_roast"}
+
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
@@ -1689,7 +1694,7 @@ def write_index() -> None:
 
     # a family page whose roasts have all been removed would otherwise linger
     for stale in DOCS_PROD.glob("*.md"):
-        if stale.stem == "index" or stale.stem in {f.lower() for f in families}:
+        if stale.stem in HANDWRITTEN_PAGES or stale.stem in {f.lower() for f in families}:
             continue
         if not any(stale.stem == r["id"] for r in rs):
             stale.unlink()
