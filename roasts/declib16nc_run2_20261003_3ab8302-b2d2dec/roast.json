@@ -139,7 +139,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16nc_run2_20261003_3ab8302-b2d2dec/",
-    "ts": "2026-10-04 12:54:42",
+    "ts": "2026-10-04 13:38:41",
     "ok": true,
     "pages": [
       "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/cutflow_monitoring.html",
@@ -190,6 +190,12 @@
     },
     {
       "ts": "2026-10-04 12:54:42",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-04 13:38:40",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
