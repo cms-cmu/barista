@@ -62,6 +62,9 @@ PHASES = {
     "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
+    "BKG_AB": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk"),
+    "BKG_C":  ("falcon", "coffea4bees/workflows/Snakefile_bkg_syst_C.smk"),
+    "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
 
 # What `publish` ships to CERNBox: small, human-readable artefacts.  Override any key under
