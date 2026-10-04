@@ -1,0 +1,144 @@
+{
+  "id": "mixsvbboot_4bmix_20261004_1872432-cfeb9f3",
+  "label": "mixsvbboot_4bmix",
+  "created": "2026-10-04 15:51:52",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "18724320a4ddaec5c124b85a987595f83df0642c",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "cfeb9f35f7e2d0b34d4bcb5c0b915d4787645ee2",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3_4bmix_svbboot.yml",
+    "captured": "config.yml",
+    "sha256": "3674a34bab2d7cd7649742945178cca98dd5ea72a7bc5ce3f0420915b0b7e5c6",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/mixeddata_run3.yml",
+        "sha256": "cc3b5b9e40effb6771c8fc1baf732c6ce838aeff753d9f203fb0b8a637954962"
+      },
+      {
+        "source": "coffea4bees/workflows/config/mixeddata_run3_4bmix.yml",
+        "sha256": "b024df5695688501a2502f55fed65d9164850b18ea09fba594f4285cccb38024"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_4bmix_20261001_af69c01-28f390d",
+        "barista": "af69c0149c3e6f34bddedf4d5e2889b8c05bb6b8",
+        "coffea4bees": "28f390dbac266658dacfbcb32655e69adbe54fc9",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_4bmix_20261001_af69c01-28f390d",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_nontight_20260925_0c53380-193851f}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_nontight_20260925_0c53380-193851f}/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "SvB_model": {
+        "url": "{eos_prod}/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      },
+      "hemilib": {
+        "url": "{eos_prod}/mixeddata_run3_20260926_956d4bf-aca8a4e/hemilib",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "subsamples": {
+        "url": "{roast:mixeddata_run3_4bmix_20261001_af69c01-28f390d}/handoff/mixeddata_4bmix_4b.yml",
+        "roast": "mixeddata_run3_4bmix_20261001_af69c01-28f390d"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-04 15:53:22",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M6_svb",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixsvbboot_4bmix_1872432-cfeb9f3_MakeMixedData",
+          "ssh": "jda102@cmslpc304.fnal.gov",
+          "config_sha256": "3674a34bab2d"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixsvbboot_4bmix_20261004_1872432-cfeb9f3/barista",
+      "ssh": "jda102@cmslpc304.fnal.gov",
+      "checked_out": "2026-10-04 15:53:20"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-04 15:51:52",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-04 15:53:20",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-04 15:53:22",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  }
+}
