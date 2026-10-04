@@ -99,6 +99,32 @@
           "window": "declib16nc_run2_3ab8302-b2d2dec_DeClustered",
           "ssh": "jda102@cmslpc324.fnal.gov",
           "config_sha256": "1c33732167e9"
+        },
+        {
+          "ts": "2026-10-04 12:26:46",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16nc_run2_3ab8302-b2d2dec_DeClustered",
+          "ssh": "jda102@cmslpc324.fnal.gov",
+          "config_sha256": "1c33732167e9"
+        },
+        {
+          "ts": "2026-10-04 12:53:07",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16nc_run2_3ab8302-b2d2dec_DeClustered",
+          "ssh": "jda102@cmslpc324.fnal.gov",
+          "config_sha256": "1c33732167e9"
         }
       ]
     }
@@ -113,12 +139,13 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16nc_run2_20261003_3ab8302-b2d2dec/",
-    "ts": "2026-10-04 01:37:55",
+    "ts": "2026-10-04 12:54:42",
     "ok": true,
     "pages": [
       "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/cutflow_monitoring.html",
       "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/plots/index.html",
-      "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/seed_study/index.html"
+      "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/seed_study/index.html",
+      "output/declib16nc_run2_20261003_3ab8302-b2d2dec/D5/svb_bootstrap/index.html"
     ]
   },
   "history": [
@@ -148,9 +175,27 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-04 12:26:46",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-04 12:53:07",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-04 12:54:42",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
-  "notes": "16-seed Run 2 library declustering on libA_run2's library, NO distance cap (random among the 20 nearest), library cache 1 per worker; D.5 on the 16-seed mean + seed study. Compare with declib16_run2_20261003_f7183e9-9ae5088 (capped). RESULT (exit 0 2026-10-04 00:33, no hot patches; 3 D3 jobs retried once): vs capped declib16_run2: same draw for the same event in two seeds 8.4% -> 3.6%, identical events 2.4% -> 1.7%, single-candidate lookups 4.0% -> 0; N_eff (16 seeds, weighted rho, biased low by per-bin clipping) for SR/SB shapes 3.3-6 -> 3.5-5.6 (canJet3 pT SR 13.8, noisy); D.5 closure (16-seed mean) data/Bkg presel 1.006, passDiJetMass 1.010, SR 1.015, SB 1.007 (capped, seed 4: 1.005/1.008/1.013/1.006). Worker memory ~1.5 GB with library cache 1; daemon peaked ~5.8 GB on 11 GB cmslpc324 without OOM.",
+  "notes": "16-seed Run 2 library declustering on libA_run2's library, NO distance cap (random among the 20 nearest), library cache 1 per worker; D.5 on the 16-seed mean + seed study. Compare with declib16_run2_20261003_f7183e9-9ae5088 (capped). RESULT (exit 0 2026-10-04 00:33, no hot patches; 3 D3 jobs retried once): vs capped declib16_run2: same draw for the same event in two seeds 8.4% -> 3.6%, identical events 2.4% -> 1.7%, single-candidate lookups 4.0% -> 0; N_eff (16 seeds, weighted rho, biased low by per-bin clipping) for SR/SB shapes 3.3-6 -> 3.5-5.6 (canJet3 pT SR 13.8, noisy); D.5 closure (16-seed mean) data/Bkg presel 1.006, passDiJetMass 1.010, SR 1.015, SB 1.007 (capped, seed 4: 1.005/1.008/1.013/1.006). Worker memory ~1.5 GB with library cache 1; daemon peaked ~5.8 GB on 11 GB cmslpc324 without OOM. SVB BOOTSTRAP (2026-10-04, added D5_svb_dump/D5_svb_bootstrap, hot-patched coffea4bees 463bb8c17 + a29417fd3, run with --targets all_D5): Poisson(1) weights per input 4b event shared by its 16 declustered versions, 30 toys, SvB_MA ps in SR four-tag: N_eff pooled 10.5 (one-seed check 1.11), shared fraction rho 0.032; per bin 5.6-8.4 at SvB<0.075, ~9-17 elsewhere. 176,635 input events reach the SR in some seed vs 43,309 SR events per seed.",
   "category": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
