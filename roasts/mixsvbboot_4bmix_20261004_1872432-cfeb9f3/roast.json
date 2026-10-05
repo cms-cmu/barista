@@ -117,7 +117,15 @@
       "checked_out": "2026-10-04 15:53:20"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mixsvbboot_4bmix_20261004_1872432-cfeb9f3",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixsvbboot_4bmix_20261004_1872432-cfeb9f3/",
+    "ts": "2026-10-05 07:20:38",
+    "ok": true,
+    "pages": [
+      "output/mixsvbboot_4bmix_20261004_1872432-cfeb9f3/M6/svb_bootstrap/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-04 15:51:52",
@@ -133,12 +141,29 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-05 07:20:38",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-05 07:20:39",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
-  "notes": "",
+  "notes": " RESULT 2026-10-04: N_eff pooled of the 16-sample mean SR four-tag SvB_MA ps = 10.5 (one-sample check 0.88); hemisphere recipe (a); ~+-10-15% from 30 toys.",
   "category": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixsvbboot_4bmix_20261004_1872432-cfeb9f3",
+    "ts": "2026-10-05 07:20:39",
+    "ok": true
   }
 }
