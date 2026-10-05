@@ -1,0 +1,147 @@
+{
+  "id": "mixsvbboot_run2_20261004_1872432-cfeb9f3",
+  "label": "mixsvbboot_run2",
+  "created": "2026-10-04 15:48:39",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "18724320a4ddaec5c124b85a987595f83df0642c",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "cfeb9f35f7e2d0b34d4bcb5c0b915d4787645ee2",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run2_svbboot.yml",
+    "captured": "config.yml",
+    "sha256": "a6579594328549cc68e0b7c2ba7b3b3f2207f2b625725f1d2c7dfac0f4ac3b5e",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/mixeddata_run2.yml",
+        "sha256": "c8bbe0318e5f160f4b35b032aa92dc5accf68cdf567de4162646cc6a6383a390"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run2_20260919_a180b1a-a16559c",
+        "barista": "a180b1a6b5499706707ba04b2f7f4a0496ea0dfb",
+        "coffea4bees": "a16559c7b91ff76be95f9547defa5439d2b23841",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c",
+        "archived": false
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/JCM_2024_v2/jetCombinatoricModel_SB_2024_v2.yml",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "SvB_model": {
+        "url": "{eos_prod}/nominal_run2_20260919_a180b1a-a16559c/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "subsamples": {
+        "url": "{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/mixeddata_4b.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-04 15:50:14",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M6_svb",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixsvbboot_run2_1872432-cfeb9f3_MakeMixedData",
+          "ssh": "jda102@cmslpc304.fnal.gov",
+          "config_sha256": "a65795943285"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixsvbboot_run2_20261004_1872432-cfeb9f3/barista",
+      "ssh": "jda102@cmslpc304.fnal.gov",
+      "checked_out": "2026-10-04 15:50:12"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mixsvbboot_run2_20261004_1872432-cfeb9f3",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixsvbboot_run2_20261004_1872432-cfeb9f3/",
+    "ts": "2026-10-05 07:20:02",
+    "ok": true,
+    "pages": [
+      "output/mixsvbboot_run2_20261004_1872432-cfeb9f3/M6/svb_bootstrap/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-04 15:48:39",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-04 15:50:12",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-04 15:50:14",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-05 07:20:02",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-05 07:20:03",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": " RESULT 2026-10-04: N_eff pooled of the 16-sample mean SR four-tag SvB_MA ps = 13.8 (one-sample check 1.01); hemisphere recipe (a); ~+-10-15% from 30 toys.",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixsvbboot_run2_20261004_1872432-cfeb9f3",
+    "ts": "2026-10-05 07:20:03",
+    "ok": true
+  }
+}
