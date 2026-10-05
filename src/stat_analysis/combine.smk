@@ -1138,15 +1138,23 @@ rule fit_diagnostics_sb:
 
         SET_ZERO_OPT_SB=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            else
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            fi
             SET_ZERO_OPT_SB="--setParameters $formatted_params"
         else
-            SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=0"
+            else
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            fi
         fi
 
         TOY_OPT_SB=""
         if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
-            echo "Blinded mode enabled: running FitDiagnostics S+B on Asimov dataset (-t -1 with expectSignal=1)"
+            echo "Blinded mode enabled: running FitDiagnostics S+B on background-only Asimov dataset (-t -1 with r=0)"
             TOY_OPT_SB="-t -1"
         fi
 
@@ -1162,6 +1170,50 @@ rule fit_diagnostics_sb:
             -n _$(basename {input} .root)_prefit_sb \
             --saveShapes --saveWithUncertainties --plots
 
+        # For stat-only fits (kmax 0), Combine skips fit_b and does not save shapes_prefit or shapes_fit_b.
+        # Populate shapes_prefit and shapes_fit_b from shapes_fit_s and nominal shapes so all 3 fit types can be plotted.
+        python3 -c "
+import ROOT, os, glob
+fit_file = 'fitDiagnostics_$(basename {input} .root)_prefit_sb.root'
+ws_dir = '$(dirname $WORKSPACE_FILE)'
+shapes_file = os.path.join(ws_dir, 'shapes.root')
+if not os.path.exists(shapes_file):
+    candidates = glob.glob(os.path.join(ws_dir, '*shapes.root'))
+    shapes_file = candidates[0] if candidates else None
+
+f_fit = ROOT.TFile.Open(fit_file, 'UPDATE')
+if f_fit and f_fit.Get('shapes_fit_s') and not f_fit.Get('shapes_prefit'):
+    print('[INFO] Populating shapes_prefit and shapes_fit_b for stat-only model...')
+    f_shapes = ROOT.TFile.Open(shapes_file, 'READ') if shapes_file and os.path.exists(shapes_file) else None
+    d_fit_s = f_fit.Get('shapes_fit_s')
+    d_prefit = f_fit.mkdir('shapes_prefit')
+    d_fit_b = f_fit.mkdir('shapes_fit_b')
+    for k in d_fit_s.GetListOfKeys():
+        ch = k.GetName()
+        ch_dir_s = d_fit_s.Get(ch)
+        if not hasattr(ch_dir_s, 'GetListOfKeys'): continue
+        ch_dir_pre = d_prefit.mkdir(ch)
+        ch_dir_b = d_fit_b.mkdir(ch)
+        for obj_name in ['data', 'background', 'multijet', 'tt', 'ttbar', 'total_background', 'total_covar']:
+            obj = ch_dir_s.Get(obj_name)
+            if obj:
+                ch_dir_pre.cd(); obj.Clone(obj_name).Write()
+                ch_dir_b.cd(); obj.Clone(obj_name).Write()
+        if f_shapes:
+            d_ch_shapes = f_shapes.Get(ch)
+            if d_ch_shapes:
+                for sk in d_ch_shapes.GetListOfKeys():
+                    sig_name = sk.GetName()
+                    if sig_name not in ['data_obs', 'background', 'multijet', 'tt', 'ttbar']:
+                        sig_obj = d_ch_shapes.Get(sig_name)
+                        if sig_obj:
+                            ch_dir_pre.cd(); sig_obj.Clone(sig_name).Write(); sig_obj.Clone('total_signal').Write()
+                            ch_dir_b.cd(); sig_b = sig_obj.Clone(sig_name); sig_b.Reset(); sig_b.Write(); sig_b.Clone('total_signal').Write()
+    if f_shapes: f_shapes.Close()
+    f_fit.Write()
+if f_fit: f_fit.Close()
+" || true
+
         echo "[$(date)] Running diffNuisances S+B"
         python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \
             -p r{params.signallabel} \
@@ -1176,11 +1228,10 @@ rule fit_diagnostics_sb:
         """
 
 def get_postfit_fit_result(wildcards):
-    fit_type = "bonly" if is_stat_only_mode() else "sb"
-    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_{fit_type}__{wildcards.signallabel}.root"
+    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_sb__{wildcards.signallabel}.root"
 
 def get_postfit_plot_fit_type(wildcards):
-    return "fit_b" if is_stat_only_mode() else "fit_s"
+    return "fit_s"
 
 rule postfit:
     input:

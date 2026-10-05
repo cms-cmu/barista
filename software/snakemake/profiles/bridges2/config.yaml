@@ -18,49 +18,51 @@ set-resources:
   train_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
-    qos: ""
+    qos: "push"
     mem_mb: 22500
     cpus_per_task: 5
-    runtime: "48h"
+    runtime: "8h"
   evaluate_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
-    qos: ""
+    qos: "push"
     mem_mb: 22500
     cpus_per_task: 5
-    runtime: "24h"
+    runtime: "4h"
   train:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
+    qos: "push"
     mem_mb: 22000
     cpus_per_task: 4
-    runtime: "24h"
+    runtime: "8h"
   train_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
-    qos: ""
+    qos: "push"
   train_fvt_subsample:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
-    qos: ""
+    qos: "push"
   evaluate_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
-    qos: ""
+    qos: "push"
   evaluate_fvt_subsample:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
-    qos: ""
+    qos: "push"
   evaluate:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
+    qos: "push"
     mem_mb: 22000
     cpus_per_task: 4
-    runtime: "24h"
+    runtime: "4h"
   extract_friend_manifest:
     slurm_partition: "RM-shared"
     mem_mb: 4000

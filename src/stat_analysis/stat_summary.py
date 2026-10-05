@@ -100,7 +100,7 @@ def read_datacard(path: str) -> dict | None:
 
 
 def read_scan(path: str, poi: str) -> dict | None:
-    """Count valid / failed grid points in a merged MultiDimFit tree (needs uproot)."""
+    """Extract best fit and 68% CL crossing from a merged MultiDimFit tree."""
     try:
         import uproot  # noqa: F401
     except Exception:  # noqa: BLE001
@@ -112,13 +112,45 @@ def read_scan(path: str, poi: str) -> dict | None:
         if pb is None:
             return None
         a = t.arrays([pb, "deltaNLL", "quantileExpected"], library="np")
-        pts = [(float(r), float(d)) for r, d, q in zip(a[pb], a["deltaNLL"], a["quantileExpected"]) if q >= 0]
-        good = [(r, d) for r, d in pts if d < 9000 and not math.isnan(d)]
         best = [float(r) for r, q in zip(a[pb], a["quantileExpected"]) if q < 0]
-        return {"poi": pb, "total": len(pts), "valid": len(good), "failed": len(pts) - len(good),
-                "rmin": min((r for r, _ in good), default=float("nan")),
-                "rmax": max((r for r, _ in good), default=float("nan")),
-                "bestfit": best[0] if best else float("nan")}
+        best_r = best[0] if best else float("nan")
+
+        pts = [
+            (float(r), float(2 * d))
+            for r, d, q in zip(a[pb], a["deltaNLL"], a["quantileExpected"])
+            if q >= 0 and d < 9000 and not (math.isnan(d) or math.isinf(d))
+        ]
+        pts.sort(key=lambda x: x[0])
+
+        r_lo, r_hi = None, None
+        left = [p for p in pts if p[0] <= best_r]
+        right = [p for p in pts if p[0] >= best_r]
+
+        # Interpolate left crossing where 2*deltaNLL == 1.0
+        if any(p[1] >= 1.0 for p in left):
+            for i in range(len(left) - 1):
+                (r1, d1), (r2, d2) = left[i], left[i + 1]
+                if (d1 >= 1.0 and d2 <= 1.0) or (d1 <= 1.0 and d2 >= 1.0):
+                    r_lo = r1 + (1.0 - d1) * (r2 - r1) / (d2 - d1) if d2 != d1 else r1
+
+        # Interpolate right crossing where 2*deltaNLL == 1.0
+        if any(p[1] >= 1.0 for p in right):
+            for i in range(len(right) - 1):
+                (r1, d1), (r2, d2) = right[i], right[i + 1]
+                if (d1 <= 1.0 and d2 >= 1.0) or (d1 >= 1.0 and d2 <= 1.0):
+                    r_hi = r1 + (1.0 - d1) * (r2 - r1) / (d2 - d1) if d2 != d1 else r2
+
+        err_lo = (best_r - r_lo) if (r_lo is not None and not math.isnan(best_r)) else None
+        err_hi = (r_hi - best_r) if (r_hi is not None and not math.isnan(best_r)) else None
+
+        return {
+            "poi": pb,
+            "bestfit": best_r,
+            "err_lo": err_lo,
+            "err_hi": err_hi,
+            "total": len(pts),
+            "valid": len(pts),
+        }
     except Exception as e:  # noqa: BLE001
         logger.warning(f"cannot read scan {path}: {e}")
         return None
@@ -145,8 +177,20 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     info["significance"] = read_significance(os.path.join(d, "significance", f"datacard_significance__{signal}.json"))
 
     years = OrderedDict()
-    for p in sorted(glob.glob(os.path.join(d, "datacards", f"datacard_{channel}_*.txt"))):
-        year = os.path.basename(p)[len(f"datacard_{channel}_"):-len(".txt")]
+    cards = sorted(glob.glob(os.path.join(d, "datacards", f"datacard_{channel}_*.txt")))
+    if not cards:
+        cards = sorted([
+            p for p in glob.glob(os.path.join(d, "datacards", "datacard_*.txt"))
+            if not os.path.basename(p).startswith("datacard__")
+        ])
+    for p in cards:
+        bname = os.path.basename(p)
+        if bname.startswith(f"datacard_{channel}_"):
+            year = bname[len(f"datacard_{channel}_"):-len(".txt")]
+        elif bname.startswith(f"datacard_{signal}_"):
+            year = bname[len(f"datacard_{signal}_"):-len(".txt")]
+        else:
+            year = bname[len("datacard_"):-len(".txt")]
         card = read_datacard(p)
         if card:
             years[year] = card
@@ -176,6 +220,8 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         ("postfit pdf", "postfit", f"datacard_postfit__{signal}.pdf"),
         ("fitDiagnostics (b-only)", "postfit", f"datacard_fitDiagnostics_bonly__{signal}.root"),
         ("diffNuisances (b-only)", "postfit", f"datacard_diffNuisances_bonly__{signal}.root"),
+        ("correlation (physics) pdf", "postfit", "plots", "correlation_fit_s.pdf"),
+        ("correlation (all) pdf", "postfit", "plots", "correlation_fit_s_all.pdf"),
     ):
         if exists(*p):
             info["links"][label] = rel(*p)
@@ -185,15 +231,14 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     # figures
     if exists("likelihood_scan", "scan_plot.png"):
         info["figures"]["likelihood scan"] = rel("likelihood_scan", "scan_plot.png")
-    for year in years:
-        for fit in ("fit_s", "fit_b"):
-            if exists("postfit", f"{channel}_{year}_CMS_th1x_{fit}.png"):
-                info["figures"][f"postfit {year} ({fit})"] = rel("postfit", f"{channel}_{year}_CMS_th1x_{fit}.png")
-                break
-    if exists("postfit", "covariance_fit_s.png"):
-        info["figures"]["covariance (fit_s)"] = rel("postfit", "covariance_fit_s.png")
     for p in sorted(glob.glob(os.path.join(d, "postfit", "plots", f"postfitplots__{signal}__*.png"))):
         info["figures"][f"postfit {os.path.basename(p).split('__')[-1][:-4]}"] = rel("postfit", "plots", os.path.basename(p))
+    if exists("postfit", "plots", "correlation_fit_s.png"):
+        info["figures"]["correlation (physics)"] = rel("postfit", "plots", "correlation_fit_s.png")
+    if exists("postfit", "plots", "correlation_fit_s_all.png"):
+        info["figures"]["correlation (all)"] = rel("postfit", "plots", "correlation_fit_s_all.png")
+    elif exists("postfit", "covariance_fit_s.png"):
+        info["figures"]["covariance (fit_s)"] = rel("postfit", "covariance_fit_s.png")
     return info
 
 
@@ -222,9 +267,20 @@ def fsig(s) -> str:
 
 
 def fscan(sc: dict | None) -> str:
-    if not sc:
+    if not sc or math.isnan(sc.get("bestfit", float("nan"))):
         return "-"
-    return f"{sc['valid']}/{sc['total']} valid" + (f" (r {fnum(sc['rmin'], 2)} … {fnum(sc['rmax'], 2)})" if sc["valid"] else "")
+    best = sc["bestfit"]
+    elo = sc.get("err_lo")
+    ehi = sc.get("err_hi")
+    if elo is not None and ehi is not None:
+        if abs(elo - ehi) < 0.005:
+            return f"{best:.2f} ± {ehi:.2f}"
+        return f"{best:.2f} +{ehi:.2f}/−{elo:.2f}"
+    elif ehi is not None:
+        return f"{best:.2f} +{ehi:.2f}"
+    elif elo is not None:
+        return f"{best:.2f} −{elo:.2f}"
+    return f"{best:.2f}"
 
 
 def short_proc(p: str) -> str:
@@ -261,7 +317,7 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
     h.append("<table><tr><th class='l'>channel</th><th class='l'>signal</th><th class='l'>variable</th>"
              "<th>exp. significance</th>" + ("" if blind else "<th>obs. significance</th>") +
              "<th>exp. 95% CL limit (median)</th><th>&plusmn;1&sigma;</th><th>&plusmn;2&sigma;</th>" + ("" if blind else "<th>obs. limit</th>") +
-             "<th>bkg yield</th><th>signal yield</th><th>S/&radic;B</th><th>likelihood scan</th><th>nuisances</th></tr>")
+             "<th>bkg yield</th><th>signal yield</th><th>S/&radic;B</th><th>likelihood scan (68% CL)</th><th>nuisances</th></tr>")
     for c in chans:
         med, one, two = flim(c["limits"])
         sig = c["significance"] or {}
@@ -269,16 +325,14 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
         s = c["totals"].get(c["signal"], float("nan"))
         soverb = s / math.sqrt(bkg) if bkg and not math.isnan(s) else float("nan")
         sc = c["scan"]
-        scan_cls = "" if not sc or sc["failed"] == 0 else " class='warn badge'"
         h.append(f"<tr class='sig'><td>{e(c['channel'])}</td><td class='l'><code>{e(c['signal'])}</code></td><td class='l'>{e(c['variable'] or '-')}</td>"
                  f"<td>{fsig(sig.get('expected'))}</td>" + ("" if blind else f"<td>{fsig(sig.get('observed'))}</td>") +
                  f"<td><b>{med}</b></td><td>{one}</td><td>{two}</td>" + ("" if blind else f"<td>{fnum((c['limits'] or {}).get('obs'), 2)}</td>") +
-                 f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><span{scan_cls}>{e(fscan(sc))}</span></td><td>{c['nuisances']}</td></tr>")
+                 f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><b>{e(fscan(sc))}</b></td><td>{c['nuisances']}</td></tr>")
     h.append("</table>")
     h.append("<p class='small'>Limits: AsymptoticLimits on the signal strength r of the listed signal, other signals fixed to 0. "
              "Significance: <code>-M Significance</code>, expected from the Asimov dataset with r = 1. Yields: datacard rates summed over years "
-             "(the fit variable's histogram in the SR). Likelihood scan: grid points with a converged fit; points fail where the total pdf goes "
-             "negative (r &lt; 0 with near-empty background bins).</p>")
+             "(the fit variable's histogram in the SR). Likelihood scan: best-fit r with 68% CL (&plusmn;1&sigma;) interval.</p>")
 
     # ---- per channel
     for c in chans:
@@ -303,7 +357,7 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
             h.append(f"<tr><td>observed significance{' (Asimov)' if blind else ''}</td><td>{fsig(sig.get('observed'))}</td></tr>")
             if c["scan"]:
                 sc = c["scan"]
-                h.append(f"<tr><td>likelihood scan points</td><td>{e(fscan(sc))}, best fit r = {fnum(sc['bestfit'], 3)}</td></tr>")
+                h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(sc))}</b></td></tr>")
             h.append("</table>")
         if c["figures"]:
             h.append("<div class='figs'>")
@@ -318,7 +372,7 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
 
 def md_page(title: str, chans: list[dict], blind: bool) -> str:
     out = [f"# {title}", "", "blinded (Asimov data_obs)" if blind else "unblinded", "",
-           "| channel | signal | exp. significance | exp. limit median | ±1σ | ±2σ | bkg yield | signal yield | scan |",
+           "| channel | signal | exp. significance | exp. limit median | ±1σ | ±2σ | bkg yield | signal yield | likelihood scan (68% CL) |",
            "|---|---|---|---|---|---|---|---|---|"]
     for c in chans:
         med, one, two = flim(c["limits"])
