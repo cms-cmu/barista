@@ -36,17 +36,7 @@ set-resources:
     mem_mb: 22000
     cpus_per_task: 4
     runtime: "8h"
-  train_fvt_mixed_model:
-    slurm_partition: "GPU-shared"
-    gres: "gpu:1"
-    mem_mb: 20000
-    qos: "push"
   train_fvt_subsample:
-    slurm_partition: "GPU-shared"
-    gres: "gpu:1"
-    mem_mb: 20000
-    qos: "push"
-  evaluate_fvt_mixed_model:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
     mem_mb: 20000
