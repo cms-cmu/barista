@@ -1,0 +1,103 @@
+# Captured by `roast new`: coffea4bees/workflows/config/declustered_run2_library_16x_stitched.yml merged over coffea4bees/workflows/config/declustered_run2_library_16x_nocap.yml <- coffea4bees/workflows/config/declustered_run2_library_16x.yml <- coffea4bees/workflows/config/declustered_run2_library.yml <- coffea4bees/workflows/config/declustered_run2.yml.
+# Comments are not carried over; read the sources for them.
+label: declustered_run2_library_16x_stitched
+output_path: output/{roast_id}/
+publish_base: '{eos_prod}/{roast_id}'
+inputs:
+  upstream_roasts:
+    ttHbb: ttHbb_run2_20261003_f7183e9-cca392c
+    libA: libA_run2_20261002_7fc0957-3531140
+    mixeddata: mixeddata_run2_20260927_c39c264-0ce4d59
+  FvT: '{roast:ttHbb}/friend/FvT_ttHbb_stitched/result.json@@analysis.0.merged'
+  jcm_hists: '{roast:ttHbb}/{roast:ttHbb:output_path}computeJCM/histAll_NoJCM.coffea'
+  ttbar_psdata: '{roast:mixeddata}/handoff/ttbar_PSData.yml'
+  SvB_model: '{roast:ttHbb}/classifier/SvB_ttHbb_stitched/result.json'
+  splitting_library: '{roast:libA}/splitting_library/splitting_library.yml'
+year_eras:
+  UL16_preVFP:
+  - C
+  - D
+  - E
+  - F
+  UL16_postVFP:
+  - F
+  - G
+  - H
+  UL17:
+  - C
+  - D
+  - E
+  - F
+  UL18:
+  - A
+  - B
+  - C
+  - D
+fourTag_use_tight: false
+analysis_config:
+  processor: coffea4bees/analysis/processors/processor_HH4b.py
+  dataset_location: coffea4bees/metadata/datasets/
+  friend_file: coffea4bees/metadata/friends/friends_HH4b.yml
+  weights_file: coffea4bees/metadata/weights/weights_HH4b_2024_v2.yml
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+cluster:
+  config_template: coffea4bees/analysis/metadata/cluster_4b.yml
+  chunksize: 20000
+  worker_memory: 8GB
+pdfs: {}
+declustering:
+  skimmer_template: coffea4bees/skimmer/metadata/declustering.yml
+  chunksize: 25000
+  worker_memory: 6GB
+  n_seeds: 16
+  subtract_ttbar: true
+  dataset_name: synthetic_data_lib16st_4b
+  multijet_dataset_name: synthetic_data_lib16st_multijet
+  ttbar_psdata_name: ttbar_PSData
+  method: library
+  library:
+    carry_fields:
+    - btagScore
+    - jetId
+    - nConstituents
+    - chHEF
+    - neHEF
+    - chEmEF
+    - neEmEF
+    - muEF
+    min_entries: 10
+    scale_pt: true
+    boost_z: true
+    selection: random
+    k_neighbors: 20
+    max_distance: None
+    cache_size: 1
+  all_dataset_name: mixeddata_all_declib16st
+validation:
+  ttbar:
+  - TTToHadronic_stitched
+  - TTToSemiLeptonic_stitched
+  - TTTo2L2Nu_stitched
+  plot_template: coffea4bees/plots/metadata/plotsDeClustered_validation.yml
+  known_counts: null
+signal_check:
+  enabled: false
+  datasets:
+  - GluGluToHHTo4B_cHHH1
+  seed: 0
+  subsample: 10
+  declustered_data_subsample: 10
+max_workers: 200
