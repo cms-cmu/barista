@@ -629,14 +629,37 @@ class TestCleanGating(unittest.TestCase):
         self.assertIn("never published", roast._clean_blockers(self.mk(publish=False), self.parsed()))
         self.assertIn("never archived", roast._clean_blockers(self.mk(archive=False), self.parsed()))
 
-    def test_docs_only_publish_does_not_count(self):
+    def test_a_note_without_a_copy_does_not_count(self):
         r = self.mk()
-        r["publish"]["ok"] = None          # what --docs-only records: a note, but no results copied
-        self.assertTrue(any("docs-only" in b for b in roast._clean_blockers(r, self.parsed())))
+        r["publish"]["ok"] = None          # a --docs-only publish on a roast never really published
+        r["history"] = []
+        self.assertIn("never published", roast._clean_blockers(r, self.parsed()))
+
+    def test_a_docs_only_refresh_does_not_erase_an_earlier_real_publish(self):
+        """The summary field was clobbered by --docs-only; history still holds the truth."""
+        r = self.mk()
+        r["publish"]["ok"] = None
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "archive", "host": "cmslpc", "ok": True}]
+        self.assertEqual(roast._clean_blockers(r, self.parsed()), [])
 
     def test_a_failed_copy_is_refused(self):
         r = self.mk(); r["archive"]["ok"] = False
         self.assertTrue(any("archive reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_the_most_recent_attempt_per_host_is_what_counts(self):
+        r = self.mk()
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "publish", "host": "cmslpc", "ok": False}]   # a later retry failed
+        self.assertTrue(any("publish reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+        r["history"].append({"event": "publish", "host": "cmslpc", "ok": True})
+        self.assertFalse(any("publish" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_one_host_failing_blocks_even_when_the_other_worked(self):
+        r = self.mk()
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "publish", "host": "falcon", "ok": False}]
+        self.assertTrue(any("publish reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
 
     def test_a_step_that_did_not_finish_is_refused(self):
         for state in ("running     ", "error       ", "exit=1      ", "not started "):

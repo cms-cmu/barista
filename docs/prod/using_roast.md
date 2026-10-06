@@ -403,9 +403,11 @@ It refuses unless all of this holds:
 * the roast was archived and published, and neither reported a failure;
 * both EOS trees still exist and are not empty, confirmed by listing them.
 
-A publish made with `--docs-only` does not count, since it writes a cupping note without
-copying any results. If the published-tree check reports an unauthorized identity, that is a
-missing credential rather than missing data: run `bin/roast proxy` on cmslpc and try again.
+Whether a roast was really published is read from its history, which records only the copies
+that ran, so refreshing a cupping note with `publish --docs-only` neither counts as publishing
+nor erases the real publish that came before it. If the published-tree check reports an
+unauthorized identity, that is a missing credential rather than missing data: run `bin/roast
+proxy` on cmslpc and try again.
 
 `rm` is the opposite. It deletes the roast everywhere, the record included, and `--keep-eos`,
 `--keep-cernbox` and `--keep-hosts` spare individual locations. It refuses while a step is

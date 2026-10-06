@@ -1131,6 +1131,24 @@ def _eos_file_count(cfg: dict, r: dict, eos_url: str, path: str) -> tuple[int, s
     return -1, detail or f"no answer from {roast_ssh(cfg, r, 'cmslpc')}"
 
 
+def _last_copy_ok(r: dict, kind: str):
+    """Did the most recent `publish` or `archive` reach every host it was asked to?
+
+    True, False, or None when it was never attempted.  Read from history rather than the
+    `publish`/`archive` summary: a `--docs-only` publish writes a cupping note without copying
+    anything, and it used to overwrite that summary, which made five already-published roasts
+    read as unpublished.  History only ever records copies that actually ran.
+    """
+    last_by_host = {}
+    for h in r.get("history", []):
+        if h.get("event") == kind:
+            last_by_host[h.get("host")] = h
+    if last_by_host:
+        return all(bool(h.get("ok")) for h in last_by_host.values())
+    summary = r.get(kind) or {}
+    return summary.get("ok") if summary else None
+
+
 def _clean_blockers(r: dict, parsed: dict) -> list[str]:
     """Why a roast's host checkouts may not be deleted yet.
 
@@ -1139,17 +1157,12 @@ def _clean_blockers(r: dict, parsed: dict) -> list[str]:
     the manifest only records that a step was submitted, never how it ended.
     """
     out = []
-    pub, arc = r.get("publish") or {}, r.get("archive") or {}
-    if not pub:
-        out.append("never published")
-    elif pub.get("ok") is None:
-        out.append("published with --docs-only: there is a cupping note, but no results were copied")
-    elif not pub["ok"]:
-        out.append("the last publish reported a failure")
-    if not arc:
-        out.append("never archived")
-    elif not arc.get("ok"):
-        out.append("the last archive reported a failure")
+    for kind in ("publish", "archive"):
+        state = _last_copy_ok(r, kind)
+        if state is None:
+            out.append(f"never {'published' if kind == 'publish' else 'archived'}")
+        elif not state:
+            out.append(f"the last {kind} reported a failure")
     for host, st in sorted(parsed.items()):
         if st.get("error"):
             out.append(f"{host}: {st['error']}")
@@ -1881,7 +1894,16 @@ def cmd_publish(args) -> None:
                           f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
                           check=False)
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
-    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok, "pages": sorted(pages)}
+    # --docs-only rewrites the cupping note without touching CERNBox, so it must not overwrite what
+    # an earlier real publish recorded: doing that made five published roasts look unpublished, and
+    # anything reading `ok` -- `clean` above all -- believed it
+    prev = r.get("publish") or {}
+    r["publish"] = {"eos": eos_dir, "url": url,
+                    "ts": prev.get("ts", now()) if args.docs_only else now(),
+                    "ok": prev.get("ok") if args.docs_only else ok,
+                    "pages": sorted(pages)}
+    if args.docs_only:
+        r["publish"]["docs_ts"] = now()
     save_roast(r)
     write_docs(r)
     write_index()
