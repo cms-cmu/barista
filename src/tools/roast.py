@@ -163,6 +163,11 @@ DOCS_PROD = ROOT / "docs" / "prod"
 # prose that lives next to the catalogue because colleagues reach it from the same nav.
 HANDWRITTEN_PAGES = {"index", "using_roast"}
 
+# A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
+# round-robin, so the proxy you just created is usually not on the node a given roast
+# was pinned to; this copy is readable from all of them.
+SHARED_PROXY = "~/.roast/x509_proxy"
+
 DOCS_SITE_FALLBACK = "https://barista.docs.cern.ch"
 
 
@@ -968,16 +973,37 @@ def cmd_attach(args) -> None:
 
 
 def cmd_proxy(args) -> None:
-    """Create (interactively) or check the grid proxy on a host.  Writes the standard /tmp/x509up_u<uid>,
-    which every roast launcher copies into its checkout's proxy/x509_proxy."""
+    """Create (interactively) or check the grid proxy on a host.
+
+    voms-proxy-init writes /tmp/x509up_u<uid>, which every roast launcher copies into its
+    checkout's proxy/x509_proxy.  On LPC /tmp is node-local while the gateway is round-robin, so
+    the proxy you just made is often on a different node from the roast you want to use it for.
+    A copy therefore goes to ~/.roast/x509_proxy, which is on shared home and readable from
+    whichever node a roast was pinned to.
+    """
     cfg = load_config()
     target = resolve_ssh(host_cfg(cfg, args.host))
     if args.check:
-        res = ssh_run(target, "voms-proxy-info --timeleft 2>&1 | head -1", check=False)
-        left = (res.stdout or res.stderr).strip()
-        print(f"{args.host}: {int(left)//3600} h left" if left.isdigit() else f"{args.host}: {left or 'no proxy'}")
+        res = ssh_run(target, f"echo -n 'node '; hostname -s; "
+                              f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
+                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {rq(SHARED_PROXY)} 2>/dev/null || echo none",
+                      check=False)
+        where = {}
+        for line in res.stdout.split("\n"):
+            k, _, v = line.strip().partition(" ")
+            if k:
+                where[k] = v.strip()
+        print(f"{args.host} ({where.get('node', '?')}):")
+        for k in ("local", "shared"):
+            left = where.get(k, "none")
+            pretty = f"{int(left)//3600} h left" if left.isdigit() and int(left) > 0 else "expired or absent"
+            print(f"  {k:7s} {pretty}" + (f"   ({SHARED_PROXY}, readable from every node)" if k == "shared" else "   (/tmp, this node only)"))
         return
-    cmd = f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+    # the copy is part of the same command: os.execvp hands the terminal to ssh for the passphrase,
+    # so there is no second round trip to do it in
+    cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+           f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
+           f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
     info(f"ssh -t {target} {cmd}")
     os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
 
@@ -1088,8 +1114,10 @@ def _eos_file_count(cfg: dict, r: dict, eos_url: str, path: str) -> tuple[int, s
     this has to happen while the checkout is still there.  The reason is carried back because
     "missing" and "you have no CERN credential here" call for very different responses.
     """
+    # /tmp first (freshest when you are on the node you just made it on), then the shared copy,
+    # then the roast's own -- which expired weeks ago but costs nothing to try last
     ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxies = ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'] + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
+    proxies = ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)] + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
     res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_count_script(eos_url, path, proxies), check=False)
     # xrootd puts the useful sentence on an "[ERROR] ..." line; the rest is the path echoed back
     errs = [ln.strip() for ln in res.stderr.splitlines() if "[ERROR]" in ln or "error" in ln.lower()]

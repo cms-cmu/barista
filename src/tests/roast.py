@@ -659,6 +659,29 @@ class TestCleanGating(unittest.TestCase):
         self.assertEqual(roast._clean_blockers(self.mk(), p), [])
 
 
+class TestProxyPicking(unittest.TestCase):
+    """LPC /tmp is node-local and the gateway is round-robin, so a roast's node often has no
+    usable proxy even right after `roast proxy` succeeded elsewhere."""
+
+    def script(self):
+        return roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/j/x",
+                                       ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+                                        roast.rq(roast.SHARED_PROXY), roast.rq("~/prod/x/barista/proxy/x509_proxy")])
+
+    def test_shared_home_copy_is_among_the_candidates(self):
+        self.assertIn(".roast/x509_proxy", self.script())
+
+    def test_candidates_are_tried_in_order_and_validity_is_checked(self):
+        s = self.script()
+        self.assertLess(s.index("/tmp/x509up_u"), s.index(".roast/x509_proxy"))
+        self.assertIn("voms-proxy-info -exists", s)      # presence alone is not enough: it expires
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_an_empty_candidate_list_still_parses(self):
+        ok, msg = bash_ok(roast._eos_count_script("root://cmseos.fnal.gov", "/store/x", []), "no proxies")
+        self.assertTrue(ok, msg)
+
+
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
     """The point of recording `cleaned`: status answers for finished work without a network call."""
 

@@ -42,8 +42,14 @@ You also need a grid proxy on the LPC, renewed about weekly:
 
 ```bash
 bin/roast proxy            # voms-proxy-init on cmslpc
-bin/roast proxy --check    # how much time is left
+bin/roast proxy --check    # how much time is left, on this node and on shared home
 ```
+
+`voms-proxy-init` writes into `/tmp`, which on the LPC belongs to one interactive node, while
+the login alias is round-robin. The proxy you just made is therefore often not on the node a
+given roast is pinned to, which shows up later as CERN EOS answering "unauthorized identity"
+even though you have a valid proxy. `roast proxy` also drops a copy in `~/.roast/x509_proxy`
+on shared home, and the commands that reach EOS take whichever copy still has time left.
 
 For looking at histograms locally, see [Local pourover](#local-pourover) below, which
 needs a one-time virtual environment.
