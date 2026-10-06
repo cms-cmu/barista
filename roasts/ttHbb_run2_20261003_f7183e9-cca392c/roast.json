@@ -239,8 +239,8 @@
   },
   "publish": {
     "eos": "/eos/user/a/algomez/www/HH4b/prod/ttHbb_run2_20261003_f7183e9-cca392c",
-    "url": "https://algomez.web.cern.ch/algomez/HH4b/prod/ttHbb_run2_20261003_f7183e9-cca392c/",
-    "ts": "2026-10-04 11:45:32",
+    "url": "https://plotsalgomez.webtest.cern.ch/HH4b/prod/ttHbb_run2_20261003_f7183e9-cca392c/",
+    "ts": "2026-10-05 16:33:04",
     "ok": true,
     "pages": [
       "output/FvT_ttHbb_stitched/yields.html",
