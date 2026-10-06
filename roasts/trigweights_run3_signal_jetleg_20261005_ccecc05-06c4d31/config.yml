@@ -1,0 +1,47 @@
+# Captured by `roast new`: coffea4bees/workflows/config/trigweights_run3_signal_jetleg.yml merged over coffea4bees/workflows/config/trigweights_run3_signal.yml.
+# Comments are not carried over; read the sources for them.
+label: trigweights_run3_signal_jetleg
+output_path: output/trigweights_run3_signal/
+dataset_location: coffea4bees/metadata/datasets/
+dataset:
+- GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+years:
+- 2022_preEE
+- 2022_EE
+- 2023_preBPix
+- 2023_BPix
+runner: &id001
+  condor_cores: 1
+  worker_memory: 8GB
+  min_workers: 1
+  max_workers: 60
+  chunksize: 10000
+  condor: true
+  shared_dask: false
+  run_performance: true
+  condor_transfer_input_files:
+  - src/
+  - coffea4bees/analysis/
+  - coffea4bees/metadata/
+  - coffea4bees/hemisphere_mixing/
+  - coffea4bees/jet_clustering/
+  - coffea4bees/classifier/
+  allowlist_sites:
+  - T1_US_FNAL_Disk
+  - T3_US_FNALLPC
+  - T2_US_Caltech
+  - T2_US_Wisconsin
+  - T2_US_Nebraska
+trigger_weights:
+  processor: coffea4bees/analysis/processors/processor_trigger_weights.py
+  runner: *id001
+  config:
+    make_classifier_input: '{eos_prod}/{roast_id}/trigWeights/'
+    use_vectorized: true
+    tagger: PNet
+trig_validation:
+  enabled: true
+  runner: *id001
+  regions:
+  - SR
+  - SB
