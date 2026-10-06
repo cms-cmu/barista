@@ -13,7 +13,10 @@ Run it directly:
 
     python3 src/tests/roast.py
 """
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -147,7 +150,9 @@ class TestGeneratedBashParses(unittest.TestCase):
         hc = CFG["hosts"]["cmslpc"]
         for name, s in (("checkout", roast._checkout_script(hc, r, "~/prod/x/barista")),
                         ("finish checkout", roast._finish_checkout_script(r, "~/prod/x/barista")),
-                        ("eos rm tree", roast._eos_rm_tree_script("root://cmseos.fnal.gov", "/store/user/u/x"))):
+                        ("eos rm tree", roast._eos_rm_tree_script("root://cmseos.fnal.gov", "/store/user/u/x")),
+                        ("eos count", roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/u/user/www/x",
+                                                              ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', '"$PWD/proxy/x509_proxy"']))):
             with self.subTest(script=name):
                 ok, msg = bash_ok(s, name)
                 self.assertTrue(ok, msg)
@@ -574,6 +579,128 @@ class TestCopySettings(unittest.TestCase):
         ps = roast.copy_settings("publish", CFG, fake_roast())
         self.assertTrue(any("dask-report" in e for e in ps["exclude"]))
         self.assertTrue(any(e.startswith("output/") and e.endswith("logs") for e in ps["exclude"]))
+
+
+class TestStatusByFamily(unittest.TestCase):
+    """Status groups the way the catalogue does, so one definition orders both."""
+
+    def mk(self, rid, label, created, category=None):
+        r = fake_roast()
+        r["id"], r["label"], r["created"] = rid, label, created
+        if category:
+            r["category"] = category
+        return r
+
+    def test_families_alphabetical_newest_first_inside(self):
+        rs = [self.mk("n2", "nominal_run2", "2026-01-01 00:00:00"),
+              self.mk("m3", "mixeddata_run3", "2026-02-01 00:00:00"),
+              self.mk("n3", "nominal_run3", "2026-03-01 00:00:00")]
+        self.assertEqual([(f, r["id"]) for f, r in roast._by_family(rs)],
+                         [("mixeddata", "m3"), ("nominal", "n3"), ("nominal", "n2")])
+
+    def test_run_period_does_not_split_a_family(self):
+        rs = [self.mk("a", "nominal_run2", "2026-01-01 00:00:00"),
+              self.mk("b", "nominal_run3_30x", "2026-02-01 00:00:00")]
+        self.assertEqual({f for f, _ in roast._by_family(rs)}, {"nominal"})
+
+    def test_explicit_category_wins(self):
+        rs = [self.mk("l", "libA_run3", "2026-01-01 00:00:00", category="DeClustered")]
+        self.assertEqual(roast._by_family(rs)[0][0], "DeClustered")
+
+
+class TestCleanGating(unittest.TestCase):
+    """`clean` deletes the only copy of a run that is not on EOS, so every gate matters."""
+
+    def mk(self, publish=True, archive=True):
+        r = fake_roast()
+        if publish:
+            r["publish"] = {"url": "https://x.cern.ch/p/", "eos": "/eos/user/u/user/www/p", "ok": True}
+        if archive:
+            r["archive"] = {"eos": "root://cmseos.fnal.gov//store/user/u/HH4b_prod/" + FAKE_ID, "ok": True}
+        return r
+
+    def parsed(self, text="exit=0      "):
+        return {"cmslpc": {"steps": [("B", text)], "live": {}, "done": {}, "extra": [], "error": None}}
+
+    def test_a_finished_published_archived_roast_is_clean_able(self):
+        self.assertEqual(roast._clean_blockers(self.mk(), self.parsed()), [])
+
+    def test_unpublished_or_unarchived_is_refused(self):
+        self.assertIn("never published", roast._clean_blockers(self.mk(publish=False), self.parsed()))
+        self.assertIn("never archived", roast._clean_blockers(self.mk(archive=False), self.parsed()))
+
+    def test_docs_only_publish_does_not_count(self):
+        r = self.mk()
+        r["publish"]["ok"] = None          # what --docs-only records: a note, but no results copied
+        self.assertTrue(any("docs-only" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_a_failed_copy_is_refused(self):
+        r = self.mk(); r["archive"]["ok"] = False
+        self.assertTrue(any("archive reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_a_step_that_did_not_finish_is_refused(self):
+        for state in ("running     ", "error       ", "exit=1      ", "not started "):
+            with self.subTest(state=state):
+                blockers = roast._clean_blockers(self.mk(), self.parsed(state))
+                self.assertTrue(any("not exit=0" in b for b in blockers), state)
+
+    def test_an_unreachable_host_is_refused_rather_than_assumed_finished(self):
+        p = {"cmslpc": {"error": "unreachable (u@node)"}}
+        self.assertTrue(any("unreachable" in b for b in roast._clean_blockers(self.mk(), p)))
+
+    def test_an_open_tmux_window_is_refused(self):
+        blockers = roast._clean_blockers(self.mk(), self.parsed("exit=0      tmux=1  done"))
+        self.assertTrue(any("tmux window" in b for b in blockers))
+        self.assertEqual(roast._clean_blockers(self.mk(), self.parsed("exit=0      tmux=0  done")), [])
+
+    def test_an_already_removed_checkout_does_not_block_finishing(self):
+        """Half-cleaned: one host emptied, the other not.  The second run must be able to finish."""
+        p = {"cmslpc": {"gone": True}}
+        self.assertEqual(roast._clean_blockers(self.mk(), p), [])
+
+
+class TestCleanedRoastsCostNoSsh(unittest.TestCase):
+    """The point of recording `cleaned`: status answers for finished work without a network call."""
+
+    def setUp(self):
+        self.r = fake_roast()
+        self.r["cleaned"] = {"ts": "2026-10-06 09:00:00", "hosts": ["cmslpc"]}
+        self.r["publish"] = {"url": "https://x.cern.ch/p/", "eos": "/eos/p", "ok": True}
+        self.saved = (roast.load_config, roast.all_roasts, roast.ssh_run)
+        roast.load_config = lambda: CFG
+        roast.all_roasts = lambda: [self.r]
+        def no_ssh(*a, **k):
+            raise AssertionError("status contacted a host for a cleaned roast")
+        roast.ssh_run = no_ssh
+
+    def tearDown(self):
+        roast.load_config, roast.all_roasts, roast.ssh_run = self.saved
+
+    def run_status(self, **flags):
+        args = argparse.Namespace(**{"id": None, "all": False, "detail": False,
+                                     "summary": False, "active": False, **flags})
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            roast.cmd_status(args)
+        return re.sub(r"\033\[[0-9;]*m", "", buf.getvalue())
+
+    def test_summary_shows_the_docs_link_without_ssh(self):
+        out = self.run_status()
+        self.assertIn("cleaned 2026-10-06", out)
+        self.assertIn("/prod/" + FAKE_ID + "/", out)
+
+    def test_detail_shows_the_links_and_how_to_rebuild(self):
+        out = self.run_status(detail=True)
+        self.assertIn("checkout removed", out)
+        self.assertIn("https://x.cern.ch/p/", out)
+        self.assertIn("checkout " + FAKE_ID, out)       # the command that brings it back
+
+    def test_active_hides_them(self):
+        self.assertNotIn(FAKE_ID, self.run_status(active=True))
+
+    def test_docs_page_url_follows_mkdocs(self):
+        self.assertTrue(roast.docs_page_url("x").endswith("/prod/x/"))
+        self.assertTrue(roast.docs_page_url("x").startswith("https://"))
 
 
 class TestCuppingNotesSweep(unittest.TestCase):

@@ -155,6 +155,7 @@ Capturing a layered config needs PyYAML; plain configs are still copied verbatim
 bin/roast status                 # one line per roast: where every one of them stands
 bin/roast status <id>            # that roast in full, step by step
 bin/roast status -s              # force the one-liner; -d forces the detail
+bin/roast status --active        # hide roasts whose checkouts have been cleaned
 bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
@@ -163,11 +164,21 @@ With no arguments, `status` gives a line per roast: a mark per step, and what is
 now. `✓` finished cleanly, `●` running, `✗` failed, `·` not started, `?` a driver that died
 quietly, `!` a machine that did not answer.
 
+Roasts are grouped into the same families as the [cupping notes](index.md) sub-pages, newest
+first inside a family, so a production reads the same way here as on the website.
+
 ```
-nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published
-nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
-svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          published
+nominal
+  nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published
+  nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
+
+svbfeynnet
+  svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          cleaned 2026-10-06  https://barista.docs.cern.ch/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d/
 ```
+
+A cleaned roast is answered from the manifest alone, with no machine contacted, which is what
+keeps `status` quick once a production is finished. Naming any published roast shows its links:
+the cupping note, the CERNBox results and the EOS archive.
 
 Naming a roast gives the detail: one line per step, with that step's batch jobs underneath.
 
@@ -366,13 +377,33 @@ elsewhere. To pull products without serving anything, use `bin/roast pull <id> -
 ```bash
 bin/roast ls                 # every roast, its machines, steps and whether it is published
 bin/roast show <id>          # the full manifest
+bin/roast clean <id>         # what cleaning would remove, a dry run
+bin/roast clean <id> --yes   # remove the checkouts, keeping the results and the record
+bin/roast clean --all        # every roast that qualifies
 bin/roast rm  <id>           # what deleting would remove, a dry run
 bin/roast rm  <id> --yes     # delete locally, on both machines, on EOS and on CERNBox
 ```
 
-`rm` refuses while a step is still running, and `--keep-eos`, `--keep-cernbox` and
-`--keep-hosts` spare individual locations. Old checkouts are worth removing once a roast is
-archived and published, since each one carries its own environment and outputs.
+### `clean` and `rm` are not the same thing
+
+`clean` reclaims space. It removes the checkouts on cmslpc and falcon, each of which carries
+its own pixi environment and job logs, and leaves everything that makes the run readable: the
+manifest, the cupping note, the EOS archive and the published CERNBox area. `roast checkout
+<id>` brings the checkout back, because the manifest pins both commits.
+
+It refuses unless all of this holds:
+
+* every step finished with `exit=0`, asked of the machines rather than taken from the manifest;
+* the roast was archived and published, and neither reported a failure;
+* both EOS trees still exist and are not empty, confirmed by listing them.
+
+A publish made with `--docs-only` does not count, since it writes a cupping note without
+copying any results. If the published-tree check reports an unauthorized identity, that is a
+missing credential rather than missing data: run `bin/roast proxy` on cmslpc and try again.
+
+`rm` is the opposite. It deletes the roast everywhere, the record included, and `--keep-eos`,
+`--keep-cernbox` and `--keep-hosts` spare individual locations. It refuses while a step is
+still running.
 
 ## Things that catch people out
 
