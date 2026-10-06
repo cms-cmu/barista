@@ -1,0 +1,83 @@
+{
+  "id": "declib16st_run2_20261006_c5c2191-150117d",
+  "label": "declib16st_run2",
+  "created": "2026-10-06 18:08:28",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "c5c219151ffed926a23394855207279eade59853",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "150117dbb90c8f4c5309951b6a0c4ef83aad1660",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run2_library_16x_stitched.yml",
+    "captured": "config.yml",
+    "sha256": "75ab71689abeb8825379413378f8ec92b5612351ebe0dc32a49b6fb34fb1fb36",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2.yml",
+        "sha256": "70e25548bdfbd1e887ce0287ad540415eaca34c5fbac858ebbbf41b1eda747c0"
+      },
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2_library.yml",
+        "sha256": "62ad2cbb85b27099304700b0a8680a9f63c14f94d5ea17900d0d65b980fee0f3"
+      },
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2_library_16x.yml",
+        "sha256": "6fb0439463a4ba74fcfb785578a2d0bccbe00e0ccb194f7085a69d89911a400b"
+      },
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2_library_16x_nocap.yml",
+        "sha256": "a3ea61ded8353abd022b7d0036e8c8bc4b489860b8c842ca68fdace530540b44"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "ttHbb_run2_20261003_f7183e9-cca392c",
+        "barista": "f7183e9fc904dcb143f71ab839ef2da55f49ee06",
+        "coffea4bees": "cca392cdca4924d1fe6a32b1b9c344860a641f27",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_run2_20261003_f7183e9-cca392c",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:ttHbb}/friend/FvT_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_run2_20261003_f7183e9-cca392c"
+      },
+      "jcm_hists": {
+        "url": "{roast:ttHbb}/{roast:ttHbb:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "ttHbb_run2_20261003_f7183e9-cca392c"
+      },
+      "SvB_model": {
+        "url": "{roast:ttHbb}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_run2_20261003_f7183e9-cca392c"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-06 18:08:28",
+      "event": "new"
+    }
+  ],
+  "notes": "16-seed no-cap Run 2 library declustering with stitched ttbar, built off ttHbb_run2_20261003_f7183e9-cca392c (its only upstream). D.1 rebuilds the splitting library with the ttbar subtraction by its FvT_ttHbb_stitched (same FvT in D.3); M.5 makes ttbar_PSData_stitched here from TTTo*_stitched (SubSampler, seed 5); D.4/D.5 against its B.1 noJCM histograms (processor_ttHbb, 4b data + TTTo*_stitched, blinded); D.5 SvB bootstrap with SvB_ttHbb_stitched (ps = ps_ttHbb). D.6 off. Handoffs: mixeddata_all_declib16st, synthetic_data_lib16st_{4b,multijet}, ttbar_PSData_stitched. Replaces the unsubmitted declib16st_run2_20261006_be7ca0b-5caa947 (libA library, inclusive PS).",
+  "category": "declustered"
+}
