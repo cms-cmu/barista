@@ -1461,7 +1461,10 @@ def cmd_resume(args) -> None:
 
 
 def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
-    step_names = " ".join(s["name"] for s in steps)
+    # "<step>:<this roast's window name>" pairs.  The window has to be matched exactly: counting
+    # names that merely end in "_<step>" reported another roast's leftover window as this one's,
+    # which `clean` then refused to work around.
+    step_windows = " ".join(shlex.quote(f"{s['name']}:{_window_name(r, s)}") for s in steps)
     rid = shlex.quote(r["id"])
     # Batch-system view, filtered to this roast: both schedulers record the submitting
     # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
@@ -1486,14 +1489,16 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         if pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} >/dev/null 2>&1; then live=1; else live=0; fi
-        for S in {step_names}; do
+        WINDOWS=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null || true)
+        for SW in {step_windows}; do
+            S=${{SW%%:*}}; W=${{SW#*:}}
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";
             elif [ -f logs/$S.log ]; then
                 if [ "$live" != "0" ]; then st="running";
                 elif tac logs/$S.log | sed '/=== roast .* start /q' | grep -Eq "WorkflowError|Exiting because a job execution failed|Error in rule"; then st="error";
                 else st="stalled"; fi
             else st="not started"; fi
-            win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
+            win=$(printf '%s\\n' "$WINDOWS" | grep -cx -- "$W" || true)
             prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"

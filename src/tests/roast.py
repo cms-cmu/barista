@@ -682,6 +682,39 @@ class TestCleanGating(unittest.TestCase):
         self.assertEqual(roast._clean_blockers(self.mk(), p), [])
 
 
+class TestWindowCountIsRoastSpecific(unittest.TestCase):
+    """tmux=N must count this roast's own window, not every window ending in the same step name.
+
+    Leftover windows from other declustered roasts made every `_DeClustered` step read tmux=1,
+    which `clean` then refused to act on.
+    """
+
+    def script(self):
+        r = fake_roast(step_name="DeClustered")
+        r["label"] = "declustered_run2"
+        return roast._status_script(r, "~/prod/x/barista", r["steps"], "cmslpc")
+
+    def test_the_exact_window_name_is_matched(self):
+        s = self.script()
+        self.assertIn("declustered_run2_", s)      # the roast's own name reaches the host
+        self.assertIn("grep -cx", s)               # whole-line match, not a suffix
+        self.assertNotIn('grep -c "_$S\\$"', s)    # the old suffix count is gone
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_counting_distinguishes_two_roasts_sharing_a_step_name(self):
+        """Run the generated matcher against a window list holding another roast's window."""
+        r = fake_roast(step_name="DeClustered")
+        r["label"] = "declustered_run2"
+        mine = roast._window_name(r, r["steps"][0])
+        others = "declustered_ru_3c76ea9-564930f_DeClustered\nsigcheckB_mass_3c76ea9-564930f_DeClustered"
+        for windows, expect in ((others, "0"), (others + "\n" + mine, "1")):
+            with self.subTest(expect=expect):
+                out = subprocess.run(
+                    [BASH, "-c", f'W={shlex.quote(mine)}; printf "%s\\n" {shlex.quote(windows)} | grep -cx -- "$W" || true'],
+                    text=True, capture_output=True).stdout.strip()
+                self.assertEqual(out, expect)
+
+
 class TestProxyPicking(unittest.TestCase):
     """LPC /tmp is node-local and the gateway is round-robin, so a roast's node often has no
     usable proxy even right after `roast proxy` succeeded elsewhere."""
