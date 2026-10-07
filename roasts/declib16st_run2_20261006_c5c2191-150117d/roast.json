@@ -118,7 +118,18 @@
       "checked_out": "2026-10-06 19:07:32"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16st_run2_20261006_c5c2191-150117d",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16st_run2_20261006_c5c2191-150117d/",
+    "ts": "2026-10-07 07:24:29",
+    "ok": true,
+    "pages": [
+      "output/declib16st_run2_20261006_c5c2191-150117d/D5/cutflow_monitoring.html",
+      "output/declib16st_run2_20261006_c5c2191-150117d/D5/plots/index.html",
+      "output/declib16st_run2_20261006_c5c2191-150117d/D5/seed_study/index.html",
+      "output/declib16st_run2_20261006_c5c2191-150117d/D5/svb_bootstrap/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-06 18:08:28",
@@ -146,12 +157,29 @@
       "event": "resume",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-07 07:24:29",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-07 07:24:35",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
-  "notes": "16-seed no-cap Run 2 library declustering with stitched ttbar, built off ttHbb_run2_20261003_f7183e9-cca392c (its only upstream). D.1 rebuilds the splitting library with the ttbar subtraction by its FvT_ttHbb_stitched (same FvT in D.3); M.5 makes ttbar_PSData_stitched here from TTTo*_stitched (SubSampler, seed 5); D.4/D.5 against its B.1 noJCM histograms (processor_ttHbb, 4b data + TTTo*_stitched, blinded); D.5 SvB bootstrap with SvB_ttHbb_stitched (ps = ps_ttHbb). D.6 off. Handoffs: mixeddata_all_declib16st, synthetic_data_lib16st_{4b,multijet}, ttbar_PSData_stitched. Replaces the unsubmitted declib16st_run2_20261006_be7ca0b-5caa947 (libA library, inclusive PS).",
+  "notes": "16-seed no-cap Run 2 library declustering with stitched ttbar, built off ttHbb_run2_20261003_f7183e9-cca392c (its only upstream). D.1 rebuilds the splitting library with the ttbar subtraction by its FvT_ttHbb_stitched (same FvT in D.3); M.5 makes ttbar_PSData_stitched here from TTTo*_stitched (SubSampler, seed 5); D.4/D.5 against its B.1 noJCM histograms (processor_ttHbb, 4b data + TTTo*_stitched, blinded); D.5 SvB bootstrap with SvB_ttHbb_stitched (ps = ps_ttHbb). D.6 off. Handoffs: mixeddata_all_declib16st, synthetic_data_lib16st_{4b,multijet}, ttbar_PSData_stitched. Replaces the unsubmitted declib16st_run2_20261006_be7ca0b-5caa947 (libA library, inclusive PS). RESULT (2026-10-06, ~2h45m on cmslpc335): first pass exit 1 at 208/211 -- 6 D3_decluster failures (worker loss: dict-vs-tuple accumulator, missing chunk at merge, one KilledWorker) all recovered by snakemake retries; daemon peak ~4.6 GB, no OOM. HOT PATCH: D5_seed_study crashed on the ttHbb hist_cuts axes (pass_nSelJets_gt6, passLeptonVeto: 120 values vs 31 edges); declustered_seed_study.py from coffea4bees acf740d17 (sums every extra category axis) copied into the checkout, then resume (3/3 steps, exit 0). D.5 closure (16-seed mean) data/Bkg: presel 1.006 +- 0.002, SR 1.009 +- 0.003, SB 1.003 +- 0.003 (per year 0.986-1.020). STITCHED PS BIAS: pseudodata / tt 4b MC = 1.026 +- 0.008 (every year > 1; declib16nc inclusive 1.002): SubSampler keeps an event with probability = weight, so negative-genWeight events are never kept -- inclusive TT 0.45% negative (+0.9% yield), TTbb parts 2.7-4.6% negative (+5.7% 2L2Nu, +9.7% SL, +10% had; UL18 chunk0). Affects any stitched PS. Not fixed. SEED STUDY: same draw 3.6%, identical events 1.7%, single-candidate 0; N_eff SR lead mass ~12.5, SB ~4. SVB BOOTSTRAP (ps_ttHbb, SR 4b): N_eff pooled 3.67 (one-seed 1.10), rho 0.23 (ttHbb SR 146k ev/seed, lowest ps bin N_eff 2.3, ~7-9 above).",
   "category": "declustered",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16st_run2_20261006_c5c2191-150117d",
+    "ts": "2026-10-07 07:24:35",
+    "ok": true
   }
 }
