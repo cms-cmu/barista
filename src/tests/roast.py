@@ -753,6 +753,16 @@ class TestProxyPicking(unittest.TestCase):
                 self.assertIn("voms-proxy-info -exists", s)
                 self.assertIn(".roast/x509_proxy", s)
 
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_a_copy_from_a_missing_checkout_fails_instead_of_copying_nothing(self):
+        """An unguarded `cd` let archive report success after copying zero files, and the manifest
+        then claimed the roast was archived when nothing had been."""
+        s = roast._copy_script(fake_roast(), "/nonexistent/prod/x/barista", "root://cmseos.fnal.gov",
+                               "/store/x", roast.copy_settings("archive", CFG, fake_roast()))
+        res = subprocess.run([BASH, "-c", s], text=True, capture_output=True)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("no checkout at", res.stderr)
+
     def test_a_cleaned_roast_is_refused_with_a_usable_message(self):
         r = fake_roast()
         r["cleaned"] = {"ts": "2026-10-06 16:02:55", "hosts": ["cmslpc"]}

@@ -1932,7 +1932,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         """) if htaccess else ""
     return textwrap.dedent(f"""\
         set -uo pipefail
-        cd {rq(ckpt)}
+        cd {rq(ckpt)} 2>/dev/null || {{ echo "no checkout at {ckpt} on $(hostname): nothing to copy. \\`{TOOL} checkout\\` rebuilds the code, but a cleaned or deleted checkout's outputs are gone" >&2; exit 4; }}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
         {_xrd_auth(eos_url, *proxy_candidates())}
         [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
@@ -1961,6 +1961,14 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'
     """)
+
+
+def _copy_failure_hint(rc: int, credential_hint: str) -> str:
+    """Why a copy failed, when the exit code already says.  Guessing "check your proxy" at a
+    missing checkout sends people to look at the wrong thing."""
+    return {2: " (xrdcp is not on that host)",
+            3: " (no grid proxy with time left there)",
+            4: " (no checkout on that host: its outputs are gone)"}.get(rc, f" ({credential_hint})")
 
 
 def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
@@ -1994,7 +2002,8 @@ def cmd_publish(args) -> None:
                 continue
             if res.returncode != 0:
                 ok = False
-                info(f"[{host}] publish FAILED (CERN auth on that host? try `kinit <user>@CERN.CH` or a voms proxy there)")
+                info(f"[{host}] publish FAILED" + _copy_failure_hint(res.returncode,
+                     "CERN auth on that host? try `kinit <user>@CERN.CH` or a voms proxy there"))
             log_event(r, "publish", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
@@ -2053,7 +2062,8 @@ def cmd_archive(args) -> None:
             continue
         if res.returncode != 0:
             ok = False
-            info(f"[{host}] archive FAILED (grid proxy on that host? `{TOOL} proxy --check`)")
+            info(f"[{host}] archive FAILED" + _copy_failure_hint(res.returncode,
+                 f"grid proxy on that host? `{TOOL} proxy --check`"))
         log_event(r, "archive", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
