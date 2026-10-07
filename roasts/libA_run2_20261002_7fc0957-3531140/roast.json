@@ -136,6 +136,13 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-06 12:37:50",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
     }
   ],
   "notes": "Run 2 library declustering, libA setup, on the numba clustering + per-process library + consolidated library files. Carry fields: btagScore, jetId, nConstituents, energy fractions (not puId: Run 2 drops puId<6 jets below 50 GeV). No missing chunks; event counts equal the Run 2 PDF roast. Whole roast ~2.5 h. D.6 SvB sentinel (declustered 0.66, original 0.15) explained: the Run 2 SvB is multi-class and ps_hh is only defined when HH is the largest signal class. SR yield shares (HH/ZZ/ZH-largest/all p<=0.01): original ggHH 0.85/0.04/0.11/0.00, declustered ggHH 0.34/0.30/0.35/0.01, declustered data 0.26/0.39/0.32/0.03 (Run 3's binary SvB has no ZZ/ZH channel). The report counts sentinels in its fraction denominators, so the fractions and yield ratios stand. Open: the SR column of the D.4 closure despite blinded upstream B.1 histograms.",
@@ -148,5 +155,11 @@
     "ts": "2026-10-02 11:59:10",
     "ok": true
   },
-  "category": "declustered"
+  "category": "declustered",
+  "cleaned": {
+    "ts": "2026-10-06 12:37:50",
+    "hosts": [
+      "cmslpc"
+    ]
+  }
 }
