@@ -152,7 +152,7 @@ class TestGeneratedBashParses(unittest.TestCase):
                         ("finish checkout", roast._finish_checkout_script(r, "~/prod/x/barista")),
                         ("eos rm tree", roast._eos_rm_tree_script("root://cmseos.fnal.gov", "/store/user/u/x")),
                         ("eos count", roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/u/user/www/x",
-                                                              ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', '"$PWD/proxy/x509_proxy"']))):
+                                                              *roast.proxy_candidates()))):
             with self.subTest(script=name):
                 ok, msg = bash_ok(s, name)
                 self.assertTrue(ok, msg)
@@ -720,9 +720,7 @@ class TestProxyPicking(unittest.TestCase):
     usable proxy even right after `roast proxy` succeeded elsewhere."""
 
     def script(self):
-        return roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/j/x",
-                                       ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
-                                        roast.rq(roast.SHARED_PROXY), roast.rq("~/prod/x/barista/proxy/x509_proxy")])
+        return roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/j/x", *roast.proxy_candidates())
 
     def test_shared_home_copy_is_among_the_candidates(self):
         self.assertIn(".roast/x509_proxy", self.script())
@@ -732,10 +730,39 @@ class TestProxyPicking(unittest.TestCase):
         self.assertLess(s.index("/tmp/x509up_u"), s.index(".roast/x509_proxy"))
         self.assertIn("voms-proxy-info -exists", s)      # presence alone is not enough: it expires
 
+    def test_every_eos_script_picks_a_live_proxy(self):
+        """publish, archive, clean's verification and rm all reach EOS; none may trust $PWD alone."""
+        r = fake_roast()
+        ps = roast.copy_settings("publish", CFG, r)
+        scripts = {
+            "copy": roast._copy_script(r, "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x", ps),
+            "count": roast._eos_count_script("root://eosuser.cern.ch", "/eos/x"),
+            "rm tree": roast._eos_rm_tree_script("root://eosuser.cern.ch", "/eos/x"),
+        }
+        for name, s in scripts.items():
+            with self.subTest(script=name):
+                self.assertIn("voms-proxy-info -exists", s)
+                self.assertIn(".roast/x509_proxy", s)
+
+    def test_a_cleaned_roast_is_refused_with_a_usable_message(self):
+        r = fake_roast()
+        r["cleaned"] = {"ts": "2026-10-06 16:02:55", "hosts": ["cmslpc"]}
+        with self.assertRaises(SystemExit) as cm:
+            roast._refuse_if_cleaned(r, "publish")
+        roast._refuse_if_cleaned(r, "publish", allow=True)        # --docs-only needs no checkout
+        roast._refuse_if_cleaned(fake_roast(), "publish")         # an uncleaned roast is fine
+        self.assertNotEqual(cm.exception.code, 0)
+
+    def test_the_auth_line_stays_one_line(self):
+        """It is interpolated into dedent()ed templates; a bare continuation line breaks dedent."""
+        self.assertEqual(len(roast._xrd_auth("root://eosuser.cern.ch", '"$PWD/p"').splitlines()), 1)
+
     @unittest.skipIf(BASH is None, "bash not available")
-    def test_an_empty_candidate_list_still_parses(self):
-        ok, msg = bash_ok(roast._eos_count_script("root://cmseos.fnal.gov", "/store/x", []), "no proxies")
-        self.assertTrue(ok, msg)
+    def test_a_copy_with_no_usable_credential_fails_loudly(self):
+        """Rather than handing an expired proxy to EOS and getting 'unauthorized identity'."""
+        s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
+                               roast.copy_settings("publish", CFG, fake_roast()))
+        self.assertIn("no grid proxy with time left", s)
 
 
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):

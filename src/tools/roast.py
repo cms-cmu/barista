@@ -1047,27 +1047,48 @@ def cmd_pull(args) -> None:
         info(f"pulled into {ROOT / 'output' / 'roasts' / r['id']}")
 
 
-def _xrd_auth(eos_url: str, proxy: str) -> str:
-    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present, else
-    the grid proxy at `proxy` (a bash word, e.g. '"$PWD/proxy/x509_proxy"').
+def proxy_candidates() -> list[str]:
+    """Where a grid proxy may be, best first, as bash words.
+
+    The roast's own copy (scripts that need it run from the checkout), then this node's /tmp,
+    then the shared-home copy.  A path that does not exist costs nothing to skip.
+    """
+    return ['"$PWD/proxy/x509_proxy"', '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)]
+
+
+def _xrd_auth(eos_url: str, *proxies: str) -> str:
+    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present,
+    else the first of `proxies` (bash words) that still has time left.
+
+    Validity, not existence.  LPC /tmp is node-local and the login alias is round-robin, so the
+    proxy sitting beside a roast is routinely weeks stale, and an expired proxy does not fail
+    as a credential error -- CERN EOS answers "[3010] unauthorized identity used", which reads
+    like the data being missing and cost an afternoon twice.
 
     For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which eosuser
-    rejects ("[3010] ... unauthorized identity used"). Then use the proxy and hide that ticket with
-    KRB5CCNAME -- pinning XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try")."""
+    rejects the same way. Then use the proxy and hide that ticket with KRB5CCNAME -- pinning
+    XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try").
+
+    Stays on ONE line: it is interpolated into dedent()ed templates, and a multi-line insert
+    whose continuation lines carry no indentation would stop dedent finding a common prefix.
+    """
     cern = "cern.ch" in eos_url
     realm = "CERN\\.CH" if cern else "[A-Z.]*"
     hide = "; export KRB5CCNAME=FILE:/dev/null" if cern else ""
-    return (f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
-            f'elif [ -s {proxy} ]; then export X509_USER_PROXY={proxy}{hide}; fi')
+    cands = " ".join(proxies) or '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    return (f'PROXY=""; for c in {cands}; do if [ -s "$c" ] && '
+            f'voms-proxy-info -exists -valid 0:05 -file "$c" >/dev/null 2>&1; then PROXY="$c"; break; fi; done; '
+            f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
+            f'elif [ -s "$PROXY" ]; then export X509_USER_PROXY="$PROXY"{hide}; fi')
 
 
-def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"') -> str:
+def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
     """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first.
     Only a "no such file" stat counts as absent; any other stat failure (auth) is an error, not a
     silent success."""
     return textwrap.dedent(f"""\
         set -u
-        {_xrd_auth(eos_url, proxy)}
+        {_xrd_auth(eos_url, *(proxies or proxy_candidates()))}
         EOS={eos_url}; P={shlex.quote(path)}
         if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
             if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "  (not present) $EOS/$P"; exit 0; fi
@@ -1080,24 +1101,16 @@ def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROX
     """)
 
 
-def _eos_count_script(eos_url: str, path: str, proxies: list[str]) -> str:
+def _eos_count_script(eos_url: str, path: str, *proxies: str) -> str:
     """Print `COUNT=<n>` for the files under `path`: `missing` if the tree is not there, `error`
     if it cannot be read.
 
     `clean` deletes the only other copy of a roast's output, so "the copy reported success once"
     is not enough -- this asks the server what is there now, before anything is removed.
-
-    It runs weeks after the roast did, so it picks the first proxy with time left rather than the
-    roast's own: that one expired long ago, and handing an expired proxy to CERN EOS produces an
-    "unauthorized identity" error that looks exactly like the data being gone.
     """
     return textwrap.dedent(f"""\
         set -u
-        PROXY=""
-        for c in {" ".join(proxies)}; do
-            if [ -s "$c" ] && voms-proxy-info -exists -valid 0:05 -file "$c" >/dev/null 2>&1; then PROXY="$c"; break; fi
-        done
-        {_xrd_auth(eos_url, '"$PROXY"')}
+        {_xrd_auth(eos_url, *(proxies or proxy_candidates()))}
         EOS={eos_url}; P={shlex.quote(path)}
         if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
             if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "COUNT=missing"; exit 0; fi
@@ -1110,15 +1123,14 @@ def _eos_count_script(eos_url: str, path: str, proxies: list[str]) -> str:
 def _eos_file_count(cfg: dict, r: dict, eos_url: str, path: str) -> tuple[int, str]:
     """(files under an EOS path, why not) -- the count is -1 when the tree cannot be read.
 
-    Asked from cmslpc, with the roast's own proxy: that credential lives inside the checkout, so
-    this has to happen while the checkout is still there.  The reason is carried back because
-    "missing" and "you have no CERN credential here" call for very different responses.
+    Asked from cmslpc.  The reason is carried back because "missing" and "you have no CERN
+    credential on this node" call for very different responses.
     """
-    # /tmp first (freshest when you are on the node you just made it on), then the shared copy,
-    # then the roast's own -- which expired weeks ago but costs nothing to try last
+    # the usual places, plus this roast's own copy by absolute path: the script runs from home,
+    # not from the checkout, so "$PWD/proxy/x509_proxy" would not find it
     ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxies = ['"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)] + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
-    res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_count_script(eos_url, path, proxies), check=False)
+    proxies = proxy_candidates() + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
+    res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_count_script(eos_url, path, *proxies), check=False)
     # xrootd puts the useful sentence on an "[ERROR] ..." line; the rest is the path echoed back
     errs = [ln.strip() for ln in res.stderr.splitlines() if "[ERROR]" in ln or "error" in ln.lower()]
     detail = (errs[-1] if errs else res.stderr.strip().splitlines()[-1] if res.stderr.strip() else "")[:200]
@@ -1833,7 +1845,8 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         set -uo pipefail
         cd {rq(ckpt)}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
-        {_xrd_auth(eos_url, '"$PWD/proxy/x509_proxy"')}
+        {_xrd_auth(eos_url, *proxy_candidates())}
+        [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
@@ -1861,9 +1874,18 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     """)
 
 
+def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
+    """A cleaned roast has no checkout, so anything reading from one fails deep inside a remote
+    script with a `cd` error.  Say what happened instead, and how to get the checkout back."""
+    if r.get("cleaned") and not allow:
+        die(f"{r['id']} was cleaned on {r['cleaned']['ts'][:10]}: there is no checkout to {what} from. "
+            f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
+
+
 def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
+    _refuse_if_cleaned(r, "publish", allow=args.docs_only)
     eos_dir = f"{cfg['cernbox']['eos_path'].rstrip('/')}/{r['id']}"
     url = f"{cfg['cernbox']['url'].rstrip('/')}/{r['id']}/"
     hosts = [args.host] if args.host else list(r["hosts"])
@@ -1920,6 +1942,7 @@ def cmd_archive(args) -> None:
     """Copy heavy products (.coffea/.root/...) to FNAL EOS under <eos.path>/<id>/, mirroring the checkout layout."""
     cfg = load_config()
     r = load_roast(args.id)
+    _refuse_if_cleaned(r, "archive")
     eos = cfg.get("eos") or {}
     if not eos.get("path") or "<" in eos.get("path", ""):
         die("set \"eos\": {\"url\": \"root://cmseos.fnal.gov\", \"path\": \"/store/user/<you>/HH4b_prod\"} in " + str(CONFIG_PATH))
