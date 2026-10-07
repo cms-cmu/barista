@@ -145,6 +145,15 @@ class TestGeneratedBashParses(unittest.TestCase):
                 ok, msg = bash_ok(s, f"status script ({host})")
                 self.assertTrue(ok, msg)
 
+    def test_rm_tree_script(self):
+        for top in ("~/nobackup/HH4b/prod/" + FAKE_ID, "/uscms/x y/prod/" + FAKE_ID):
+            with self.subTest(top=top):
+                s = roast._rm_tree_script(top)
+                ok, msg = bash_ok(s, "rm tree")
+                self.assertTrue(ok, msg)
+                self.assertIn("xargs -0 -r -P", s)        # parallel unlink, not one at a time
+                self.assertIn('[ -d "$T" ]', s)           # an already-gone directory is not an error
+
     def test_checkout_and_cleanup_scripts(self):
         r = fake_roast()
         hc = CFG["hosts"]["cmslpc"]
@@ -752,6 +761,22 @@ class TestProxyPicking(unittest.TestCase):
         roast._refuse_if_cleaned(r, "publish", allow=True)        # --docs-only needs no checkout
         roast._refuse_if_cleaned(fake_roast(), "publish")         # an uncleaned roast is fine
         self.assertNotEqual(cm.exception.code, 0)
+
+    def test_several_trees_are_counted_in_one_call(self):
+        items = [("archive", "root://cmseos.fnal.gov", "/store/x"),
+                 ("published", "root://eosuser.cern.ch", "/eos/y")]
+        s = roast._eos_counts_script(items, roast.proxy_candidates())
+        self.assertIn("COUNT|archive|", s)
+        self.assertIn("COUNT|published|", s)
+        # each server gets its own credential block: CERN needs the FNAL ticket hidden, FNAL does not
+        self.assertEqual(s.count("KRB5CCNAME=FILE:/dev/null"), 1)
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_the_merged_count_script_parses(self):
+        items = [("archive", "root://cmseos.fnal.gov", "/store/x"),
+                 ("published", "root://eosuser.cern.ch", "/eos/y")]
+        ok, msg = bash_ok(roast._eos_counts_script(items, roast.proxy_candidates()), "merged count")
+        self.assertTrue(ok, msg)
 
     def test_the_auth_line_stays_one_line(self):
         """It is interpolated into dedent()ed templates; a bare continuation line breaks dedent."""

@@ -32,6 +32,7 @@ Stdlib only.  Manifests live in roasts/<id>/roast.json (commit them).
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import getpass
 import hashlib
@@ -52,7 +53,15 @@ from pathlib import Path
 TOOL = "roast"
 CONFIG_PATH = Path(os.environ.get("ROAST_CONFIG", "~/.config/roast/config.json")).expanduser()
 TMUX_SESSION = "roast"
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR"]
+# Reuse one authenticated connection per host for the life of a command, and a minute beyond.
+# roast makes several calls per roast -- step state, then EOS, then the deletion -- and a fresh
+# handshake to cmslpc costs 2 to 4 seconds against 0.25 for a multiplexed one, so on a `clean
+# --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
+# it uses %C, a fixed-length hash of the connection parameters.
+SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR",
+            "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+            "-o", "ControlPersist=60"]
 
 # Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
 PHASES = {
@@ -1120,6 +1129,36 @@ def _eos_count_script(eos_url: str, path: str, *proxies: str) -> str:
     """)
 
 
+def _eos_counts_script(items: list[tuple[str, str, str]], proxies: list[str]) -> str:
+    """Count several EOS trees in one go, as `COUNT|<label>|<n>` lines.
+
+    Each tree runs in its own subshell because the credential differs by server: CERN EOS needs
+    the FNAL kerberos ticket hidden, FNAL EOS does not.  One ssh instead of one per tree, which
+    on a `clean --all` saves a handshake per roast.
+    """
+    return "\n".join(f"( {_eos_count_script(url, path, *proxies)} ) | sed 's/^COUNT=/COUNT|{label}|/'"
+                     for label, url, path in items)
+
+
+def _eos_file_counts(cfg: dict, r: dict, items: list[tuple[str, str, str]]) -> dict:
+    """{label: (files, why not)} for several EOS trees, in a single ssh to cmslpc."""
+    ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
+    proxies = proxy_candidates() + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
+    res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_counts_script(items, proxies), check=False)
+    errs = [ln.strip() for ln in res.stderr.splitlines() if "[ERROR]" in ln or "error" in ln.lower()]
+    detail = (errs[-1] if errs else (res.stderr.strip().splitlines() or [""])[-1])[:200]
+    out = {}
+    for line in res.stdout.splitlines():
+        if line.startswith("COUNT|"):
+            _, label, val = line.split("|", 2)
+            val = val.strip()
+            out[label] = (int(val), "") if val.isdigit() else \
+                         (-1, "no such directory" if val == "missing" else (detail or "unreadable"))
+    for label, _, _ in items:
+        out.setdefault(label, (-1, detail or f"no answer from {roast_ssh(cfg, r, 'cmslpc')}"))
+    return out
+
+
 def _eos_file_count(cfg: dict, r: dict, eos_url: str, path: str) -> tuple[int, str]:
     """(files under an EOS path, why not) -- the count is -1 when the tree cannot be read.
 
@@ -1194,6 +1233,72 @@ def _clean_blockers(r: dict, parsed: dict) -> list[str]:
     return out
 
 
+def _rm_tree_script(top: str) -> str:
+    """Remove a roast's directory on a host.
+
+    A plain `rm -rf` walks a pixi environment's tens of thousands of small files one unlink at a
+    time, and on NFS each one is a round trip.  Unlinking in parallel first turns that wait into
+    concurrency; the `rm -rf` afterwards clears the directories and anything missed.
+    """
+    return textwrap.dedent(f"""\
+        set -u
+        T={rq(top)}
+        [ -d "$T" ] || {{ echo "  already gone: $T"; exit 0; }}
+        find "$T" -type f -print0 2>/dev/null | xargs -0 -r -P 16 -n 512 rm -f 2>/dev/null || true
+        rm -rf "$T"
+        [ -d "$T" ] && {{ echo "  WARNING: $T still exists" >&2; exit 1; }} || echo "  removed $T"
+    """)
+
+
+def _clean_probe(cfg: dict, r: dict) -> dict:
+    """Everything `clean` needs to know about one roast, gathered over the network.
+
+    Separated from the reporting so that a `--all` run can probe many roasts at once: the work is
+    almost entirely waiting on ssh and EOS.  It reads, it never deletes.
+    """
+    rid = r["id"]
+    parsed = {}
+    for host, hinfo in r["hosts"].items():
+        target = roast_ssh(cfg, r, host)
+        res = ssh_run(target, _status_script(r, hinfo["checkout"],
+                                             [s for s in r["steps"] if s["host"] == host], host), check=False)
+        if res.returncode != 0:
+            parsed[host] = {"error": f"unreachable ({target})" if res.returncode == 255
+                            else f"ssh failed: {res.stderr.strip()[:60]}"}
+        else:
+            st = _parse_status(res.stdout)
+            # a checkout that is already gone is not a reason to refuse: that is the goal, and a
+            # half-cleaned roast has to be able to finish
+            parsed[host] = {"gone": True} if st["nocheckout"] else dict(st, error=None)
+
+    probe = {"blockers": _clean_blockers(r, parsed), "checks": [], "counts": {}, "tops": {}, "unsafe": []}
+    if probe["blockers"]:
+        return probe                       # no point asking EOS about a roast that is not finished
+
+    # What EOS should still be holding.  An empty tree means the copy that "succeeded" left
+    # nothing behind, and deleting the checkout would lose the run.
+    if (r.get("archive") or {}).get("eos"):
+        # stored as one string, "root://cmseos.fnal.gov//store/user/.../<id>"; xrdfs wants the
+        # server and the path apart again
+        scheme, server, path = r["archive"]["eos"].split("//", 2)
+        probe["checks"].append(("archive", f"{scheme}//{server}", "/" + path))
+    if (r.get("publish") or {}).get("eos"):
+        probe["checks"].append(("published", "root://eosuser.cern.ch", r["publish"]["eos"]))
+    if probe["checks"]:
+        probe["counts"] = _eos_file_counts(cfg, r, probe["checks"])
+
+    # The directory removed is the checkout's parent, which roast creates per roast.  Insist that
+    # it is named after the roast: a hand-edited manifest whose checkout is "~/barista" would
+    # otherwise point the deletion at a home directory.
+    for host, h in r["hosts"].items():
+        top = h["checkout"].rstrip("/").rsplit("/", 1)[0]
+        if not top.endswith("/" + rid):
+            probe["unsafe"].append(f"{host} checkout {h['checkout']} is not inside a directory "
+                                   f"named {rid}; refusing to remove {top}")
+        probe["tops"][host] = top
+    return probe
+
+
 def cmd_clean(args) -> None:
     """Delete the host checkouts of roasts whose results are safely on EOS and CERNBox.
 
@@ -1213,6 +1318,16 @@ def cmd_clean(args) -> None:
         info("nothing to clean")
         return
 
+    # Probe every candidate at once.  Each probe is a couple of ssh calls that spend their time
+    # waiting, so threads turn a queue of roasts into one round of waiting.  Nothing is printed or
+    # deleted here: the report has to come out in the order the roasts were listed.
+    todo = [r for r in candidates if not r.get("cleaned")]
+    probes = {}
+    if todo:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(todo))) as pool:
+            for r, probe in zip(todo, pool.map(lambda x: _clean_probe(cfg, x), todo)):
+                probes[r["id"]] = probe
+
     cleaned = eligible = 0
     for r in candidates:
         rid = r["id"]
@@ -1220,36 +1335,15 @@ def cmd_clean(args) -> None:
             info(f"{rid}: already cleaned on {r['cleaned']['ts'][:10]}")
             continue
         print(f"\n\033[1m{rid}\033[0m")
-        parsed = {}
-        for host, hinfo in r["hosts"].items():
-            target = roast_ssh(cfg, r, host)
-            res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
-            if res.returncode != 0:
-                parsed[host] = {"error": f"unreachable ({target})" if res.returncode == 255 else f"ssh failed: {res.stderr.strip()[:60]}"}
-            else:
-                st = _parse_status(res.stdout)
-                # a checkout that is already gone is not a reason to refuse: that is the goal,
-                # and a half-cleaned roast has to be able to finish
-                parsed[host] = {"gone": True} if st["nocheckout"] else dict(st, error=None)
-        blockers = _clean_blockers(r, parsed)
-        if blockers:
-            for b in blockers:
+        probe = probes[rid]
+        if probe["blockers"]:
+            for b in probe["blockers"]:
                 print(f"  \033[31mcannot clean\033[0m: {b}")
             continue
 
-        # Ask EOS what is actually there.  An empty tree means the copy that "succeeded" left
-        # nothing behind, and deleting the checkout would lose the run.
-        checks = []
-        if (r.get("archive") or {}).get("eos"):
-            # stored as one string, "root://cmseos.fnal.gov//store/user/.../<id>"; xrdfs wants the
-            # server and the path apart again
-            scheme, server, path = r["archive"]["eos"].split("//", 2)
-            checks.append(("archive", f"{scheme}//{server}", "/" + path))
-        if (r.get("publish") or {}).get("eos"):
-            checks.append(("published", "root://eosuser.cern.ch", r["publish"]["eos"]))
         short = False
-        for what, url, path in checks:
-            n, why = _eos_file_count(cfg, r, url, path)
+        for what, url, path in probe["checks"]:
+            n, why = probe["counts"].get(what, (-1, "not checked"))
             if n > 0:
                 print(f"  {what:10s} {n} files at {url}{path}")
             else:
@@ -1259,32 +1353,27 @@ def cmd_clean(args) -> None:
                     print(f"  {'':10s} that is a credential, not a missing directory: "
                           f"`{TOOL} proxy` on cmslpc, then try again")
                 short = True
+        for bad in probe["unsafe"]:
+            print(f"  \033[31mcannot clean\033[0m: {bad}")
+            short = True
         if short:
             continue
-
-        # The directory removed is the checkout's parent, which roast creates per roast.  Insist
-        # that it is named after the roast: a hand-edited manifest whose checkout is "~/barista"
-        # would otherwise point `rm -rf` at a home directory.
-        tops = {}
-        for host, h in r["hosts"].items():
-            top = h["checkout"].rstrip("/").rsplit("/", 1)[0]
-            if not top.endswith("/" + rid):
-                print(f"  \033[31mcannot clean\033[0m: {host} checkout {h['checkout']} is not inside a "
-                      f"directory named {rid}; refusing to remove {top}")
-                short = True
-            tops[host] = top
-        if short:
-            continue
+        tops = probe["tops"]
         if not args.yes:
             for host, top in tops.items():
                 print(f"  would remove   {host:7s} {top}")
             eligible += 1
             continue
+        # Both hosts at once, and the files inside one host in parallel too: deleting a checkout
+        # is tens of thousands of unlinks on NFS, where latency rather than bandwidth is the cost.
         ok = True
-        for host, top in tops.items():
-            res = ssh_run(roast_ssh(cfg, r, host), f"rm -rf {rq(top)} && echo '  removed {host}: {top}'", check=False)
-            print((res.stdout + res.stderr).strip())
-            ok &= res.returncode == 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(tops))) as pool:
+            for (host, top), res in zip(tops.items(),
+                                        pool.map(lambda ht: ssh_run(roast_ssh(cfg, r, ht[0]),
+                                                                    _rm_tree_script(ht[1]), check=False),
+                                                 list(tops.items()))):
+                print((res.stdout + res.stderr).strip() or f"  removed {host}: {top}")
+                ok &= res.returncode == 0
         if not ok:
             info(f"{rid}: some checkouts could not be removed; not marking it cleaned")
             continue
@@ -2137,6 +2226,9 @@ def cmd_show(args) -> None:
 # ---------------------------------------------------------------------------
 
 def main(argv=None) -> None:
+    # ssh refuses to multiplex into a directory that is not there, and silently falls back to a
+    # fresh handshake every call -- which is the slow path this is here to avoid
+    SSH_CONTROL_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     p = argparse.ArgumentParser(prog=TOOL, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
