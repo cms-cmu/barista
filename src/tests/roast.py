@@ -286,10 +286,28 @@ class TestSummaryLine(unittest.TestCase):
         line = self.plain(roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20))
         self.assertIn("B!", line)
 
-    def test_published_is_noted_when_nothing_is_running(self):
+    def test_published_is_noted_with_its_cupping_note_when_nothing_is_running(self):
         r = self.roast_with(("B", "cmslpc"))
         r["publish"] = {"url": "https://example.cern.ch/x/"}
-        self.assertIn("published", roast._summary_line(r, self.parsed(B="exit=0      "), 20))
+        line = roast._summary_line(r, self.parsed(B="exit=0      "), 20)
+        self.assertIn("published", line)
+        self.assertIn(roast.docs_page_url(r["id"]), line)
+
+    def test_an_unreachable_host_still_shows_where_to_read_the_results(self):
+        """The case this was asked for: a published roast whose node stopped answering."""
+        r = self.roast_with(("DeClustered", "cmslpc"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        line = roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20)
+        self.assertIn(roast.docs_page_url(r["id"]), line)
+
+    def test_a_running_roast_shows_progress_rather_than_a_link(self):
+        r = self.roast_with(("C", "falcon"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        p = {"falcon": {"steps": [("C", "running      tmux=1  3 of 7   merging shards")],
+                        "live": {}, "done": {}, "extra": [], "error": None}}
+        line = roast._summary_line(r, p, 20)
+        self.assertIn("merging shards", line)
+        self.assertNotIn("barista.docs", line)
 
     def test_state_word_ignores_colour_codes(self):
         self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")

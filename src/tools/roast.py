@@ -1752,7 +1752,10 @@ def _summary_line(r: dict, parsed: dict, width: int) -> str:
             # progress bars pad themselves with runs of spaces; squeeze so the budget buys signal
             tail = " ".join(tail.split())
             running.append(f"{name} on {host}: {tail[:46]}" if tail else f"{name} on {host}")
-    note = "  ".join(running) or ("published" if r.get("publish", {}).get("url") else "")
+    # While something is running, what it is doing is the news.  Once nothing is, the useful thing
+    # is where to read the results, so a finished roast carries its cupping note like a cleaned one.
+    note = "  ".join(running) or (f"published  {docs_page_url(r['id'])}"
+                                  if r.get("publish", {}).get("url") else "")
     marks = " ".join(glyphs)
     visible = len(re.sub(r"\033\[[0-9;]*m", "", marks))
     return f"  {r['id']:<{width}s}  {marks}{' ' * max(1, 24 - visible)} {note}".rstrip()

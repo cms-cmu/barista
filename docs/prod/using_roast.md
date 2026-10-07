@@ -175,16 +175,18 @@ first inside a family, so a production reads the same way here as on the website
 
 ```
 nominal
-  nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published
+  nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published  https://barista.docs.cern.ch/prod/nominal_run2_20260919_a180b1a-a16559c/
   nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
 
 svbfeynnet
   svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          cleaned 2026-10-06  https://barista.docs.cern.ch/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d/
 ```
 
+Once nothing is running, a roast carries a link to its cupping note, whether it has been
+cleaned or not. While a step is still going, that space shows what the step is doing instead.
 A cleaned roast is answered from the manifest alone, with no machine contacted, which is what
-keeps `status` quick once a production is finished. Naming any published roast shows its links:
-the cupping note, the CERNBox results and the EOS archive.
+keeps `status` quick once a production is finished. Naming any published roast shows all its
+links: the cupping note, the CERNBox results and the EOS archive.
 
 Naming a roast gives the detail: one line per step, with that step's batch jobs underneath.
 
