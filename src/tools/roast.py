@@ -32,6 +32,7 @@ Stdlib only.  Manifests live in roasts/<id>/roast.json (commit them).
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import getpass
 import hashlib
@@ -52,7 +53,15 @@ from pathlib import Path
 TOOL = "roast"
 CONFIG_PATH = Path(os.environ.get("ROAST_CONFIG", "~/.config/roast/config.json")).expanduser()
 TMUX_SESSION = "roast"
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR"]
+# Reuse one authenticated connection per host for the life of a command, and a minute beyond.
+# roast makes several calls per roast -- step state, then EOS, then the deletion -- and a fresh
+# handshake to cmslpc costs 2 to 4 seconds against 0.25 for a multiplexed one, so on a `clean
+# --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
+# it uses %C, a fixed-length hash of the connection parameters.
+SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR",
+            "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+            "-o", "ControlPersist=60"]
 
 # Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
 PHASES = {
@@ -162,6 +171,30 @@ DOCS_PROD = ROOT / "docs" / "prod"
 # write_index() must leave them alone.  "index" is generated but always wanted; the rest are
 # prose that lives next to the catalogue because colleagues reach it from the same nav.
 HANDWRITTEN_PAGES = {"index", "using_roast"}
+
+# A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
+# round-robin, so the proxy you just created is usually not on the node a given roast
+# was pinned to; this copy is readable from all of them.
+SHARED_PROXY = "~/.roast/x509_proxy"
+
+DOCS_SITE_FALLBACK = "https://barista.docs.cern.ch"
+
+
+def docs_site() -> str:
+    """Where the cupping notes are served, read from mkdocs.yml so there is one source of truth."""
+    try:
+        for line in (ROOT / "docs" / "mkdocs.yml").read_text().splitlines():
+            if line.startswith("site_url:"):
+                return line.split(":", 1)[1].strip().rstrip("/")
+    except OSError:
+        pass
+    return DOCS_SITE_FALLBACK
+
+
+def docs_page_url(rid: str) -> str:
+    """The published cupping note for a roast.  Derived, not stored: mkdocs serves every page
+    under docs/ at its own path, so the id is the address."""
+    return f"{docs_site()}/prod/{rid}/"
 
 
 def load_config() -> dict:
@@ -953,16 +986,37 @@ def cmd_attach(args) -> None:
 
 
 def cmd_proxy(args) -> None:
-    """Create (interactively) or check the grid proxy on a host.  Writes the standard /tmp/x509up_u<uid>,
-    which every roast launcher copies into its checkout's proxy/x509_proxy."""
+    """Create (interactively) or check the grid proxy on a host.
+
+    voms-proxy-init writes /tmp/x509up_u<uid>, which every roast launcher copies into its
+    checkout's proxy/x509_proxy.  On LPC /tmp is node-local while the gateway is round-robin, so
+    the proxy you just made is often on a different node from the roast you want to use it for.
+    A copy therefore goes to ~/.roast/x509_proxy, which is on shared home and readable from
+    whichever node a roast was pinned to.
+    """
     cfg = load_config()
     target = resolve_ssh(host_cfg(cfg, args.host))
     if args.check:
-        res = ssh_run(target, "voms-proxy-info --timeleft 2>&1 | head -1", check=False)
-        left = (res.stdout or res.stderr).strip()
-        print(f"{args.host}: {int(left)//3600} h left" if left.isdigit() else f"{args.host}: {left or 'no proxy'}")
+        res = ssh_run(target, f"echo -n 'node '; hostname -s; "
+                              f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
+                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {rq(SHARED_PROXY)} 2>/dev/null || echo none",
+                      check=False)
+        where = {}
+        for line in res.stdout.split("\n"):
+            k, _, v = line.strip().partition(" ")
+            if k:
+                where[k] = v.strip()
+        print(f"{args.host} ({where.get('node', '?')}):")
+        for k in ("local", "shared"):
+            left = where.get(k, "none")
+            pretty = f"{int(left)//3600} h left" if left.isdigit() and int(left) > 0 else "expired or absent"
+            print(f"  {k:7s} {pretty}" + (f"   ({SHARED_PROXY}, readable from every node)" if k == "shared" else "   (/tmp, this node only)"))
         return
-    cmd = f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+    # the copy is part of the same command: os.execvp hands the terminal to ssh for the passphrase,
+    # so there is no second round trip to do it in
+    cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+           f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
+           f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
     info(f"ssh -t {target} {cmd}")
     os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
 
@@ -1006,27 +1060,48 @@ def cmd_pull(args) -> None:
         info(f"pulled into {ROOT / 'output' / 'roasts' / r['id']}")
 
 
-def _xrd_auth(eos_url: str, proxy: str) -> str:
-    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present, else
-    the grid proxy at `proxy` (a bash word, e.g. '"$PWD/proxy/x509_proxy"').
+def proxy_candidates() -> list[str]:
+    """Where a grid proxy may be, best first, as bash words.
+
+    The roast's own copy (scripts that need it run from the checkout), then this node's /tmp,
+    then the shared-home copy.  A path that does not exist costs nothing to skip.
+    """
+    return ['"$PWD/proxy/x509_proxy"', '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)]
+
+
+def _xrd_auth(eos_url: str, *proxies: str) -> str:
+    """One line of bash choosing the xrootd credential for eos_url: a kerberos ticket if present,
+    else the first of `proxies` (bash words) that still has time left.
+
+    Validity, not existence.  LPC /tmp is node-local and the login alias is round-robin, so the
+    proxy sitting beside a roast is routinely weeks stale, and an expired proxy does not fail
+    as a credential error -- CERN EOS answers "[3010] unauthorized identity used", which reads
+    like the data being missing and cost an afternoon twice.
 
     For CERN EOS only a @CERN.CH ticket counts: cmslpc logins carry a @FNAL.GOV one, which eosuser
-    rejects ("[3010] ... unauthorized identity used"). Then use the proxy and hide that ticket with
-    KRB5CCNAME -- pinning XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try")."""
+    rejects the same way. Then use the proxy and hide that ticket with KRB5CCNAME -- pinning
+    XrdSecPROTOCOL=gsi instead fails on eosuser ("No protocols left to try").
+
+    Stays on ONE line: it is interpolated into dedent()ed templates, and a multi-line insert
+    whose continuation lines carry no indentation would stop dedent finding a common prefix.
+    """
     cern = "cern.ch" in eos_url
     realm = "CERN\\.CH" if cern else "[A-Z.]*"
     hide = "; export KRB5CCNAME=FILE:/dev/null" if cern else ""
-    return (f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
-            f'elif [ -s {proxy} ]; then export X509_USER_PROXY={proxy}{hide}; fi')
+    cands = " ".join(proxies) or '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    return (f'PROXY=""; for c in {cands}; do if [ -s "$c" ] && '
+            f'voms-proxy-info -exists -valid 0:05 -file "$c" >/dev/null 2>&1; then PROXY="$c"; break; fi; done; '
+            f'if klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$"; then :; '
+            f'elif [ -s "$PROXY" ]; then export X509_USER_PROXY="$PROXY"{hide}; fi')
 
 
-def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"') -> str:
+def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
     """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first.
     Only a "no such file" stat counts as absent; any other stat failure (auth) is an error, not a
     silent success."""
     return textwrap.dedent(f"""\
         set -u
-        {_xrd_auth(eos_url, proxy)}
+        {_xrd_auth(eos_url, *(proxies or proxy_candidates()))}
         EOS={eos_url}; P={shlex.quote(path)}
         if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
             if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "  (not present) $EOS/$P"; exit 0; fi
@@ -1037,6 +1112,291 @@ def _eos_rm_tree_script(eos_url: str, path: str, proxy: str = '"${X509_USER_PROX
         xrdfs $EOS rmdir "$P" >/dev/null 2>&1
         xrdfs $EOS stat "$P" >/dev/null 2>&1 && echo "  WARNING: $EOS/$P still exists" || echo "  removed $EOS/$P"
     """)
+
+
+def _eos_count_script(eos_url: str, path: str, *proxies: str) -> str:
+    """Print `COUNT=<n>` for the files under `path`: `missing` if the tree is not there, `error`
+    if it cannot be read.
+
+    `clean` deletes the only other copy of a roast's output, so "the copy reported success once"
+    is not enough -- this asks the server what is there now, before anything is removed.
+    """
+    return textwrap.dedent(f"""\
+        set -u
+        {_xrd_auth(eos_url, *(proxies or proxy_candidates()))}
+        EOS={eos_url}; P={shlex.quote(path)}
+        if ! ST=$(xrdfs $EOS stat "$P" 2>&1); then
+            if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "COUNT=missing"; exit 0; fi
+            echo "  cannot read $EOS/$P: $ST" >&2; echo "COUNT=error"; exit 0
+        fi
+        echo "COUNT=$(xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 !~ /^d/' | wc -l | tr -d ' ')"
+    """)
+
+
+def _eos_counts_script(items: list[tuple[str, str, str]], proxies: list[str]) -> str:
+    """Count several EOS trees in one go, as `COUNT|<label>|<n>` lines.
+
+    Each tree runs in its own subshell because the credential differs by server: CERN EOS needs
+    the FNAL kerberos ticket hidden, FNAL EOS does not.  One ssh instead of one per tree, which
+    on a `clean --all` saves a handshake per roast.
+    """
+    return "\n".join(f"( {_eos_count_script(url, path, *proxies)} ) | sed 's/^COUNT=/COUNT|{label}|/'"
+                     for label, url, path in items)
+
+
+def _eos_file_counts(cfg: dict, r: dict, items: list[tuple[str, str, str]]) -> dict:
+    """{label: (files, why not)} for several EOS trees, in a single ssh to cmslpc."""
+    ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
+    proxies = proxy_candidates() + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
+    res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_counts_script(items, proxies), check=False)
+    errs = [ln.strip() for ln in res.stderr.splitlines() if "[ERROR]" in ln or "error" in ln.lower()]
+    detail = (errs[-1] if errs else (res.stderr.strip().splitlines() or [""])[-1])[:200]
+    out = {}
+    for line in res.stdout.splitlines():
+        if line.startswith("COUNT|"):
+            _, label, val = line.split("|", 2)
+            val = val.strip()
+            out[label] = (int(val), "") if val.isdigit() else \
+                         (-1, "no such directory" if val == "missing" else (detail or "unreadable"))
+    for label, _, _ in items:
+        out.setdefault(label, (-1, detail or f"no answer from {roast_ssh(cfg, r, 'cmslpc')}"))
+    return out
+
+
+def _eos_file_count(cfg: dict, r: dict, eos_url: str, path: str) -> tuple[int, str]:
+    """(files under an EOS path, why not) -- the count is -1 when the tree cannot be read.
+
+    Asked from cmslpc.  The reason is carried back because "missing" and "you have no CERN
+    credential on this node" call for very different responses.
+    """
+    # the usual places, plus this roast's own copy by absolute path: the script runs from home,
+    # not from the checkout, so "$PWD/proxy/x509_proxy" would not find it
+    ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
+    proxies = proxy_candidates() + ([rq(f"{ck}/proxy/x509_proxy")] if ck else [])
+    res = ssh_run(roast_ssh(cfg, r, "cmslpc"), _eos_count_script(eos_url, path, *proxies), check=False)
+    # xrootd puts the useful sentence on an "[ERROR] ..." line; the rest is the path echoed back
+    errs = [ln.strip() for ln in res.stderr.splitlines() if "[ERROR]" in ln or "error" in ln.lower()]
+    detail = (errs[-1] if errs else res.stderr.strip().splitlines()[-1] if res.stderr.strip() else "")[:200]
+    for line in res.stdout.splitlines():
+        if line.startswith("COUNT="):
+            val = line.split("=", 1)[1].strip()
+            if val.isdigit():
+                return int(val), ""
+            return -1, "no such directory" if val == "missing" else (detail or "unreadable")
+    return -1, detail or f"no answer from {roast_ssh(cfg, r, 'cmslpc')}"
+
+
+def _last_copy_ok(r: dict, kind: str):
+    """Did the most recent `publish` or `archive` reach every host it was asked to?
+
+    True, False, or None when it was never attempted.  Read from history rather than the
+    `publish`/`archive` summary: a `--docs-only` publish writes a cupping note without copying
+    anything, and it used to overwrite that summary, which made five already-published roasts
+    read as unpublished.  History only ever records copies that actually ran.
+    """
+    last_by_host = {}
+    for h in r.get("history", []):
+        if h.get("event") == kind:
+            last_by_host[h.get("host")] = h
+    if last_by_host:
+        return all(bool(h.get("ok")) for h in last_by_host.values())
+    summary = r.get(kind) or {}
+    return summary.get("ok") if summary else None
+
+
+def _clean_blockers(r: dict, parsed: dict) -> list[str]:
+    """Why a roast's host checkouts may not be deleted yet.
+
+    Each entry is a way the results would not survive the deletion.  Publishing and archiving are
+    judged on what the manifest recorded; the steps are judged on what the hosts say now, because
+    the manifest only records that a step was submitted, never how it ended.
+    """
+    out = []
+    for kind in ("publish", "archive"):
+        state = _last_copy_ok(r, kind)
+        if state is None:
+            out.append(f"never {'published' if kind == 'publish' else 'archived'}")
+        elif not state:
+            out.append(f"the last {kind} reported a failure")
+    for host, st in sorted(parsed.items()):
+        if st.get("error"):
+            out.append(f"{host}: {st['error']}")
+    for step in r["steps"]:
+        st = parsed.get(step["host"])
+        # `gone` is a checkout that is already removed: that is the goal, not an objection, and
+        # treating it as unfinished would leave a half-cleaned roast impossible to finish
+        if st is None or st.get("error") or st.get("gone"):
+            continue
+        text = dict(st["steps"]).get(step["name"], "not started")
+        word = _state_word(text)
+        if word != "exit=0":
+            out.append(f"step {step['name']} on {step['host']} is {word}, not exit=0")
+        elif re.search(r"tmux=[1-9]", re.sub(r"\033\[[0-9;]*m", "", text)):
+            out.append(f"step {step['name']} still has a tmux window open on {step['host']} "
+                       f"(`{TOOL} attach {r['id']} --step {step['name']}`)")
+    return out
+
+
+def _rm_tree_script(top: str) -> str:
+    """Remove a roast's directory on a host.
+
+    A plain `rm -rf` walks a pixi environment's tens of thousands of small files one unlink at a
+    time, and on NFS each one is a round trip.  Unlinking in parallel first turns that wait into
+    concurrency; the `rm -rf` afterwards clears the directories and anything missed.
+    """
+    return textwrap.dedent(f"""\
+        set -u
+        T={rq(top)}
+        [ -d "$T" ] || {{ echo "  already gone: $T"; exit 0; }}
+        find "$T" -type f -print0 2>/dev/null | xargs -0 -r -P 16 -n 512 rm -f 2>/dev/null || true
+        rm -rf "$T"
+        [ -d "$T" ] && {{ echo "  WARNING: $T still exists" >&2; exit 1; }} || echo "  removed $T"
+    """)
+
+
+def _clean_probe(cfg: dict, r: dict) -> dict:
+    """Everything `clean` needs to know about one roast, gathered over the network.
+
+    Separated from the reporting so that a `--all` run can probe many roasts at once: the work is
+    almost entirely waiting on ssh and EOS.  It reads, it never deletes.
+    """
+    rid = r["id"]
+    parsed = {}
+    for host, hinfo in r["hosts"].items():
+        target = roast_ssh(cfg, r, host)
+        res = ssh_run(target, _status_script(r, hinfo["checkout"],
+                                             [s for s in r["steps"] if s["host"] == host], host), check=False)
+        if res.returncode != 0:
+            parsed[host] = {"error": f"unreachable ({target})" if res.returncode == 255
+                            else f"ssh failed: {res.stderr.strip()[:60]}"}
+        else:
+            st = _parse_status(res.stdout)
+            # a checkout that is already gone is not a reason to refuse: that is the goal, and a
+            # half-cleaned roast has to be able to finish
+            parsed[host] = {"gone": True} if st["nocheckout"] else dict(st, error=None)
+
+    probe = {"blockers": _clean_blockers(r, parsed), "checks": [], "counts": {}, "tops": {}, "unsafe": []}
+    if probe["blockers"]:
+        return probe                       # no point asking EOS about a roast that is not finished
+
+    # What EOS should still be holding.  An empty tree means the copy that "succeeded" left
+    # nothing behind, and deleting the checkout would lose the run.
+    if (r.get("archive") or {}).get("eos"):
+        # stored as one string, "root://cmseos.fnal.gov//store/user/.../<id>"; xrdfs wants the
+        # server and the path apart again
+        scheme, server, path = r["archive"]["eos"].split("//", 2)
+        probe["checks"].append(("archive", f"{scheme}//{server}", "/" + path))
+    if (r.get("publish") or {}).get("eos"):
+        probe["checks"].append(("published", "root://eosuser.cern.ch", r["publish"]["eos"]))
+    if probe["checks"]:
+        probe["counts"] = _eos_file_counts(cfg, r, probe["checks"])
+
+    # The directory removed is the checkout's parent, which roast creates per roast.  Insist that
+    # it is named after the roast: a hand-edited manifest whose checkout is "~/barista" would
+    # otherwise point the deletion at a home directory.
+    for host, h in r["hosts"].items():
+        top = h["checkout"].rstrip("/").rsplit("/", 1)[0]
+        if not top.endswith("/" + rid):
+            probe["unsafe"].append(f"{host} checkout {h['checkout']} is not inside a directory "
+                                   f"named {rid}; refusing to remove {top}")
+        probe["tops"][host] = top
+    return probe
+
+
+def cmd_clean(args) -> None:
+    """Delete the host checkouts of roasts whose results are safely on EOS and CERNBox.
+
+    The record survives: the manifest, the cupping note, the archive and the published area all
+    stay, so the roast keeps its row in the catalogue.  Only the scratch goes -- the checkout, its
+    pixi environment and its job logs -- and `roast checkout <id>` rebuilds it, because the
+    manifest pins both shas.
+    """
+    cfg = load_config()
+    if args.id:
+        candidates = [load_roast(args.id)]
+    elif args.all:
+        candidates = [r for r in all_roasts() if r.get("hosts") and not r.get("cleaned")]
+    else:
+        die(f"name a roast, or pass --all to clean every eligible one (`{TOOL} ls` to choose)")
+    if not candidates:
+        info("nothing to clean")
+        return
+
+    # Probe every candidate at once.  Each probe is a couple of ssh calls that spend their time
+    # waiting, so threads turn a queue of roasts into one round of waiting.  Nothing is printed or
+    # deleted here: the report has to come out in the order the roasts were listed.
+    todo = [r for r in candidates if not r.get("cleaned")]
+    probes = {}
+    if todo:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(todo))) as pool:
+            for r, probe in zip(todo, pool.map(lambda x: _clean_probe(cfg, x), todo)):
+                probes[r["id"]] = probe
+
+    cleaned = eligible = 0
+    for r in candidates:
+        rid = r["id"]
+        if r.get("cleaned"):
+            info(f"{rid}: already cleaned on {r['cleaned']['ts'][:10]}")
+            continue
+        print(f"\n\033[1m{rid}\033[0m")
+        probe = probes[rid]
+        if probe["blockers"]:
+            for b in probe["blockers"]:
+                print(f"  \033[31mcannot clean\033[0m: {b}")
+            continue
+
+        short = False
+        for what, url, path in probe["checks"]:
+            n, why = probe["counts"].get(what, (-1, "not checked"))
+            if n > 0:
+                print(f"  {what:10s} {n} files at {url}{path}")
+            else:
+                print(f"  \033[31mcannot clean\033[0m: {what} tree at {url}{path}: "
+                      + ("it is empty" if n == 0 else why))
+                if re.search(r"3010|unauthorized identity|Permission denied", why):
+                    print(f"  {'':10s} that is a credential, not a missing directory: "
+                          f"`{TOOL} proxy` on cmslpc, then try again")
+                short = True
+        for bad in probe["unsafe"]:
+            print(f"  \033[31mcannot clean\033[0m: {bad}")
+            short = True
+        if short:
+            continue
+        tops = probe["tops"]
+        if not args.yes:
+            for host, top in tops.items():
+                print(f"  would remove   {host:7s} {top}")
+            eligible += 1
+            continue
+        # Both hosts at once, and the files inside one host in parallel too: deleting a checkout
+        # is tens of thousands of unlinks on NFS, where latency rather than bandwidth is the cost.
+        ok = True
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(tops))) as pool:
+            for (host, top), res in zip(tops.items(),
+                                        pool.map(lambda ht: ssh_run(roast_ssh(cfg, r, ht[0]),
+                                                                    _rm_tree_script(ht[1]), check=False),
+                                                 list(tops.items()))):
+                print((res.stdout + res.stderr).strip() or f"  removed {host}: {top}")
+                ok &= res.returncode == 0
+        if not ok:
+            info(f"{rid}: some checkouts could not be removed; not marking it cleaned")
+            continue
+        r["cleaned"] = {"ts": now(), "hosts": sorted(tops)}
+        log_event(r, "clean", hosts=sorted(tops))
+        save_roast(r)
+        write_docs(r)
+        cleaned += 1
+
+    sys.stdout.flush()           # info() writes to stderr; without this the note lands first
+    if cleaned:
+        write_index()
+        info(f"cleaned {cleaned} roast{'s' if cleaned != 1 else ''}; "
+             f"`{TOOL} checkout <id>` rebuilds one from its pinned shas")
+    elif eligible:
+        info(f"dry run: {eligible} roast{'s' if eligible != 1 else ''} ready. "
+             f"Re-run with --yes to delete the checkouts listed above.")
+    else:
+        info("nothing is ready to clean")
 
 
 def cmd_rm(args) -> None:
@@ -1206,7 +1566,10 @@ def cmd_resume(args) -> None:
 
 
 def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
-    step_names = " ".join(s["name"] for s in steps)
+    # "<step>:<this roast's window name>" pairs.  The window has to be matched exactly: counting
+    # names that merely end in "_<step>" reported another roast's leftover window as this one's,
+    # which `clean` then refused to work around.
+    step_windows = " ".join(shlex.quote(f"{s['name']}:{_window_name(r, s)}") for s in steps)
     rid = shlex.quote(r["id"])
     # Batch-system view, filtered to this roast: both schedulers record the submitting
     # directory per job (condor Iwd, slurm WorkDir), and that is the roast checkout.
@@ -1231,14 +1594,16 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         if pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} >/dev/null 2>&1; then live=1; else live=0; fi
-        for S in {step_names}; do
+        WINDOWS=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null || true)
+        for SW in {step_windows}; do
+            S=${{SW%%:*}}; W=${{SW#*:}}
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";
             elif [ -f logs/$S.log ]; then
                 if [ "$live" != "0" ]; then st="running";
                 elif tac logs/$S.log | sed '/=== roast .* start /q' | grep -Eq "WorkflowError|Exiting because a job execution failed|Error in rule"; then st="error";
                 else st="stalled"; fi
             else st="not started"; fi
-            win=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c "_$S\\$" || true)
+            win=$(printf '%s\\n' "$WINDOWS" | grep -cx -- "$W" || true)
             prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
@@ -1391,19 +1756,83 @@ def _summary_line(r: dict, parsed: dict, width: int) -> str:
             # progress bars pad themselves with runs of spaces; squeeze so the budget buys signal
             tail = " ".join(tail.split())
             running.append(f"{name} on {host}: {tail[:46]}" if tail else f"{name} on {host}")
-    note = "  ".join(running) or ("published" if r.get("publish", {}).get("url") else "")
+    # While something is running, what it is doing is the news.  Once nothing is, the useful thing
+    # is where to read the results, so a finished roast carries its cupping note like a cleaned one.
+    note = "  ".join(running) or (f"published  {docs_page_url(r['id'])}"
+                                  if r.get("publish", {}).get("url") else "")
     marks = " ".join(glyphs)
     visible = len(re.sub(r"\033\[[0-9;]*m", "", marks))
     return f"  {r['id']:<{width}s}  {marks}{' ' * max(1, 24 - visible)} {note}".rstrip()
 
 
+def _by_family(roasts: list[dict]) -> list[tuple[str, dict]]:
+    """(family, roast) in catalogue order: families alphabetically, newest first within one.
+
+    The same split the cupping notes use for their sub-pages, so a production reads the same way
+    in the terminal as on the website.
+    """
+    families = {}
+    for r in roasts:
+        families.setdefault(roast_category(r), []).append(r)
+    out = []
+    for fam in sorted(families):
+        out += [(fam, r) for r in sorted(families[fam], key=lambda x: x["created"], reverse=True)]
+    return out
+
+
+def _links(r: dict) -> list[str]:
+    """Where a roast can be read once it is published: the cupping note, the results, the archive."""
+    out = [f"docs:    {docs_page_url(r['id'])}"]
+    if (r.get("publish") or {}).get("url"):
+        out.append(f"results: {r['publish']['url']}")
+    if (r.get("archive") or {}).get("eos"):
+        out.append(f"archive: {r['archive']['eos']}/")
+    return out
+
+
+def _cleaned_summary(r: dict, width: int) -> str:
+    """One line for a roast whose checkouts have been removed.
+
+    No host is contacted: `clean` refuses unless every step ended exit=0 and both EOS copies were
+    verified, so being cleaned at all is what the glyphs record.
+    """
+    mark, colour = STATE_GLYPH["exit=0"]
+    glyphs = " ".join(f"{colour}{s['name'][:8]}{mark}\033[0m" for s in r["steps"])
+    visible = len(re.sub(r"\033\[[0-9;]*m", "", glyphs))
+    note = f"cleaned {r['cleaned']['ts'][:10]}  {docs_page_url(r['id'])}"
+    return f"  {r['id']:<{width}s}  {glyphs}{' ' * max(1, 24 - visible)} {note}".rstrip()
+
+
 def cmd_status(args) -> None:
     cfg = load_config()
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
+    if args.active:
+        roasts = [r for r in roasts if not r.get("cleaned")]
     # Naming a roast means you want its detail; asking for all of them means you want the shape.
     detail = args.detail or (bool(args.id) and not args.summary)
     width = max((len(r["id"]) for r in roasts), default=10)
-    for r in roasts:
+    # Grouped by the same families as the catalogue's sub-pages, newest first within a family,
+    # so the terminal and the website order a production the same way.
+    last_family = None
+    for family, r in _by_family(roasts):
+        if not args.id and family != last_family:
+            print(f"\n\033[1m{family}\033[0m")
+            last_family = family
+        # A cleaned roast has no checkout left to ask about, so it costs no ssh at all.  This is
+        # most of what makes `status` fast once a production is finished.
+        if r.get("cleaned"):
+            if not detail:
+                print(_cleaned_summary(r, width))
+                continue
+            print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
+            w = max(4, min(30, max((len(s["name"]) for s in r["steps"]), default=4)))
+            for step in r["steps"]:
+                print(f"  {step['name']:<{w}s} {step['host']:7s} exit=0 (checkout removed)")
+            print(f"  {'':<{w}s} cleaned {r['cleaned']['ts'][:10]} from " + ", ".join(r["cleaned"]["hosts"])
+                  + f"; `{TOOL} checkout {r['id']}` rebuilds it")
+            for line in _links(r):
+                print(f"  {'':<{w}s} {line}")
+            continue
         if detail:
             print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
         # One ssh per host, but the report is ordered by step: a roast is a pipeline, and
@@ -1470,10 +1899,13 @@ def cmd_status(args) -> None:
             elif stray_done:
                 n = len(stray_done)
                 failed = sum(1 for j in stray_done if j["state"] != "COMPLETED")
-                detail = f", {failed} failed" if failed else ""
-                print(f"  {'':<{w}s} {host:7s} {n} finished job{'s' if n > 1 else ''} not part of any step{detail} (--all to list)")
+                # not `detail`: that is the flag controlling this whole block, and rebinding it
+                # here turned the rest of a multi-roast `--detail` run back into summary lines
+                failed_note = f", {failed} failed" if failed else ""
+                print(f"  {'':<{w}s} {host:7s} {n} finished job{'s' if n > 1 else ''} not part of any step{failed_note} (--all to list)")
         if r.get("publish", {}).get("url"):
-            print(f"  published: {r['publish']['url']}")
+            for line in _links(r):
+                print(f"  {'':<{w}s} {line}")
 
 
 def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False) -> dict:
@@ -1507,9 +1939,10 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         """) if htaccess else ""
     return textwrap.dedent(f"""\
         set -uo pipefail
-        cd {rq(ckpt)}
+        cd {rq(ckpt)} 2>/dev/null || {{ echo "no checkout at {ckpt} on $(hostname): nothing to copy. \\`{TOOL} checkout\\` rebuilds the code, but a cleaned or deleted checkout's outputs are gone" >&2; exit 4; }}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
-        {_xrd_auth(eos_url, '"$PWD/proxy/x509_proxy"')}
+        {_xrd_auth(eos_url, *proxy_candidates())}
+        [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
@@ -1537,9 +1970,26 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     """)
 
 
+def _copy_failure_hint(rc: int, credential_hint: str) -> str:
+    """Why a copy failed, when the exit code already says.  Guessing "check your proxy" at a
+    missing checkout sends people to look at the wrong thing."""
+    return {2: " (xrdcp is not on that host)",
+            3: " (no grid proxy with time left there)",
+            4: " (no checkout on that host: its outputs are gone)"}.get(rc, f" ({credential_hint})")
+
+
+def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
+    """A cleaned roast has no checkout, so anything reading from one fails deep inside a remote
+    script with a `cd` error.  Say what happened instead, and how to get the checkout back."""
+    if r.get("cleaned") and not allow:
+        die(f"{r['id']} was cleaned on {r['cleaned']['ts'][:10]}: there is no checkout to {what} from. "
+            f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
+
+
 def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
+    _refuse_if_cleaned(r, "publish", allow=args.docs_only)
     eos_dir = f"{cfg['cernbox']['eos_path'].rstrip('/')}/{r['id']}"
     url = f"{cfg['cernbox']['url'].rstrip('/')}/{r['id']}/"
     hosts = [args.host] if args.host else list(r["hosts"])
@@ -1559,7 +2009,8 @@ def cmd_publish(args) -> None:
                 continue
             if res.returncode != 0:
                 ok = False
-                info(f"[{host}] publish FAILED (CERN auth on that host? try `kinit <user>@CERN.CH` or a voms proxy there)")
+                info(f"[{host}] publish FAILED" + _copy_failure_hint(res.returncode,
+                     "CERN auth on that host? try `kinit <user>@CERN.CH` or a voms proxy there"))
             log_event(r, "publish", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
@@ -1575,7 +2026,16 @@ def cmd_publish(args) -> None:
                           f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
                           check=False)
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
-    r["publish"] = {"eos": eos_dir, "url": url, "ts": now(), "ok": None if args.docs_only else ok, "pages": sorted(pages)}
+    # --docs-only rewrites the cupping note without touching CERNBox, so it must not overwrite what
+    # an earlier real publish recorded: doing that made five published roasts look unpublished, and
+    # anything reading `ok` -- `clean` above all -- believed it
+    prev = r.get("publish") or {}
+    r["publish"] = {"eos": eos_dir, "url": url,
+                    "ts": prev.get("ts", now()) if args.docs_only else now(),
+                    "ok": prev.get("ok") if args.docs_only else ok,
+                    "pages": sorted(pages)}
+    if args.docs_only:
+        r["publish"]["docs_ts"] = now()
     save_roast(r)
     write_docs(r)
     write_index()
@@ -1587,6 +2047,7 @@ def cmd_archive(args) -> None:
     """Copy heavy products (.coffea/.root/...) to FNAL EOS under <eos.path>/<id>/, mirroring the checkout layout."""
     cfg = load_config()
     r = load_roast(args.id)
+    _refuse_if_cleaned(r, "archive")
     eos = cfg.get("eos") or {}
     if not eos.get("path") or "<" in eos.get("path", ""):
         die("set \"eos\": {\"url\": \"root://cmseos.fnal.gov\", \"path\": \"/store/user/<you>/HH4b_prod\"} in " + str(CONFIG_PATH))
@@ -1608,7 +2069,8 @@ def cmd_archive(args) -> None:
             continue
         if res.returncode != 0:
             ok = False
-            info(f"[{host}] archive FAILED (grid proxy on that host? `{TOOL} proxy --check`)")
+            info(f"[{host}] archive FAILED" + _copy_failure_hint(res.returncode,
+                 f"grid proxy on that host? `{TOOL} proxy --check`"))
         log_event(r, "archive", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
@@ -1650,6 +2112,8 @@ def write_docs(r: dict) -> None:
         (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
         (f"| archive (EOS) | `{r['archive']['eos']}/` (list: `xrdfs root://{r['archive']['eos'].split('//')[1]} ls -R /{r['archive']['eos'].split('//')[2]}`) |"
          if r.get("archive", {}).get("eos") else ""),
+        (f"| checkouts | removed {r['cleaned']['ts'][:10]}; `{TOOL} checkout {r['id']}` rebuilds them from the pinned shas |"
+         if r.get("cleaned") else ""),
         "",
         "## Steps",
         "",
@@ -1779,6 +2243,9 @@ def cmd_show(args) -> None:
 # ---------------------------------------------------------------------------
 
 def main(argv=None) -> None:
+    # ssh refuses to multiplex into a directory that is not there, and silently falls back to a
+    # fresh handshake every call -- which is the slow path this is here to avoid
+    SSH_CONTROL_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     p = argparse.ArgumentParser(prog=TOOL, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -1843,6 +2310,7 @@ def main(argv=None) -> None:
     s.add_argument("--all", action="store_true", help="also list finished jobs that belong to no step")
     s.add_argument("-d", "--detail", action="store_true", help="per-step lines and batch jobs (the default when you name a roast)")
     s.add_argument("-s", "--summary", action="store_true", help="one line per roast, even for a single one")
+    s.add_argument("--active", action="store_true", help="hide cleaned roasts (whose checkouts are gone)")
     s.set_defaults(func=cmd_status)
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")
@@ -1878,6 +2346,12 @@ def main(argv=None) -> None:
     s.add_argument("--include-test", action="store_true", help="also pull *_test directories")
     s.add_argument("-n", "--dry-run", action="store_true")
     s.set_defaults(func=cmd_pull)
+
+    s = sub.add_parser("clean", help="remove the host checkouts of a finished, archived and published roast (dry run unless --yes)")
+    s.add_argument("id", nargs="?")
+    s.add_argument("--all", action="store_true", help="every roast that qualifies")
+    s.add_argument("--yes", action="store_true", help="actually delete the checkouts")
+    s.set_defaults(func=cmd_clean)
 
     s = sub.add_parser("rm", help="delete a roast everywhere (dry run unless --yes): local, host checkouts, EOS archive, CERNBox")
     s.add_argument("id"); s.add_argument("--yes", action="store_true")
