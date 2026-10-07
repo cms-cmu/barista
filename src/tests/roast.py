@@ -502,6 +502,12 @@ class TestCheckInputs(unittest.TestCase):
     def test_no_inputs_block(self):
         self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
 
+    def test_null_drops_an_inherited_input(self):
+        """A layered config sets `key: null` to drop an input of its base: accepted, not recorded."""
+        fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
+        rec = self.check({"upstream_roasts": self.UP, "FvT": fvt, "splitting_library": None})
+        self.assertEqual(set(rec["refs"]), {"FvT"})
+
     def test_urls_inside_the_upstream_area_are_recorded(self):
         fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
         rec = self.check({"upstream_roasts": self.UP, "FvT": fvt, "hemilib": {"registry": f"{self.AREA}/hemilib/h.yml"}})

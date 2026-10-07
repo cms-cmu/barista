@@ -331,7 +331,7 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
           JCM: "{roast:<id or alias>}/{roast:<id or alias>:output_path}computeJCM/..."
 
     Every other value under `inputs` (nested allowed) must be a URL inside the EOS area of one of
-    the named roasts. Otherwise a dependent roast can quietly read a hand-run product or another
+    the named roasts, or null (an input of a `base:` config that this one drops). Otherwise a dependent roast can quietly read a hand-run product or another
     production's, and nothing downstream would notice. Returns the record kept in roast.json.
     """
     block = wf.get("inputs")
@@ -358,6 +358,10 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
         if isinstance(node, dict):
             for k, v in node.items():
                 walk(v, f"{key}.{k}" if key else k)
+            return
+        if node is None:
+            # `key: null` in a layered config drops an input its base chain sets (`base:` merges
+            # dicts recursively, so a key cannot be removed otherwise): nothing is read
             return
         if not isinstance(node, str):
             bad.append(f"{key}: not a URL ({node!r})")
