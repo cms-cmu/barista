@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast declib16st_run2_20261006_c5c2191-150117d step DeClustered -- generated 2026-10-06 19:10:36
+# roast declib16st_run2_20261006_c5c2191-150117d step DeClustered -- generated 2026-10-06 21:52:54
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -16,8 +16,8 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
     cp -f "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${X509_USER_PROXY:-/tmp/x509up_u$(id -u)} ===" | tee -a "$LOG"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-
-./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk --configfile roasts/declib16st_run2_20261006_c5c2191-150117d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=declib16st_run2_20261006_c5c2191-150117d eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk --configfile roasts/declib16st_run2_20261006_c5c2191-150117d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=declib16st_run2_20261006_c5c2191-150117d eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk --configfile roasts/declib16st_run2_20261006_c5c2191-150117d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=declib16st_run2_20261006_c5c2191-150117d eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast declib16st_run2_20261006_c5c2191-150117d step DeClustered exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

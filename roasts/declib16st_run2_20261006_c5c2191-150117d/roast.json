@@ -94,6 +94,19 @@
           "window": "declib16st_run2_c5c2191-150117d_DeClustered",
           "ssh": "jda102@cmslpc335.fnal.gov",
           "config_sha256": "75ab71689abe"
+        },
+        {
+          "ts": "2026-10-06 21:52:55",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16st_run2_c5c2191-150117d_DeClustered",
+          "ssh": "jda102@cmslpc335.fnal.gov",
+          "config_sha256": "75ab71689abe"
         }
       ]
     }
@@ -125,6 +138,12 @@
     {
       "ts": "2026-10-06 19:10:47",
       "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-06 21:52:55",
+      "event": "resume",
       "step": "DeClustered",
       "host": "cmslpc"
     }
