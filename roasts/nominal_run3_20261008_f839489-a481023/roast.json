@@ -107,14 +107,70 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-08 16:41:46",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_C4",
+          "ssh": "jda102@cmslpc322.fnal.gov",
+          "config_sha256": "c7d3f6476553"
+        },
+        {
+          "ts": "2026-10-08 16:42:38",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_C4",
+          "ssh": "jda102@cmslpc322.fnal.gov",
+          "config_sha256": "c7d3f6476553"
+        }
+      ]
     },
     {
       "name": "D",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-08 16:41:48",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "c7d3f6476553"
+        },
+        {
+          "ts": "2026-10-08 16:42:39",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "c7d3f6476553"
+        }
+      ]
     },
     {
       "name": "F",
@@ -139,12 +195,18 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_20261008_f839489-a481023",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_20261008_f839489-a481023/",
-    "ts": "2026-10-08 10:57:32",
+    "ts": "2026-10-08 18:37:21",
     "ok": true,
     "pages": [
+      "output/FvT_nominal/yields.html",
+      "output/Run3_nominal/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nominal/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_nominal/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
       "output/Run3_nominal/computeJCM/cutflow_NoJCM.html",
       "output/Run3_nominal/computeJCM/cutflow_wJCM.html",
-      "output/Run3_nominal/computeJCM/plots_wJCM/index.html"
+      "output/Run3_nominal/computeJCM/plots_wJCM/index.html",
+      "output/SvB_nominal/yields.html"
     ]
   },
   "history": [
@@ -213,6 +275,42 @@
       "event": "resume",
       "step": "C",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-10-08 16:41:46",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-08 16:41:48",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-08 16:42:38",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-08 16:42:39",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-08 18:37:01",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-08 18:37:20",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
