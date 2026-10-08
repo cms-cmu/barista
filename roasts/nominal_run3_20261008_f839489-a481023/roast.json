@@ -59,7 +59,35 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-08 10:43:21",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "4bb78a5d7575"
+        },
+        {
+          "ts": "2026-10-08 10:44:31",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_f839489-a481023_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "4bb78a5d7575"
+        }
+      ]
     },
     {
       "name": "C4",
@@ -127,6 +155,18 @@
       "event": "submit",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-08 10:43:21",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-08 10:44:31",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
     }
   ],
   "notes": "",
