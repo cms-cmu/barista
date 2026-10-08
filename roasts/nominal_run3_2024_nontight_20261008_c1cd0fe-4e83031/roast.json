@@ -1,0 +1,54 @@
+{
+  "id": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
+  "label": "nominal_run3_2024_nontight",
+  "created": "2026-10-08 12:16:17",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "c1cd0fe3b7c10f3f2547b582f635264a783edcf5",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "4e83031fa8876984b2322a9b2409843e2c749450",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2024_nontight.yml",
+    "captured": "config.yml",
+    "sha256": "a26f412bb3995b33fb20d6a911e3be438e0701d2e96c116e281dd24832e2c46f"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-08 12:16:17",
+      "event": "new"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}

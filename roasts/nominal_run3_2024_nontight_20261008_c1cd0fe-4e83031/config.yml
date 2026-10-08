@@ -1,0 +1,272 @@
+# ==============================================================================
+# 2024 JCM + FvT with the NON-tight four-tag selection — input to the 2024 mixed-data roast
+# ==============================================================================
+#   roast new --config coffea4bees/workflows/config/nominal_run3_2024_nontight.yml --phases B,C,C4
+#   roast submit <id> --step B     # cmslpc: B.1 JCM, B.2 classifier inputs, handoff to EOS
+#   roast submit <id> --step C     # falcon: FvT train + evaluate -> <eos_base>/friend/FvT_nominal
+#   roast submit <id> --step C4    # cmslpc: FvT closure with the non-tight JCM x FvT
+#
+# The 2024 counterpart of nominal_run3_nontight.yml. The mixed data is built with the non-tight
+# four-tag definition (nJet_tagged >= 4; Snakefile_MakeMixedData refuses anything else), so its
+# JCM (pseudo-tag weights + the data/ttbar histograms of the mixed JCM fit) and its FvT (ttbar
+# subtraction in the hemisphere library and the mixing) must come from that selection too: the
+# tight FvT removes the 4b events that fail the tight definition (see mixeddata_run3.yml).
+#
+# Valid for B, C and C.4 only: no SvB (D) and no analysis/Combine (F), which would need the 2024
+# signal, whose classifier inputs and trigger-weight friends this production does not make.
+#
+# Derived from nominal_run3.yml as a standalone copy rather than a `base:` variant: the layered
+# merge is a dict merge, so the base's four 2022/2023 year_eras keys would survive next to 2024.
+# What differs from nominal_run3.yml, in one place:
+#
+#   * eras          2024 C, D, E, F, G, H, I2, I3 (data.yml picoAOD keys), one year: its own
+#                   JCM fit and FvT, trained on 2024 alone.
+#   * selection     fourTag_use_tight: false (analysis_config below), as nominal_run3_nontight.
+#   * classifier    `year` dropped from the HCR ancillary features: with one year it is a
+#                   constant, its variance is zero and the normalised input is NaN (see the
+#                   note in classifier/config/workflows/HH4b_Run3/common.yml).
+#   * no signal     data + TTTo* only, so every MC sample has a trigger-weight friend
+#                   (trigweights_Run3_v3.json covers all 2024 TTTo* picoAODs) and
+#                   require_trigWeight is true throughout.
+#   * b-tagging     2024 uses btagUParTAK4B (corrections.yml). processor_HH4b skips the b-tag
+#                   SF for 2024 (no UParT shape SF yet), so the ttbar MC carries no b-tag SF.
+#   * references    the JCM and FvT-closure known counts point at not-yet-existing
+#                   *_Run3_2024_nontight names, so the first production dumps its cutflows for
+#                   blessing instead of being compared against other numbers.
+#
+# email: notification address for the Phase F completion mail ("" = no mail).
+email: ""
+label: "Run3_2024_nontight"
+output_path: "output/Run3_2024_nontight/"
+
+# JCM tag: names the Phase B.1 fit (output/.../computeJCM/JCM_<tag>/jetCombinatoricModel_SB_<tag>.yml)
+# and the per-roast handoff copy that C.4 / the FvT / the SvB / F.1 all read. Distinct from
+# the 2022/2023 Run3_v1 / Run3_nontight_v1 so the productions' JCM files can never be confused.
+tag: "Run3_2024_nontight_v1"
+
+# Datasets for the main analysis processor (Phase F.1, not run by this production). Phase B.2 has
+# its own list (classifier_inputs.datasets); B.1/C.4 use data + ttbar internally.
+dataset:
+  - "data"
+
+# Eras as they appear in metadata/datasets/data.yml (picoAOD keys), all eight 2024 eras.
+# '2024' MUST stay quoted: unquoted it parses as an int and misses the string-keyed metadata.
+year_eras:
+  '2024':
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+    - "G"
+    - "H"
+    - "I2"
+    - "I3"
+
+# ==============================================================================
+# PHASE C & D: CLASSIFIER SETTINGS (Entirely on falcon / PSC)
+# ==============================================================================
+# Snakefile_PhaseC/D dump this as the `common.yml` the pyml workflows read, so it must
+# agree with year_eras above. Mirrors classifier/config/workflows/HH4b_Run3/common.yml.
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.CollisionData
+    option:
+      - eras:
+          '2024': [C, D, E, F, G, H, I2, I3]
+  - module: HCR.InputBranch
+    option:
+      # No `year`: one year in the training makes it a constant (zero variance -> NaN input).
+      - feature_ancillary: [xW, nSelJets, xbW]
+      # Encode only SR/SB in the region index. The classifier ORs MassRegion values together,
+      # which assumes the channel flags decompose SR -- true for Run 2 (SR = ZZSR|ZHSR|HHSR),
+      # but Run 3 takes SR from the radial distance rhh and leaves ZZSR/ZHSR/HHSR as
+      # independent mass windows, so an event in the ZZ window and the Run 3 sideband encodes
+      # as ZZSR|SB = 7, which is not a MassRegion member and aborts the training.
+      # The processor still writes all five columns and the friend trees still carry them, so
+      # this reverts to the full decomposition simply by dropping this line once Run 3 ZZ/ZH
+      # samples exist. Neither Run 3 training reads them today: the FvT selects on (SB | SR),
+      # the SvB on --regions (default ["SR"]).
+      - mass_regions: [SR, SB]
+
+# ==============================================================================
+# PHASE B -> C/D HANDOFF
+# ==============================================================================
+# Where Phase B publishes the two files C and D consume (rule phaseB_handoff in
+# Snakefile_PhaseB.smk). B always writes local copies at
+#   coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml
+#   coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json
+# on the host it runs on (cmslpc), which is what C.4 and F.1 read -- the analysis processor
+# opens the JCM with a plain open(), so those consumers need a real file and keep their
+# Snakemake dependency edge on it.
+#
+# eos_base additionally publishes both to EOS. C and D run on falcon and read them through the
+# classifier's parse.mapping, which deserializes with fsspec and so accepts root:// URLs, so
+# nothing has to be copied into the falcon checkout by hand. The fvt/svb blocks below must
+# point at these same two URLs; phaseB_handoff logs what it wrote so a drift is visible in B's
+# log rather than as a classifier quietly trained against the wrong friends.
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+
+# ==============================================================================
+# PHASE C: FvT (falcon). Self-contained per roast: models/friends go to the roast's EOS
+# directory, and training/evaluation read THIS roast's classifier-input manifest and JCM fit
+# from the handoff area above.
+# workflow_overrides: the checked-in templates classifier/config/workflows/HH4b_Run3/FvT/
+# {train,evaluate}.yml stay the source of truth; only the listed flags are replaced
+# (helpers/common.smk: write_workflow_overrides).
+# ==============================================================================
+fvt:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_Run3/FvT"
+  label: "FvT_nominal"
+  output_dir: "output/FvT_nominal/"
+  # yields page (output_dir/yields.html): four-tag data vs JCM x (3b data - 3b ttbar) + 4b ttbar
+  yields_ratio: ["d4 / d3 - t3 + t4"]
+  plot_inputs: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}"
+  eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
+  # Read from the handoff area on EOS, not from the falcon checkout (see `handoff:` above).
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    # The HH4b_Run3 templates point --metadata at metadata/datasets_HH4b_Run3/archive/...,
+    # which is NOT a tracked directory: a roast checkout at a pinned commit does not have it
+    # and Phase C would die on the first dataset load. metadata/datasets/ is the tracked,
+    # canonical location and already carries every Run 3 sample this production needs
+    # (data.yml, TT.yml, GluGluToHHTo4B.yml all have the 2024 entries) — it is also
+    # what the Run 2 templates use.
+    --metadata: coffea4bees/metadata/datasets/
+    --JCM-weight: '"" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+
+# PHASE C.4 (cmslpc, roast step C4): FvT closure — processor on data with JCM x FvT (no SvB; ttbar
+# histograms reused from Phase B.1's wJCM pass, the FvT does not touch MC), plots, cutflow check,
+# closure table. Defaults live in Snakefile_PhaseC_4_FvT_closure.smk; the FvT friend is
+# analysis_config.config.friends.FvT below, the JCM the per-roast copy.
+fvt_closure:
+  datasets: [data, TTToHadronic, TTToSemiLeptonic, TTTo2L2Nu]
+  plot_config: "coffea4bees/plots/metadata/plotsAll_FvTClosure.yml"
+  # known_fullCounts_FvT_closure_Run3.yml holds the 2022/2023 numbers and exists, so it would fail
+  # every entry. Point at a 2024 file instead: while it does not exist the step only dumps the
+  # cutflow (no comparison), which is how the first run of a new baseline produces the numbers to bless.
+  known_counts: "coffea4bees/analysis/tests/known_fullCounts_FvT_closure_Run3_2024_nontight.yml"
+  # Same as `jcm:` above -- C.4's MC is the same three TT samples, whose trigger-weight friends
+  # exist, so the hard error belongs here rather than analysis_config's blanket false.
+  config:
+    require_trigWeight: true
+    # JCM x FvT, no SvB (run_SvB is forced false in the snakefile).
+    friends_include: [trigWeight, FvT]
+
+# ==============================================================================
+# PHASE B.1: JCM FIT — cutflow references
+# ==============================================================================
+# Same trap as fvt_closure.known_counts: known_fullCounts_JCM_{NoJCM,wJCM}_Run3.yml exist and hold
+# the 2022/2023 numbers. Point both at 2024 files so the first production dumps its cutflow instead
+# of being compared against the wrong baseline; bless these after the run and commit them.
+jcm_known_counts_NoJCM: "coffea4bees/analysis/tests/known_fullCounts_JCM_NoJCM_Run3_2024_nontight.yml"
+jcm_known_counts_wJCM: "coffea4bees/analysis/tests/known_fullCounts_JCM_wJCM_Run3_2024_nontight.yml"
+
+# B.1's only MC is the three inclusive TT samples, which trigweights_Run3_v3.json covers for 2024
+# (TTTo{Hadronic,SemiLeptonic,2L2Nu}_2024, every picoAOD in TT.yml) -- unlike the 2024 ggF signal.
+# Keep the hard error here explicitly: the JCM fit rides on the 3b ttbar
+# subtraction, so a trigger weight silently skipped here (the warning is only visible inside the
+# dask workers) mis-fits the JCM and every later phase inherits it. resolve_config_section
+# merges this `config` over analysis_config's.
+jcm:
+  config:
+    require_trigWeight: true
+    # B.1 nulls every SvB*/FvT key and runs with run_SvB false, so trigWeight is the only friend
+    # it reads -- but friends_HH4b.yml defines ~19 for the Run 3 years (FvT, MvD and sixteen SvB
+    # study trainings, ~25 MB of JSON). Every one was being fetched from EOS, parsed, and pickled
+    # into the processor shipped to each worker. Inject just the one.
+    friends_include: [trigWeight]
+# B.1's second pass plots with the NoFvT config. Shared with Run 2: the plot configs name both
+# runs' signal samples and makePlots drops the ones absent from the input file, and the year
+# comes from --year (the rule passes Run3 here), not from the config.
+jcm_plot_config: "coffea4bees/plots/metadata/plotsAllNoFvT.yml"
+
+# ==============================================================================
+# PHASE B.2: CLASSIFIER INPUT FRIEND TREES (cmslpc)
+# ==============================================================================
+# Everything else is inherited from analysis_config below.  The friend trees
+# MUST go to EOS: condor workers cannot see the node-local output/ directory,
+# and the merge step fails with "cp: cannot stat ..." if this points there.
+# {roast_id} is resolved in helpers/common.smk: `roast` passes --config roast_id=<id>
+# so every production run gets its own directory; outside roast it defaults to `label`
+# (i.e. .../HH4b_prod/Run3_2024_nontight/classifier_inputs/ for this file).
+classifier_inputs:
+  # FvT only: 3b vs 4b detector data with ttbar subtracted, so data (per era) + ttbar. No signal
+  # (that is for the SvB, not run here). (Without this list B.2 falls back to the top-level `dataset:`.)
+  datasets:
+    - data
+    - TTToHadronic
+    - TTToSemiLeptonic
+    - TTTo2L2Nu
+  config:
+    make_classifier_input: "{eos_prod}/{roast_id}/classifier_inputs/"
+    # The Run 3 trigger-weight index (metadata/friends/trigweights_Run3_v3.json, see
+    # friends_HH4b.yml) covers every 2024 TTTo* picoAOD: a missing friend is an error.
+    require_trigWeight: true
+
+# ==============================================================================
+# PHASE F.1: MAIN ANALYSIS PROCESSOR (not run here; B.1, B.2 and C.4 inherit this block)
+# ==============================================================================
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  # weights_HH4b.yml carries all four Run 3 eras (weights_HH4b_2024_v2.yml is Run 2 only).
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    # Per-roast friends: runner.py merges these over the per-year entries of friend_file,
+    # so the FvT and SvB friend trees come from THIS roast's Phase C/D, not the fixed
+    # HH4b_Run3_v2 / HH4b_Run3_quadjet_run2 study paths in metadata/friends/friends_HH4b.yml.
+    friends:
+      FvT: "{eos_prod}/{roast_id}/friend/FvT_nominal/result.json@@analysis.0.merged"
+      # SvB scores from THIS roast's Phase D evaluation (friend trees over the whole classifier-input
+      # manifest: data, ttbar, signal). The processor loads SvB* friends before falling back to
+      # on-the-fly evaluation; the friend key (SvB_MA) is the field name the analysis uses.
+      SvB_MA: "{eos_prod}/{roast_id}/friend/SvB_nominal/result.json@@analysis.0.merged"
+    # blind: true would drop 4b SR events with any SvB ps > 0.8 from the histograms AND the
+    # cutflow, and the F.1 vs C.4 cutflow cross-check would then flag the 4b data unless
+    # crosscheck_ignore covers it. Combine is run on Asimov instead (combine_flags: --blind).
+    blind: false
+    apply_FvT: true
+    apply_JCM: true
+    # THIS roast's JCM fit (Phase B.1 handoff copy; the same file C.4, the FvT and the SvB use).
+    # Without JCM_file the processor falls back to the per-year JCM in weights_file, i.e. some
+    # earlier production's fit, and the 3b data / 3b ttbar normalisation is wrong.
+    # In a roast {roast_id} is the roast id, so this is Phase B's per-roast fit. Run by hand,
+    # helpers/common.smk falls back to the label (Run3_2024_nontight), which has no committed fit:
+    # this config is only dry-run by CI (dryrun_matrix.yml), never executed standalone.
+    JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml
+    apply_trigWeight: true
+    # The only per-year friends F.1 reads. The FvT / SvB_MA entries under `friends:` above are
+    # named explicitly and are merged in after this filter, so they still override the per-year
+    # ones with THIS roast's Phase C/D outputs; the sixteen SvB study friends are not injected.
+    friends_include: [trigWeight, FvT, SvB_MA]
+    # Same as classifier_inputs above: every 2024 MC sample this production runs has a friend.
+    require_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    run_SvB: true
+    # no on-the-fly SvB model: the scores come from the friend above. (A HCRModelMetadata list
+    # would evaluate this roast's classifier/SvB_nominal/result.json on the fly instead.)
+    SvB_MA: null
+    SvB: null
+    top_reconstruction: fast
+    plot_ttbar_with_weights: true
+    # NON-tight four-tag definition (nJet_tagged >= 4), the mixed data's: see the header.
+    fourTag_use_tight: false
