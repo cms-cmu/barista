@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast trigweights_run3_mc_20261007_f839489-6d2497e step TrigWeights -- generated 2026-10-07 19:46:01
+# roast trigweights_run3_mc_20261007_f839489-6d2497e step TrigWeights -- generated 2026-10-08 07:41:34
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -16,8 +16,8 @@ if [ ! -s proxy/x509_proxy ] || [ "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" -n
     cp -f "${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${X509_USER_PROXY:-/tmp/x509up_u$(id -u)} ===" | tee -a "$LOG"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-./run_container snakemake -s coffea4bees/workflows/Snakefile_TrigWeights.smk --configfile roasts/trigweights_run3_mc_20261007_f839489-6d2497e/config.yml --cores 2 --jobs 2 --printshellcmds --config roast_id=trigweights_run3_mc_20261007_f839489-6d2497e eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --jobs 2 --latency-wait 120 --unlock || true
-./run_container snakemake -s coffea4bees/workflows/Snakefile_TrigWeights.smk --configfile roasts/trigweights_run3_mc_20261007_f839489-6d2497e/config.yml --cores 2 --jobs 2 --printshellcmds --config roast_id=trigweights_run3_mc_20261007_f839489-6d2497e eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --jobs 2 --latency-wait 120 --rerun-incomplete 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_TrigWeights.smk --configfile roasts/trigweights_run3_mc_20261007_f839489-6d2497e/config.yml --cores 2 --jobs 2 --printshellcmds --config roast_id=trigweights_run3_mc_20261007_f839489-6d2497e eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --jobs 2 --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_TrigWeights.smk --configfile roasts/trigweights_run3_mc_20261007_f839489-6d2497e/config.yml --cores 2 --jobs 2 --printshellcmds --config roast_id=trigweights_run3_mc_20261007_f839489-6d2497e eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --jobs 2 --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast trigweights_run3_mc_20261007_f839489-6d2497e step TrigWeights exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

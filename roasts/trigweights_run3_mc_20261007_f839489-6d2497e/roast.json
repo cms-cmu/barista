@@ -64,6 +64,19 @@
           "window": "trigweights_run3_mc_f839489-6d2497e_TrigWeights",
           "ssh": "jda102@cmslpc310.fnal.gov",
           "config_sha256": "94580e977ce6"
+        },
+        {
+          "ts": "2026-10-08 07:41:35",
+          "cores": 2,
+          "extra": "--jobs 2",
+          "user_extra": "--jobs 2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trigweights_run3_mc_f839489-6d2497e_TrigWeights",
+          "ssh": "jda102@cmslpc310.fnal.gov",
+          "config_sha256": "94580e977ce6"
         }
       ]
     }
@@ -78,7 +91,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/trigweights_run3_mc_20261007_f839489-6d2497e",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/trigweights_run3_mc_20261007_f839489-6d2497e/",
-    "ts": "2026-10-07 20:25:11",
+    "ts": "2026-10-08 07:45:42",
     "ok": true,
     "pages": [
       "output/trigweights_run3/trig_validation/plots_TTTo2L2Nu/2022_EE/index.html",
@@ -146,6 +159,18 @@
     {
       "ts": "2026-10-07 20:25:12",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-08 07:41:35",
+      "event": "resume",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-08 07:45:41",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }
