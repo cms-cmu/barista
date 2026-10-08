@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run3.yml",
     "captured": "config.yml",
-    "sha256": "4bb78a5d757506cd41ed4add7d15ff00e217b7ed6b7a8fa4fd2334dff967b14e"
+    "sha256": "c7d3f6476553fcf12b1b137889a32ead01295ccc149f19ca9f8d428157ed8045"
   },
   "steps": [
     {
@@ -86,6 +86,19 @@
           "window": "nominal_run3_f839489-a481023_C",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "4bb78a5d7575"
+        },
+        {
+          "ts": "2026-10-08 11:13:21",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_f839489-a481023_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "c7d3f6476553"
         }
       ]
     },
@@ -123,7 +136,17 @@
       "checked_out": "2026-10-08 07:41:16"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_20261008_f839489-a481023",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_20261008_f839489-a481023/",
+    "ts": "2026-10-08 10:57:32",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_nominal/computeJCM/cutflow_wJCM.html",
+      "output/Run3_nominal/computeJCM/plots_wJCM/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-08 07:33:49",
@@ -165,6 +188,29 @@
     {
       "ts": "2026-10-08 10:44:31",
       "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-08 10:57:17",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-08 10:57:32",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-08 11:13:21",
+      "event": "config-edited",
+      "sha256": "c7d3f6476553"
+    },
+    {
+      "ts": "2026-10-08 11:13:21",
+      "event": "resume",
       "step": "C",
       "host": "falcon"
     }
