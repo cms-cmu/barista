@@ -13,6 +13,47 @@ import subprocess
 from urllib.parse import urlparse
 from coffea.dataset_tools import rucio_utils
 
+
+def _get_xrootd_sites_map():
+    """coffea's rucio_utils.get_xrootd_sites_map, tolerant of malformed SITECONF entries.
+
+    coffea (2025.12.0) indexes ``site["rse"]`` directly, so a single storage.json entry
+    without an ``rse`` key (T3_CN_Nanjing's, since May 2026) raises KeyError and breaks
+    every rucio dataset lookup. Same logic and cache file, using .get().
+    """
+    import json
+    import time
+    from collections import defaultdict
+
+    cache = ".sites_map.json"
+    if not os.path.exists(cache) or os.path.getmtime(cache) < time.time() - 600:
+        sites_xrootd_access = defaultdict(dict)
+        for site_name in os.listdir("/cvmfs/cms.cern.ch/SITECONF/"):
+            conf = f"/cvmfs/cms.cern.ch/SITECONF/{site_name}/storage.json"
+            if not site_name.startswith("T") or not os.path.exists(conf):
+                continue
+            try:
+                data = json.load(open(conf))
+            except Exception:
+                continue
+            for site in data:
+                rse = site.get("rse")
+                if site.get("type") != "DISK" or rse is None:
+                    continue
+                for proc in site.get("protocols", []):
+                    if proc.get("protocol") != "XRootD" or proc.get("access") not in ["global-ro", "global-rw"]:
+                        continue
+                    if "prefix" in proc:
+                        sites_xrootd_access[rse] = proc["prefix"]
+                    else:
+                        for rule in proc.get("rules", []):
+                            sites_xrootd_access[rse][rule["lfn"]] = rule["pfn"]
+        json.dump(sites_xrootd_access, open(cache, "w"))
+    return json.load(open(cache))
+
+
+rucio_utils.get_xrootd_sites_map = _get_xrootd_sites_map
+
 def _natural_sort_key(s: str):
     """Sort strings containing numbers in human/natural order."""
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
