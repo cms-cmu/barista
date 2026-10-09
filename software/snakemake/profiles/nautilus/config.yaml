@@ -1,0 +1,30 @@
+# Snakemake profile for classifier training and evaluation on NRP Nautilus Kubernetes.
+# GPU rules (train, evaluate, or any rule with gres/gpus) are submitted as Kubernetes Jobs
+# to the NRP Nautilus cluster using the shared CephFS volume.
+# All other rules execute locally on the submit machine.
+executor: cluster-generic
+cluster-generic-submit-cmd: "python software/kubernetes/nautilus_submit.py"
+cluster-generic-status-cmd: "python software/kubernetes/nautilus_status.py"
+cluster-generic-cancel-cmd: "python software/kubernetes/nautilus_cancel.py"
+jobs: 16
+latency-wait: 60
+retries: 1
+rerun-triggers: mtime
+
+default-resources:
+  - "mem_mb=4000"
+  - "cpu=1"
+
+set-threads:
+  train: 6
+  evaluate: 4
+
+set-resources:
+  train:
+    mem_mb: 16000
+    gpus: 1
+    cpu: 6
+  evaluate:
+    mem_mb: 8000
+    gpus: 1
+    cpu: 4

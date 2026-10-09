@@ -2,7 +2,7 @@ import os
 import sys
 if os.getcwd() not in sys.path:
     sys.path.insert(0, os.getcwd())
-from src.stat_analysis.helpers import make_poi_maps, get_default_othersignals, get_grid_split_points, get_likelihood_scan_chunks
+from src.stat_analysis.helpers import make_poi_maps, get_default_othersignals, get_grid_split_points, get_likelihood_scan_chunks, is_channel_blinded
 
 
 # Resolve combine container image dynamically based on CVMFS availability
@@ -89,7 +89,7 @@ def get_workspace_input(wildcards):
     if os.path.exists(default_input):
         return default_input
     signallabel = wildcards.signallabel
-    
+
     channel_to_use = None
     path_channel = os.path.basename(wildcards.path)
     if path_channel in config.get("channels", {}):
@@ -99,7 +99,7 @@ def get_workspace_input(wildcards):
             if ch_config.get("signallabel") == signallabel or channel == signallabel:
                 channel_to_use = channel
                 break
-                
+
     if channel_to_use:
         # Check if there is an explicit datacard name in cases config (for ZZ/ZH workflows)
         case_dc_name = f"datacard__{channel_to_use}"
@@ -131,7 +131,7 @@ def get_workspace_input(wildcards):
             path_to_check = os.path.join(parent_dir, "datacards", channel_to_use, f"{prefix}{channel_to_use}.txt")
             if os.path.exists(path_to_check):
                 return path_to_check
-        
+
         # Default fallback
         return os.path.join(wildcards.path, "datacards", f"{case_dc_name}.txt")
     return default_input
@@ -568,7 +568,14 @@ rule likelihood_scan:
         OBS_FILES=""
         for f in {input}; do
             rf=$(realpath $f)
-            if [[ "$f" == *"_exp_"* ]]; then
+            # The snapshot fit is only the chunks' input: its `limit` tree carries the
+            # inactive-POI branches (rggHH_kl_0/2p45/5, ...) that the -P scans drop, and
+            # hadd of trees with different branch sets silently keeps just the first
+            # file's entries -> plot1DScan "TGraph with zero or one point". Every chunk
+            # already stores the best-fit (quantileExpected = -1) point, so skip it.
+            if [[ "$f" == *"_snapshot_"* ]]; then
+                continue
+            elif [[ "$f" == *"_exp_"* ]]; then
                 EXP_FILES="$EXP_FILES $rf"
             elif [[ "$f" == *"_obs_"* ]]; then
                 OBS_FILES="$OBS_FILES $rf"
@@ -618,6 +625,7 @@ rule impacts_initial_fit:
         mass = lambda wildcards: config.get("mass", "125"),
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
+        asimov_opt = lambda wildcards: "-t -1 --expectSignal=1" if is_channel_blinded(wildcards, config) else "",
         stat_only = lambda wildcards: config.get("stat_only", False)
     log: f"{log_dir}/impacts_initial_fit_{{path}}__{{signallabel}}.log"
     shell:
@@ -636,22 +644,22 @@ rule impacts_initial_fit:
         echo "[$(date)] Starting impacts_initial_fit rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping impacts initial fit."
             echo "stat_only" > $OUT_FILE
             exit 0
         fi
 
         # Check if there are any nuisance parameters
-        NUISANCES=$(find . -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
-        if [ "$NUISANCES" = "0" ] || [ -z "$NUISANCES" ]; then
+        NUISANCES=$(find output -maxdepth 5 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
+        if [ "$NUISANCES" = "0" ]; then
             echo "no_nuisances" > $OUT_FILE
             exit 0
         fi
 
         SET_ZERO_OPT=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 SET_ZERO_OPT="--setParameters $formatted_params"
             fi
@@ -671,7 +679,7 @@ rule impacts_initial_fit:
             --doInitialFit --robustFit 1 -m {params.mass} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
-            $SET_ZERO_OPT \
+            $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input} .root) && \
             mv higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
         ) 2>&1 | tee {log}
@@ -692,6 +700,7 @@ rule impacts_do_fits:
         mass = lambda wildcards: config.get("mass", "125"),
         r_min = lambda wildcards: config.get("r_min", "-10"),
         r_max = lambda wildcards: config.get("r_max", "10"),
+        asimov_opt = lambda wildcards: "-t -1 --expectSignal=1" if is_channel_blinded(wildcards, config) else "",
         stat_only = lambda wildcards: config.get("stat_only", False)
     log: f"{log_dir}/impacts_do_fits_{{path}}__{{signallabel}}.log"
     shell:
@@ -712,7 +721,7 @@ rule impacts_do_fits:
         echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode or no_nuisances mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "stat_only" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat $INIT_FIT_FILE 2>/dev/null)" = "stat_only" ]; then
             echo "stat_only" > $OUT_DIR/stat_only
             exit 0
         fi
@@ -747,7 +756,7 @@ rule impacts_do_fits:
             --doFits --robustFit 1 -m {params.mass} --parallel {threads} \
             --redefineSignalPOIs r{params.signallabel} \
             --setParameterRanges r{params.signallabel}={params.r_min},{params.r_max}$SET_RANGES_OPT \
-            $SET_ZERO_OPT \
+            $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input.workspace} .root) && \
             cp $INIT_FIT_FILE $OUT_DIR/
         ) 2>&1 | tee {log}
@@ -784,7 +793,7 @@ rule impacts_collect:
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
             echo "stat_only is enabled. Creating dummy impacts plot."
             cat << 'EOF' > dummy_plot.py
 import sys
@@ -867,7 +876,7 @@ rule gof_data:
         (
         echo "[$(date)] Starting gof_data rule with signal {params.signallabel}"
 
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping GoF data fit."
             echo "stat_only" > $OUT_FILE
             exit 0
@@ -921,7 +930,7 @@ rule gof_toys_chunk:
         (
         echo "[$(date)] Starting gof_toys_chunk {wildcards.split_index} rule with signal {params.signallabel}"
 
-        if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
+        if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ]; then
             echo "stat_only is enabled. Skipping GoF toys chunk."
             echo "stat_only" > $OUT_FILE
             exit 0
@@ -939,7 +948,7 @@ rule gof_toys_chunk:
         # Check if there are any nuisance parameters
         TOYS_OPT="--toysFrequentist"
         NUISANCES=$(find $DATACARD_DIR -maxdepth 3 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
-        if [ "$NUISANCES" = "0" ] || [ -z "$NUISANCES" ]; then
+        if [ "$NUISANCES" = "0" ]; then
             TOYS_OPT="--toysNoSystematics"
         fi
 
@@ -1019,6 +1028,7 @@ rule fit_diagnostics_bonly:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/fit_diagnostics_bonly_{{path}}__{{signallabel}}.log"
     shell:
@@ -1056,6 +1066,12 @@ rule fit_diagnostics_bonly:
             SET_ZERO_OPT_BONLY="--setParameters r{params.signallabel}=0"
         fi
 
+        TOY_OPT_BONLY=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running FitDiagnostics B-only on Asimov dataset (-t -1 with expectSignal=0)"
+            TOY_OPT_BONLY="-t -1"
+        fi
+
         cd $(dirname $OUT_BONLY)
 
         echo "[$(date)] Running FitDiagnostics B-only"
@@ -1064,6 +1080,7 @@ rule fit_diagnostics_bonly:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_BONLY \
             $FREEZE_OPT_BONLY \
+            $TOY_OPT_BONLY \
             -n _$(basename {input} .root)_prefit_bonly \
             --saveShapes --saveWithUncertainties --plots
 
@@ -1091,6 +1108,7 @@ rule fit_diagnostics_sb:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/fit_diagnostics_sb_{{path}}__{{signallabel}}.log"
     shell:
@@ -1120,10 +1138,24 @@ rule fit_diagnostics_sb:
 
         SET_ZERO_OPT_SB=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            else
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            fi
             SET_ZERO_OPT_SB="--setParameters $formatted_params"
         else
-            SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=0"
+            else
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            fi
+        fi
+
+        TOY_OPT_SB=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running FitDiagnostics S+B on background-only Asimov dataset (-t -1 with r=0)"
+            TOY_OPT_SB="-t -1"
         fi
 
         cd $(dirname $OUT_SB)
@@ -1134,8 +1166,53 @@ rule fit_diagnostics_sb:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT_SB \
             $FREEZE_OPT_SB \
+            $TOY_OPT_SB \
             -n _$(basename {input} .root)_prefit_sb \
             --saveShapes --saveWithUncertainties --plots
+
+        # For stat-only fits (kmax 0), Combine skips fit_b and does not save shapes_prefit or shapes_fit_b.
+        # Populate shapes_prefit and shapes_fit_b from shapes_fit_s and nominal shapes so all 3 fit types can be plotted.
+        python3 -c "
+import ROOT, os, glob
+fit_file = 'fitDiagnostics_$(basename {input} .root)_prefit_sb.root'
+ws_dir = '$(dirname $WORKSPACE_FILE)'
+shapes_file = os.path.join(ws_dir, 'shapes.root')
+if not os.path.exists(shapes_file):
+    candidates = glob.glob(os.path.join(ws_dir, '*shapes.root'))
+    shapes_file = candidates[0] if candidates else None
+
+f_fit = ROOT.TFile.Open(fit_file, 'UPDATE')
+if f_fit and f_fit.Get('shapes_fit_s') and not f_fit.Get('shapes_prefit'):
+    print('[INFO] Populating shapes_prefit and shapes_fit_b for stat-only model...')
+    f_shapes = ROOT.TFile.Open(shapes_file, 'READ') if shapes_file and os.path.exists(shapes_file) else None
+    d_fit_s = f_fit.Get('shapes_fit_s')
+    d_prefit = f_fit.mkdir('shapes_prefit')
+    d_fit_b = f_fit.mkdir('shapes_fit_b')
+    for k in d_fit_s.GetListOfKeys():
+        ch = k.GetName()
+        ch_dir_s = d_fit_s.Get(ch)
+        if not hasattr(ch_dir_s, 'GetListOfKeys'): continue
+        ch_dir_pre = d_prefit.mkdir(ch)
+        ch_dir_b = d_fit_b.mkdir(ch)
+        for obj_name in ['data', 'background', 'multijet', 'tt', 'ttbar', 'total_background', 'total_covar']:
+            obj = ch_dir_s.Get(obj_name)
+            if obj:
+                ch_dir_pre.cd(); obj.Clone(obj_name).Write()
+                ch_dir_b.cd(); obj.Clone(obj_name).Write()
+        if f_shapes:
+            d_ch_shapes = f_shapes.Get(ch)
+            if d_ch_shapes:
+                for sk in d_ch_shapes.GetListOfKeys():
+                    sig_name = sk.GetName()
+                    if sig_name not in ['data_obs', 'background', 'multijet', 'tt', 'ttbar']:
+                        sig_obj = d_ch_shapes.Get(sig_name)
+                        if sig_obj:
+                            ch_dir_pre.cd(); sig_obj.Clone(sig_name).Write(); sig_obj.Clone('total_signal').Write()
+                            ch_dir_b.cd(); sig_b = sig_obj.Clone(sig_name); sig_b.Reset(); sig_b.Write(); sig_b.Clone('total_signal').Write()
+    if f_shapes: f_shapes.Close()
+    f_fit.Write()
+if f_fit: f_fit.Close()
+" || true
 
         echo "[$(date)] Running diffNuisances S+B"
         python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \
@@ -1151,11 +1228,10 @@ rule fit_diagnostics_sb:
         """
 
 def get_postfit_fit_result(wildcards):
-    fit_type = "bonly" if is_stat_only_mode() else "sb"
-    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_{fit_type}__{wildcards.signallabel}.root"
+    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_sb__{wildcards.signallabel}.root"
 
 def get_postfit_plot_fit_type(wildcards):
-    return "fit_b" if is_stat_only_mode() else "fit_s"
+    return "fit_s"
 
 rule postfit:
     input:

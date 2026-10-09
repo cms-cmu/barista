@@ -1,0 +1,848 @@
+{
+  "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+  "label": "mixeddata_run3",
+  "created": "2026-09-26 08:26:20",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3.yml",
+    "captured": "config.yml",
+    "sha256": "3e34c8ae9484f32c48ef7469fc6a62326840b7703edff436e42eccf1c3e7a3dd"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "JCM": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/JCM_Run3_nontight_v1/jetCombinatoricModel_SB_Run3_nontight_v1.yml",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-26 08:28:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 08:31:04",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 09:01:37",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 09:38:18",
+          "cores": 8,
+          "extra": "--forcerun M2_mix",
+          "user_extra": "--forcerun M2_mix",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 10:10:57",
+          "cores": 8,
+          "extra": "--forcerun M2_mix",
+          "user_extra": "--forcerun M2_mix",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 10:12:07",
+          "cores": 8,
+          "extra": "--forcerun M2_mix",
+          "user_extra": "--forcerun M2_mix",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 11:38:45",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M3",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 12:02:59",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 12:08:53",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 13:30:28",
+          "cores": 8,
+          "extra": "--forcerun M4_split_config",
+          "user_extra": "--forcerun M4_split_config",
+          "targets": "all_M4",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 14:42:49",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 15:36:07",
+          "cores": 8,
+          "extra": "--forcerun M4_dataset_yml -n",
+          "user_extra": "--forcerun M4_dataset_yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 15:36:27",
+          "cores": 8,
+          "extra": "--forcerun M4_dataset_yml",
+          "user_extra": "--forcerun M4_dataset_yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 15:48:08",
+          "cores": 8,
+          "extra": "--forcerun M6_config_mixed M6_hists_closure",
+          "user_extra": "--forcerun M6_config_mixed M6_hists_closure",
+          "targets": "all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 16:45:05",
+          "cores": 8,
+          "extra": "--forcerun M6_study -n",
+          "user_extra": "--forcerun M6_study",
+          "targets": "all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 16:45:24",
+          "cores": 8,
+          "extra": "--forcerun M6_study",
+          "user_extra": "--forcerun M6_study",
+          "targets": "all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 22:19:27",
+          "cores": 8,
+          "extra": "--forcerun M3_study M4_split -n",
+          "user_extra": "--forcerun M3_study M4_split",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-26 22:19:50",
+          "cores": 8,
+          "extra": "--forcerun M3_study M4_split",
+          "user_extra": "--forcerun M3_study M4_split",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 19:48:10",
+          "cores": 8,
+          "extra": "--forcerun M6_hists_mixed",
+          "user_extra": "--forcerun M6_hists_mixed",
+          "targets": "all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 20:49:45",
+          "cores": 8,
+          "extra": "--forcerun M3_study M4_split",
+          "user_extra": "--forcerun M3_study M4_split",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:17:41",
+          "cores": 8,
+          "extra": "--jobs 3 -n",
+          "user_extra": "--jobs 3",
+          "targets": "all_M3 all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:18:36",
+          "cores": 8,
+          "extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml -n",
+          "user_extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-27 23:19:01",
+          "cores": 8,
+          "extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "user_extra": "--jobs 3 --forcerun output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v0.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v3.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v4.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v12.yml output/mixeddata_run3_20260926_956d4bf-aca8a4e/M4/per_subsample/picoaod_datasets_mixeddata_all_v15.yml",
+          "targets": "all_M4 all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "2a536743dfe8"
+        },
+        {
+          "ts": "2026-09-29 16:10:44",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "e01a5705220a"
+        },
+        {
+          "ts": "2026-09-30 07:32:36",
+          "cores": 8,
+          "extra": "--forcerun M7_hist_config",
+          "user_extra": "--forcerun M7_hist_config",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "99b275e249a1"
+        },
+        {
+          "ts": "2026-09-30 14:41:55",
+          "cores": 8,
+          "extra": "--forcerun M7_config",
+          "user_extra": "--forcerun M7_config",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "3e34c8ae9484"
+        },
+        {
+          "ts": "2026-09-30 16:30:44",
+          "cores": 8,
+          "extra": "--forcerun M7_hist_config_signal",
+          "user_extra": "--forcerun M7_hist_config_signal",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_956d4bf-aca8a4e_MakeMixedData",
+          "ssh": "jda102@cmslpc346.fnal.gov",
+          "config_sha256": "3e34c8ae9484"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/barista",
+      "ssh": "jda102@cmslpc346.fnal.gov",
+      "checked_out": "2026-09-26 08:28:13"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_20260926_956d4bf-aca8a4e/",
+    "ts": "2026-09-30 17:51:52",
+    "ok": true,
+    "pages": [
+      "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M6/cutflow_validation.html",
+      "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M6/plots/index.html",
+      "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M6/study/index.html",
+      "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M7/plots_mixeddata/index.html",
+      "output/mixeddata_run3_20260926_956d4bf-aca8a4e/M7/plots_signal/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-26 08:26:20",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-26 08:28:13",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 08:28:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 08:31:04",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 09:01:37",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 09:38:16",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/skimmer/processor/make_mixed_data.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_2_mix.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_5_ttbar_psdata.smk"
+      ],
+      "what": "mixer JCM lookup (explicit JCM_file stored under 'default' but looked up by year -> None -> every chunk failed on nJet_ps_and_tag, skipbadfiles hid it, empty mixeddata_all published); new M2_check/M5_check refuse to publish an empty dataset. git diff on top of aca8a4e1."
+    },
+    {
+      "ts": "2026-09-26 09:38:18",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 10:10:57",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 10:12:07",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 11:38:45",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 12:02:59",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 12:08:53",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 13:30:26",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/workflows/Snakefile_MakeMixedData_4_subsample.smk"
+      ],
+      "what": "M4 split: runner picosize 1e9 -> one file per (subsample, era). With 100k the overlap-inflated subsamples got more chunks (v0 27 files vs v6 24) and M4_dataset_yml (correctly) refused: no single vXXX template fits. Applied on top of the earlier hotpatch."
+    },
+    {
+      "ts": "2026-09-26 13:30:28",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 14:42:49",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 14:44:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 14:44:02",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 15:36:06",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/analysis/helpers/processor_config.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_4_subsample.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_5_ttbar_psdata.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_6_validation.smk (new)",
+        "coffea4bees/plots/metadata/plotsMixedData_validation.yml (new)",
+        "coffea4bees/workflows/scripts/mixeddata_validation_report.py (new)",
+        "src/plotting/helpers_make_plot.py",
+        "src/plotting/helpers_make_plot_dict.py"
+      ],
+      "what": "mixeddata_4b folds in the ttbar_PSData files (John); ttbar_PSData processed as unit-weight pseudodata (processor_config); new M.6 validation step (plots, cutflow page, study plots, overlap matrix); ratio denominator can be one stack component. Files copied (worktree state) into both checkouts; shared Dask daemon was not running."
+    },
+    {
+      "ts": "2026-09-26 15:36:07",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 15:36:27",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 15:48:06",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_6_validation.smk"
+      ],
+      "what": "M.6 mixed hists: apply_MvD true + apply_MvD_weight false (the only path that applies the JCM to 4b mixed events; first M.6 pass had mixed ~10x data). Run 3: ttbar_PSData jets taken as stored (isPSData joins isSyntheticData) instead of re-corrected as data (PSData/TT MC 0.85-0.90 after the dijet-mass cut)."
+    },
+    {
+      "ts": "2026-09-26 15:48:08",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 15:59:57",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 15:59:58",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 16:45:04",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/workflows/scripts/mixeddata_validation_report.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_6_validation.smk"
+      ],
+      "what": "M.6 study/index.html page (numbers + all study plots by topic). Presentation only."
+    },
+    {
+      "ts": "2026-09-26 16:45:05",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 16:45:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 16:46:24",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-26 22:19:25",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/hemisphere_mixing/mixing_helpers.py"
+      ],
+      "what": "assign_mixed_subsamples: overflow wraps modulo floor(1/w) (the event's valid slices) instead of a fixed 9. With w up to 0.43 the %9 targets above 1 dropped large-w (high jet multiplicity) events from high-v subsamples: sizes v0-v3 2.02 M vs v6-v15 1.77 M and a composition bias. M.3 study, M.4 splits and M.6 rerun."
+    },
+    {
+      "ts": "2026-09-26 22:19:27",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-26 22:19:50",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 00:15:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-27 00:16:01",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-27 19:48:09",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/analysis/helpers/event_weights.py"
+      ],
+      "what": "git apply of coffea4bees a7de466da's event_weights.py hunk: mixed-data JCM argument nSelJets-3 (the fit's variable) instead of nUntaggedLoose+1, which under-weighted mixed events with >=5 loose tags (MvD roast: -4.7% of the four-tag SB yield). Only M6_hists_mixed uses this path; force-rerun, M.6 downstream rebuilt."
+    },
+    {
+      "ts": "2026-09-27 19:48:10",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 20:49:43",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/hemisphere_mixing/mixing_helpers.py"
+      ],
+      "what": "update_pseudoTagWeight_of_mixed_data (M.4 splitter + M.3 study): mixed-data JCM argument nSelJets-3 instead of nUntaggedLoose+1, the same fix as event_weights.py -- the subsamples were drawn with too small a probability for >=5-loose-tag events (M.6 after the processor fix: subsample/model 0.96 Run 3, 0.985 Run 2). Force-rerun M3_study + M4_split; M4 republishes handoff/mixeddata_4b.yml, M6 closure rebuilt."
+    },
+    {
+      "ts": "2026-09-27 20:49:45",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:17:41",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:18:36",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-27 23:19:01",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-28 00:15:34",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-28 00:15:37",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-29 16:10:37",
+      "event": "hotpatch",
+      "what": "M.7 signal check added: Snakefile_MakeMixedData_7_signal.smk + include/all_M7 in Snakefile_MakeMixedData.smk, workflows/scripts/mixeddata_signal_check.py, make_mixed_data.py (mix_tags, require_trigWeight, selection = cumulative cuts); captured config: inputs.SvB_model (nominal SvB_nominal result.json), signal_check.datasets [GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00]",
+      "why": "signal check of the mixing (John, 2026-09-29): all preselected signal mixed, SvB_nominal evaluated on the fly; only M7 jobs in the dry run",
+      "files": [
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "coffea4bees/skimmer/processor/make_mixed_data.py",
+        "roasts/mixeddata_run3_20260926_956d4bf-aca8a4e/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-29 16:10:44",
+      "event": "config-edited",
+      "sha256": "e01a5705220a"
+    },
+    {
+      "ts": "2026-09-29 16:10:44",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-29 22:01:51",
+      "event": "hotpatch",
+      "what": "M.7 report script counts the ps_hh underflow; processor blinding exempts isSyntheticMC; M7_hist_config blind: false (Run 3 config already blind: false, histograms unaffected). Pushed while M7_hists ran.",
+      "files": [
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py"
+      ]
+    },
+    {
+      "ts": "2026-09-30 01:03:53",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 07:32:35",
+      "event": "hotpatch",
+      "what": "M.7 reworked for make_plots (John, 2026-09-30): mixed signal histogrammed with the nominal Phase F analysis config (inputs.phaseF_hists + analysis_config.yml next to it; FvT/SvB friends dropped, friends_include [trigWeight], no JCM, SvB on the fly, unblinded), merged into F's histAll, plotted with F's plotsAll_ttbarWeights.yml + HH4b_mixed via make_plots + gallery (M7/plots/). Report script: numbers only. Mixing (M7_mix) reused.",
+      "files": [
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "roasts/mixeddata_run3_20260926_956d4bf-aca8a4e/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-30 07:32:36",
+      "event": "config-edited",
+      "sha256": "99b275e249a1"
+    },
+    {
+      "ts": "2026-09-30 07:32:36",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 09:14:32",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 14:39:39",
+      "event": "hotpatch",
+      "what": "M.7 redesign (John, 2026-09-30; coffea4bees mvd-roast 0801341fc, barista f84db335): self-contained, no Phase F. Signal mixed at 1/10 (event % 10) with origin branches; histograms with the upstream config + SvB on the fly: 4b signal, 3b signal x M.2 JCM, mixed 3b x M.2 JCM (synthetic_mc_3b_*), mixed 4b (synthetic_mc_4b_*); mixeddata_all x M.3 JCM with SvB at 1/10 (weights x10). Galleries plots_signal/, plots_mixeddata/. Copied: make_mixed_data.py, processor_HH4b.py (brings the off-by-default MvD_pmix4_floor), M.7 smk + script; linestyle fix patched into src/plotting/helpers_make_plot.py only. Captured config: phaseF_hists dropped, subsample keys added.",
+      "files": [
+        "coffea4bees/skimmer/processor/make_mixed_data.py",
+        "coffea4bees/analysis/processors/processor_HH4b.py",
+        "coffea4bees/workflows/Snakefile_MakeMixedData_7_signal.smk",
+        "coffea4bees/workflows/scripts/mixeddata_signal_check.py",
+        "src/plotting/helpers_make_plot.py",
+        "roasts/mixeddata_run3_20260926_956d4bf-aca8a4e/config.yml"
+      ]
+    },
+    {
+      "ts": "2026-09-30 14:41:55",
+      "event": "config-edited",
+      "sha256": "3e34c8ae9484"
+    },
+    {
+      "ts": "2026-09-30 14:41:55",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 16:30:44",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 17:51:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-09-30 20:47:00",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-06 12:58:54",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
+    }
+  ],
+  "notes": "Run 3 mixed-data datasets from the non-tight production nominal_run3_nontight_20260925_0c53380-193851f (JCM, jcm_hists, FvT). Supersedes mixeddata_run3_20260925_56690d5-1a7e467 (library built with the tight nominal FvT). HOTPATCHED 2026-09-26: mixer JCM lookup + empty-dataset guards (see history). HOTPATCH 4 (2026-09-26): mixeddata_4b + ttbar PSData, PSData unit weight, M.6 validation (see history). HOTPATCH 5 (2026-09-26): mixed-JCM weight in M.6 + PSData jets as stored (see history). HOTPATCH 6: study index page. HOTPATCH 7: equal-probability subsample wrap (see history).",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+    "ts": "2026-09-30 20:47:00",
+    "ok": true
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "cleaned": {
+    "ts": "2026-10-06 12:58:54",
+    "hosts": [
+      "cmslpc"
+    ]
+  }
+}

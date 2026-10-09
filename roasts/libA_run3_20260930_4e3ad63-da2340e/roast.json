@@ -1,0 +1,253 @@
+{
+  "id": "libA_run3_20260930_4e3ad63-da2340e",
+  "label": "libA_run3",
+  "created": "2026-09-30 18:23:08",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "4e3ad63e8f98da9ef409174f6ea98bc79e98f9ab",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "da2340e59f4d908f9c7ae7a436f83e30abd3f567",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run3_library.yml",
+    "captured": "config.yml",
+    "sha256": "c21703c2fa541de91c3b9ee46642c9cf1f002de9a24387c7932773c822c86deb",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/declustered_run3.yml",
+        "sha256": "bb6a3b0ffe810462a7643812810749ac66a728856ff03f90ee455fa09329bb5b"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20260922_3f9e199-1e0504f",
+        "barista": "3f9e199b48b116b1f849cbf32e485d3eea7355c6",
+        "coffea4bees": "1e0504f9fdf810fb8eb507dcc623a84d9318060e",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "jcm_hists": {
+        "url": "{eos_prod}/nominal_run3_nontight_20260925_0c53380-193851f/output/Run3_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "ttbar_psdata": {
+        "url": "{eos_prod}/mixeddata_run3_20260926_956d4bf-aca8a4e/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "SvB_model": {
+        "url": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20260922_3f9e199-1e0504f/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_20260922_3f9e199-1e0504f"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-09-30 18:26:29",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "libA_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "2d1b324c8eb5"
+        },
+        {
+          "ts": "2026-09-30 18:33:08",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "libA_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "2d1b324c8eb5"
+        },
+        {
+          "ts": "2026-09-30 19:03:44",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libA_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "2d1b324c8eb5"
+        },
+        {
+          "ts": "2026-10-01 09:17:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libA_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "2d1b324c8eb5"
+        },
+        {
+          "ts": "2026-10-01 09:19:21",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "libA_run3_4e3ad63-da2340e_DeClustered",
+          "ssh": "jda102@cmslpc350.fnal.gov",
+          "config_sha256": "c21703c2fa54"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/libA_run3_20260930_4e3ad63-da2340e/barista",
+      "ssh": "jda102@cmslpc350.fnal.gov",
+      "checked_out": "2026-09-30 18:25:03"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/libA_run3_20260930_4e3ad63-da2340e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/libA_run3_20260930_4e3ad63-da2340e/",
+    "ts": "2026-10-02 12:00:11",
+    "ok": null,
+    "pages": [
+      "output/libA_run3_20260930_4e3ad63-da2340e/D5/cutflow_monitoring.html",
+      "output/libA_run3_20260930_4e3ad63-da2340e/D5/plots/index.html",
+      "output/libA_run3_20260930_4e3ad63-da2340e/D6/plots_declustered/index.html",
+      "output/libA_run3_20260930_4e3ad63-da2340e/D6/plots_signal/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-09-30 18:23:08",
+      "event": "new"
+    },
+    {
+      "ts": "2026-09-30 18:25:03",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 18:26:29",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 18:33:08",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-09-30 19:03:44",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-01 09:17:17",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-01 09:19:21",
+      "event": "config-edited",
+      "sha256": "c21703c2fa54"
+    },
+    {
+      "ts": "2026-10-01 09:19:21",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-01 09:58:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-02 11:59:09",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-02 11:59:25",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-06 12:42:54",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
+    }
+  ],
+  "notes": "A arm of the m/pT A/B (chosen): library declustering, random among k=20 nearest in (log pT, |eta|) within 0.05, no mass matching. The D.1 proxy was missing at first submit (copied in, resumed). The shared Dask scheduler died at ~03:11 CDT on 2026-10-01; snakemake retries restarted D.3/D.6 (~5 h lost). D4_cutflow failed against the PDF roast's validation.known_counts; the captured config was hot-patched to known_counts: null and resumed.",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "category": "declustered",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/libA_run3_20260930_4e3ad63-da2340e",
+    "ts": "2026-10-02 11:59:09",
+    "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-06 12:42:54",
+    "hosts": [
+      "cmslpc"
+    ]
+  }
+}

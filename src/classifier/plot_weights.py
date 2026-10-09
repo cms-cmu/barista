@@ -29,7 +29,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from src.data_formats.root import Friend, Chunk
-from src.classifier.config.dataset.HCR.SvB import _remove_outlier
+try:
+    from coffea4bees.classifier.config.dataset.HCR.SvB import _remove_outlier
+except ImportError:
+    try:
+        from src.classifier.config.dataset.HCR.SvB import _remove_outlier
+    except ImportError:
+        def _remove_outlier(df):
+            return df.loc[df['weight'] < 1]
 from src.classifier.task import parse
 
 # --------------------------------------------------------------------------- #
@@ -168,8 +175,17 @@ def parse_metadata_arg(arg):
 
 
 def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label_patterns):
-    """Read metadata JSON and group friend tree paths by physics label."""
-    with open(metadata_path) as f:
+    """Read metadata JSON and group friend tree paths by physics label.
+
+    fsspec, not open(): the classifier-input manifest is not necessarily a local file. A roast
+    publishes it to its EOS handoff area so the falcon checkout needs nothing copied into it,
+    and `metadata:` is then a root:// URL. Everything else in this module already reads that way
+    (the checkpoint, and both save helpers), and so does the JCM, which reaches
+    apply_JCM_from_list -> parse.mapping -> fsspec. This was the one plain open() left, and
+    because plot_weights runs after train.done it would have failed at the end of an eight-hour
+    training rather than at its start.
+    """
+    with fsspec.open(metadata_path, "rt") as f:
         meta = json.load(f)[meta_key]
 
     label_set = set(labels)

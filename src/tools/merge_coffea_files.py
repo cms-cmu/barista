@@ -10,6 +10,7 @@ if _src_parent not in sys.path:
     sys.path.insert(0, _src_parent)
 
 from coffea.util import load, save
+import hist
 
 def merge_coffea_files( files_to_merge, output_file ):
     """docstring for merge_coffea_files"""
@@ -34,7 +35,27 @@ def merge_coffea_files( files_to_merge, output_file ):
                         try:
                             output[ikey][ihist] += iout[ikey][ihist]
                         except Exception as e:
-                            logging.warning(f'   Could not merge histogram {ihist}: {e}. Skipping.')
+                            try:
+                                h1 = output[ikey][ihist]
+                                h2 = iout[ikey][ihist]
+                                process_axes = [ax.name for ax in h1.axes if ax.name == "process"]
+                                if process_axes:
+                                    cats1 = list(h1.axes["process"])
+                                    cats2 = [c for c in h2.axes["process"] if c not in cats1]
+                                    new_cats = cats1 + cats2
+                                    new_ax = hist.axis.StrCategory(new_cats, name="process", label=h1.axes["process"].label)
+                                    other_axes = [ax for ax in h1.axes if ax.name != "process"]
+                                    h_new = hist.Hist(new_ax, *other_axes, storage=h1.storage_type())
+                                    for p in h1.axes["process"]:
+                                        h_new[{"process": p}] += h1[{"process": p}]
+                                    for p in h2.axes["process"]:
+                                        h_new[{"process": p}] += h2[{"process": p}]
+                                    output[ikey][ihist] = h_new
+                                    logging.info(f'   Successfully merged histogram {ihist} with combined process axes.')
+                                else:
+                                    raise e
+                            except Exception as ex:
+                                logging.warning(f'   Could not merge histogram {ihist}: {ex}. Skipping.')
             else:
                 output[ikey] = output[ikey] | iout[ikey]
 

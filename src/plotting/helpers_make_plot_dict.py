@@ -100,13 +100,14 @@ def _find_hist_obj(
             available_processes = None
         if available_processes is not None and process in available_processes:
             try:
-                _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+                if category_key in _input_data and _input_data[category_key] is not None:
+                    _, unique_to_dict = plot_helpers.compare_dict_keys_with_list(hist_opts, _input_data[category_key])
+                    for _key in unique_to_dict:
+                        hist_opts.pop(_key)
+                    if "variation" in _input_data[category_key]:
+                        hist_opts["variation"] = "nominal"
             except (KeyError, AttributeError) as e:
                 raise ValueError(f"Failed to compare dictionary keys: {str(e)}")
-            for _key in unique_to_dict:
-                hist_opts.pop(_key)
-            if "variation" in _input_data[category_key]:
-                hist_opts["variation"] = "nominal"
             hist_obj = _input_data[hist_key][var]
             break
 
@@ -139,7 +140,13 @@ def _apply_intcategory_compat(
         # Convert any "sum" value in hist_opts to the built-in sum to project over the axis
         for axis in hist_obj.axes:
             if axis.name in hist_opts and hist_opts[axis.name] == "sum":
-                hist_opts[axis.name] = sum
+                if axis.name == "region" and "inclusive" in axis:
+                    hist_opts[axis.name] = "inclusive"
+                else:
+                    hist_opts[axis.name] = sum
+            elif axis.name in hist_opts and hist_opts[axis.name] == "inclusive":
+                if "inclusive" not in axis:
+                    hist_opts[axis.name] = sum
 
         if "year" in hist_obj.axes.name and "year" in hist_opts:
             y_val = hist_opts["year"]
@@ -177,13 +184,13 @@ def _remove_missing_cut_keys(
     hist_obj: hist.Hist, hist_opts: Dict, cut_dict: Dict, debug: bool
 ) -> None:
     """Drop cut axes from hist_opts that are absent from this histogram (in-place)."""
-    for cut_key in cut_dict:
+    for opt_key in list(hist_opts.keys()):
         if debug:
-            print(f"Checking cut_key {cut_key} in hist_obj.axes {hist_obj.axes.name}")
-        if cut_key not in hist_obj.axes.name and cut_key in hist_opts:
+            print(f"Checking opt_key {opt_key} in hist_obj.axes {hist_obj.axes.name}")
+        if opt_key not in hist_obj.axes.name:
             if debug:
-                print(f"Removing cut_key {cut_key} from hist_opts {hist_opts}")
-            hist_opts.pop(cut_key)
+                print(f"Removing opt_key {opt_key} from hist_opts {hist_opts}")
+            hist_opts.pop(opt_key)
 
 
 def _select_hist(
@@ -719,7 +726,10 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
     """Handle stack components that are sums of processes."""
     valid_sums = {}
     for sum_proc_name, sum_proc_config in proc_config["sum"].items():
-        sum_proc_config["year"] = proc_config["year"]
+        # `year` is a style key (see _STYLE_KEYS): it never reaches the hist indexing, which
+        # uses the `year` argument below. Keyed off proc_config with a default so a stack
+        # entry need not carry a dead `year:` just to keep this lookup from raising.
+        sum_proc_config["year"] = proc_config.get("year", year)
         var_to_plot = var_over_ride.get(sum_proc_name, var_to_plot)
 
         success = add_hist_data(cfg=cfg, config=sum_proc_config,
@@ -737,18 +747,24 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
         stack_variances = [v["variances"] for _, v in proc_config["sum"].items()]
         proc_config["variances"] = np.sum(stack_variances, axis=0).tolist()
 
-    # Copy metadata from first sum component
-    first_sum_entry = next(iter(proc_config["sum"].values()))
-    proc_config["centers"] = first_sum_entry["centers"]
-    proc_config["edges"] = first_sum_entry["edges"]
-    proc_config["x_label"] = first_sum_entry["x_label"]
+        # Copy metadata from first sum component
+        first_sum_entry = next(iter(proc_config["sum"].values()))
+        proc_config["centers"] = first_sum_entry["centers"]
+        proc_config["edges"] = first_sum_entry["edges"]
+        proc_config["x_label"] = first_sum_entry["x_label"]
 
-    # Combine under/overflow
-    stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
+        # Combine under/overflow
+        stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
 
-    stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+        stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+    else:
+        proc_name = proc_config.get("name", "unknown")
+        logger.warning(f"No valid sum components found for process {proc_name}")
+        proc_config["values"] = []
+        proc_config["variances"] = []
+        return False
 
 
 def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, List[float]]:
@@ -768,6 +784,10 @@ def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -
     if hist_config["type"] == "hists":
         num_data = plot_data["hists"][hist_config["key"]]
         return np.array(num_data["values"]), np.array(num_data["variances"]), num_data["centers"]
+
+    if hist_config["type"] == "stack" and hist_config.get("key"):
+        comp = plot_data["stack"][hist_config["key"]]          # one stack component
+        return np.array(comp["values"]), np.array(comp["variances"]), comp["centers"]
 
     if hist_config["type"] == "stack":
         return_values = np.sum([v["values"] for _, v in plot_data["stack"].items()], axis=0)
@@ -927,7 +947,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     var_over_ride = kwargs.get("var_over_ride", {})
 
     if cut:
-        cuts_to_check = cut if isinstance(cut, list) else [cut]
+        cuts_to_check = cut if isinstance(cut, list) else [c.strip() for c in cut.replace("+", ",").split(",") if c.strip()]
         for c in cuts_to_check:
             _bare_cut = c.lstrip("~")
             if _bare_cut not in cfg.cutList:
@@ -939,9 +959,15 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
         plot_data["is_2d_hist"] = True
 
     # Get histogram configuration
-    hist_config = cfg.plotConfig["hists"]
+    hist_config = cfg.plotConfig.get("hists", {})
     if process is not None:
-        hist_config = {key: hist_config[key] for key in process if key in hist_config}
+        filtered = {key: hist_config[key] for key in process if key in hist_config}
+        if not filtered and 'stack' in cfg.plotConfig:
+            stack_config = cfg.plotConfig["stack"]
+            filtered = {key: stack_config[key] for key in process if key in stack_config}
+        if not filtered:
+            filtered = {p: {"process": p, "tag": "fourTag", "label": p} for p in process}
+        hist_config = filtered
 
     if do2d and len(hist_config) > 1:
         # A 2D plot can only show one map: sum the requested processes into
@@ -1039,7 +1065,7 @@ def _prepare_process_config(proc_conf: Dict):
     _process_config = copy.deepcopy(proc_conf)
     _process_config["fillcolor"] = proc_conf.get("fillcolor", None)
     _process_config["histtype"] = "errorbar"
-    _proc_id = proc_conf["label"] if isinstance(proc_conf["process"], list) else proc_conf["process"]
+    _proc_id = proc_conf.get("label", proc_conf.get("process")) if isinstance(proc_conf.get("process"), list) else proc_conf.get("process", proc_conf.get("label", "unknown"))
     return _process_config, _proc_id
 
 

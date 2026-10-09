@@ -27,8 +27,11 @@ def make_parser() -> argparse.ArgumentParser:
     io_group.add_argument(
         '-m', '--metadata',
         dest="metadata",
+        nargs="+",
         default="coffea4bees/metadata/datasets/",
-        help='Path to the datasets metadata YAML file'
+        help='Datasets metadata: one or more local directories, local YAML files or remote '
+             '(root://, fsspec) YAML files, merged in order. A dataset/year defined differently '
+             'in two of them is an error.'
     )
     io_group.add_argument(
         '--triggers',
@@ -43,7 +46,7 @@ def make_parser() -> argparse.ArgumentParser:
         help='Path to the luminosities metadata YAML file'
     )
     io_group.add_argument(
-        '--friends',
+        '-f', '--friends',
         dest="friends",
         default="coffea4bees/metadata/friends/friends_HH4b.yml",
         type=lambda x: None if x.lower() == 'none' else x,
@@ -167,7 +170,14 @@ def make_parser() -> argparse.ArgumentParser:
         dest="condor",
         action="store_true",
         default=False,
-        help='Submit jobs to HTCondor cluster'
+        help='Submit Dask workers as HTCondor jobs (FNAL LPC via lpcjobqueue, CERN lxplus via dask_lxplus; site auto-detected)'
+    )
+    exec_group.add_argument(
+        '--condor-site',
+        dest="condor_site",
+        choices=['lpc', 'lxplus'],
+        default=None,
+        help='HTCondor site for --condor. Default: auto-detect from BARISTA_SITE / hostname. Overrides condor_site in the config file.'
     )
     exec_group.add_argument(
         '--slurm',
@@ -192,7 +202,7 @@ def make_parser() -> argparse.ArgumentParser:
         '--tmpdir',
         dest="tmpdir",
         default=None,
-        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER)'
+        help='Parent directory for the condor code-tarball temp dir (defaults to /uscmst1b_scratch/lpc1/3DayLifetime/$USER on LPC, /tmp/$USER/barista_scratch elsewhere)'
     )
     exec_group.add_argument(
         '--start-cluster-daemon',
@@ -258,6 +268,13 @@ def make_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help='Disable ANSI color formatting in logging'
+    )
+    debug_group.add_argument(
+        '--config-override', '--config-overrides',
+        nargs='+',
+        dest='config_override_raw',
+        default=None,
+        help='Override config options as key=value pairs (e.g. apply_JCM=True JCM_file=path/to/jcm.yml)'
     )
 
     # Reproducibility options
@@ -350,8 +367,40 @@ def parse_args() -> argparse.Namespace:
         # Parse remaining args on top of the YAML-defined namespace
         args = parser.parse_args(remaining_args, namespace=default_args)
         args.job_yaml_path = yaml_path
-        return args
+        return _apply_cli_config_overrides(args)
     else:
         args = parser.parse_args()
         args.job_yaml_path = None
-        return args
+        return _apply_cli_config_overrides(args)
+
+def _cast_override_val(val_str: str):
+    v_lower = val_str.lower()
+    if v_lower == 'true':
+        return True
+    elif v_lower == 'false':
+        return False
+    elif v_lower == 'none':
+        return None
+    try:
+        return int(val_str)
+    except ValueError:
+        pass
+    try:
+        return float(val_str)
+    except ValueError:
+        pass
+    return val_str
+
+def _apply_cli_config_overrides(args: argparse.Namespace) -> argparse.Namespace:
+    raw = getattr(args, 'config_override_raw', None)
+    if raw:
+        overrides = getattr(args, 'config_overrides', None)
+        if not isinstance(overrides, dict):
+            overrides = {}
+        for item in raw:
+            if '=' in item:
+                k, v = item.split('=', 1)
+                overrides[k] = _cast_override_val(v)
+        args.config_overrides = overrides
+    return args
+

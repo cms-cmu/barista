@@ -1,0 +1,151 @@
+# =============================================================================
+# Phase A.2 -- trigger-weight friend trees for the Run 3 ttbar family + ttHbb
+# =============================================================================
+# Supersedes trigweights_ttbb_stitched_run3.yml, which covered only the three
+# stitched keys. Two colliding configs for the same phase is the hazard that
+# TT_run2.yml/TT_run3.yml already cost us, so that file is removed rather than
+# left alongside this one.
+#
+# WHY THESE FRIENDS HAVE TO BE MADE FROM SCRATCH
+# ----------------------------------------------
+# Friend trees are keyed by picoAOD file UUID + entry range, so they are valid
+# only for the exact files they were built against. The one Run 3 trigWeight
+# index that exists, metadata/friends/trigger_weights_TTbar_friends.json, covers
+# only the 3 inclusive TT samples for 2022/2023 (no 2024) AND is keyed to
+# smurthy/XX4b/2025_Run3_skims/, whereas TT.yml now points at
+# algomez/XX4b/Run3_nanov12/ (2022/2023) and cguintob/XX4b/2025_Run3_skims/
+# (2024) -- a re-chunked copy. Verified by direct UUID read: the algomez and
+# cguintob chunk0 UUIDs are absent from that index while the smurthy one is
+# present. Nothing there is reusable, and the stitched picoAODs are new files
+# besides.
+#
+# ONE INVOCATION FOR ALL 35 JOBS -- MANDATORY, NOT STYLISTIC
+# ----------------------------------------------------------
+# merge_friendtree_json writes a single fixed-path trigger_weights_friends.json
+# built from expand(dataset=config['dataset'], year=years). A second run with a
+# different dataset list silently overwrites the merged index with only that
+# list's entries. The per-dataset JSONs survive, so a partial index looks
+# complete. Add datasets here; do not run this workflow twice.
+#
+# The Snakefile expands the FULL dataset x year cross product, so every dataset
+# listed must have every era listed. That is why ttHbb 2024 had to be skimmed
+# first (workflows/config/skim_ttHbb_run3_2024.yml), and why the HH4b/VBF/NMSSM
+# signals cannot join: most are 2024-only and NMSSM has no 2024 at all. They
+# need their own invocations, grouped by era coverage.
+# =============================================================================
+
+label: "trigweights_run3"
+output_path: "output/trigweights_run3/"
+
+# A directory, not a single file: the 7 datasets live in three ymls (TT.yml,
+# TT_stitched.yml, ttHbb.yml) and runner.py merges every yml here in os.listdir
+# order. Checked: all 7 keys are defined in exactly one file each, so the merge
+# order cannot shadow any of them. (The only duplicate top-level keys in the
+# directory are friends/mixeddata/synthetic_data, none of them ours.)
+dataset_location: "coffea4bees/metadata/datasets/"
+
+dataset:
+  - "TTTo2L2Nu"
+  - "TTToSemiLeptonic"
+  - "TTToHadronic"
+  - "TTTo2L2Nu_stitched"
+  - "TTToSemiLeptonic_stitched"
+  - "TTToHadronic_stitched"
+  - "ttHbb"
+
+# 2022/2023 only (2026-10-07): the TriggerSFVectorized fixes (2022 HLT legs, per-era L1) change
+# only these eras -- every 2024 curve was already found -- so the 2024 entries of
+# trigweights_Run3_v1.json stay valid and are carried over when the index is rebuilt.
+# (The note above about ONE invocation still holds: the merged index of this run must be
+# merged with v1's 2024 entries, not used on its own.)
+years:
+  - "2022_preEE"
+  - "2022_EE"
+  - "2023_preBPix"
+  - "2023_BPix"
+
+trigger_weights:
+  processor: "coffea4bees/analysis/processors/processor_trigger_weights.py"
+  runner: &runner
+    condor_cores: 1
+    worker_memory: 8GB
+    # Cap the per-job cluster. runner/orchestrator.py defaults max_workers to
+    # 400 when shared_dask is false, and snakemake runs 5 of these jobs at once,
+    # so the default floods the LPC queue with up to 2000 requests -- against a
+    # pool that often has ~60 free slots. That is wasteful for everyone and adds
+    # negotiation churn without buying throughput.
+    min_workers: 1
+    max_workers: 60
+    chunksize: 10000
+    condor: true
+    # NOTE: this is overridden and has no effect. Snakefile_PhaseA_2_trigWeights
+    # sets additional_parameters to "--shared-dask --condor --run-performance"
+    # when not testing, and the CLI flag wins -- every job joins ONE long-lived
+    # dask daemon (runner.py --start-cluster-daemon).
+    #
+    # THE TRAP: that daemon tars src/ and coffea4bees/ ONCE, when the first job
+    # spawns it, and every later job reuses that tarball. So editing src/ mid-run
+    # does NOT reach the workers -- they keep executing the code as it was when
+    # the daemon started. A fix to src/physics/objects/jet_corrections.py was
+    # verified working locally and still failed on condor for an hour because of
+    # this. After changing shipped code, kill the daemon
+    #   ps -u $USER -o pid=,args= | grep -F start-cluster-daemon | grep -Fv grep
+    # and clear the queue before relaunching.
+    shared_dask: false
+    run_performance: true
+    # Trimmed on purpose. The default ['coffea4bees/', 'src/'] ships .git (~117 MB)
+    # to every worker -- cluster.py tars with no exclusions. processor_trigger_weights.py
+    # only reaches coffea4bees.analysis and src, but the A.3 validation (trig_validation
+    # below) runs processor_HH4b in the SAME shared daemon, whose first job's tarball
+    # wins, so this list must also carry what processor_HH4b imports at module level.
+    condor_transfer_input_files:
+      - src/
+      - coffea4bees/analysis/
+      - coffea4bees/metadata/
+      - coffea4bees/hemisphere_mixing/
+      - coffea4bees/jet_clustering/
+      - coffea4bees/classifier/
+    allowlist_sites:
+      - T1_US_FNAL_Disk
+      - T3_US_FNALLPC
+      - T2_US_Caltech
+      - T2_US_Wisconsin
+      - T2_US_Nebraska
+  config:
+    # Friends land at {this}/{dataset}_{era}/[{source_dir}_]trigWeight.chunkN.root.
+    # The directory is named after the DATASET KEY, not the source directory --
+    # see _merge_naming in src/runner/orchestrator.py:295-310, which maps each
+    # source dir to the fileset key f"{dataset}_{year}". That is what makes one
+    # shared base safe: the stitched TTToHadronic_2024 reads from source dirs
+    # literally named TTToHadronic_2024 and TTbb_Hadronic_2024 -- the same names
+    # the inclusive samples use -- but its friends go to
+    # TTToHadronic_stitched_2024/ with a TTToHadronic_2024_ filename prefix, so
+    # nothing overlaps.
+    #
+    # A dedicated trigWeights/ sibling of stitched/ rather than the Run 2 habit
+    # of dropping friends into the picoAOD dirs: friends are regenerated far more
+    # often than picoAODs, and this keeps that blast radius to one folder.
+    #
+    # The running user's roast area, so any of us can regenerate these. A fixed
+    # /store/user/<someone>/ path is not writable for anyone else, and the default
+    # (the local output_path) is not reachable from the workers -- either way the
+    # failure only surfaces at the friend-merge step, after all the compute.
+    # (trigweights_Run3_v1.json was made into /store/user/mmarcheg/ttHbb/Run3_v1/trigWeights/,
+    # before the TriggerSFVectorized fixes of 2026-10-06: 2022 HLT legs and per-era L1.)
+    make_classifier_input: "{eos_prod}/{roast_id}/trigWeights/"
+    # Run 3 defaults, stated explicitly rather than relying on the is_run2 branch.
+    use_vectorized: true
+    tagger: PNet
+
+# A.3 (Snakefile_TrigWeights.smk = A.2 + A.3): processor_HH4b as noTrig / HLT / HLT x SF on the
+# inclusive ttbar and ttHbb, per dataset and era (Snakefile_PhaseA_3_trigValidation.smk). Not the
+# _stitched keys: they re-read the inclusive events (plus TTbb), so they would only repeat them.
+trig_validation:
+  enabled: true
+  datasets:
+    - "TTTo2L2Nu"
+    - "TTToSemiLeptonic"
+    - "TTToHadronic"
+    - "ttHbb"
+  runner: *runner
+  regions: [SR, SB]

@@ -15,15 +15,49 @@ default-resources:
   tmpdir: "/tmp"
 
 set-resources:
+  train_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: "push"
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "8h"
+  evaluate_fvt_mixed_model:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: "push"
+    mem_mb: 22500
+    cpus_per_task: 5
+    runtime: "4h"
   train:
     slurm_partition: "GPU-shared"
     gres: "gpu:1"
-    mem_mb: 20000
-  evaluate:
-    slurm_partition: "RM-shared"
-    mem_mb: 8000
+    qos: "push"
+    mem_mb: 22000
     cpus_per_task: 4
-    qos: ""
+    runtime: "8h"
+  train_fvt_subsample:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: "push"
+  evaluate_fvt_subsample:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    mem_mb: 20000
+    qos: "push"
+  evaluate:
+    slurm_partition: "GPU-shared"
+    gres: "gpu:1"
+    qos: "push"
+    mem_mb: 22000
+    cpus_per_task: 4
+    runtime: "4h"
+  extract_friend_manifest:
+    slurm_partition: "RM-shared"
+    mem_mb: 4000
+    cpus_per_task: 2
+    runtime: "1h"
   evaluate_all:
     slurm_partition: "RM-shared"
     mem_mb: 8000
@@ -40,6 +74,16 @@ set-resources:
     cpus_per_task: 4
     qos: ""
   evaluate_single_dataset_svb:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
+  analyze:
+    slurm_partition: "RM-shared"
+    mem_mb: 8000
+    cpus_per_task: 4
+    qos: ""
+  analyze_fvt_subsample:
     slurm_partition: "RM-shared"
     mem_mb: 8000
     cpus_per_task: 4

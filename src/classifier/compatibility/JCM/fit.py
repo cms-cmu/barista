@@ -18,15 +18,28 @@ class JCMColumnNames(TypedDict, total=False):
 
 
 class apply_JCM_from_list:
-    def __init__(self, path: str, start: int = 4, columns: JCMColumnNames = None):
-        weights: list[float] = parse.mapping(path, "file")
+    def __init__(self, path: str | list[str], start: int = 4, columns: JCMColumnNames = None):
+        if isinstance(path, (list, tuple)):
+            path = path[0] if len(path) > 0 else ""
+        weights: list[float] = parse.mapping(path, "file") if path else []
+        if weights is None:
+            weights = []
         self._weights = np.ones(start + len(weights), dtype=float)
         self._weights[start:] = weights
         self._columns = new_TypedDict(JCMColumnNames, **(columns or {}))
 
     def __call__(self, df: pd.DataFrame):
-        n_jets = df.loc[df[self._columns["selected"]], self._columns["n_jets"]]
-        df.loc[df[self._columns["selected"]], self._columns["weight"]] *= np.take(
+        if df is None or len(df) == 0:
+            return df
+        if self._columns["weight"] not in df.columns:
+            df[self._columns["weight"]] = 1.0
+        if self._columns["selected"] not in df.columns or self._columns["n_jets"] not in df.columns:
+            return df
+        mask = df[self._columns["selected"]]
+        if not np.any(mask):
+            return df
+        n_jets = df.loc[mask, self._columns["n_jets"]].to_numpy(dtype=int)
+        df.loc[mask, self._columns["weight"]] *= np.take(
             self._weights, n_jets, mode="clip"
         )
         return df

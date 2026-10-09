@@ -143,18 +143,90 @@ def apply_storage_remap(obj, remaps):
         return [apply_storage_remap(item, remaps) for item in obj]
     return obj
 
+def _load_metadata_path(path: str) -> dict:
+    """Load one datasets-metadata source into a {dataset: {...}} dict.
+
+    A local directory merges every .yml/.yaml in it (OmegaConf, later files win -- the historical
+    behaviour of `-m <dir>`). A file may be local or remote: it is opened through fsspec, so a
+    dataset YAML published to EOS by another roast (root://...) is read in place.
+    """
+    import yaml
+    if os.path.isdir(path):
+        from omegaconf import OmegaConf
+        # os.listdir order, unsorted, as before: the default directory has keys defined in two
+        # files (synthetic_data, mixeddata, friends), so sorting would change which one wins.
+        files = [OmegaConf.load(os.path.join(path, f)) for f in os.listdir(path)
+                 if f.endswith(('.yaml', '.yml'))]
+        if not files:
+            raise FileNotFoundError(f"datasets metadata directory {path} holds no .yml files")
+        return OmegaConf.to_container(OmegaConf.merge(*files), resolve=True)
+    import fsspec
+    with fsspec.open(path, 'r') as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"datasets metadata {path} is not a mapping")
+    return data['datasets'] if 'datasets' in data else data
+
+
+def load_datasets_metadata(paths) -> dict:
+    """Merge one or more datasets-metadata sources (see `_load_metadata_path`) in order.
+
+    Merged per dataset and per field under it (years, nSamples, xs, ...), so a Run 2 and a Run 3
+    source may both contribute years to one dataset key. A field defined in two sources must be
+    identical: anything else raises, naming both sources. Two productions of the same dataset
+    (e.g. a stale `mixeddata_4b.yml` in the default directory and a roast's published one)
+    would otherwise combine silently into a sample neither of them made.
+    """
+    if isinstance(paths, str):
+        paths = [paths]
+    merged, source = {}, {}
+    for path in paths:
+        for name, entry in _load_metadata_path(path).items():
+            if name not in merged:
+                merged[name] = copy(entry) if isinstance(entry, dict) else entry
+                if isinstance(entry, dict):
+                    source.update({(name, k): path for k in entry})
+                else:
+                    source[(name, None)] = path
+                continue
+            if not (isinstance(entry, dict) and isinstance(merged[name], dict)):
+                if entry != merged[name]:
+                    raise ValueError(f"datasets metadata: '{name}' is defined differently in "
+                                     f"{source.get((name, None))} and {path}")
+                continue
+            for field, value in entry.items():
+                if field in merged[name] and merged[name][field] != value:
+                    raise ValueError(f"datasets metadata: '{name}.{field}' is defined differently in "
+                                     f"{source[(name, field)]} and {path}")
+                if field not in merged[name]:
+                    merged[name][field] = value
+                    source[(name, field)] = path
+    return {'datasets': merged}
+
+
+def mixed_variant_prefix(dataset_name):
+    """Sample prefix of a multi-sample mixed-data variant `mixeddata_<tag>_4b` (e.g. the 4b-mixing
+    `mixeddata_4bmix_4b` -> `mix_4bmix`, samples `mix_4bmix_v<k>`), or None. Without this such a
+    name fell through to 'mc' and was weighted as MC."""
+    m = re.fullmatch(r"mixeddata_([A-Za-z0-9]+)_4b", dataset_name)
+    if m is None or m.group(1) in ('noTTSub',):
+        return None
+    return f"mix_{m.group(1)}"
+
 def get_dataset_type(dataset_name):
     """Determine the type of dataset based on its name."""
     if dataset_name == 'mixeddata':
         return 'mixed_data'
-    if dataset_name == 'mixeddata_4b':
+    if dataset_name in ['mixeddata_4b', 'mixeddata_noTTSub_4b']:
         return 'mixeddata_4b'
     elif dataset_name in ['mixeddata_4b_noTT']:
         return 'mixeddata_4b_noTT'
-    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3') or dataset_name.startswith('mixeddata_4b_v'):
+    elif dataset_name.startswith('mixeddata_all') or dataset_name.startswith('mixeddata_Run2') or dataset_name.startswith('mixeddata_Run3') or dataset_name.startswith('mixeddata_4b_v') or dataset_name.startswith('mixeddata_ttHbb'):
         return 'mixeddata_all'
     elif dataset_name in ['mixeddata_4b_pz']:
         return 'mixeddata_4b_pz'
+    elif mixed_variant_prefix(dataset_name):
+        return 'mixeddata_4b_variant'
     elif dataset_name == 'datamixed':
         return 'data_mixed'
     elif dataset_name.startswith('synthetic_data_noTT'):
@@ -186,10 +258,9 @@ def create_fileset_entry(dataset_key, files, metadata_entry, args, config_runner
 
 def process_mc_dataset(dataset, year, metadata, metadata_dataset, fileset, args, config_runner):
     """Process MC dataset configuration."""
-    logging.info("Config MC")
     if config_runner['data_tier'].startswith('pico'):
-        if 'data' not in dataset:
-            metadata_dataset[dataset]['genEventSumw'] = metadata['datasets'][dataset][year][config_runner['data_tier']]['sumw']
+        sumw = metadata['datasets'][dataset][year][config_runner['data_tier']].get('sumw', 1)
+        metadata_dataset[dataset]['genEventSumw'] = sumw
         meta_files = metadata['datasets'][dataset][year][config_runner['data_tier']]['files']
     else:
         metadata_dataset[dataset]['genEventSumw'] = 1
@@ -336,6 +407,9 @@ def add_fvt_metadata(meta, config, v):
 
 def find_matching_dataset(dataset, metadata):
     """Find matching dataset in metadata, supporting substring matching."""
+    if ":" in dataset:
+        dataset = dataset.split(":", 1)[0]
+
     if dataset in metadata['datasets']:
         return dataset
 

@@ -108,9 +108,16 @@ deploy_container:
     - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+    - buildah pull --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
     - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
-    - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
+    - buildah push --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s ${CI_REGISTRY_IMAGE}:latest
+    - |
+      if [ -n "$NAUTILUS_REGISTRY_USER" ] && [ -n "$NAUTILUS_REGISTRY_TOKEN" ]; then
+        echo "Logging into Nautilus GitLab container registry..."
+        echo "$NAUTILUS_REGISTRY_TOKEN" | buildah login -u "$NAUTILUS_REGISTRY_USER" --password-stdin gitlab-registry.nrp-nautilus.io
+        buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} gitlab-registry.nrp-nautilus.io/cms-cmu/barista:latest
+        buildah push --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s gitlab-registry.nrp-nautilus.io/cms-cmu/barista:latest
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -183,10 +190,16 @@ build_classifier_container:
       changes:
       - software/dockerfiles/ml/Dockerfile.ml
       - software/dockerfiles/ml/env_ml.yml
+    - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+      - software/dockerfiles/ml/Dockerfile.ml
+      - software/dockerfiles/ml/env_ml.yml
+      - software/dockerfiles/stages_build.yml
 
 deploy_classifier_container:
   stage: deploy
   image: quay.io/buildah/stable
+  dependencies: []
   script:
     - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
     - export TMPDIR=${CI_PROJECT_DIR}/tmp
@@ -200,14 +213,20 @@ deploy_classifier_container:
     - export CONTAINERS_STORAGE_CONF=${CI_PROJECT_DIR}/storage.conf
     - echo "$CI_REGISTRY_PASSWORD" | buildah login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - export STORAGE_DRIVER=vfs
-    - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_test
+    - buildah pull --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s ${CI_REGISTRY_IMAGE}:classifier_test
     - |
       if [ "$CI_COMMIT_BRANCH" = "master" ]; then
         buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_latest
-        buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_latest
+        buildah push --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s ${CI_REGISTRY_IMAGE}:classifier_latest
+        if [ -n "$NAUTILUS_REGISTRY_USER" ] && [ -n "$NAUTILUS_REGISTRY_TOKEN" ]; then
+          echo "Logging into Nautilus GitLab container registry..."
+          echo "$NAUTILUS_REGISTRY_TOKEN" | buildah login -u "$NAUTILUS_REGISTRY_USER" --password-stdin gitlab-registry.nrp-nautilus.io
+          buildah tag ${CI_REGISTRY_IMAGE}:classifier_test gitlab-registry.nrp-nautilus.io/cms-cmu/barista:classifier_latest
+          buildah push --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s gitlab-registry.nrp-nautilus.io/cms-cmu/barista:classifier_latest
+        fi
       else
         buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_unify_test
-        buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_unify_test
+        buildah push --storage-driver=$STORAGE_DRIVER --retry 5 --retry-delay 10s ${CI_REGISTRY_IMAGE}:classifier_unify_test
       fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -218,4 +237,9 @@ deploy_classifier_container:
       changes:
         - software/dockerfiles/ml/Dockerfile.ml
         - software/dockerfiles/ml/env_ml.yml
+        - software/dockerfiles/stages_build.yml
     - if: $CI_COMMIT_BRANCH == "master"
+      changes:
+        - software/dockerfiles/ml/Dockerfile.ml
+        - software/dockerfiles/ml/env_ml.yml
+        - software/dockerfiles/stages_build.yml

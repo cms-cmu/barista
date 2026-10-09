@@ -1,0 +1,81 @@
+# =============================================================================
+# Trigger-weight friends + validation for the 2022/2023 HH4b signal
+# (Snakefile_TrigWeights.smk = Phase A.2 + the A.3 validation)
+# =============================================================================
+# Run as a roast step (it is not one of roast's lettered phases):
+#   bin/roast new --config coffea4bees/workflows/config/trigweights_run3_signal.yml \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_TrigWeights.smk --label trigweights_run3_signal
+#
+# Only the SM ggF sample has 2022/2023 picoAODs; every other coupling and all VBF are 2024-only,
+# and the A.2 Snakefile expands the full dataset x year product.
+#
+# The weights come from TriggerSFVectorized as it stands (2026-10-05), with known limitations:
+#   - both 2022 eras use the postEE L1 curve, both 2023 eras the preBPix path
+#     (year_label is '2022' / '2023' for both eras);
+#   - the 2023 jet leg (a 2D TEfficiency) is not read, so 2023 = L1 x b-tag leg only;
+#   - the emulator models one HLT path, the MC decision is a 3-path OR (triggers_HH4b.yml).
+# The validation below is how we see what that costs.
+#
+# The friend index is written ONCE per invocation (merge_friendtree_json); do not run this
+# workflow twice with different dataset lists.
+# =============================================================================
+
+label: "trigweights_run3_signal"
+output_path: "output/trigweights_run3_signal/"
+
+dataset_location: "coffea4bees/metadata/datasets/"
+
+dataset:
+  - "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"
+
+years:
+  - "2022_preEE"
+  - "2022_EE"
+  - "2023_preBPix"
+  - "2023_BPix"
+
+# One runner spec for BOTH steps. Outside test mode every job joins ONE shared dask daemon
+# (A.2 forces --shared-dask), and the FIRST job's worker spec and code tarball win, so the
+# A.2 spec must already carry what processor_HH4b needs in A.3 (hemisphere_mixing,
+# jet_clustering and classifier are imported at module level).
+runner: &runner
+  condor_cores: 1
+  worker_memory: 8GB
+  min_workers: 1
+  max_workers: 60
+  chunksize: 10000
+  condor: true
+  shared_dask: false   # overridden by A.2's --shared-dask
+  run_performance: true
+  condor_transfer_input_files:
+    - src/
+    - coffea4bees/analysis/
+    - coffea4bees/metadata/
+    - coffea4bees/hemisphere_mixing/
+    - coffea4bees/jet_clustering/
+    - coffea4bees/classifier/
+  allowlist_sites:
+    - T1_US_FNAL_Disk
+    - T3_US_FNALLPC
+    - T2_US_Caltech
+    - T2_US_Wisconsin
+    - T2_US_Nebraska
+
+trigger_weights:
+  processor: "coffea4bees/analysis/processors/processor_trigger_weights.py"
+  runner: *runner
+  config:
+    # Friends land at {this}/{dataset}_{era}/trigWeight.chunkN.root, in this roast's EOS area.
+    make_classifier_input: "{eos_prod}/{roast_id}/trigWeights/"
+    use_vectorized: true
+    tagger: PNet
+
+# A.3: processor_HH4b three times over the same signal, all fourTag (tight, as nominal Run 3):
+#   noTrig  no HLT cut, no trigger weight
+#   HLT     MC HLT decision (OR of triggers_HH4b.yml), no trigger weight
+#   HLT_SF  MC HLT decision x trigger SF (emulated Data/MC eff from the A.2 friend) = nominal Run 3
+# plotted per era and Run 3 total, ratio to noTrig, plus a yield/efficiency report.
+trig_validation:
+  enabled: true
+  runner: *runner
+  regions: [SR, SB]

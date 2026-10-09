@@ -1,22 +1,56 @@
+# ==============================================================================
 # src/classifier/workflow/Snakefile
 #
-# Generic single-model classifier training workflow.
+# Generic HCR Neural Network Classifier Training, Evaluation & Plotting Pipeline
+# ==============================================================================
 #
-# Usage:
+# OVERVIEW & OBJECTIVE:
+# Provides the central, framework-level Snakemake workflow for training,
+# evaluating, and diagnosing PyTorch machine learning classifiers within the
+# Barista / coffea4bees ecosystem (such as FvT and SvB models).
+#
+# DESIGN & ARCHITECTURE:
+# The workflow is parameterized and wildcard-driven over `{model_dir}`, enabling
+# it to serve both single-model standalone workflows (e.g. Phase C nominal FvT,
+# Phase D nominal SvB) and multi-model / multi-subsample workflows (e.g. Stage C
+# background systematic pseudo-experiments across 16 independent slices):
+#
+#   1. Standalone Single-Model Mode:
+#      - Triggered directly or via coordinator Snakefiles (Snakefile_PhaseC.smk,
+#        Snakefile_PhaseD.smk) with a single model configuration.
+#      - Evaluates the default target `rule all` producing model training, yields,
+#        evaluation friend trees, and diagnostic plots for one model.
+#   2. Multi-Model Mode (Wildcard Resolution):
+#      - Consumer workflows define arbitrary model target paths of the form
+#        `{output_dir}/mix_{m}/train.done` or `{output_dir}/mix_{m}/evaluate.done`.
+#      - Automatically resolves local staged configs ({model_dir}/wfs/train.yml,
+#        {model_dir}/common.yml) and custom template mappings (config["train_templates"]).
+#
+# CORE PIPELINE RULES:
+#   - `rule train`: Trains the PyTorch neural network via `src.classifier.task.main`
+#     using GPU resources and HCR datasets. Generates model checkpoint & train.done.
+#   - `rule yields`: Produces HTML/JSON reports summarizing loaded event yields and
+#     normalization ratios (e.g. d4/d3, t4/t3).
+#   - `rule evaluate`: Runs batched GPU inference over collision data to stream
+#     classifier transfer weights directly into ROOT friend trees on EOS.
+#   - `rule analyze`: Evaluates ROC curves, loss histories, and training metrics.
+#   - `rule plot_inputs_raw`: Plots raw input kinematic and b-tagging distributions.
+#   - `rule plot_inputs_dataprep`: Plots embedded normalized input features from dataPrep().
+#   - `rule plot_weights`: Plots model event weights and closure distributions.
+#
+# USAGE:
 #   snakemake --snakefile src/classifier/workflow/Snakefile \
 #             --configfile <path/to/workflow_config.yml> \
 #             [--cores N]
-#
-# The configfile defines one model to train/evaluate. To run a separate job
-# without overwriting outputs, use a different config with a different output_dir.
-# See coffea4bees/classifier/config/workflows/ for example configs.
+# ==============================================================================
 
 from datetime import datetime
+import os
 
 DATE = datetime.now().strftime("%Y%m%d")
 
-EOS_BASE = config["eos_base"]
-LABEL    = config["label"]
+EOS_BASE = config.get("eos_base", "")
+LABEL    = config.get("label", "classifier")
 
 
 def _r(val):
@@ -25,34 +59,106 @@ def _r(val):
     return val
 
 
-CLASSIFIER_CONFIG_PATHS = config["classifier_config_paths"]
-WFS_BASE                = config["wfs_base"]
-OUTPUT_DIR              = _r(config["output_dir"]).rstrip("/")
+CLASSIFIER_CONFIG_PATHS = config.get("classifier_config_paths", "coffea4bees")
+WFS_BASE                = config.get("wfs_base", "")
+OUTPUT_DIR              = _r(config.get("output_dir", f"output/{LABEL}")).rstrip("/")
 PLOT_INPUTS             = bool(config.get("plot_inputs", False))
 PLOT_WEIGHTS            = bool(config.get("plot_weights", False))
 EVALUATE                = bool(config.get("evaluate", True))
 
-MODEL          = _r(config["model"])
-TRAIN_TEMPLATE = _r(config["train_template"])
+MODEL          = _r(config.get("model", f"{EOS_BASE}/classifier/{LABEL}"))
+TRAIN_TEMPLATE = _r(config.get("train_template", f"model: {MODEL}"))
 EVAL_TEMPLATE  = _r(config.get("eval_template", ""))
 METADATA       = config.get("metadata", "")
 FRIEND         = _r(config.get("friend", ""))
 
-PLOT_BASE = config["plot_base"]
-COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml"))
+PLOT_BASE = config.get("plot_base", "")
+COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml" if WFS_BASE else "common.yml"))
+
+# ── Cluster resource defaults ────────────────────────────────────────────────
+default_gpu_partition = config.get("gpu_partition", "work")
+default_gpu_account   = config.get("slurm_account", "")
+default_gpu_gres      = config.get("gpu_gres", "mps:50")
+default_gpu_mem       = config.get("gpu_mem", 64000)
+# medium, not light: falcon's light QOS caps a job at mps:25 (QOSMaxGRESPerJob), and the default
+# gres above is mps:50 -- d67ba6e2 paired them and every train/evaluate sbatch was rejected.
+# Before that refactor these rules hardcoded qos=medium with mps:50.
+default_gpu_qos       = config.get("gpu_qos", "medium")
 
 # ── Container images ──────────────────────────────────────────────────────────
 
 CLASSIFIER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
-ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+ANALYSIS_CONTAINER = "/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/cms-cmu/barista:latest"
 
-INIT = "set -e && set +u && { [ -f /entrypoint.sh ] && source /entrypoint.sh || true; } && set -u && export PYTHONUNBUFFERED=1"
+INIT = "set -e && set +u && { [ -f /entrypoint.sh ] && source /entrypoint.sh || true; } && set -u && export PYTHONUNBUFFERED=1 && { ulimit -n 65536 2>/dev/null || true; }"
 
-# ── Rules ─────────────────────────────────────────────────────────────────────
+# ── Wildcard resolution helpers ──────────────────────────────────────────────
 
+wildcard_constraints:
+    model_dir = ".+"
+
+
+def _get_train_wf(wildcards):
+    if WFS_BASE and os.path.exists(f"{WFS_BASE}/train.yml"):
+        return f"{WFS_BASE}/train.yml"
+    return f"{wildcards.model_dir}/wfs/train.yml"
+
+
+def _get_eval_wf(wildcards):
+    if WFS_BASE and os.path.exists(f"{WFS_BASE}/evaluate.yml"):
+        return f"{WFS_BASE}/evaluate.yml"
+    return f"{wildcards.model_dir}/wfs/evaluate.yml"
+
+
+def _get_common(wildcards):
+    if config.get("common") and os.path.exists(config["common"]):
+        return config["common"]
+    custom = f"{wildcards.model_dir}/common.yml"
+    if os.path.exists(custom):
+        return custom
+    return custom
+
+
+def _get_train_template(wildcards):
+    template_fn = config.get("train_template_fn")
+    if callable(template_fn):
+        return template_fn(wildcards)
+    templates = config.get("train_templates")
+    if isinstance(templates, dict) and wildcards.model_dir in templates:
+        return templates[wildcards.model_dir]
+    if isinstance(TRAIN_TEMPLATE, str) and "{model_dir}" in TRAIN_TEMPLATE:
+        return TRAIN_TEMPLATE.format(model_dir=wildcards.model_dir, eos_base=EOS_BASE, label=LABEL)
+    return TRAIN_TEMPLATE
+
+
+def _get_eval_template(wildcards):
+    template_fn = config.get("eval_template_fn")
+    if callable(template_fn):
+        return template_fn(wildcards)
+    templates = config.get("eval_templates")
+    if isinstance(templates, dict) and wildcards.model_dir in templates:
+        return templates[wildcards.model_dir]
+    if isinstance(EVAL_TEMPLATE, str) and "{model_dir}" in EVAL_TEMPLATE:
+        return EVAL_TEMPLATE.format(model_dir=wildcards.model_dir, eos_base=EOS_BASE, label=LABEL)
+    return EVAL_TEMPLATE
+
+
+def _get_model_path(wildcards):
+    model_fn = config.get("model_fn")
+    if callable(model_fn):
+        return model_fn(wildcards)
+    models = config.get("models")
+    if isinstance(models, dict) and wildcards.model_dir in models:
+        return models[wildcards.model_dir]
+    if isinstance(MODEL, str) and "{model_dir}" in MODEL:
+        return MODEL.format(model_dir=wildcards.model_dir, eos_base=EOS_BASE, label=LABEL)
+    return MODEL
+
+
+# ── Target Rules ─────────────────────────────────────────────────────────────
 
 def _all_targets():
-    targets = [f"{OUTPUT_DIR}/train.done"]
+    targets = [f"{OUTPUT_DIR}/train.done", f"{OUTPUT_DIR}/yields.html"]
     if EVALUATE:
         targets += [
             f"{OUTPUT_DIR}/evaluate.done",
@@ -75,45 +181,79 @@ rule all:
 
 
 rule train:
+    retries: 0 if config.get("test", False) else config.get("retries", 3)
+    input:
+        wf     = _get_train_wf,
+        common = _get_common,
     output:
-        flag = f"{OUTPUT_DIR}/train.done",
+        flag = "{model_dir}/train.done",
     log:
-        f"{OUTPUT_DIR}/train.log",
+        "{model_dir}/train.log",
     container: CLASSIFIER
     resources:
-        runtime = 480,
-        mem_mb  = 64000,
-        gres    = "mps:25",
-        qos     = "light",
-    threads: 8
+        runtime         = config.get("train_runtime", 480),
+        mem_mb          = config.get("train_mem", default_gpu_mem),
+        gres            = config.get("train_gres", default_gpu_gres),
+        qos             = config.get("train_qos", default_gpu_qos),
+        slurm_partition = config.get("train_partition", default_gpu_partition),
+        slurm_account   = config.get("slurm_account", default_gpu_account),
+    threads: config.get("train_threads", 8)
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
-        wfs_base                = WFS_BASE,
-        template_str            = TRAIN_TEMPLATE,
-        common                  = COMMON,
+        template_str            = _get_train_template,
+        yields                  = lambda wildcards: f"{wildcards.model_dir}/yields_loaded.json",
     shell:
         """
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
+        mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
+        rm -f {params.yields} && \
+        set +u && \
+        if [ -z "$X509_USER_PROXY" ] && [ -f ./proxy/x509_proxy ]; then \
+            export X509_USER_PROXY="$PWD/proxy/x509_proxy"; \
+        fi && \
+        set -u && \
+        HCR_YIELDS_FILE=$PWD/{params.yields} \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
-            template "{{{params.template_str}}}" {params.wfs_base}/train.yml \
-            -from {params.common} \
-            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            template "{{{params.template_str}}}" {input.wf} \
+            -from {input.common} \
+            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
+        test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
+        """
+
+
+rule yields:
+    input:
+        "{model_dir}/train.done",
+    output:
+        html = "{model_dir}/yields.html",
+        json = "{model_dir}/yields.json",
+    log:
+        "{model_dir}/yields.log",
+    params:
+        loaded    = lambda wildcards: f"{wildcards.model_dir}/yields_loaded.json",
+        train_log = lambda wildcards: f"{wildcards.model_dir}/train.log",
+        ratios    = " ".join(f'--ratio "{r}"' for r in config.get("yields_ratio", []) or []),
+        title     = lambda wildcards: os.path.basename(wildcards.model_dir),
+    shell:
+        """
+        python3 src/classifier/yields_report.py --yields {params.loaded} --log {params.train_log} \
+            {params.ratios} --title {params.title} -o {output.html} --json {output.json} 2>&1 | tee {log}
         """
 
 
 rule analyze:
     input:
-        f"{OUTPUT_DIR}/train.done",
+        "{model_dir}/train.done",
     output:
-        flag = f"{OUTPUT_DIR}/analyze.done",
+        flag = "{model_dir}/analyze.done",
     log:
-        f"{OUTPUT_DIR}/analyze.log",
+        "{model_dir}/analyze.log",
     container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
@@ -122,11 +262,12 @@ rule analyze:
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
-        model                   = MODEL,
-        plot                    = f"{PLOT_BASE}/{DATE}_{LABEL}/analyze",
+        model                   = _get_model_path,
+        plot                    = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/analyze",
     shell:
         """
         {params.init} && \
+        mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main analyze \
             {params.model}/result.json \
@@ -135,54 +276,63 @@ rule analyze:
             -setting IO "report: $(basename {params.model})" \
             -setting Monitor "enable: False" \
             2>&1 | tee -a {log}
+        test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
         """
 
 
 rule evaluate:
+    retries: 0 if config.get("test", False) else config.get("retries", 3)
     input:
-        f"{OUTPUT_DIR}/train.done",
+        train_flag = "{model_dir}/train.done",
+        eval_wf    = _get_eval_wf,
+        common     = _get_common,
     output:
-        flag = f"{OUTPUT_DIR}/evaluate.done",
+        flag = "{model_dir}/evaluate.done",
     log:
-        f"{OUTPUT_DIR}/evaluate.log",
+        "{model_dir}/evaluate.log",
     container: CLASSIFIER
     resources:
-        runtime = 480,
-        mem_mb  = 64000,
-        gres    = "mps:25",
-        qos     = "light",
-    threads: 8
+        runtime         = config.get("eval_runtime", 480),
+        mem_mb          = config.get("eval_mem", default_gpu_mem),
+        gres            = config.get("eval_gres", default_gpu_gres),
+        qos             = config.get("eval_qos", default_gpu_qos),
+        slurm_partition = config.get("eval_partition", default_gpu_partition),
+        slurm_account   = config.get("slurm_account", default_gpu_account),
+    threads: config.get("eval_threads", 8)
     params:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
-        wfs_base                = WFS_BASE,
-        template_str            = EVAL_TEMPLATE,
-        common                  = COMMON,
+        template_str            = _get_eval_template,
     shell:
         """
         {params.init} && \
         PORT=$(shuf -i 10200-10300 -n 1) && \
+        mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
+        set +u && \
+        if [ -z "$X509_USER_PROXY" ] && [ -f ./proxy/x509_proxy ]; then \
+            export X509_USER_PROXY="$PWD/proxy/x509_proxy"; \
+        fi && \
+        set -u && \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
         python -m src.classifier.task.main \
-            template "{{{params.template_str}}}" {params.wfs_base}/evaluate.yml \
-            -from {params.common} \
-            -setting Monitor "address: '127.0.0.1:$PORT'" \
+            template "{{{params.template_str}}}" {input.eval_wf} \
+            -from {input.common} \
+            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
+        test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
         """
 
 
 rule plot_inputs_raw:
-    # Only targeted by rule all when plot_inputs: true in workflow_config.yml.
-    # Requires metadata to be set. Running directly with metadata: "" will fail.
     input:
-        f"{OUTPUT_DIR}/train.done",
+        "{model_dir}/train.done",
     output:
-        flag = f"{OUTPUT_DIR}/plot_inputs_raw.done",
+        flag = "{model_dir}/plot_inputs_raw.done",
     log:
-        f"{OUTPUT_DIR}/plot_inputs_raw.log",
+        "{model_dir}/plot_inputs_raw.log",
     container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
@@ -190,9 +340,9 @@ rule plot_inputs_raw:
     threads: 1
     params:
         init     = INIT,
-        model    = MODEL,
+        model    = _get_model_path,
         metadata = METADATA,
-        plot     = f"{PLOT_BASE}/{DATE}_{LABEL}/inputs_raw",
+        plot     = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/inputs_raw",
     shell:
         """
         {params.init} && \
@@ -207,14 +357,12 @@ rule plot_inputs_raw:
 
 
 rule plot_inputs_dataprep:
-    # Only targeted by rule all when plot_inputs: true in workflow_config.yml.
-    # Requires metadata to be set. Running directly with metadata: "" will fail.
     input:
-        f"{OUTPUT_DIR}/train.done",
+        "{model_dir}/train.done",
     output:
-        flag = f"{OUTPUT_DIR}/plot_inputs_dataprep.done",
+        flag = "{model_dir}/plot_inputs_dataprep.done",
     log:
-        f"{OUTPUT_DIR}/plot_inputs_dataprep.log",
+        "{model_dir}/plot_inputs_dataprep.log",
     container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
@@ -222,9 +370,9 @@ rule plot_inputs_dataprep:
     threads: 1
     params:
         init     = INIT,
-        model    = MODEL,
+        model    = _get_model_path,
         metadata = METADATA,
-        plot     = f"{PLOT_BASE}/{DATE}_{LABEL}/inputs_dataprep",
+        plot     = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/inputs_dataprep",
     shell:
         """
         {params.init} && \
@@ -239,14 +387,12 @@ rule plot_inputs_dataprep:
 
 
 rule plot_weights:
-    # Only targeted by rule all when plot_weights: true in workflow_config.yml.
-    # Requires metadata to be set. Running directly with metadata: "" will fail.
     input:
-        f"{OUTPUT_DIR}/train.done",
+        "{model_dir}/train.done",
     output:
-        flag = f"{OUTPUT_DIR}/plot_weights.done",
+        flag = "{model_dir}/plot_weights.done",
     log:
-        f"{OUTPUT_DIR}/plot_weights.log",
+        "{model_dir}/plot_weights.log",
     container: ANALYSIS_CONTAINER
     resources:
         runtime = 60,
@@ -254,11 +400,11 @@ rule plot_weights:
     threads: 1
     params:
         init         = INIT,
-        model        = MODEL,
+        model        = _get_model_path,
         metadata     = METADATA,
-        plot         = f"{PLOT_BASE}/{DATE}_{LABEL}/weights",
-        wfs_base     = WFS_BASE,
-        template_str = TRAIN_TEMPLATE,
+        plot         = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/weights",
+        wfs_base     = _get_train_wf,
+        template_str = _get_train_template,
         friend_path  = FRIEND,
     shell:
         """
@@ -267,10 +413,12 @@ rule plot_weights:
             --checkpoint {params.model} \
             --metadata {params.metadata} \
             --output-dir {params.plot} \
-            --wfs-base {params.wfs_base} \
+            --wfs-base $(dirname {params.wfs_base}) \
             --template-str "{params.template_str}" \
             --friend-path "{params.friend_path}" \
             2>&1 | tee -a {log}
         touch {output.flag}
         """
 
+
+localrules: yields

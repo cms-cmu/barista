@@ -13,6 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from rich.pretty import pretty_repr
 from omegaconf import OmegaConf
 import copy
+import shutil
 
 # Monkey-patch coffea's rucio_utils to prevent KeyError: 'rse' for incomplete SITECONF JSONs
 try:
@@ -86,6 +87,10 @@ class WorkerInitializer(WorkerPlugin):
                 logging.info("Code package extracted successfully")
         if os.getcwd() not in sys.path:
             sys.path.insert(0, os.getcwd())
+        # HTCondor may hand the worker a proxy path relative to its scratch dir; XRootD wants an absolute one.
+        proxy = os.environ.get("X509_USER_PROXY")
+        if proxy and not os.path.isabs(proxy) and os.path.exists(proxy):
+            os.environ["X509_USER_PROXY"] = os.path.abspath(proxy)
         if delays := self.uproot_xrootd_retry_delays:
             from src.data_formats.root.patch import uproot_XRootD_retry
             uproot_XRootD_retry(len(delays) + 1, delays)
@@ -98,9 +103,9 @@ from src.runner.cli import parse_args, make_parser
 from src.runner.env import setup_environment, print_reproducibility_info, check_and_setup_proxy, sync_nfs_writes
 from src.runner.cluster import setup_shared_dask_client, setup_condor_cluster, setup_slurm_cluster, setup_local_cluster
 from src.runner.dataset import (
-    apply_storage_remap, find_matching_dataset, get_dataset_type, calculate_cross_section,
+    apply_storage_remap, find_matching_dataset, get_dataset_type, mixed_variant_prefix, calculate_cross_section,
     process_mc_dataset, process_sample_based_dataset, process_data_for_mix, process_tt_for_mixed,
-    process_data_dataset, add_fvt_metadata, apply_datasets_filter,
+    process_data_dataset, add_fvt_metadata, apply_datasets_filter, load_datasets_metadata,
     expand_directory_files, list_of_files
 )
 from src.runner.orchestrator import (
@@ -142,6 +147,7 @@ if __name__ == '__main__':
     logging.getLogger('numba').setLevel(logging.WARNING)
     logging.getLogger("lpcjobqueue").setLevel(logging.WARNING)
     logging.getLogger("dask_jobqueue").setLevel(logging.WARNING)
+    logging.getLogger("dask_lxplus").setLevel(logging.WARNING)
 
     # Re-execute under mprof if requested and not already running under it
     if getattr(args, 'run_performance', False) and not os.environ.get("RUNNER_MPROF_ACTIVE"):
@@ -209,6 +215,8 @@ if __name__ == '__main__':
             config_runner['worker_memory'] = args.worker_memory
         if getattr(args, 'slurm_qos', None) is not None:
             config_runner['slurm_qos'] = args.slurm_qos
+        if getattr(args, 'condor_site', None):
+            config_runner['condor_site'] = args.condor_site
         if config_runner['dashboard_address'] != 0:
             requested = config_runner['dashboard_address']
             config_runner['dashboard_address'] = find_free_port(requested)
@@ -252,19 +260,28 @@ if __name__ == '__main__':
     logging.info(">>> Modifying config")
     print(yaml.dump(configs, default_flow_style=False))
 
-    # Inherit top-level properties from config YAML if present
+    # Inherit properties from config YAML if present (checking both root and runner section)
+    cfg_runner = configs.get('runner', {}) if isinstance(configs.get('runner'), dict) else {}
     if 'processor' in configs and configs['processor']:
         args.processor = configs['processor']
-    if 'friend_file' in configs and configs['friend_file']:
-        args.friends = configs['friend_file']
-    elif 'friends' in configs and isinstance(configs['friends'], str):
-        args.friends = configs['friends']
-    if 'weights_file' in configs and configs['weights_file']:
-        args.weights = configs['weights_file']
-    elif 'weights' in configs and isinstance(configs['weights'], str):
-        args.weights = configs['weights']
-    if 'dataset_location' in configs and configs['dataset_location']:
-        args.metadata = configs['dataset_location']
+    elif 'processor' in cfg_runner and cfg_runner['processor']:
+        args.processor = cfg_runner['processor']
+
+    friend_val = configs.get('friend_file') or configs.get('friends') or cfg_runner.get('friend_file') or cfg_runner.get('friends')
+    if friend_val:
+        args.friends = friend_val
+
+    weights_val = configs.get('weights_file') or configs.get('weights') or cfg_runner.get('weights_file') or cfg_runner.get('weights')
+    if weights_val:
+        args.weights = weights_val
+
+    metadata_val = configs.get('metadata') or cfg_runner.get('metadata') or configs.get('dataset_location') or cfg_runner.get('dataset_location')
+    if metadata_val and not getattr(args, 'metadata', None):
+        args.metadata = metadata_val
+
+    for r_key in ['condor', 'shared_dask', 'slurm', 'run_dask', 'worker_memory']:
+        if r_key in cfg_runner and not getattr(args, r_key, False):
+            setattr(args, r_key, cfg_runner[r_key])
 
     # Load corrections_metadata
     logging.info("Loading corrections metadata from: src/physics/corrections.yml")
@@ -281,30 +298,9 @@ if __name__ == '__main__':
         logging.info(f"Systematics to run: {args.systematics}")
         configs['config']['run_systematics'] = args.systematics
 
-    # Load datasets metadata (supports multiple files merging)
-    if getattr(args, 'datasets_metadata_files', None):
-        logging.info(">>> Merging datasets metadata files")
-        merged_datasets = {}
-        for fpath in args.datasets_metadata_files:
-            print(f"  Loading: {fpath}")
-            with open(fpath, 'r') as f:
-                f_data = yaml.safe_load(f)
-                if isinstance(f_data, dict):
-                    if 'datasets' in f_data:
-                        merged_datasets.update(f_data['datasets'])
-                    else:
-                        merged_datasets.update(f_data)
-        datasets = {'datasets': merged_datasets}
-        print(f"Merged datasets metadata: loaded {len(merged_datasets)} top-level dataset keys.")
-    else:
-        logging.info(f"Loading datasets metadata from: {args.metadata}")
-        if os.path.isdir(args.metadata):
-            files = [OmegaConf.load(os.path.join(args.metadata, f)) for f in os.listdir(args.metadata) if f.endswith(('.yaml', '.yml'))]
-            datasets = OmegaConf.to_container(OmegaConf.create({'datasets': OmegaConf.merge(*files)}), resolve=True)
-        else:
-            datasets = yaml.safe_load(open(args.metadata, 'r'))
-            if isinstance(datasets, dict) and 'datasets' not in datasets:
-                datasets = {'datasets': datasets}
+    # Load datasets metadata: one or more local dirs / local or remote (fsspec) YAML files
+    logging.info(f"Loading datasets metadata from: {args.metadata}")
+    datasets = load_datasets_metadata(args.metadata)
 
     # Apply dataset exclusions/filters
     if getattr(args, 'datasets_filter', None):
@@ -352,6 +348,8 @@ if __name__ == '__main__':
         config_runner['worker_memory'] = args.worker_memory
     if getattr(args, 'slurm_qos', None) is not None:
         config_runner['slurm_qos'] = args.slurm_qos
+    if getattr(args, 'condor_site', None):
+        config_runner['condor_site'] = args.condor_site
 
     if config_runner['dashboard_address'] != 0:
         requested = config_runner['dashboard_address']
@@ -371,7 +369,13 @@ if __name__ == '__main__':
         for dataset in args.datasets:
             logging.info(f"Processing dataset: {dataset}")
 
-            matched_dataset = find_matching_dataset(dataset, metadata)
+            dataset_sample = None
+            if ":" in dataset:
+                dataset_name_part, dataset_sample = dataset.split(":", 1)
+            else:
+                dataset_name_part = dataset
+
+            matched_dataset = find_matching_dataset(dataset_name_part, metadata)
             if matched_dataset is None:
                 logging.warning(f"Skipping dataset {dataset} - no match found")
                 continue
@@ -392,30 +396,37 @@ if __name__ == '__main__':
                 'trigger': metadata['triggers'][year],
             }
 
+            dataset_args = args
+            if dataset_sample is not None:
+                dataset_args = copy.copy(args)
+                dataset_args.samples = [dataset_sample]
+
             if dataset_type == 'mc':
-                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_mc_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'mixed_data':
-                process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner, add_fvt_metadata)
+                process_sample_based_dataset('mixed_data', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner, add_fvt_metadata)
             elif dataset_type == 'mixeddata_all':
-                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'mixeddata_4b':
-                process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type in ['mixeddata_4b_noTT']:
-                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type in ['mixeddata_4b_pz']:
-                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('mixeddata_4b', 'mix_pz', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
+            elif dataset_type == 'mixeddata_4b_variant':
+                process_sample_based_dataset('mixeddata_4b', mixed_variant_prefix(matched_dataset), matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data_mixed':
-                process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('data_mixed', 'mix', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'synthetic_data':
-                process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('synthetic_data', 'syn', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'synthetic_data_noTT':
-                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_sample_based_dataset('synthetic_data', 'syn_noTT', matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data_for_mix':
-                process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_for_mix(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'tt_for_mixed':
-                process_tt_for_mixed(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_tt_for_mixed(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
             elif dataset_type == 'data':
-                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, args, config_runner)
+                process_data_dataset(matched_dataset, year, metadata, metadata_dataset, fileset, dataset_args, config_runner)
 
     logging.info(f"Dataset processing complete. Total datasets in fileset: {len(fileset)}")
     logging.debug(f"fileset is {pretty_repr(fileset)}")
@@ -443,10 +454,12 @@ if __name__ == '__main__':
                 client = Client(args.scheduler_address)
                 cluster = None
             elif getattr(args, 'condor', False):
-                logging.info("Configuring standalone LPCCondorCluster...")
-                from src.runner.cluster import create_code_tarball
+                from src.runner.cluster import create_code_tarball, detect_condor_site
+                condor_site = detect_condor_site(config_runner)
+                logging.info(f"Configuring standalone HTCondor Dask cluster (site: {condor_site})...")
                 tarball_path, _temp_condor_dir = create_code_tarball(config_runner['condor_transfer_input_files'], tmpdir=args.tmpdir)
-                client, cluster, log_dir = setup_condor_cluster(config_runner, tarball_path)
+                client, cluster, log_dir = setup_condor_cluster(
+                    config_runner, tarball_path, proxy_path=os.environ.get('X509_USER_PROXY'), site=condor_site)
             elif getattr(args, 'slurm', False):
                 logging.info("Configuring standalone SLURMCluster...")
                 client, cluster = setup_slurm_cluster(config_runner)
@@ -476,6 +489,21 @@ if __name__ == '__main__':
     logging.info(f"Successfully loaded processor: {processor_name}.{config_runner['class_name']}")
 
     # Inject per-year friends
+    #
+    # `friends_include` (config, or the top level) restricts the injection to the friends this
+    # job actually reads. Every friend injected here is eagerly fetched from EOS and parsed by
+    # parse_friends, and the resulting index becomes part of the processor instance, which is
+    # pickled out to every worker -- so a phase that reads one friend still pays for all of
+    # them. friends_HH4b.yml defines ~19 for the Run 3 years (FvT, MvD and sixteen SvB study
+    # trainings, ~25 MB of JSON), while Phase B.1 uses only trigWeight: it nulls every SvB*/FvT
+    # config key and runs with run_SvB False, but friend_file has to stay for the trigger
+    # weights (dropping it silently disabled them for all ttbar MC in the Run 2 production).
+    #
+    # Omit the key to inject everything, which is the historical behaviour. The allowlist applies
+    # to the merged result, not just the per-year file: config.friends carries the per-roast FvT
+    # and SvB_MA, which B.1 does not read either (they point at this roast's Phase C/D outputs,
+    # which do not exist while B runs -- parse_friends drops them with a warning, so the old
+    # behaviour was to inject two friends that could never load).
     year_friends = {}
     if getattr(args, 'friends', None) and 'friends' in inspect.signature(analysis_class.__init__).parameters:
         logging.info(f"Loading friends metadata from: {args.friends}")
@@ -485,10 +513,34 @@ if __name__ == '__main__':
                 if k in year_friends and year_friends[k] != v:
                     logging.warning(f"Friends key '{k}' has conflicting values across years {args.years}; using value for {year}")
                 year_friends[k] = v
-        if year_friends:
-            existing_friends = configs.get('config', {}).get('friends') or {}
-            configs.setdefault('config', {})['friends'] = {**year_friends, **existing_friends}
-            logging.info(f"Injected per-year friends for {args.years}: {list(year_friends.keys())}")
+
+        # pop, not get: this is a runner-level option, not a processor setting, and a processor
+        # taking **kwargs would otherwise be handed it (orchestrator only filters on the
+        # signature for processors that don't).
+        include = configs.get('config', {}).pop('friends_include', configs.pop('friends_include', None))
+
+        # config.friends wins over the per-year file: it is how a roast points FvT/SvB_MA at its
+        # own Phase C/D output instead of the production named in friends_HH4b.yml.
+        existing_friends = configs.get('config', {}).get('friends') or {}
+        merged = {**year_friends, **existing_friends}
+
+        if include is not None:
+            if isinstance(include, str):
+                include = [f.strip() for f in include.split(",") if f.strip()]
+            include = list(include)
+            missing = [f for f in include if f not in merged]
+            if missing:
+                logging.warning(f"friends_include names friends not available for {args.years} "
+                                f"(neither {args.friends} nor config.friends defines them): {missing}")
+            dropped = sorted(k for k in merged if k not in include)
+            merged = {k: v for k, v in merged.items() if k in include}
+            if dropped:
+                logging.info(f"friends_include={include}: not injecting {len(dropped)} unused "
+                             f"friend(s): {dropped}")
+
+        if merged:
+            configs.setdefault('config', {})['friends'] = merged
+            logging.info(f"Injected friends for {args.years}: {list(merged.keys())}")
 
     # Inject per-year weights if specified and accepted by the processor
     if getattr(args, 'weights', None) and 'weights' in inspect.signature(analysis_class.__init__).parameters:
@@ -527,6 +579,8 @@ if __name__ == '__main__':
                     logging.info(f"Successfully closed {obj_name}")
                 except (RuntimeError, NameError, AttributeError) as e:
                     logging.warning(f"Error closing {obj_name}: {e}")
+        for _path in getattr(cluster, 'barista_cleanup_paths', None) or []:
+            shutil.rmtree(_path, ignore_errors=True)
 
         logging.info(f'Dask performance report saved in {dask_report_file}')
     else:
@@ -545,5 +599,6 @@ if __name__ == '__main__':
 
     # Sync and sleep to flush NFS writes before exiting
     sync_nfs_writes()
-    # Trigger CI pipeline rerun
+    # os._exit skips atexit handlers: clean the condor code-tarball directory explicitly
+    cleanup_temp_condor_dir()
     os._exit(0)

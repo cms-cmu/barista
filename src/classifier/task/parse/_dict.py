@@ -81,6 +81,8 @@ def _deserialize_dir(dirpath: Path, suffix: str, formatter: str):
         result = _deserialize_file(str(f), formatter)
         if isinstance(result, dict):
             merged.update(result)
+        elif result is None:
+            continue
         else:
             raise DeserializationError(
                 f'Cannot merge non-dict file "{f}" from directory "{dirpath}"'
