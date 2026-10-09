@@ -184,7 +184,7 @@ def _ensure_output_path(*args: Any) -> str:
     args_str = ["_vs_".join(a) if isinstance(a, list) else a for a in args]
     output_path = "/".join(args_str)
     if not os.path.exists(output_path):
-        os.makedirs(output_path)
+        os.makedirs(output_path, exist_ok=True)
     return output_path
 
 def savefig(fig: Any, file_name: Union[str, List[str]], *args: Any, fmt: Union[str, List[str]] = "pdf", dpi: Any = None) -> None:
@@ -261,14 +261,17 @@ def get_cut_dict(cut: str, cut_list: List[str]) -> Dict[str, Any]:
     Returns:
         Dictionary with cuts as keys and sum as default value
     """
-    if cut.startswith("~"):
-        actual_cut = cut[1:]
-        cut_value = False
-    else:
-        actual_cut = cut
-        cut_value = True
     cut_dict = {c: sum for c in cut_list}
-    cut_dict[actual_cut] = cut_value
+    cuts = [c.strip() for c in cut.replace("+", ",").split(",") if c.strip()]
+    for single_cut in cuts:
+        if single_cut.startswith("~"):
+            actual_cut = single_cut[1:]
+            cut_value = False
+        else:
+            actual_cut = single_cut
+            cut_value = True
+        if actual_cut in cut_dict:
+            cut_dict[actual_cut] = cut_value
     return cut_dict
 
 def cut_to_label(cut: str) -> str:

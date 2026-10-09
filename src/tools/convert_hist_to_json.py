@@ -68,10 +68,20 @@ def extract_hist_data(h, base_selection, custom_axes, axis_indices, edges, cente
         base_name = ax
         if ax.startswith("pass_"):
             base_name = ax[5:]
+        elif ax.startswith("pass"):
+            base_name = ax[4:]
         elif ax.startswith("fail_"):
             base_name = ax[5:]
+        elif ax.startswith("fail"):
+            base_name = ax[4:]
         results[f"_pass_{base_name}"] = get_sliced_1d({ax: True})
         results[f"_fail_{base_name}"] = get_sliced_1d({ax: False})
+        results[f"_{ax}"] = get_sliced_1d({ax: True})
+
+    # 3. If multiple custom axes exist (e.g. gt6 AND lepton veto), provide combined pass slice
+    if len(custom_axes) > 1:
+        pass_all = {ax: True for ax in custom_axes}
+        results["_pass_nSelJets_gt6_passLeptonVeto"] = get_sliced_1d(pass_all)
         
     return results
 
@@ -84,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', dest="output",
                         default="./histos/histAll.json", help='Output file and directory.')
     parser.add_argument('-i', '--input_file', dest='input_file',
-                        default="../analysis/hists/histAll.coffea", help="File with coffea hists")
+                        default="../output/histAll.coffea", help="File with coffea hists")
     parser.add_argument('-s', '--syst_file', dest='systematics_file', action='store_true',
                         default=False, help="File contains systematic variations")
     args = parser.parse_args()

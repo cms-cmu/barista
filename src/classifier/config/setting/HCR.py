@@ -12,7 +12,7 @@ try:
     from coffea4bees.classifier.config.setting.HCR import __all__ as _coffea4bees_all
     __all__ = _coffea4bees_all
 except ImportError:
-    from enum import IntEnum
+    from enum import IntEnum, IntFlag
     from src.classifier.task import GlobalSetting
 
     class InputBranch(GlobalSetting):
@@ -55,13 +55,13 @@ except ImportError:
         quadjet_raw: str = "quadjet_raw"
         quadjet_prob: str = "quadjet_prob"
 
-    class MassRegion(IntEnum):
+    class MassRegion(IntFlag):
         SB = 0b10
         ZZSR = 0b0101
         ZHSR = 0b1001
         HHSR = 0b1101
         SR = 0b01
 
-    class NTag(IntEnum):
+    class NTag(IntFlag):
         fourTag = 0b10
         threeTag = 0b01

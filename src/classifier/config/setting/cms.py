@@ -5,10 +5,7 @@ class CollisionData(GlobalSetting):
     "CMS collision data metadata"
 
     eras: dict[str, list[str]] = {
-        "2022_preEE": ["C", "D"],
-        "2022_EE": ["E", "F", "G"],
-        #"2023_preBPix": ["C", "D"],
-        #"2023_BPix" : ["E", "F", "G"]
+        "2023_BPix": ["D1", "D2"],
     }
     "eras for MC datasets"
     years: list[str] = ["2022", "2023", "2024", "2025", "2026"]

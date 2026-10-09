@@ -12,6 +12,7 @@ from rich.pretty import pretty_repr
 from coffea import processor
 from coffea.util import save
 import fsspec
+import inspect
 
 from coffea.nanoevents import NanoAODSchema, PFNanoAODSchema
 if hasattr(NanoAODSchema, 'error_missing_event_ids'):
@@ -76,9 +77,14 @@ def compute_with_client(client, func, *args, **kwargs):
         return func(*args, dask=False, **kwargs)
 
 def find_free_port(preferred: int) -> int:
-    """Return preferred port if free, otherwise let the OS pick one."""
+    """Return preferred port if free, otherwise let the OS pick one.
+
+    SO_REUSEADDR makes the probe behave like Dask's own listener: a port whose previous
+    scheduler just exited (connections in TIME_WAIT) is reported free, not busy.
+    """
     import socket
     with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(('', preferred))
         except OSError:
@@ -103,7 +109,7 @@ def setup_config_defaults(config_runner, args):
         'min_workers': 1,
         'max_workers': 1000 if getattr(args, 'shared_dask', False) else 400,
         'workers': 2,
-        'skipbadfiles': False,
+        'skipbadfiles': True,
         'dashboard_address': 10200,
         'friend_base': None,
         'friend_base_argname': "make_classifier_input",
@@ -118,6 +124,17 @@ def setup_config_defaults(config_runner, args):
         'slurm_walltime': '08:00:00',
         'slurm_log_directory': 'slurm_logs',
         'slurm_job_extra': [],
+        # HTCondor site for --condor: None = auto-detect (BARISTA_SITE env / hostname), 'lpc' or 'lxplus'
+        'condor_site': None,
+        # lxplus (CERN HTCondor via dask_lxplus) worker settings
+        'lxplus_job_flavour': 'workday',
+        'lxplus_disk_per_worker': '10GB',
+        'lxplus_death_timeout': 3600,
+        'lxplus_scheduler_port': 8786,
+        'lxplus_batch_name': 'barista-dask',
+        'lxplus_worker_image': None,
+        'lxplus_eos_scratch': '/eos/cms/store/group/phys_higgs/ttHbb/{user}/4b/barista_scratch',
+        'lxplus_send_credential': True,
     }
 
     for key, default_value in defaults.items():
@@ -145,7 +162,9 @@ def setup_pico_base_name(configs):
 
     # Check for special configurations
     if "declustering_rand_seed" in config_config:
-        return f'picoAOD_seed{config_config["declustering_rand_seed"]}'
+        # must match the DeClusterer's own pico_base_name (library-based declustering adds "lib_")
+        tag = "lib_" if config_config.get("declustering_method", "pdf") == "library" else ""
+        return f'picoAOD_{tag}seed{config_config["declustering_rand_seed"]}'
 
     class_name = config_runner.get("class_name")
     if class_name == "SubSampler":
@@ -311,16 +330,23 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
                 fname = f'{path1}_{fname}'
             return f'{dir_name}/{fname}'
 
-        merge_kw = {
-            'step': config_runner["friend_merge_step"],
-            'base_path': friend_base,
-            'naming': _merge_naming,
-            'transform': NanoAOD(regular=False, jagged=True),
-        }
+        def _get_merge_kw(friend_name):
+            base = friend_base
+            cfg = configs.get("config", {}) if isinstance(configs, dict) else {}
+            if friend_name == "HCR_input" and cfg.get("make_classifier_input"):
+                base = cfg["make_classifier_input"]
+            elif friend_name == "SvB" and cfg.get("make_friend_SvB"):
+                base = cfg["make_friend_SvB"]
+            return {
+                'step': config_runner["friend_merge_step"],
+                'base_path': base,
+                'naming': _merge_naming,
+                'transform': NanoAOD(regular=False, jagged=True),
+            }
 
         if args.run_dask:
             merged_friends = client.compute(
-                {k: friends[k].merge(**merge_kw, clean=False, dask=True)
+                {k: friends[k].merge(**_get_merge_kw(k), clean=False, dask=True)
                  for k in friends},
                 sync=True,
                 retries=3,
@@ -330,7 +356,7 @@ def process_friend_trees(output, config_runner, configs, args, client, fileset=N
             friends = merged_friends
         else:
             for k, v in friends.items():
-                friends[k] = v.merge(**merge_kw)
+                friends[k] = v.merge(**_get_merge_kw(k))
 
         from src.storage.eos import EOS
         from src.utils.json import DefaultEncoder
@@ -368,10 +394,17 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             maxchunks=executor_args['maxchunks'],
         )
         runner = processor.Runner(**runner_kwargs)
+        sig = inspect.signature(analysis_class.__init__)
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        processor_config = (
+            configs.get('config', {})
+            if has_kwargs
+            else {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        )
         result = runner(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
+            processor_instance=analysis_class(**processor_config),
         )
         if isinstance(result, tuple):
             output, metrics = result
@@ -379,10 +412,17 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
             output = result
             metrics = output.pop('metrics', {}) if isinstance(output, dict) else {}
     else:
+        sig = inspect.signature(analysis_class.__init__)
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        processor_config = (
+            configs.get('config', {})
+            if has_kwargs
+            else {k: v for k, v in configs.get('config', {}).items() if k in sig.parameters}
+        )
         output, metrics = processor.run_uproot_job(
             fileset,
             treename='Events',
-            processor_instance=analysis_class(**configs.get('config', {})),
+            processor_instance=analysis_class(**processor_config),
             executor=executor,
             executor_args=executor_args,
             chunksize=config_runner['chunksize'],

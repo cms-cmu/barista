@@ -156,7 +156,7 @@ The main entry point for analysis and skimming is `runner.py`, which should be r
 - `-c, --configs`: Path to the main configuration YAML file (default: `coffea4bees/analysis/metadata/HH4b.yml`)
 - `-m, --metadata`: Path to the datasets metadata YAML file (default: `coffea4bees/metadata/datasets_HH4b.yml`)
 - `-o, --output`: Name of the output file (default: `hists.coffea`)
-- `-op, --output-path`: Directory path for output files (default: `hists/`)
+- `-op, --output-path`: Directory path for output files (default: `output/`)
 - `-y, --years`: Year(s) of data to process (e.g., `--years UL17 UL18`)
 - `-d, --datasets`: Dataset name(s) to process (e.g., `--datasets HH4b ZZ4b`)
 - `-e, --eras`: Data era(s) to process (data only, e.g., `--eras A B C`)

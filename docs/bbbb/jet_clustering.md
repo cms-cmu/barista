@@ -23,7 +23,7 @@ Check the commands in
 # To make clustering PDFs
 
 ```bash
-python  jet_clustering/make_jet_splitting_PDFs.py analysis/hists/synthetic_datasets_all.coffea  --out jet_clustering/jet-splitting-PDFs-00-05-00/
+python  jet_clustering/make_jet_splitting_PDFs.py analysis/output/synthetic_datasets_all.coffea  --out jet_clustering/jet-splitting-PDFs-00-05-00/
 ```
 
 
@@ -39,7 +39,7 @@ Check the commands in
 # To compare synthetic and nominal datasets
 
 ```bash
-python jet_clustering/compare_datasets.py  --combine_input_files analysis/hists/histData.coffea  analysis/hists/test_synthetic_data_seedXXX.coffea  --out analysis/plots_synthetic_datasets_all_00-07-02-wPSData -m analysis/metadata/plotsSyntheticVsData2.yml
+python jet_clustering/compare_datasets.py  --combine_input_files analysis/output/histData.coffea  analysis/output/test_synthetic_data_seedXXX.coffea  --out analysis/plots_synthetic_datasets_all_00-07-02-wPSData -m analysis/metadata/plotsSyntheticVsData2.yml
 ```
 
 
@@ -50,12 +50,12 @@ python jet_clustering/compare_datasets.py  --combine_input_files analysis/hists/
 Compare splittings:
 
 ```python
-python  jet_clustering/splitting_comparison_plots.py analysis/hists/test_synthetic_datasets_4j_and_5j.coffea  --out jet_clustering/jet-splitting-PDFs-00-02-00/comparison
+python  jet_clustering/splitting_comparison_plots.py analysis/output/test_synthetic_datasets_4j_and_5j.coffea  --out jet_clustering/jet-splitting-PDFs-00-02-00/comparison
 ```
 
 Check the reclustered splittings (need to run `processor_cluster_4b.py` with `cluster_and_decluster.yml` configuration.
 ```python
-python jet_clustering/check_reclusted_splittings.py analysis/hists/test_synthetic_datasets_4j_and_5j.coffea --out jet_clustering/jet-splitting-PDFs-00-02-00/reclustering
+python jet_clustering/check_reclusted_splittings.py analysis/output/test_synthetic_datasets_4j_and_5j.coffea --out jet_clustering/jet-splitting-PDFs-00-02-00/reclustering
 ```
 
 # Make pdflatex slides

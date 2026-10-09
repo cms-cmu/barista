@@ -196,8 +196,13 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
     """Read metadata JSON and group friend tree paths by physics label.
 
     Only returns labels present in the `labels` list (from checkpoint).
+
+    fsspec, not open(): the classifier-input manifest is not necessarily a local file. A roast
+    publishes it to its EOS handoff area so nothing has to be copied into the falcon checkout,
+    and the workflow passes that root:// URL straight through as --metadata (the same METADATA
+    value reaches plot_inputs_raw, plot_inputs_dataprep and plot_weights).
     """
-    with open(metadata_path) as f:
+    with fsspec.open(metadata_path, "rt") as f:
         meta = json.load(f)[meta_key]
 
     label_set = set(labels)
@@ -864,8 +869,14 @@ def _build_model(saved):
     from src.classifier.ml.models.HCR import HCRArch
 
     arch = HCRArch.load(saved["arch"])
+    extra = {}
     if "offsets" in saved["model"]:
         from coffea4bees.classifier.model.HCR_lowpt import HCR_lowpt as HCRNet
+    else:
+        # The training's candidate-jet features (as ml/models/HCR.py builds it): the network
+        # sizes its per-jet input from their count, so the 4-feature default fails to load a
+        # model trained with extra CanJet features (e.g. the c6 b-tag set, 16).
+        extra["canJetFeatures"] = saved["input"].get("feature_CanJet", ("pt", "eta", "phi", "mass"))
 
     nn = HCRNet(
         dijetFeatures=arch.n_features,
@@ -876,6 +887,7 @@ def _build_model(saved):
         nClasses=len(saved["label"]),
         use_attention_gate=getattr(arch, "use_attention_gate", False),
         use_kv_proj=getattr(arch, "use_kv_proj", False),
+        **extra,
     )
     nn.load_state_dict(saved["model"])
     nn.eval()

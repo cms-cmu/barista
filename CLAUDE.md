@@ -37,6 +37,11 @@ When testing changes use the skills /test-barista and /test-coffea4bees
 
 # Snakemake workflows (uses Pixi, not container)
 ./run_container snakemake --snakefile <workflow.smk> --cores 4
+
+# CERN lxplus: --condor auto-detects the site and uses dask_lxplus (CERN HTCondor); GPU trainings
+# submitted with `./run_container classifier <cmd>` become HTCondor GPU jobs. One-time setup:
+./run_container lxplus-setup
+./run_container voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy
 ```
 
 ### Running Tests Locally
@@ -74,7 +79,9 @@ The DAG is: `train → evaluate` and `train → analyze` (parallel after trainin
 ### Key Entry Points
 
 - `runner.py` - Main analysis runner (~1000 lines). Handles dataset loading, processor execution, Dask/HTCondor submission, output saving, and git hash tracking.
-- `run_container` - Bash script that dispatches to the correct container (Coffea, Combine, Classifier, Snakemake, Brilcalc) and handles host-specific configuration (LPC, lxplus, etc.)
+- `run_container` - Bash script that dispatches to the correct container (Coffea, Combine, Classifier, Snakemake, Brilcalc) and handles host-specific configuration (LPC, lxplus, falcon, bridges2)
+- `src/runner/cluster.py` - Dask cluster backends: `setup_condor_cluster` dispatches on `detect_condor_site()` to `lpcjobqueue` (FNAL LPC) or `dask_lxplus` (CERN lxplus); SLURM (falcon/bridges2) and local clusters live here too
+- `software/condor/submit_classifier_lxplus.sh`, `software/snakemake/scripts/lxplus_condor_submit.py` - HTCondor GPU job submission on lxplus (direct command / Snakemake `lxplus_gpu` profile)
 
 ### `src/` - Barista Base Class Library
 

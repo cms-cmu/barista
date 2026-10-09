@@ -42,7 +42,7 @@ class LoadRoot(ABC, Dataset):
     )
     argparser.add_argument(
         "--friends",
-        action="extend",
+        action="append",
         nargs="+",
         default=[],
         help="the paths to the json files with friend tree metadata",
@@ -193,16 +193,18 @@ class LoadRoot(ABC, Dataset):
                     for from_root, files in from_roots
                 ]
                 groups = [(from_root, [*files]) for from_root, files in groups]
-                yield FriendTreeEvalDataset(
-                    chunks=Chunk.common(*chain(*map(lambda x: x[1], groups))),
-                    load_method=_eval_root(
-                        *groups,
-                        to_tensor=self.to_tensor,
-                        postprocessors=self.postprocessors,
-                    ),
-                    dump_base_path=IOSetting.output / self.opts.eval_base,
-                    dump_naming=self.opts.eval_naming,
-                )
+                chunks = Chunk.common(*chain(*map(lambda x: x[1], groups)))
+                if chunks:
+                    yield FriendTreeEvalDataset(
+                        chunks=chunks,
+                        load_method=_eval_root(
+                            *groups,
+                            to_tensor=self.to_tensor,
+                            postprocessors=self.postprocessors,
+                        ),
+                        dump_base_path=IOSetting.output / self.opts.eval_base,
+                        dump_naming=self.opts.eval_naming,
+                    )
 
     @cached_property
     def files(self) -> list[str]:
@@ -405,7 +407,7 @@ class _eval_root:
         self._to_tensor = to_tensor
 
     def __call__(self, chunk: Chunk):
-        data = self._from_roots[self._lookup[chunk]](chunk)
+        data = self._from_roots[self._lookup[chunk.key()]](chunk)
         for p in self._postprocessors:
             data = p(data)
         return self._to_tensor.tensor(data)

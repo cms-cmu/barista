@@ -25,8 +25,6 @@ __all__ = ["EOS", "PathLike", "EOSError", "save", "load"]
 
 
 class EOSError(Exception):
-    __module__ = Exception.__module__
-
     def __init__(self, cmd: list[str], stderr: bytes, *args):
         msg = f'Operation failed\n  Command: {" ".join(cmd)}\n  Message: {stderr.decode()}'
         super().__init__(msg, *args)
@@ -385,7 +383,9 @@ class EOS:
         return self.join(other)
 
     def local_temp(self, dir=None):
-        return EOS(tempfile.mkstemp(suffix=f"_{self.name}", dir=dir)[1])
+        fd, path = tempfile.mkstemp(suffix=f"_{self.name}", dir=dir)
+        os.close(fd)
+        return EOS(path)
 
     @classmethod
     def common_base(cls, *paths: PathLike):

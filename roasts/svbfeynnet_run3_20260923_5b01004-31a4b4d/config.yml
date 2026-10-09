@@ -1,0 +1,13 @@
+# Workflow config for Snakefile_SvBFeynNet_friendtrees_Run3.smk run as a roast step.
+#
+# Regenerates the Run 3 SvB_FeynNet friend trees for data and signal (kl=1) only.
+# The installed metadata/friends/SvBFeynNetfriend_mixeddata_data.json then holds
+# just those two sources; ttbar is dropped and mixeddata is re-merged by its own
+# roast later. Signal was already valid (UUID-checked 2026-09-23): it is remade
+# for the record, not as a fix.
+#
+#   bin/roast new --config coffea4bees/workflows/config/svbfeynnet_run3.yml --label svbfeynnet_run3 \
+#     --step cmslpc:coffea4bees/workflows/Snakefile_SvBFeynNet_friendtrees_Run3.smk
+
+label: svbfeynnet_run3
+feynnet_sources: [data, HH]

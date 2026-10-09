@@ -18,6 +18,7 @@ USER mambauser
 
 # Install packages from conda-forge
 # Note: we need python, pip, coffea, uproot, awkward, vector, hist, dask, dask-jobqueue, dask-awkward, xrootd, voms, htcondor, nodejs, and pytorch
+# HTCondor backends: lpcjobqueue (FNAL LPC) and dask-lxplus (CERN lxplus) are installed via pip below.
 RUN micromamba install -y -n base -c conda-forge \
     python=3.12 \
     pip \
@@ -60,6 +61,11 @@ RUN micromamba run -n base python -m pip install --no-cache-dir \
     pyvis \
     git+https://github.com/CoffeaTeam/lpcjobqueue.git@v0.6.0 \
     conda-pack
+
+# CERN lxplus HTCondor backend for the Dask runner. Installed without dependencies on purpose:
+# its unpinned `dask` requirement would otherwise pull a dask release incompatible with the pinned
+# distributed/dask-awkward above; everything it imports (dask, dask-jobqueue, pyyaml) is already present.
+RUN micromamba run -n base python -m pip install --no-cache-dir --no-deps "dask-lxplus==0.3.3"
 
 # Create directories as root
 USER root
