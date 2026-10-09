@@ -39,10 +39,10 @@ LOG_DIR = "k8s_logs"
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
 STORAGE_CLAIM = os.environ.get("NAUTILUS_STORAGE_CLAIM", "cms-cmu-storage")
 IMAGE = os.environ.get(
-    "NAUTILUS_IMAGE", "gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest"
+    "NAUTILUS_IMAGE", "gitlab-registry.nrp-nautilus.io/cms-cmu/barista:classifier_latest"
 )
 WORKDIR = os.environ.get(
-    "NAUTILUS_WORKDIR", f"/workspace/users/{getpass.getuser()}/barista"
+    "NAUTILUS_WORKDIR", os.getcwd()
 )
 CVMFS_CLAIM = os.environ.get("NAUTILUS_CVMFS_CLAIM", "cvmfs")
 ENABLE_CVMFS = os.environ.get("NAUTILUS_ENABLE_CVMFS", "true").lower() in ("true", "1", "yes")
@@ -79,13 +79,23 @@ def should_submit(rule, resources, config):
     return rule in rules
 
 
-def build_k8s_job_yaml(job_name, jobscript_content, gpus=1):
+def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16):
     """Generate the Kubernetes Job manifest."""
     # Indent the script for YAML block scalar
     indented_script = "\n".join("            " + line for line in jobscript_content.splitlines())
 
-    gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '4'\n            memory: 32Gi" if gpus > 0 else "cpu: '2'\n            memory: 8Gi"
-    gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '1'\n            memory: 4Gi" if gpus > 0 else "cpu: '1'\n            memory: 2Gi"
+    if gpus > 0:
+        req_cpu = max(int(cpus), 6)
+        lim_cpu = max(req_cpu + 2, 8)
+        req_mem = f"{max(int(mem_gb), 16)}Gi"
+        lim_mem = "32Gi"
+        gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
+        gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
+    else:
+        req_cpu = max(int(cpus), 1)
+        lim_cpu = max(req_cpu + 1, 2)
+        gpu_limits = f"cpu: '{lim_cpu}'\n            memory: 8Gi"
+        gpu_requests = f"cpu: '{req_cpu}'\n            memory: 2Gi"
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -166,6 +176,11 @@ def main():
         sys.exit(res.returncode)
 
     gpus = n_gpus(resources) or 1
+    threads = props.get("threads", 1)
+    cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
+    mem_mb = int(resources.get("mem_mb", 16000))
+    mem_gb = max(16, mem_mb // 1024)
+
     os.makedirs(LOG_DIR, exist_ok=True)
 
     # Sanitize job name for Kubernetes (RFC 1123, max 63 characters)
@@ -176,7 +191,9 @@ def main():
     with open(jobscript, "r") as f:
         jobscript_content = f.read()
 
-    manifest_yaml = build_k8s_job_yaml(job_name, jobscript_content, gpus=gpus)
+    manifest_yaml = build_k8s_job_yaml(
+        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb
+    )
     manifest_path = os.path.join(LOG_DIR, f"{job_name}.yaml")
 
     with open(manifest_path, "w") as f:
