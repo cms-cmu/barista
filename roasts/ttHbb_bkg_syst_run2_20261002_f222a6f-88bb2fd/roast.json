@@ -1,0 +1,650 @@
+{
+ "id": "ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd",
+ "label": "ttHbb_bkg_syst_run2",
+ "created": "2026-10-02 21:16:57",
+ "owner": "John Alison",
+ "barista": {
+  "sha": "f222a6ff36364fbff7bd2901690e75f0a5e8274b",
+  "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+  "web": "https://gitlab.cern.ch/cms-cmu/barista"
+ },
+ "coffea4bees": {
+  "sha": "88bb2fd6a357de589561aebdd44d0717a341fcfb",
+  "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+  "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+ },
+ "config": {
+  "source": "coffea4bees/workflows/config/analysis_ttHbb_bkg_syst.yml",
+  "captured": "config.yml",
+  "sha256": "42423d803fa042ae85e3e320702c52bc5c37894110516fe572ec5b063bae3b01"
+ },
+ "inputs": {
+  "upstream": [
+   {
+    "id": "ttHbb_run2_20260929_a209210-6a2293a",
+    "barista": "a209210a30a240e087db523f5443e4ae5ade111d",
+    "coffea4bees": "6a2293a8352c85305c6875e893d838e64cfa8416",
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/ttHbb_run2_20260929_a209210-6a2293a",
+    "archived": true
+   },
+   {
+    "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+    "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+    "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+    "archived": true
+   }
+  ],
+  "refs": {
+   "mixeddata_all": {
+    "url": "{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/mixeddata_all.yml",
+    "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+   },
+   "ttbar_psdata": {
+    "url": "{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/ttbar_PSData.yml",
+    "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+   },
+   "jcm_hists": {
+    "url": "{roast:ttHbb_run2_20260929_a209210-6a2293a}/{roast:ttHbb_run2_20260929_a209210-6a2293a:output_path}computeJCM/histAll_NoJCM.coffea",
+    "roast": "ttHbb_run2_20260929_a209210-6a2293a"
+   },
+   "nominal_hists": {
+    "url": "{roast:ttHbb_run2_20260929_a209210-6a2293a}/{roast:ttHbb_run2_20260929_a209210-6a2293a:output_path}histAll_{roast:ttHbb_run2_20260929_a209210-6a2293a:label}.coffea",
+    "roast": "ttHbb_run2_20260929_a209210-6a2293a"
+   },
+   "classifier_inputs": {
+    "url": "{roast:ttHbb_run2_20260929_a209210-6a2293a}/handoff/classifier_inputs_ttHbb_run2_20260929_a209210-6a2293a.json",
+    "roast": "ttHbb_run2_20260929_a209210-6a2293a"
+   },
+   "SvB": {
+    "url": "{roast:ttHbb_run2_20260929_a209210-6a2293a}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+    "roast": "ttHbb_run2_20260929_a209210-6a2293a"
+   },
+   "SvB_model": {
+    "url": "{roast:ttHbb_run2_20260929_a209210-6a2293a}/classifier/SvB_ttHbb_stitched/result.json",
+    "roast": "ttHbb_run2_20260929_a209210-6a2293a"
+   }
+  }
+ },
+ "steps": [
+  {
+   "name": "bkg_syst",
+   "host": "cmslpc",
+   "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst.smk",
+   "targets": "",
+   "extra": "",
+   "runs": [
+    {
+     "ts": "2026-10-02 21:18:57",
+     "cores": 8,
+     "extra": "-n",
+     "user_extra": "",
+     "targets": "all_pre_fvt",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "f544d8684cfa"
+    },
+    {
+     "ts": "2026-10-02 21:23:28",
+     "cores": 8,
+     "extra": "",
+     "user_extra": "",
+     "targets": "all_pre_fvt",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "f544d8684cfa"
+    },
+    {
+     "ts": "2026-10-03 09:08:36",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "all_pre_fvt",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "a5ebd99357b6"
+    },
+    {
+     "ts": "2026-10-03 09:10:55",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "all_pre_fvt",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "a5ebd99357b6"
+    },
+    {
+     "ts": "2026-10-03 12:23:44",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "A3_validation",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "b713b3bd09cf"
+    },
+    {
+     "ts": "2026-10-03 12:25:10",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "A3_validation",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_bkg_syst",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "b713b3bd09cf"
+    }
+   ]
+  },
+  {
+   "name": "C",
+   "host": "falcon",
+   "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+   "targets": "all_bkg_syst_C",
+   "extra": "",
+   "runs": [
+    {
+     "ts": "2026-10-03 12:12:20",
+     "cores": 4,
+     "extra": "-n",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "906ff1b699ba"
+    },
+    {
+     "ts": "2026-10-03 12:15:46",
+     "cores": 4,
+     "extra": "",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "906ff1b699ba"
+    },
+    {
+     "ts": "2026-10-03 12:26:53",
+     "cores": 4,
+     "extra": "-n",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "b0fb637974f0"
+    },
+    {
+     "ts": "2026-10-03 12:36:02",
+     "cores": 4,
+     "extra": "",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "b0fb637974f0"
+    },
+    {
+     "ts": "2026-10-03 13:23:36",
+     "cores": 4,
+     "extra": "-n",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "a0210b949115"
+    },
+    {
+     "ts": "2026-10-03 13:26:03",
+     "cores": 4,
+     "extra": "",
+     "user_extra": "",
+     "targets": "all_bkg_syst_C",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_C",
+     "ssh": "jalison@falcon.phys.cmu.edu",
+     "config_sha256": "a0210b949115"
+    }
+   ]
+  },
+  {
+   "name": "F",
+   "host": "cmslpc",
+   "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+   "targets": "all_bkg_syst_F",
+   "extra": "",
+   "runs": [
+    {
+     "ts": "2026-10-04 14:27:59",
+     "cores": 8,
+     "extra": "-n",
+     "user_extra": "",
+     "targets": "",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "ae3182d53cbb"
+    },
+    {
+     "ts": "2026-10-04 15:13:29",
+     "cores": 8,
+     "extra": "",
+     "user_extra": "",
+     "targets": "",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 16:30:15",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 16:30:29",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 16:55:25",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 16:55:50",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 16:56:14",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime -n",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "",
+     "dry_run": true,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    },
+    {
+     "ts": "2026-10-04 17:39:58",
+     "cores": 8,
+     "extra": "--rerun-triggers mtime",
+     "user_extra": "--rerun-triggers mtime",
+     "targets": "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+     "dry_run": false,
+     "test": false,
+     "resume": false,
+     "window": "ttHbb_bkg_syst_run2_f222a6f-88bb2fd_F",
+     "ssh": "jda102@cmslpc320.fnal.gov",
+     "config_sha256": "42423d803fa0"
+    }
+   ]
+  }
+ ],
+ "hosts": {
+  "cmslpc": {
+   "checkout": "~/nobackup/HH4b/prod/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/barista",
+   "ssh": "jda102@cmslpc320.fnal.gov",
+   "checked_out": "2026-10-02 21:18:40"
+  },
+  "falcon": {
+   "checkout": "~/work/prod/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/barista",
+   "ssh": "jalison@falcon.phys.cmu.edu",
+   "checked_out": "2026-10-03 12:11:52"
+  }
+ },
+ "publish": {
+  "eos": "/eos/user/j/johnda/www/HH4b/prod/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd",
+  "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/",
+  "ts": "2026-10-04 20:03:53",
+  "ok": true,
+  "pages": [
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_A_2_make_subsamples/study/index.html",
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_A_3_process_subsamples/validation/index.html",
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_F_1_analysis/plots/gallery.html",
+   "output/ttHbb_bkg_syst_run2_20261002_f222a6f-88bb2fd/bkg_syst_F_2_run_two_stage_closure/closure_summary.html"
+  ]
+ },
+ "history": [
+  {
+   "ts": "2026-10-02 21:16:57",
+   "event": "new"
+  },
+  {
+   "ts": "2026-10-02 21:18:40",
+   "event": "checkout",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-02 21:18:57",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-02 21:23:28",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-03 09:08:30",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "coffea4bees -> 3aa8e1273 (bkg-syst-stage-a)",
+    "config.yml -> analysis_ttHbb_bkg_syst.yml at 3aa8e1273"
+   ],
+   "what": "coffea4bees checkout moved 88bb2fd6 -> 3aa8e1273 after all_pre_fvt: per-subsample A_3 friend dirs (the shared ttbar-pseudodata friend race), 8GB Stage A workers, A3_validation, A2_classifier_metadata. Captured config replaced by the source at 3aa8e1273 (same inputs, alias form). Rerun with --rerun-triggers mtime: A_3 (new per-subsample configs) + B_1 + validation; A_1/A_2 outputs kept."
+  },
+  {
+   "ts": "2026-10-03 09:08:36",
+   "event": "config-edited",
+   "sha256": "a5ebd99357b6"
+  },
+  {
+   "ts": "2026-10-03 09:08:36",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-03 09:10:55",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-03 12:09:14",
+   "event": "add_step",
+   "step": "C",
+   "what": "FvT training/evaluation on falcon (Snakefile_bkg_syst_C.smk); added after `new` by hand (roast has no add-step)"
+  },
+  {
+   "ts": "2026-10-03 12:11:52",
+   "event": "checkout",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 12:12:20",
+   "event": "config-edited",
+   "sha256": "906ff1b699ba"
+  },
+  {
+   "ts": "2026-10-03 12:12:20",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 12:15:46",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 12:23:28",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "coffea4bees -> 003cb9587 (bkg-syst-stage-a)",
+    "config.yml -> analysis_ttHbb_bkg_syst.yml at 003cb9587"
+   ],
+   "what": "A_3 validation moved to the standard makePlots + gallery (A3_merge_mixed, A3_plot_config, A3_validation); only those rules rerun (--rerun-triggers mtime). falcon (step C) stays at 3aa8e127."
+  },
+  {
+   "ts": "2026-10-03 12:23:44",
+   "event": "config-edited",
+   "sha256": "b713b3bd09cf"
+  },
+  {
+   "ts": "2026-10-03 12:23:44",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-03 12:25:10",
+   "event": "submit",
+   "step": "bkg_syst",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-03 12:26:53",
+   "event": "config-edited",
+   "sha256": "b0fb637974f0"
+  },
+  {
+   "ts": "2026-10-03 12:26:53",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 12:35:51",
+   "event": "publish",
+   "host": "cmslpc",
+   "ok": true
+  },
+  {
+   "ts": "2026-10-03 12:36:02",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 13:23:36",
+   "event": "config-edited",
+   "sha256": "a0210b949115"
+  },
+  {
+   "ts": "2026-10-03 13:23:36",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-03 13:26:03",
+   "event": "submit",
+   "step": "C",
+   "host": "falcon"
+  },
+  {
+   "ts": "2026-10-04 14:55:00",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "barista -> f7183e9f (master)",
+    "coffea4bees -> 668b95f7a (master, includes !829)",
+    "config.yml -> analysis_ttHbb_bkg_syst.yml at 668b95f7a (adds handoff.eos_base)",
+    "config.yml: + phase_f_1.runner.worker_memory 8GB (F_1 stager default 4GB)"
+   ],
+   "what": "For step F after C (falcon, 3aa8e127) finished: merged single-pass F_1 / F_2 on the A_3 paths. The C friend manifests extracted on falcon were empty (old extraction read the per-fold 'predictions', emptied by kfold.Merge --clean); regenerated on cmslpc from friend/FvT/<mix>_v<m>/result.json analysis.0.merged (87 data files each) into output/<id>/bkg_syst_C_FvT/friends/."
+  },
+  {
+   "ts": "2026-10-04 14:27:59",
+   "event": "config-edited",
+   "sha256": "ae3182d53cbb"
+  },
+  {
+   "ts": "2026-10-04 14:27:59",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 15:13:29",
+   "event": "config-edited",
+   "sha256": "42423d803fa0"
+  },
+  {
+   "ts": "2026-10-04 15:13:29",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 16:10:00",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "coffea4bees -> c1a463163 (bkg-syst-F2-subsample-flag, on master 668b95f7a)"
+   ],
+   "what": "F_2 run_two_stage_closure passed --subsample_indices, which runTwoStageClosure.py does not accept: all 6 fits failed. Flag dropped; rerun F with --rerun-triggers mtime (F_1 pass and plots kept)."
+  },
+  {
+   "ts": "2026-10-04 16:30:15",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 16:30:29",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 17:15:00",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "coffea4bees -> 4ae66d891 (bkg-syst-F2-subsample-flag)"
+   ],
+   "what": "F_2 fits ran (rebins 20, 24 pass). F_4 make_mixeddata_ave_json wanted the old per-subsample F_1 closure_v<m> coffeas (MissingInputException); now reads the A_3 mixed subsamples. Rerun F with --rerun-triggers mtime."
+  },
+  {
+   "ts": "2026-10-04 16:55:25",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 16:55:50",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 16:56:14",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 17:22:33",
+   "event": "publish",
+   "host": "cmslpc",
+   "ok": true
+  },
+  {
+   "ts": "2026-10-04 17:39:58",
+   "event": "submit",
+   "step": "F",
+   "host": "cmslpc"
+  },
+  {
+   "ts": "2026-10-04 17:41:40",
+   "event": "publish",
+   "host": "cmslpc",
+   "ok": true
+  },
+  {
+   "ts": "2026-10-04 19:10:00",
+   "event": "hotpatch",
+   "host": "cmslpc",
+   "files": [
+    "coffea4bees -> dbc2eb29c (bkg-syst-F2-subsample-flag)"
+   ],
+   "what": "closure_summary.html regenerated (make_closure_summary_html now renders the standard make_gallery page with the verdict table); run by hand with the F_2 rule's arguments."
+  },
+  {
+   "ts": "2026-10-04 20:03:53",
+   "event": "publish",
+   "host": "cmslpc",
+   "ok": true
+  }
+ ],
+ "notes": "ttHbb Run 2 background systematic: closure subsamples from mixeddata_run2 (A_1 mixed JCM in the ttHbb selection), per-subsample JCM + FvT, two-stage closure. Inputs: ttHbb_run2_20260929_a209210-6a2293a, mixeddata_run2_20260927_c39c264-0ce4d59. RESULT (A+B cmslpc exit 0 2026-10-03; C falcon exit 0 2026-10-04 14:16, 16 FvT FixedStep 20 epochs, 3.5-4.8 h/model on shared MPS GPUs; F cmslpc 2026-10-04): A_1 mixed JCM chi2/ndf 32.3/11, B_1 per-subsample JCM chi2/ndf 2.1-4.3. A_3 validation: mixed+ttbarPS more ttbar-like than data at high P(tT) in SvB tt_vs_mj (gt6 SR). F_2 two-stage closure (SvB_MA_ps_ttHbb SR): rebins 20, 24 pass (bias basis 9 / 6); spurious signal fails at both; rebins 2, 12, 15, 16 fail the bias test. F_3/F_4 not run (stopped after the closure). Hot patches: cmslpc coffea4bees 3aa8e127 -> 003cb958 -> master 668b95f7a (+ barista f7183e9f) -> F fixes c1a463163..dbc2eb29c (merged as !d915f8cfc); falcon C ran at 3aa8e127, its friend manifests are empty (old extraction) -- F used manifests regenerated on cmslpc from friend/FvT/*/result.json analysis.0.merged.",
+ "category": "",
+ "user_paths": {
+  "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+  "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+ }
+}
