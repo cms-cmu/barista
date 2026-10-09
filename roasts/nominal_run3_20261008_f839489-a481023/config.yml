@@ -351,3 +351,8 @@ channels:
 # (validation txt / *_result.txt) instead of failing, and bless this run's counts afterwards.
 jcm_known_counts_fatal: false
 known_counts_fatal: false
+
+# roast override (2026-10-08): barista d67ba6e2 made the classifier GPU jobs default to
+# gres=mps:50 with qos=light, which falcon's light QOS rejects (max mps:25/job ->
+# QOSMaxGRESPerJob). The pre-refactor rules used qos=medium; restore it for C and D.
+gpu_qos: medium

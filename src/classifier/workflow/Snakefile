@@ -80,7 +80,10 @@ default_gpu_partition = config.get("gpu_partition", "work")
 default_gpu_account   = config.get("slurm_account", "")
 default_gpu_gres      = config.get("gpu_gres", "mps:50")
 default_gpu_mem       = config.get("gpu_mem", 64000)
-default_gpu_qos       = config.get("gpu_qos", "light")
+# medium, not light: falcon's light QOS caps a job at mps:25 (QOSMaxGRESPerJob), and the default
+# gres above is mps:50 -- d67ba6e2 paired them and every train/evaluate sbatch was rejected.
+# Before that refactor these rules hardcoded qos=medium with mps:50.
+default_gpu_qos       = config.get("gpu_qos", "medium")
 
 # ── Container images ──────────────────────────────────────────────────────────
 
