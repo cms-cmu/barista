@@ -174,6 +174,7 @@ deploy_container_coffea0_7:
 build_classifier_container:
   extends:
     - .buildah
+  timeout: 3h
   before_script:
     - export REGISTRY_IMAGE_PATH="${CI_REGISTRY_IMAGE}:classifier_$(date +%Y%m%d)_$CI_COMMIT_SHORT_SHA"
     - echo $REGISTRY_IMAGE_PATH
@@ -188,17 +189,17 @@ build_classifier_container:
     - if: $CI_COMMIT_BRANCH =~ /^container.*/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-      - software/dockerfiles/ml/Dockerfile.ml
-      - software/dockerfiles/ml/env_ml.yml
+        - software/dockerfiles/ml/Dockerfile.ml
+        - software/dockerfiles/ml/env_ml.yml
     - if: $CI_COMMIT_BRANCH == "master"
       changes:
-      - software/dockerfiles/ml/Dockerfile.ml
-      - software/dockerfiles/ml/env_ml.yml
-      - software/dockerfiles/stages_build.yml
+        - software/dockerfiles/ml/Dockerfile.ml
+        - software/dockerfiles/ml/env_ml.yml
 
 deploy_classifier_container:
   stage: deploy
   image: quay.io/buildah/stable
+  timeout: 3h
   dependencies: []
   script:
     - mkdir -p ${CI_PROJECT_DIR}/buildah_root ${CI_PROJECT_DIR}/buildah_runroot ${CI_PROJECT_DIR}/tmp
@@ -237,9 +238,7 @@ deploy_classifier_container:
       changes:
         - software/dockerfiles/ml/Dockerfile.ml
         - software/dockerfiles/ml/env_ml.yml
-        - software/dockerfiles/stages_build.yml
     - if: $CI_COMMIT_BRANCH == "master"
       changes:
         - software/dockerfiles/ml/Dockerfile.ml
         - software/dockerfiles/ml/env_ml.yml
-        - software/dockerfiles/stages_build.yml
