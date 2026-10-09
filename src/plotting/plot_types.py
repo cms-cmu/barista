@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _DATA_ONLY_KEYS: frozenset = frozenset({
     'rebin', 'process', 'var_over_ride', 'hist_key_list', 'do2d',
-    'fileLabels', 'labels', 'combine_input_files', 'blind', '2d',
+    'fileLabels', 'labels', 'combine_input_files', 'blind', '2d', 'tag',
 })
 
 
@@ -105,6 +105,9 @@ class RenderOptions:
     plot_contour: bool = False
     plot_leadst_lines: bool = False
     plot_sublst_lines: bool = False
+    plot_ttHbb_sr: bool = False
+    ttHbb_sr_params: Optional[Dict] = None
+    shapes: Optional[List[Dict]] = None   # user-defined overlays, see draw_shapes()
 
     # --- Blinding ------------------------------------------------------------
     blind: Any = None
