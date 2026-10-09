@@ -15,12 +15,16 @@ default-resources:
   - "mem_mb=4000"
   - "cpu=1"
 
+set-threads:
+  train: 6
+  evaluate: 4
+
 set-resources:
   train:
-    mem_mb: 8000
+    mem_mb: 16000
     gpus: 1
-    cpu: 2
+    cpu: 6
   evaluate:
     mem_mb: 8000
     gpus: 1
-    cpu: 2
+    cpu: 4
