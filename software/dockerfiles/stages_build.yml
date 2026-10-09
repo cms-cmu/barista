@@ -111,6 +111,13 @@ deploy_container:
     - buildah pull --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
     - buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} ${CI_REGISTRY_IMAGE}:latest
     - buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:latest
+    - |
+      if [ -n "$NAUTILUS_REGISTRY_USER" ] && [ -n "$NAUTILUS_REGISTRY_TOKEN" ]; then
+        echo "Logging into Nautilus GitLab container registry..."
+        echo "$NAUTILUS_REGISTRY_TOKEN" | buildah login -u "$NAUTILUS_REGISTRY_USER" --password-stdin gitlab-registry.nrp-nautilus.io
+        buildah tag ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG} gitlab-registry.nrp-nautilus.io/cms-cmu/barista:latest
+        buildah push --storage-driver=$STORAGE_DRIVER gitlab-registry.nrp-nautilus.io/cms-cmu/barista:latest
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -183,6 +190,7 @@ build_classifier_container:
       changes:
       - software/dockerfiles/ml/Dockerfile.ml
       - software/dockerfiles/ml/env_ml.yml
+      - software/dockerfiles/stages_build.yml
 
 deploy_classifier_container:
   stage: deploy
@@ -209,6 +217,16 @@ deploy_classifier_container:
         buildah tag ${CI_REGISTRY_IMAGE}:classifier_test ${CI_REGISTRY_IMAGE}:classifier_unify_test
         buildah push --storage-driver=$STORAGE_DRIVER ${CI_REGISTRY_IMAGE}:classifier_unify_test
       fi
+      if [ -n "$NAUTILUS_REGISTRY_USER" ] && [ -n "$NAUTILUS_REGISTRY_TOKEN" ]; then
+        echo "Logging into Nautilus GitLab container registry..."
+        echo "$NAUTILUS_REGISTRY_TOKEN" | buildah login -u "$NAUTILUS_REGISTRY_USER" --password-stdin gitlab-registry.nrp-nautilus.io
+        NAUTILUS_TAG="classifier_latest"
+        if [ "$CI_COMMIT_BRANCH" != "master" ]; then
+          NAUTILUS_TAG="classifier_test"
+        fi
+        buildah tag ${CI_REGISTRY_IMAGE}:classifier_test gitlab-registry.nrp-nautilus.io/cms-cmu/barista:$NAUTILUS_TAG
+        buildah push --storage-driver=$STORAGE_DRIVER gitlab-registry.nrp-nautilus.io/cms-cmu/barista:$NAUTILUS_TAG
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -218,4 +236,5 @@ deploy_classifier_container:
       changes:
         - software/dockerfiles/ml/Dockerfile.ml
         - software/dockerfiles/ml/env_ml.yml
+        - software/dockerfiles/stages_build.yml
     - if: $CI_COMMIT_BRANCH == "master"
