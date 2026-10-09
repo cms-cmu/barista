@@ -24,6 +24,7 @@ graphviz = "*"
 # libopenblas 0.3.30 crashes with SIGBUS on AMD EPYC (AVX-512 compiled, no AVX-512 CPU)
 # Pin to avoid the broken build until upstream fixes it
 libopenblas = "<0.3.30"
+kubernetes-client = ">=1.34.3,<2"
 
 # Additional analysis dependencies (add as needed)
 # numpy = "*"

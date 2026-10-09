@@ -112,6 +112,13 @@ DEFAULT_CONFIG = {
             "reference": "~/work/barista",
             "cores": 4,
         },
+        "nautilus": {
+            "namespace": "cms-cmu",
+            "user": "<user>",
+            "prod_root": "/workspace/users/<user>/prod",
+            "reference": "/workspace/users/<user>/barista",
+            "cores": 16,
+        },
     },
     "cernbox": {
         "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
@@ -209,10 +216,31 @@ def load_config() -> dict:
 
 
 def host_cfg(cfg: dict, host: str) -> dict:
+    if host == "nautilus" and "nautilus" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "namespace": "cms-cmu",
+            "user": user,
+            "prod_root": f"/workspace/users/{user}/prod",
+            "reference": f"/workspace/users/{user}/barista",
+            "cores": 16,
+        }
     try:
         return cfg["hosts"][host]
     except KeyError:
         die(f"host '{host}' not in {CONFIG_PATH}")
+
+
+def k8s_cmd(*args) -> list[str]:
+    """Return kubectl command vector, using pixi if kubectl is not on host PATH."""
+    base = ["kubectl"] if shutil.which("kubectl") else ["pixi", "run", "kubectl"]
+    return [*base, *args]
+
+
+def _k8s_job_name(r: dict, step: dict) -> str:
+    """RFC 1123 compliant Kubernetes Job name."""
+    raw = f"roast-{r['label'][:20]}-{step['name'][:15]}".lower()
+    return re.sub(r"[^a-z0-9-]", "-", raw).strip("-")[:63]
 
 
 def resolve_ssh(hc: dict) -> str:
@@ -567,6 +595,8 @@ def cmd_new(args) -> None:
         if ph not in PHASES:
             die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
         host, smk = PHASES[ph]
+        if getattr(args, "nautilus", False) and host == "falcon":
+            host = "nautilus"
         steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     for spec in args.step or []:
         # host:snakefile[:targets]
@@ -661,14 +691,71 @@ def _finish_checkout_script(r: dict, ckpt: str) -> str:
     """)
 
 
+def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
+    hc = host_cfg(cfg, "nautilus")
+    ns = hc.get("namespace", "cms-cmu")
+    user = hc.get("user", getpass.getuser())
+    ref = hc.get("reference", f"/workspace/users/{user}/barista")
+
+    info(f"[nautilus] preparing {ckpt}")
+
+    # Verify connection to Nautilus
+    check_ns = sh(k8s_cmd("get", "ns", ns), check=False)
+    if check_ns.returncode != 0:
+        die(f"cannot reach Nautilus namespace '{ns}': {check_ns.stderr.strip()}")
+
+    # 1. Create directory structure on CephFS via storage-helper
+    setup_cmd = f"mkdir -p {ckpt}/roasts/{r['id']} {ckpt}/logs /workspace/users/{user}/.kube"
+    sh_run = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", setup_cmd), check=False)
+    if sh_run.returncode != 0:
+        die(f"failed to create directories on Nautilus CephFS: {sh_run.stderr.strip()}")
+
+    # 2. Hardlink reference tree on CephFS (instantaneous cp -al)
+    copy_script = f"""
+    for item in coffea4bees output proxy run_container runner.py software src pixi.toml pixi.lock roasts .pixi; do
+        if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
+            cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
+        fi
+    done
+    """
+    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", copy_script), check=False)
+
+    # 3. Ship roast files (config.yml, roast.json) via kubectl cp
+    rdir = roast_dir(r["id"])
+    for f in sorted(p for p in rdir.iterdir() if p.is_file()):
+        sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/{f.name}"), check=False)
+    # Also ship upstream roasts if present locally
+    for up in r.get("inputs", {}).get("upstream", []):
+        up_id = up.get("id")
+        up_dir = roast_dir(up_id)
+        if up_dir.is_dir():
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/roasts/{up_id}"), check=False)
+            for f in sorted(p for p in up_dir.iterdir() if p.is_file()):
+                sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{up_id}/{f.name}"), check=False)
+
+    # 4. Stage user's local kubeconfig to CephFS if present
+    local_kube = Path.home() / ".kube" / "config"
+    if local_kube.is_file():
+        sh(k8s_cmd("cp", str(local_kube), f"{ns}/storage-helper:/workspace/users/{user}/.kube/config"), check=False)
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", f"/workspace/users/{user}/.kube/config"), check=False)
+
+    r.setdefault("hosts", {})["nautilus"] = {"checkout": ckpt, "checked_out": now()}
+    log_event(r, "checkout", host="nautilus")
+    save_roast(r)
+    info(f"[nautilus] prepared {ckpt}")
+
+
 def cmd_checkout(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     hosts = [args.host] if args.host else sorted({s["host"] for s in r["steps"]})
     for host in hosts:
+        ckpt = checkout_path(cfg, r, host)
+        if host == "nautilus":
+            _checkout_nautilus(cfg, r, ckpt)
+            continue
         hc = host_cfg(cfg, host)
         target = resolve_ssh(hc)
-        ckpt = checkout_path(cfg, r, host)
         info(f"[{host}] preparing {ckpt}")
         res = ssh_run(target, _checkout_script(hc, r, ckpt))
         node = next((l[5:].strip() for l in res.stdout.splitlines() if l.startswith("NODE|")), "")
@@ -766,6 +853,11 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         if [ ! -s proxy/x509_proxy ] || [ "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" -nt proxy/x509_proxy ]; then
             cp -f "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}} ===" | tee -a "$LOG"
         fi
+        if [ -s proxy/kubeconfig ]; then
+            export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
+        elif [ -s "$HOME/.kube/config" ]; then
+            export KUBECONFIG="$HOME/.kube/config"
+        fi
         command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
         {unlock.strip()}
         {base} 2>&1 | tee -a "$LOG"
@@ -782,6 +874,130 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     """)
 
 
+def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args, resume: bool, targets: str = "") -> None:
+    hc = host_cfg(cfg, "nautilus")
+    ns = hc.get("namespace", "cms-cmu")
+    user = hc.get("user", getpass.getuser())
+    jname = _k8s_job_name(r, step)
+
+    # 1. Guard against double-submit
+    jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
+    if jres.returncode == 0:
+        try:
+            jinfo = json.loads(jres.stdout)
+            if jinfo.get("status", {}).get("active", 0) > 0:
+                die(f"a Kubernetes Job '{jname}' for this roast is still running on Nautilus; refusing to double-submit")
+        except Exception:
+            pass
+        sh(k8s_cmd("delete", "job", jname, "-n", ns, "--ignore-not-found"), check=False)
+        info(f"[nautilus] removed previous job {jname}")
+
+    name = step["name"]
+    smk = step["snakefile"]
+    configfile = f"roasts/{r['id']}/config.yml"
+    tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
+    base = (f"pixi run --frozen snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
+            f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
+    if step.get("extra"):
+        base += f" {step['extra']}"
+    if args.extra:
+        base += f" {args.extra}"
+    if resume:
+        base += " --rerun-incomplete"
+
+    # 2. Build Job manifest
+    manifest = textwrap.dedent(f"""\
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: {jname}
+          namespace: {ns}
+          labels:
+            roast: "{r['id']}"
+            step: "{name}"
+            app: "roast-runner"
+        spec:
+          backoffLimit: 0
+          template:
+            metadata:
+              labels:
+                roast: "{r['id']}"
+                step: "{name}"
+            spec:
+              restartPolicy: Never
+              containers:
+              - name: orchestrator
+                image: ghcr.io/prefix-dev/pixi:latest
+                imagePullPolicy: IfNotPresent
+                workingDir: {ckpt}
+                command: ["bash", "-c"]
+                args:
+                - |
+                  set -e
+                  echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
+                  export PATH=/workspace/shared/bin:$PATH
+                  export KUBECONFIG=/workspace/users/{user}/.kube/config
+                  export PIXI_NO_HARD_LINKS=true
+                  export NAUTILUS_WORKDIR={ckpt}
+                  export CLASSIFIER_CONFIG_PATHS=coffea4bees
+                  cd {ckpt}
+                  which git >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq git >/dev/null 2>&1)
+                  pixi install --no-hard-links
+                  mkdir -p logs
+                  LOG=logs/{name}.log
+                  EXIT=logs/{name}.exit
+                  rm -f "$EXIT"
+                  {base} 2>&1 | tee "$LOG"
+                  RC=${{PIPESTATUS[0]}}
+                  echo "$RC" > "$EXIT"
+                  echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
+                  exit $RC
+                resources:
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                  requests:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                - mountPath: /workspace
+                  name: ceph-storage
+              volumes:
+              - name: ceph-storage
+                persistentVolumeClaim:
+                  claimName: cms-cmu-storage
+    """)
+
+    manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
+    manifest_path.write_text(manifest)
+
+    # 3. Apply manifest
+    res = sh(k8s_cmd("apply", "-f", str(manifest_path)), check=False)
+    if res.returncode != 0:
+        die(f"failed to submit Kubernetes Job to Nautilus: {res.stderr.strip()}")
+    print(res.stdout.strip())
+
+    # 4. Sync updated config.yml to CephFS if changed
+    cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
+    if cfg_sha != r["config"]["sha256"]:
+        r["config"]["sha256"] = cfg_sha
+        log_event(r, "config-edited", sha256=cfg_sha[:12])
+        sh(k8s_cmd("cp", str(roast_dir(r["id"]) / "config.yml"),
+                   f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/config.yml"), check=False)
+
+    step.setdefault("runs", []).append({
+        "ts": now(), "cores": cores, "extra": args.extra or "",
+        "targets": targets or "", "dry_run": bool(args.dry_run),
+        "test": bool(args.test), "resume": resume,
+        "job_name": jname, "namespace": ns, "config_sha256": cfg_sha[:12]
+    })
+    log_event(r, "resume" if resume else "submit", step=name, host="nautilus")
+    save_roast(r)
+    info(f"[nautilus] launched Kubernetes Job {jname}")
+    info(f"attach: {TOOL} attach {r['id']} --step {name}    |    {TOOL} status {r['id']}")
+
+
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
@@ -791,7 +1007,7 @@ def _submit(args, resume: bool) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
-    target = roast_ssh(cfg, r, host)
+    target = roast_ssh(cfg, r, host) if host != "nautilus" else ""
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     targets = getattr(args, "targets", None)
@@ -829,6 +1045,16 @@ def _submit(args, resume: bool) -> None:
     if args.dry_run:
         parts.append("-n")                             # snakemake dry run: plan only, nothing produced
     args.extra = " ".join(x for x in parts if x).strip()
+
+    if host == "nautilus":
+        _submit_nautilus(cfg, r, step, ckpt, cores, args, resume, targets or "")
+        return
+
+    if host == "cmslpc":
+        local_kube = Path.home() / ".kube" / "config"
+        if local_kube.is_file():
+            sh(["scp", "-q", "-p", *SSH_OPTS, str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
+
     window = _window_name(r, step)
     driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
     # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
@@ -917,6 +1143,23 @@ def cmd_log(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     step = find_step(r, args.step)
+    if step["host"] == "nautilus":
+        hc = host_cfg(cfg, "nautilus")
+        ns = hc.get("namespace", "cms-cmu")
+        jname = _k8s_job_name(r, step)
+        if args.follow:
+            info(f"following Nautilus job {jname} in namespace {ns} (ctrl-c to stop)")
+            cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f")
+            os.execvp(cmd[0], cmd)
+        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, f"--tail={int(args.lines)}")
+        res = sh(cmd, check=False)
+        out = (res.stdout or res.stderr or "").strip()
+        if out:
+            print(out)
+        else:
+            info(f"no logs found for job {jname} in namespace {ns}")
+        return
+
     target = roast_ssh(cfg, r, step["host"])
     log = f"{checkout_path(cfg, r, step['host'])}/logs/{step['name']}.log"
 
@@ -977,6 +1220,27 @@ def cmd_attach(args) -> None:
         host = args.host
     else:
         die("give a roast id, or --host")
+
+    if host == "nautilus":
+        hc = host_cfg(cfg, "nautilus")
+        ns = hc.get("namespace", "cms-cmu")
+        target_step = None
+        if args.id and args.step:
+            target_step = find_step(r, args.step)
+        elif r:
+            for s in reversed(r["steps"]):
+                if s["host"] == "nautilus" and s.get("runs"):
+                    target_step = s
+                    break
+            if not target_step:
+                target_step = next((s for s in r["steps"] if s["host"] == "nautilus"), None)
+        if not target_step:
+            die("no Nautilus step found to attach")
+        jname = _k8s_job_name(r, target_step)
+        info(f"attaching to Nautilus job {jname} in namespace {ns}")
+        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f")
+        os.execvp(cmd[0], cmd)
+
     target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
     tmux = f"tmux attach -t {TMUX_SESSION}"
     if window:
@@ -1419,6 +1683,13 @@ def cmd_rm(args) -> None:
         return
     # refuse while a step is running
     for host, h in r.get("hosts", {}).items():
+        if host == "nautilus":
+            hc = host_cfg(cfg, "nautilus")
+            ns = hc.get("namespace", "cms-cmu")
+            chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
+            if chk.returncode == 0 and "Running" in (chk.stdout or ""):
+                die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
+            continue
         target = roast_ssh(cfg, r, host)
         chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
         if chk.stdout.strip() not in ("", "0"):
@@ -1437,6 +1708,14 @@ def cmd_rm(args) -> None:
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
+            if host == "nautilus":
+                hc = host_cfg(cfg, "nautilus")
+                ns = hc.get("namespace", "cms-cmu")
+                sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
+                top = h["checkout"].rsplit("/", 1)[0]
+                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
+                print(f"  removed {top} on Nautilus")
+                continue
             top = h["checkout"].rsplit("/", 1)[0]
             res = ssh_run(roast_ssh(cfg, r, host), f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
             print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
@@ -1803,6 +2082,73 @@ def _cleaned_summary(r: dict, width: int) -> str:
     return f"  {r['id']:<{width}s}  {glyphs}{' ' * max(1, 24 - visible)} {note}".rstrip()
 
 
+def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
+    hc = host_cfg(cfg, "nautilus")
+    ns = hc.get("namespace", "cms-cmu")
+    out = {"steps": [], "live": {}, "done": {}, "condor": {}, "k8s_pods": {}, "extra": [], "nocheckout": False, "error": None}
+
+    # Query pods labeled with this roast id
+    res = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={r['id']}", "-o", "json"), check=False)
+    pods = []
+    if res.returncode == 0 and res.stdout.strip():
+        try:
+            pods = json.loads(res.stdout).get("items", [])
+        except Exception:
+            pass
+
+    for s in steps:
+        name = s["name"]
+        jname = _k8s_job_name(r, s)
+        jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
+        job_info = {}
+        if jres.returncode == 0 and jres.stdout.strip():
+            try:
+                job_info = json.loads(jres.stdout)
+            except Exception:
+                pass
+
+        if not job_info:
+            st = "not started"
+            colour = ""
+            prog = ""
+        else:
+            status_f = job_info.get("status", {})
+            if status_f.get("succeeded", 0) > 0:
+                st = "exit=0"
+                colour = "\033[32m"
+            elif status_f.get("failed", 0) > 0:
+                st = "error"
+                colour = "\033[31m"
+            elif status_f.get("active", 0) > 0:
+                st = "running"
+                colour = "\033[33m"
+            else:
+                st = "pending"
+                colour = ""
+
+            # Child training pods
+            child_pods = [p for p in pods if jname not in p.get("metadata", {}).get("name", "")]
+            n_done = sum(1 for p in child_pods if p.get("status", {}).get("phase") == "Succeeded")
+            n_run = sum(1 for p in child_pods if p.get("status", {}).get("phase") == "Running")
+            prog = f"k8s-job ({n_done} done, {n_run} running)" if child_pods else "k8s-job"
+
+            rows = []
+            for p in child_pods:
+                pname = p.get("metadata", {}).get("name", "")
+                phase = p.get("status", {}).get("phase", "")
+                pcol = "\033[32m" if phase == "Succeeded" else "\033[33m" if phase == "Running" else "\033[31m" if phase == "Failed" else ""
+                node = p.get("spec", {}).get("nodeName", "-")
+                rows.append(f"nautilus {pname[:24]:24s} {pcol}{phase:10s}\033[0m node={node}")
+            out["k8s_pods"][name] = rows
+
+        out["steps"].append((name, f"{colour}{st:12s}\033[0m {prog}".rstrip()))
+
+    if pods:
+        out["extra"].append(f"nautilus {len(pods)} pod(s) in namespace {ns}")
+
+    return out
+
+
 def cmd_status(args) -> None:
     cfg = load_config()
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
@@ -1839,6 +2185,9 @@ def cmd_status(args) -> None:
         # which machine a phase happens to run on matters less than where the pipeline is.
         parsed = {}
         for host, hinfo in r["hosts"].items():
+            if host == "nautilus":
+                parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host])
+                continue
             target = roast_ssh(cfg, r, host)
             res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
             if res.returncode == 255:
@@ -1874,6 +2223,9 @@ def cmd_status(args) -> None:
                     print(f"{pad}{row}")
             for row in _slurm_rows(st["live"].get(name, []), st["done"].get(name, [])):
                 print(f"{pad}{row}")
+            if st.get("k8s_pods", {}).get(name):
+                for row in st["k8s_pods"][name]:
+                    print(f"{pad}{row}")
         for host, st in parsed.items():
             if st.get("error"):
                 continue
@@ -2268,6 +2620,7 @@ def main(argv=None) -> None:
     s.add_argument("--id", help="override the generated roast id")
     s.add_argument("--notes", help="free text for the cupping notes")
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
+    s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")
