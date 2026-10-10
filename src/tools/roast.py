@@ -897,7 +897,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     configfile = f"roasts/{r['id']}/config.yml"
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
     settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
-    base = (f"pixi run --frozen snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
+    base = (f"pixi run -e nautilus --frozen snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
         base += f" {step['extra']}"
@@ -942,8 +942,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   export NAUTILUS_WORKDIR={ckpt}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
                   cd {ckpt}
-                  which git >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq git >/dev/null 2>&1)
-                  pixi install --no-hard-links
+                  if [ ! -d ".pixi/envs/nautilus" ]; then
+                    echo "=== Installing minimal nautilus pixi environment ==="
+                    pixi install -e nautilus --no-hard-links
+                  fi
                   mkdir -p logs
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
