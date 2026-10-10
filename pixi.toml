@@ -78,6 +78,12 @@ PYTHONNOUSERSITE = "1"
 python = ">=3.11"
 snakemake = "*"
 
+[feature.nautilus.dependencies]
+python = ">=3.11"
+snakemake = "*"
+pyyaml = "*"
+kubernetes-client = ">=1.34.3,<2"
+
 [environments]
 # Default environment includes all base dependencies
 default = {features = [], solve-group = "default"}
@@ -89,3 +95,5 @@ hepdata = {features = ["hepdata"], solve-group = "hepdata"}
 reana = {features = ["reana"], solve-group = "reana", no-default-feature = true}
 # CI lightweight workflow validation
 ci = {features = ["ci"], no-default-feature = true}
+# Nautilus in-cluster orchestrator
+nautilus = {features = ["nautilus"], no-default-feature = true}
