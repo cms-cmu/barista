@@ -360,6 +360,18 @@ def fetch_metadata(
     return results
 
 
+def _has_no_events(file) -> bool:
+    """True for an input with zero entries (or no Events tree): it yields no chunk, so its absence
+    from the outputs is not a failure. PromptReco NanoAOD datasets carry such files (2025
+    ParkingHH1: 15 of 3,7k files); without this every era holding one skipped the merge."""
+    try:
+        with uproot.open(str(file), timeout=120) as f:
+            return "Events" not in f or f["Events"].num_entries == 0
+    except Exception as e:
+        logging.warning(f'Could not open "{file}" to check for zero entries: {e}')
+        return False
+
+
 def integrity_check(
     fileset: dict[str, dict[str, list[str]]],
     output: dict[str, dict[str, dict[str, list[tuple[int, int]]]]],
@@ -387,7 +399,9 @@ def integrity_check(
         file_missing = []
         chunk_missing = []
         for file in inputs:
-            if file not in outputs:
+            if file not in outputs and _has_no_events(file):
+                logging.info(f'Input file has no events, nothing to skim: "{file}"')
+            elif file not in outputs:
                 logging.error(f'The whole file is missing in outputs: "{file}"')
                 complete = False
                 file_missing.append(str(file))
