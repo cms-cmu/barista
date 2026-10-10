@@ -1,0 +1,174 @@
+# ==============================================================================
+# MIXED-DATA DATASET PRODUCTION — Run 3, 2024 only
+# ==============================================================================
+# mixeddata_run3.yml (2022 + 2023) for the eight 2024 eras. A standalone copy, not a `base:` overlay:
+# the layered merge is a dict merge, so the base's 2022/2023 year_eras keys would survive next to 2024.
+# What differs from mixeddata_run3.yml:
+#   * eras        2024 C, D, E, F, G, H, I2, I3 (data.yml picoAOD keys).
+#   * FvT + JCM   from the 2024 non-tight roast nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031
+#                 (config/nominal_run3_2024_nontight.yml, phases B, C, C4; archived). C.4 closure there:
+#                 SR 0.994 +- 0.001, SB 1.004 +- 0.001 -- but its B.1 JCM fit is poor (chi2/ndf 2390),
+#                 accepted for the mixing (John, 2026-10-08).
+#   * SvB (M.7)   the Run 3 (2022/2023) nominal SvB of nominal_run3_20261008_f839489-a481023: no 2024 SvB
+#                 exists. It takes `year` as an input (22/23 in training), so on 2024 (year 24) it
+#                 extrapolates -- fine for M.7, which is a shape diagnostic.
+#   * signal      M.7 runs the 2024 SM ggF skim without trigger weights (no 2024 signal friend in
+#                 trigweights_Run3_v3.json; M.7 already warns rather than fails), and 2024 MC gets no
+#                 b-tag SF (no UParT shape SF yet; skipped for 2024 in the mixer and M.5).
+# ==============================================================================
+# Driven by Snakefile_MakeMixedData.smk (design: M.1 hemisphere library -> M.2 mix -> M.3 validate
+# + mixed JCM -> M.5 ttbar pseudodata -> M.6 validation). Its products are dataset YAMLs published
+# to EOS under `publish_base`/handoff/, which the consumers (MvD: mixeddata_all; bkg_syst A, which
+# fits the analysis' mixed JCM and splits it into the closure subsamples: mixeddata_all +
+# ttbar_PSData) read in place with `runner.py -m <dir> <url> ...`.
+#
+# A standalone config, not a `base:` overlay: this roast *depends on* another but does something
+# entirely different. Everything it reads from it is named under `inputs:`, which `roast new`
+# checks lies inside that roast: the NON-TIGHT production (config/nominal_run3_2024_nontight.yml,
+# phases B, C, C4; archived first) -> JCM + its data/ttbar histograms, and the FvT.
+# All from the non-tight selection: the tight nominal FvT, used for the hemisphere library,
+# removed the 4b events that fail the tight definition (the library came out tight-4b).
+#
+#   roast new --config coffea4bees/workflows/config/mixeddata_run3_2024.yml \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_MakeMixedData.smk
+#   roast submit <id> --step MakeMixedData --targets all_M1      # one sub-step at a time
+#
+label: "mixeddata_run3_2024"
+output_path: "output/{roast_id}/"   # the roast id already carries the label
+# EOS area of this roast: hemisphere library, picoAODs and the handoff YAMLs all go here.
+publish_base: "{eos_prod}/{roast_id}"
+
+# ------------------------------------------------------------------------------
+# Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
+# ------------------------------------------------------------------------------
+inputs:
+  upstream_roasts: [nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031, nominal_run3_20261008_f839489-a481023]
+  # ttbar subtraction in M.1 (4b data, FvT.d4_to_t4) and M.2 (3b data, FvT.d3_to_t3): the
+  # non-tight 2024 FvT (Phase C of that roast; C.4 closure SR 0.994 +- 0.001). Must cover the data
+  # picoAODs in analysis_config.dataset_location (same data.yml as that roast).
+  FvT: "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/friend/FvT_nominal/result.json@@analysis.0.merged"
+  # Non-tight JCM: M.2 applies it as pseudo-tag weights. Its data + ttbar histograms feed the
+  # mixed-data JCM fit (M.3), so both must come from the same selection as the mixing.
+  JCM: "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/JCM_Run3_2024_nontight_v1/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml"
+  jcm_hists: "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea"
+  # M.7 signal check: the analysis SvB (nominal Run 3, Phase D), evaluated on the fly on the
+  # original and the mixed signal MC and on mixeddata_all.
+  SvB_model: "{eos_prod}/nominal_run3_20261008_f839489-a481023/classifier/SvB_nominal/result.json"
+  # Optional: reuse another mixeddata roast's hemisphere library (its <publish_base>/hemilib) and
+  # skip M.1 -- e.g. when only the mixing rank / matcher changes. Add that roast to upstream_roasts.
+  # hemilib: "{eos_prod}/<mixeddata roast id>/hemilib"
+
+# Eras as they appear in metadata/datasets/data.yml (picoAOD keys) — same as nominal_run3_2024_nontight.yml.
+# '2024' MUST stay quoted: unquoted it parses as an int and misses the string-keyed metadata.
+year_eras:
+  '2024': ["C", "D", "E", "F", "G", "H", "I2", "I3"]
+
+# ttbar MC for the M.5 pseudodata. Must be the samples the upstream JCM roast histogrammed
+# (jcm_hists), so its B.1 `jcm.datasets` and this list cannot diverge.
+# Inclusive by default; for the stitched samples use
+#   ttbar: [TTTo2L2Nu_stitched, TTToSemiLeptonic_stitched, TTToHadronic_stitched]
+# (defined in metadata/datasets/TT_stitched.yml, which the dataset_location directory includes).
+ttbar: ["TTToHadronic", "TTToSemiLeptonic", "TTTo2L2Nu"]
+
+# ------------------------------------------------------------------------------
+# Selection shared by every processor pass in this roast
+# ------------------------------------------------------------------------------
+# The mixed data uses the NON-tight four-tag definition (nJet_tagged >= 4), deliberately, in
+# Run 2 and Run 3 alike -- in Run 2 it is simply the only definition. The nominal Run 3 roast
+# uses fourTag_use_tight: true, which is why the JCM comes from a separate non-tight B.1 roast.
+# Snakefile_MakeMixedData.smk refuses to run if this is anything but false.
+fourTag_use_tight: false
+
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+
+# ------------------------------------------------------------------------------
+# M.1: hemisphere library (4b data, ttbar subtracted with inputs.FvT)
+# ------------------------------------------------------------------------------
+hemi_library:
+  config_template: "coffea4bees/analysis/metadata/make_hemi_library_4b.yml"
+  study_threshold: 1000        # min per-category count for study_hemispheres.py
+  # Prescale the library to ~2M hemispheres (John, 2026-10-09). 2024 is one 110 fb^-1 year: its full
+  # library is 12.86M hemispheres (the largest 2022/2023 year: 1.76M), and every M.2 mixer worker
+  # loads its year's whole library, ~3 GB per million (era H measured 1.13 GB for 0.52M on load
+  # alone) -- the 8 GB workers died (KilledWorker) in mixeddata_run3_2024_20261009_ac4bb63-5786026.
+  # Every era keeps the same fraction of its files (here 0.156, 177 of 1144), so eras keep their weight.
+  max_hemis: 2000000
+
+# ------------------------------------------------------------------------------
+# M.2: mixing (3b data events, hemispheres replaced from the library)
+# ------------------------------------------------------------------------------
+mixing:
+  skimmer_template: "coffea4bees/skimmer/metadata/mixeddata_Run3.yml"
+  dataset_name: "mixeddata_all"
+  default_rank: 0              # int (same rank both sides) or [rp, rn]; 0 = nearest neighbour
+  use_topk_matching: true
+  k_neighbors: 10
+  collision_mode: retry        # ignore | drop | retry
+  use_boost_corrected_matching: true
+  # Skip match candidates whose z boost would move any of their jets across |eta| = 2.4 (out of or into
+  # the tracker acceptance). Without it ~4.5% of tagged jets left the acceptance and ~15% of mixed events
+  # lost a tag (found in mixeddata_run3_4bmix_20260930_2e4bcf8-2f1d90b; the 3b JCM fit hid it).
+  boost_acceptance_eta: 2.4
+  worker_memory: 8GB
+  # 50000, not 100000: with the ~2M-hemisphere library (~4.4 GB) a 100k-event chunk put workers over
+  # 8 GB (data_2024G chunk345 killed 4 workers in a row; mixeddata_run3_2024_20261009_e1faf1e-07a4f49).
+  chunksize: 50000
+  # No skipbadfiles: a transient XRootD read error (fsspec_xrootd 'I/O operation on closed file') then
+  # raises and dask retries the chunk (dask_retries 3) instead of dropping it -- 2 of 2284 chunks were
+  # dropped that way in e1faf1e-07a4f49, failing the integrity check after ~4 h of mixing.
+  runner:
+    skipbadfiles: false
+
+# ------------------------------------------------------------------------------
+# M.3: validation + mixed-data JCM (mixeddata_all as the "3b" sample, float_t)
+# ------------------------------------------------------------------------------
+# The mixed data is histogrammed with the upstream B.1 noJCM config itself (fetched next to
+# inputs.jcm_hists), so data, ttbar and mixed data share one selection and binning.
+mixed_jcm:
+  config: "coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config_Run3.yml"
+  float_t: true
+  # known_counts: <blessed cutflow_mixedJCM.yml, once the first roast has written one>
+
+# ------------------------------------------------------------------------------
+# M.5: ttbar pseudodata -> ttbar_PSData (one sample, shared by every subsample)
+# ------------------------------------------------------------------------------
+ttbar_psdata:
+  dataset_name: "ttbar_PSData"
+  seed: 5
+  require_trigWeight: true     # trigweights_Run3_v3.json covers every 2024 TTTo* picoAOD
+  worker_memory: 6GB
+  chunksize: 100000
+  picosize: 100000
+  runner:
+    skipbadfiles: false   # as mixing.runner: retry transient read errors, never drop a chunk
+
+# ------------------------------------------------------------------------------
+# M.7: signal check -- signal MC (every preselected event, 3b and 4b) mixed with M.2's settings and
+# M.1's library; with SvB = inputs.SvB_model on the fly: 4b signal, 3b signal x M.2 JCM, mixed 3b
+# signal x M.2 JCM, mixed 4b signal (plots_signal/), and mixeddata_all x mixed JCM with the mixed 3b
+# signal overlaid (plots_mixeddata/). Report: SR fraction, 100 < m < 150 fraction, SR SvB ps_hh.
+# ------------------------------------------------------------------------------
+signal_check:
+  enabled: true
+  datasets: ["GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"]   # the SM point, as for 2022/2023 (2024 skim)
+  subsample: 10             # mix only signal events with event % 10 == 0 (sumw / 10); 1 = all
+  mixeddata_subsample: 10   # mixeddata_all SvB pass: event % 10 == 0, weights x 10; 1 = all
+  chunksize: 20000
