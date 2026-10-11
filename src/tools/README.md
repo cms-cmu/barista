@@ -123,13 +123,14 @@ python src/tools/convert_json_to_root.py \
 
 ## merge_yaml_datasets.py
 
-Merges picoAOD file lists from one or more datasets YMLs into a main datasets file.
+Merges picoAOD file lists from skimmer registries into a main datasets file. Registry keys are matched against the metadata (`{dataset}_{year}` for MC, `{dataset}_{year}{era}` for data); a key that matches nothing is an error. `-n` also writes just the added entries, which is the file to review and merge into `coffea4bees/metadata/datasets/`.
 
 ```bash
 python src/tools/merge_yaml_datasets.py \
-    -m coffea4bees/metadata/datasets_HH4b.yml \
-    -f output/picoaod_datasets_UL18.yml \
-    -o coffea4bees/metadata/datasets_HH4b_merged.yml
+    -m coffea4bees/metadata/datasets/ \
+    -f output/skims/skimmer/picoaod_*.yml \
+    -o output/skims/modified_datasets/modified_datasets.yml \
+    -n output/skims/modified_datasets/new_datasets.yml
 ```
 
 ## merge_coffea_files.py
