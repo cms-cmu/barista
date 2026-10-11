@@ -545,7 +545,8 @@ rule likelihood_scan_chunk:
 
 rule likelihood_scan:
     input:
-        lambda wildcards: get_likelihood_scan_chunks(wildcards, config)
+        chunks = lambda wildcards: get_likelihood_scan_chunks(wildcards, config),
+        sanitize_script = "src/stat_analysis/sanitize_scan_roots.py"
     output: "{path}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
@@ -564,9 +565,10 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
+        SANITIZE_SCRIPT=$(realpath {input.sanitize_script})
         EXP_FILES=""
         OBS_FILES=""
-        for f in {input}; do
+        for f in {input.chunks}; do
             rf=$(realpath $f)
             # The snapshot fit is only the chunks' input: its `limit` tree carries the
             # inactive-POI branches (rggHH_kl_0/2p45/5, ...) that the -P scans drop, and
@@ -588,26 +590,36 @@ rule likelihood_scan:
         cd $DATACARD_DIR
 
         if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
-            hadd -f higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
-            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
+            (plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
                 --main-label "Observed" \
-                --others higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+                --others $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot || \
+             plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --main-label "Expected" \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot) && \
             mv scan_plot.pdf $OUT_FILE
         elif [ -n "$EXP_FILES" ]; then
-            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
+            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
                 --main-label "Expected" \
                 --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
         else
             INPUT_FILES=""
-            for f in {input}; do
+            for f in {input.chunks}; do
                 INPUT_FILES="$INPUT_FILES $(realpath $f)"
             done
-            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root && \
+            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
                 --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
         fi
@@ -795,34 +807,12 @@ rule impacts_collect:
         # Check if running in stat_only mode
         if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
             echo "stat_only is enabled. Creating dummy impacts plot."
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'stat_only is enabled (Impacts not run)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'stat_only is enabled (Impacts not run)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 
         if [ -f $FITS_DONE_DIR/no_nuisances ]; then
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'No Nuisance Parameters in Datacard (Impacts not applicable)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'No Nuisance Parameters in Datacard (Impacts not applicable)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 
@@ -992,18 +982,7 @@ rule gof:
 
         if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat {input.data} 2>/dev/null)" = "stat_only" ]; then
             echo "stat_only is enabled. Creating dummy GoF plot."
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'stat_only is enabled (GoF not run)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'stat_only is enabled (GoF not run)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 

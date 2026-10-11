@@ -15,7 +15,15 @@ apptainer-args: "--nv -B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/gr
 default-resources:
   - "tmpdir='/tmp'"
   - "mem_mb=4000"
-jobs: 10
+jobs: 20
 latency-wait: 60
 retries: 1
 rerun-triggers: mtime
+
+set-threads:
+  train: 4
+
+set-resources:
+  train:
+    mem_mb: 16000
+

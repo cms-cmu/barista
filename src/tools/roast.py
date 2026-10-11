@@ -239,7 +239,8 @@ def k8s_cmd(*args) -> list[str]:
 
 def _k8s_job_name(r: dict, step: dict) -> str:
     """RFC 1123 compliant Kubernetes Job name."""
-    raw = f"roast-{r['label'][:20]}-{step['name'][:15]}".lower()
+    h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+    raw = f"roast-{r['label'][:35]}-{h}-{step['name'][:10]}".lower()
     return re.sub(r"[^a-z0-9-]", "-", raw).strip("-")[:63]
 
 
@@ -733,11 +734,13 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
             for f in sorted(p for p in up_dir.iterdir() if p.is_file()):
                 sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{up_id}/{f.name}"), check=False)
 
-    # 4. Stage user's local kubeconfig to CephFS if present
-    local_kube = Path.home() / ".kube" / "config"
-    if local_kube.is_file():
-        sh(k8s_cmd("cp", str(local_kube), f"{ns}/storage-helper:/workspace/users/{user}/.kube/config"), check=False)
-        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", f"/workspace/users/{user}/.kube/config"), check=False)
+    # 4. Stage user's local kubeconfig to CephFS if not already present
+    check_kube = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-f", f"/workspace/users/{user}/.kube/config"), check=False)
+    if check_kube.returncode != 0:
+        local_kube = Path.home() / ".kube" / "config"
+        if local_kube.is_file():
+            sh(k8s_cmd("cp", str(local_kube), f"{ns}/storage-helper:/workspace/users/{user}/.kube/config"), check=False)
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", f"/workspace/users/{user}/.kube/config"), check=False)
 
     r.setdefault("hosts", {})["nautilus"] = {"checkout": ckpt, "checked_out": now()}
     log_event(r, "checkout", host="nautilus")
@@ -906,6 +909,8 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     if resume:
         base += " --rerun-incomplete"
 
+    unlock = f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus --unlock || true\n" if resume else ""
+
     # 2. Build Job manifest
     manifest = textwrap.dedent(f"""\
         apiVersion: batch/v1
@@ -926,6 +931,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                 step: "{name}"
             spec:
               restartPolicy: Never
+              serviceAccountName: roast-runner
               containers:
               - name: orchestrator
                 image: docker.io/snakemake/snakemake:v9.27.0
@@ -938,14 +944,16 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
                   pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic
                   export PATH=/workspace/shared/bin:$PATH
-                  export KUBECONFIG=/workspace/users/{user}/.kube/config
                   export NAUTILUS_WORKDIR={ckpt}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
+                  export ROAST_ID="{r['id']}"
+                  export ROAST_STEP="{name}"
                   cd {ckpt}
                   mkdir -p logs
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
                   rm -f "$EXIT"
+                  {unlock}
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
@@ -966,6 +974,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                 persistentVolumeClaim:
                   claimName: cms-cmu-storage
     """)
+
+    # Sync local software and src directories to CephFS checkout (with timeout to prevent k8s stream hang)
+    for folder in ("software", "src"):
+        sh(["timeout", "10", *k8s_cmd("cp", folder, f"{ns}/storage-helper:{ckpt}/")], check=False)
 
     manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
     manifest_path.write_text(manifest)
@@ -2085,12 +2097,12 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
     ns = hc.get("namespace", "cms-cmu")
     out = {"steps": [], "live": {}, "done": {}, "condor": {}, "k8s_pods": {}, "extra": [], "nocheckout": False, "error": None}
 
-    # Query pods labeled with this roast id
-    res = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={r['id']}", "-o", "json"), check=False)
-    pods = []
+    # Query all pods in namespace to catch both labeled orchestrator and worker jobs
+    res = sh(k8s_cmd("get", "pods", "-n", ns, "-o", "json"), check=False)
+    all_pods = []
     if res.returncode == 0 and res.stdout.strip():
         try:
-            pods = json.loads(res.stdout).get("items", [])
+            all_pods = json.loads(res.stdout).get("items", [])
         except Exception:
             pass
 
@@ -2124,25 +2136,80 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
                 st = "pending"
                 colour = ""
 
-            # Child training pods
-            child_pods = [p for p in pods if jname not in p.get("metadata", {}).get("name", "")]
-            n_done = sum(1 for p in child_pods if p.get("status", {}).get("phase") == "Succeeded")
-            n_run = sum(1 for p in child_pods if p.get("status", {}).get("phase") == "Running")
-            prog = f"k8s-job ({n_done} done, {n_run} running)" if child_pods else "k8s-job"
+            # Child worker pods: match roast label, or smk- prefix if this job is active
+            child_pods = [
+                p for p in all_pods
+                if jname not in p.get("metadata", {}).get("name", "")
+                and (
+                    p.get("metadata", {}).get("labels", {}).get("roast") == r["id"]
+                    or (status_f.get("active", 0) > 0 and p.get("metadata", {}).get("name", "").startswith("smk-"))
+                )
+            ]
 
+            n_done, n_run, n_pend, n_fail = 0, 0, 0, 0
             rows = []
-            for p in child_pods:
+            for p in sorted(child_pods, key=lambda x: x.get("metadata", {}).get("name", "")):
                 pname = p.get("metadata", {}).get("name", "")
-                phase = p.get("status", {}).get("phase", "")
-                pcol = "\033[32m" if phase == "Succeeded" else "\033[33m" if phase == "Running" else "\033[31m" if phase == "Failed" else ""
+                phase = p.get("status", {}).get("phase", "Unknown")
                 node = p.get("spec", {}).get("nodeName", "-")
-                rows.append(f"nautilus {pname[:24]:24s} {pcol}{phase:10s}\033[0m node={node}")
+                c_status = p.get("status", {}).get("containerStatuses", [{}])[0] if p.get("status", {}).get("containerStatuses") else {}
+                state_desc = phase
+                if c_status:
+                    state = c_status.get("state", {})
+                    if "waiting" in state:
+                        state_desc = state["waiting"].get("reason", "Waiting")
+                    elif "terminated" in state:
+                        reason = state["terminated"].get("reason", "Terminated")
+                        ec = state["terminated"].get("exitCode", 0)
+                        state_desc = f"{reason}({ec})"
+                    elif "running" in state:
+                        state_desc = "Running"
+
+                is_fail = phase == "Failed" or (any(k in state_desc for k in ["CrashLoop", "Error", "ImagePull", "Terminated", "OOMKilled"]) and not state_desc.startswith("Completed(0)"))
+                is_done = phase == "Succeeded" or state_desc == "Completed(0)"
+                is_pend = phase == "Pending" or state_desc in ("ContainerCreating", "PodInitializing", "Waiting")
+                is_run = phase == "Running" and state_desc == "Running"
+
+                if is_fail:
+                    n_fail += 1
+                    pcol = "\033[31m"
+                elif is_done:
+                    n_done += 1
+                    pcol = "\033[32m"
+                elif is_pend:
+                    n_pend += 1
+                    pcol = "\033[33m"
+                else:
+                    n_run += 1
+                    pcol = "\033[36m"
+
+                rows.append(f"nautilus {pname[:28]:28s} {pcol}{state_desc:14s}\033[0m node={node}")
             out["k8s_pods"][name] = rows
+
+            # Extract any Snakemake step completion from orchestrator log
+            smk_prog = ""
+            log_res = sh(k8s_cmd("logs", "-n", ns, f"job/{jname}", "--tail=60"), check=False)
+            if log_res.returncode == 0 and log_res.stdout:
+                m = re.findall(r"(\d+ of \d+ steps \(\d+%\) done)", log_res.stdout)
+                if m:
+                    smk_prog = m[-1]
+
+            summary_parts = []
+            if n_run > 0: summary_parts.append(f"{n_run} running")
+            if n_pend > 0: summary_parts.append(f"{n_pend} pending")
+            if n_fail > 0: summary_parts.append(f"\033[31m{n_fail} failed\033[0m")
+            if n_done > 0: summary_parts.append(f"\033[32m{n_done} done\033[0m")
+
+            k8s_summary = f"k8s: {', '.join(summary_parts)}" if summary_parts else "k8s-job"
+            if smk_prog:
+                prog = f"{smk_prog} ({k8s_summary})"
+            else:
+                prog = k8s_summary
 
         out["steps"].append((name, f"{colour}{st:12s}\033[0m {prog}".rstrip()))
 
-    if pods:
-        out["extra"].append(f"nautilus {len(pods)} pod(s) in namespace {ns}")
+    if all_pods:
+        out["extra"].append(f"nautilus {len(all_pods)} pod(s) in namespace {ns}")
 
     return out
 
@@ -2297,7 +2364,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
         trap 'rm -f "$LIST" "$HAVE" "$TODO" "$DIRS"' EXIT
-        {{ [ -d output ] && find output {prune} -type f \\( {exts} \\) {size} -print; \\
+        {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
            {extra_dirs} }} | sort -u > "$LIST"
         N=$(wc -l < "$LIST")
         {dry}
@@ -2349,6 +2416,8 @@ def cmd_publish(args) -> None:
         info("publish rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb']}")
     if not args.docs_only:
         for host in hosts:
+            if host == "nautilus":
+                continue
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
             res = ssh_run(roast_ssh(cfg, r, host),
@@ -2371,9 +2440,11 @@ def cmd_publish(args) -> None:
         if not args.host:
             pages = set()   # full publish: rebuild the list from what the hosts have now
         for host in hosts:
+            if host == "nautilus":
+                continue
             ck = r["hosts"][host]["checkout"]
             res = ssh_run(roast_ssh(cfg, r, host),
-                          f"cd {rq(ck)} && find output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
+                          f"cd {rq(ck)} && find -L output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
                           check=False)
             pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
     # --docs-only rewrites the cupping note without touching CERNBox, so it must not overwrite what
