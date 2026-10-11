@@ -23,6 +23,9 @@ from src.tools.cutflow_table import parse_dataset_name
         ("data_2023_preBPixC1", ("data", "2023_preBPix", "2023_preBPix_C1")),
         ("data_2023_BPixD", ("data", "2023_BPix", "2023_BPix_D")),
         ("data_2024", ("data", "2024", "2024")),
+        ("data_2024C", ("data", "2024", "2024_C")),
+        ("data_2024I2", ("data", "2024", "2024_I2")),
+        ("TTbar_from_d3_2024I3", ("TTbar_from_d3", "2024", "2024_I3")),
         # Run 3, double underscore
         ("TTToHadronic__2022_preEE", ("TTToHadronic", "2022_preEE", "2022_preEE")),
         ("data__2022_preEE_B", ("data", "2022_preEE", "2022_preEE_B")),

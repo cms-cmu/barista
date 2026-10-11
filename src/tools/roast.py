@@ -712,7 +712,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al)
     copy_script = f"""
-    for item in coffea4bees output proxy run_container runner.py software src pixi.toml pixi.lock roasts .pixi; do
+    for item in coffea4bees output proxy run_container runner.py software src roasts; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -897,7 +897,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     configfile = f"roasts/{r['id']}/config.yml"
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
     settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
-    base = (f"pixi run --frozen snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
+    base = (f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
         base += f" {step['extra']}"
@@ -928,7 +928,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
               restartPolicy: Never
               containers:
               - name: orchestrator
-                image: ghcr.io/prefix-dev/pixi:latest
+                image: docker.io/snakemake/snakemake:v9.27.0
                 imagePullPolicy: IfNotPresent
                 workingDir: {ckpt}
                 command: ["bash", "-c"]
@@ -936,14 +936,12 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                 - |
                   set -e
                   echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
+                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic
                   export PATH=/workspace/shared/bin:$PATH
                   export KUBECONFIG=/workspace/users/{user}/.kube/config
-                  export PIXI_NO_HARD_LINKS=true
                   export NAUTILUS_WORKDIR={ckpt}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
                   cd {ckpt}
-                  which git >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq git >/dev/null 2>&1)
-                  pixi install --no-hard-links
                   mkdir -p logs
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit

@@ -244,7 +244,10 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
     output, complete = integrity_check(fileset, output)
     if not complete and (config_runner["maxchunks"] is None) and not args.test:
         logging.error("The jobs above failed. Merging is skipped.")
-        return output, False
+        # Fail here, by name. Returning the unmerged output only crashed later in
+        # process_metadata_output ("dictionary update sequence element #0 has length 1").
+        missing = {d: v.get("missing") for d, v in output.items() if isinstance(v, dict) and v.get("missing")}
+        raise RuntimeError(f"picoAOD integrity check failed, merging skipped: {missing}")
 
     kwargs = {
         'base_path': configs["config"]["base_path"],
@@ -263,7 +266,7 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
         if output[dataset].get("missing", {}).get("file_missing"):
             logging.info(f'Merging completed successfully for "{dataset}" — ignore the missing file warnings above, some files had zero selected events or failed silently.')
 
-    return output, True
+    return output
 
 def _to_native(obj):
     """Plain-Python copy of *obj* for yaml: numpy scalars/arrays (e.g. the run and lumi
@@ -450,15 +453,11 @@ def run_job(fileset, configs, config_runner, executor, executor_args, args, clie
     logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
 
     if args.skimming:
-        output, merged = process_skimming_output(output, fileset, configs, config_runner, args, client)
+        output = process_skimming_output(output, fileset, configs, config_runner, args, client)
         elapsed = time.time() - tstart
         nEvent = metrics['entries']
         logging.info(f'{nEvent/elapsed:,.0f} events/s total ({nEvent}/{elapsed})')
         process_metadata_output(output, fileset, config_runner, args, client)
-        if not merged:
-            # the registry above lists the unmerged files of an incomplete skim; fail so a
-            # workflow does not take it for a finished one
-            raise RuntimeError("Skim incomplete (chunks failed), picoAODs not merged; rerun this dataset")
     else:
         process_analysis_output(output, args)
         process_friend_trees(output, config_runner, configs, args, client, fileset=fileset)
