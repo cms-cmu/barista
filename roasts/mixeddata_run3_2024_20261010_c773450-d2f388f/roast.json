@@ -241,7 +241,7 @@
       "host": "cmslpc"
     }
   ],
-  "notes": "2024 mixed data, first attempt with the skimmer transient-I/O retry. M.1 OK: the ~2M-hemisphere library (prescale 0.1555 of 12,861,770) reused by mixeddata_run3_2024_20261010_952524e-5ddc954 via inputs.hemilib. HOT PATCH 2026-10-10: M.2 KilledWorker (data_2024C chunk4, silent OOM at 8GB) -> mixing.worker_memory 12GB in the captured config (mtime kept), M.2 rerun OK. M.3 FAILED: 0 events selected -- the 2024 mixed data store the jet ID as a boolean Jet_jetId, which the jetId >= 2 test rejected (fixed in coffea4bees e7f7c301b). Superseded by 952524e-5ddc954.",
+  "notes": "2024 mixed data, first attempt with the skimmer transient-I/O retry. M.1 OK: the ~2M-hemisphere library (prescale 0.1555 of 12,861,770) reused by mixeddata_run3_2024_20261010_952524e-5ddc954 via inputs.hemilib. HOT PATCH 2026-10-10: M.2 KilledWorker (data_2024C chunk4, silent OOM at 8GB) -> mixing.worker_memory 12GB in the captured config (mtime kept), M.2 rerun OK. M.3 FAILED: 0 events selected -- the 2024 mixed data store the jet ID as a boolean Jet_jetId, which the jetId >= 2 test rejected (fixed in coffea4bees e7f7c301b). Superseded by 952524e-5ddc954, but KEEP: its EOS hemilib/ is that roast's M.1 input.",
   "category": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
