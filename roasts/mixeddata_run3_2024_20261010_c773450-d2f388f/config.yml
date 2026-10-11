@@ -127,7 +127,9 @@ mixing:
   # the tracker acceptance). Without it ~4.5% of tagged jets left the acceptance and ~15% of mixed events
   # lost a tag (found in mixeddata_run3_4bmix_20260930_2e4bcf8-2f1d90b; the 3b JCM fit hid it).
   boost_acceptance_eta: 2.4
-  worker_memory: 8GB
+  # 12GB, not 8GB: the ~2M-hemisphere library alone holds workers at ~5.2 GB of 7.45 GiB, and
+  # data_2024C chunk4 [0,50000) killed 4 workers in a row (silent OOM; this roast, first M.2 attempt).
+  worker_memory: 12GB
   # 50000, not 100000: with the ~2M-hemisphere library (~4.4 GB) a 100k-event chunk put workers over
   # 8 GB (data_2024G chunk345 killed 4 workers in a row; mixeddata_run3_2024_20261009_e1faf1e-07a4f49).
   chunksize: 50000

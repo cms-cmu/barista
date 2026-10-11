@@ -128,7 +128,9 @@ mixing:
   # lost a tag (found in mixeddata_run3_4bmix_20260930_2e4bcf8-2f1d90b; the 3b JCM fit hid it).
   boost_acceptance_eta: 2.4
   worker_memory: 8GB
-  chunksize: 100000
+  # 2026-10-09: 100000 -> 50000. With the ~2M-hemisphere library (~4.4 GB) a 100k-event chunk
+  # put some workers over 8 GB (data_2024G chunk345 killed 4 workers in a row, M2_mix failed).
+  chunksize: 50000
 
 # ------------------------------------------------------------------------------
 # M.3: validation + mixed-data JCM (mixeddata_all as the "3b" sample, float_t)
