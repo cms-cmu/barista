@@ -89,9 +89,11 @@ if __name__ == '__main__':
     unmatched = []
     for ifile in expanded_files:
 
-        tmp_file = yaml.full_load(open(ifile, 'r'))
+        tmp_file = yaml.full_load(open(ifile, 'r')) or {}
 
         for ikey in tmp_file.keys():
+            if not isinstance(tmp_file[ikey], dict):
+                continue
             missing = tmp_file[ikey].get('missing', {})
             if missing:
                 raise RuntimeError(
@@ -101,7 +103,10 @@ if __name__ == '__main__':
 
             match = _match_key(ikey, datasets)
             if match is None:
-                unmatched.append(f"{ifile}: {ikey}")
+                if 'total_events' in tmp_file[ikey]:
+                    unmatched.append(f"{ifile}: {ikey}")
+                else:
+                    print(f"Skipping '{ikey}' in {ifile}: not a skimmer output")
                 continue
             dataset, year, era = match
 
@@ -124,7 +129,7 @@ if __name__ == '__main__':
                 new_year['picoAOD'] = tmp_file[ikey]
 
     if unmatched:
-        # Skipping these silently once dropped every data skim from the merged file
+        # Skipping skimmer outputs silently once dropped every data skim from the merged file
         raise RuntimeError("No dataset/year (and era) in the metadata matches these skimmer outputs:\n  "
                            + '\n  '.join(unmatched))
 
