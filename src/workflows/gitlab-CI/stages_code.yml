@@ -5,10 +5,9 @@
 # those tests skip.
 code_roast_barista:
   stage: code
-  image: registry.cern.ch/docker.io/library/python:3.13-slim-trixie
+  image: gitlab-registry.cern.ch/cms-cmu/barista:latest
   needs: []
   script:
-    - python3 -m pip install --quiet pyyaml
     - python3 src/tests/roast.py
 
 code_hist_collection_barista:
