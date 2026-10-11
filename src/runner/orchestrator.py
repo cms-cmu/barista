@@ -244,7 +244,10 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
     output, complete = integrity_check(fileset, output)
     if not complete and (config_runner["maxchunks"] is None) and not args.test:
         logging.error("The jobs above failed. Merging is skipped.")
-        return output
+        # Fail here, by name. Returning the unmerged output only crashed later in
+        # process_metadata_output ("dictionary update sequence element #0 has length 1").
+        missing = {d: v.get("missing") for d, v in output.items() if isinstance(v, dict) and v.get("missing")}
+        raise RuntimeError(f"picoAOD integrity check failed, merging skipped: {missing}")
 
     kwargs = {
         'base_path': configs["config"]["base_path"],

@@ -28,7 +28,23 @@ class SkimmingError(Exception):
     __module__ = Exception.__module__
 
 
+# A read through XRootD/fsspec that fails transiently surfaces as an OSError, or as a bare
+# ValueError from the XRootD client ("I/O operation on closed file", fsspec_xrootd vector_read).
+_TRANSIENT_IO_MESSAGES = ("I/O operation on closed file",)
+
+
+def _is_transient_io(e: Exception) -> bool:
+    return isinstance(e, OSError) or (
+        isinstance(e, ValueError) and any(m in str(e) for m in _TRANSIENT_IO_MESSAGES)
+    )
+
+
 def _log_exception(e, *_):
+    if _is_transient_io(e):
+        # Re-raise, so the dask executor retries the task (DaskExecutor retries) with a fresh file
+        # handle. Returned empty here, the chunk silently went missing and the whole skim failed its
+        # integrity check (mixeddata_run3_2024: 1-2 of ~2300 chunks per run, out of ~14 such errors).
+        raise e
     logging.error("The following exception occurred during skimming:", exc_info=e)
     return {}
 
@@ -106,7 +122,9 @@ class PicoAOD(ProcessorABC):
     def preselected(self):
         return self._preselected
 
-    # no retry, return empty dict if any exception
+    # no retry here, return empty dict if any exception -- except transient I/O errors, which
+    # _log_exception re-raises so that dask retries the whole task (a retry here would reuse the
+    # lazily-read events and their closed file handle)
     @retry(1, handler=_log_exception, skip=(SkimmingError,))
     def process(self, events: ak.Array):
         EOS.set_retry(3, 10)  # 3 retries with 10 seconds interval

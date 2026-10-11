@@ -559,17 +559,23 @@ if __name__ == '__main__':
     if getattr(args, 'run_dask', False):
         os.makedirs(args.output_path, exist_ok=True)
         dask_report_file = f'{args.output_path}/barista-dask-report-{datetime.today().strftime("%Y-%m-%d_%H-%M-%S")}.html'
-        job_done = False
+        # Only the performance report is optional. A failure inside run_job must fail the job: the old
+        # fallback re-ran the whole job after ANY exception, so a skim that failed its picoAOD
+        # integrity check after hours silently started over (mixeddata_run3_2024, 2026-10-09).
+        report = performance_report(filename=dask_report_file)
         try:
-            with performance_report(filename=dask_report_file):
-                run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
-                job_done = True
+            report.__enter__()
         except Exception as e:
-            if not job_done:
-                logging.warning(f"Dask performance report failed ({e}); proceeding with job execution directly...")
-                run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
-            else:
-                logging.warning(f"Dask performance report failed to write ({e}), but job completed successfully.")
+            logging.warning(f"Dask performance report could not start ({e}); running without it")
+            report = None
+        try:
+            run_job(fileset, configs, config_runner, executor, executor_args, args, client, tstart)
+        finally:
+            if report is not None:
+                try:
+                    report.__exit__(None, None, None)
+                except Exception as e:
+                    logging.warning(f"Dask performance report failed to write ({e})")
 
         logging.info("Cleaning up Dask resources...")
         for obj_name, obj in [("cluster", cluster), ("client", client)]:

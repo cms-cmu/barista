@@ -28,7 +28,7 @@ import yaml
 
 
 # Order matters: longer/more-specific prefixes must come first.
-YEAR_PREFIXES = ["2023_preBPix", "2023_BPix", "2022_preEE", "2022_EE",
+YEAR_PREFIXES = ["2023_preBPix", "2023_BPix", "2022_preEE", "2022_EE", "2024",
                  "UL18", "UL17", "UL16_preVFP", "UL16_postVFP"]
 
 
