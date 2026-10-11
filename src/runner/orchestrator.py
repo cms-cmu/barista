@@ -268,6 +268,21 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
 
     return output
 
+def _to_native(obj):
+    """Plain-Python copy of *obj* for yaml: numpy scalars/arrays (e.g. the run and lumi
+    numbers in ``lumis_processed``) otherwise dump as python/object tags that
+    yaml.safe_load rejects, or fail to dump at all."""
+    import numpy as np
+    if isinstance(obj, dict):
+        return {_to_native(k): _to_native(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_to_native(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.generic):
+        return obj.item()
+    return obj
+
 def process_metadata_output(output, fileset, config_runner, args, client):
     """Process and save metadata for skimming jobs."""
     from src.skimmer.picoaod import fetch_metadata
@@ -288,7 +303,7 @@ def process_metadata_output(output, fileset, config_runner, args, client):
     output_file = ('picoaod_datasets.yml' if args.output_file.endswith('coffea')
                    else args.output_file)
     dfile = f'{args.output_path}/{output_file}'
-    yaml.dump(metadata, open(dfile, 'w'), default_flow_style=False)
+    yaml.dump(_to_native(metadata), open(dfile, 'w'), default_flow_style=False)
     logging.info(f'Saving metadata file {dfile}')
 
 def process_analysis_output(output, args):
