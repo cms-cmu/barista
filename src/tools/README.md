@@ -142,7 +142,12 @@ python src/tools/merge_coffea_files.py -i file1.coffea file2.coffea -o merged.co
 
 ## check_event_counts.py
 
-Compares event counts between a datasets YAML and processed output to check for missing or duplicate processing.
+Checks that skims read every event of their input datasets: compares each registry's `total_events` (and lumi-section count) with DBS, queried over REST with the grid proxy. Writes a YAML report plus a markdown table and exits non-zero on any mismatch. Runs as the `check_event_counts` rule of `Snakefile_PhaseA_1_skimmer.smk`.
+
+```bash
+./run_container python src/tools/check_event_counts.py -f output/skims/skimmer/picoaod_*.yml \
+    -m coffea4bees/metadata/datasets/ -o output/skims/checks/event_counts.yml
+```
 
 ## check_lumi_sections.py
 
