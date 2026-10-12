@@ -1,0 +1,102 @@
+{
+  "id": "nominal_run3_2024_20261011_852c1c2-be0604a",
+  "label": "nominal_run3_2024",
+  "created": "2026-10-11 22:40:08",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "852c1c2d457d3b091821b255902e0494d7145652",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "be0604a07a9693e26c13e3e96ac9968141ef96a4",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "3aa685187a6ac07e4085b96b4d5d0d608806056890a031a6f23b8b8595a20506"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-11 22:41:37",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_B",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "3aa685187a6a"
+        },
+        {
+          "ts": "2026-10-11 22:43:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_B",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "3aa685187a6a"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a/barista",
+      "ssh": "jda102@cmslpc317.fnal.gov",
+      "checked_out": "2026-10-11 22:41:29"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-11 22:40:08",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-11 22:41:29",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 22:41:37",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 22:43:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  }
+}
