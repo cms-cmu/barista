@@ -22,7 +22,7 @@ def init_arg_parser():
                         help='Input File. Default: hists.pkl')
 
     parser.add_argument('-l', '--labelNames', dest="fileLabels",
-                        default=None, nargs='+',
+                        default=["fileA", "fileB"], nargs='+',
                         help='label Names when more than one input file')
 
     parser.add_argument('-o', '--outputFolder', default=None,
@@ -45,15 +45,13 @@ def init_arg_parser():
                         help='Name of hists to skip')
 
 
-    parser.add_argument('-f', '--format', dest="fmt", default="png",
+    parser.add_argument('-f', '--format', dest="fmt", default="pdf,png",
                         help='Output format(s), comma-separated (e.g. pdf, png, or pdf,png)')
     parser.add_argument('--doTest', action="store_true", help='Metadata file.')
     parser.add_argument('--debug', action="store_true", help='')
     parser.add_argument('--signal', action="store_true", help='')
     parser.add_argument('--year',   help='')
     parser.add_argument('--combine_input_files', action="store_true", help='')
-    parser.add_argument('-p', '--num-workers', '--png_cores', dest="num_workers", type=int, default=8,
-                        help='Number of parallel worker processes to use for rendering plots (default: 8)')
     parser.add_argument('--category', default=None,
                         help='Optional hist category selector (e.g. nominal, lowpt). '
                              'Default None lets the caller plot all categories.')
@@ -164,7 +162,7 @@ def makePlot(cfg, var='selJets.pt',
        axis_opts : dict ({"region":"SR"})
 
        plotting opts
-        'doRatio'  : bool (True)
+        'doRatio'  : bool (True, unless a single process is given, then False)
         'rebin'    : int (1),
     """
 
@@ -173,6 +171,11 @@ def makePlot(cfg, var='selJets.pt',
     year    = kwargs.get("year", "RunII")
     debug   = kwargs.get("debug", False)
     if debug: print(f"In makePlot kwargs={kwargs}")
+
+    if "doRatio" not in kwargs and process is not None:
+        n_process = len(process) if isinstance(process, list) else 1
+        if n_process == 1:
+            kwargs["doRatio"] = False
 
     if (isinstance(cut, list) and process is not None) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
         try:
@@ -214,7 +217,10 @@ def make2DPlot(cfg, process, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
 
-    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(process, list)) or (isinstance(year, list)):
+    # Note: a list of processes is intentionally excluded here — for a 2D plot
+    # multiple processes are summed into one combined map (see
+    # get_plot_dict_from_config), not plotted/ratioed separately like other lists.
+    if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(year, list)):
         try:
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
             return plot_helpers_make_plot.make_plot_from_dict(plot_data, do2d=True)
