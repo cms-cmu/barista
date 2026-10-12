@@ -101,6 +101,32 @@
           "window": "mvd_declib16_run3_c41b495-f2d2cf8_MvD",
           "ssh": "jda102@cmslpc320.fnal.gov",
           "config_sha256": "12df5728e89a"
+        },
+        {
+          "ts": "2026-10-12 04:01:26",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_c41b495-f2d2cf8_MvD",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "12df5728e89a"
+        },
+        {
+          "ts": "2026-10-12 06:40:28",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_c41b495-f2d2cf8_MvD",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "12df5728e89a"
         }
       ]
     },
@@ -109,14 +135,44 @@
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-12 01:42:42",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_c41b495-f2d2cf8_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "12df5728e89a"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-12 04:02:58",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_c41b495-f2d2cf8_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "12df5728e89a"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -131,7 +187,20 @@
       "checked_out": "2026-10-11 23:27:06"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_run3_20261011_c41b495-f2d2cf8",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_run3_20261011_c41b495-f2d2cf8/",
+    "ts": "2026-10-12 07:02:12",
+    "ok": true,
+    "pages": [
+      "output/MvD/yields.html",
+      "output/SvB_MvD/yields.html",
+      "output/mvd_declib16_run3_20261011_c41b495-f2d2cf8/V2c/cutflow_MvD_closure.html",
+      "output/mvd_declib16_run3_20261011_c41b495-f2d2cf8/V2c/plots_MvD_closure/index.html",
+      "output/mvd_declib16_run3_20261011_c41b495-f2d2cf8/V4/plots_MvD/index.html",
+      "output/mvd_declib16_run3_20261011_c41b495-f2d2cf8/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-11 23:24:46",
@@ -158,6 +227,54 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 01:42:42",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-12 04:01:26",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 04:02:58",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-12 06:40:01",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-12 06:40:26",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-12 06:40:28",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 07:02:01",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-12 07:02:11",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "MvD on the 16x declustered model (declib16_run3) with v3 trigger weights (nominal_run3_20261008)",
