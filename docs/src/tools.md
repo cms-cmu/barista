@@ -23,11 +23,10 @@ The script `src/tools/compute_lumi_processes.py` reads a YAML file that is the o
 
 ## Check that all events have been processed
 
-Compares processed lumi sections against those expected in json
+Compares the event counts in the skim registries with DBS (the `check_event_counts` rule of the skimmer workflow)
 
 ```
-python src/tools/get_das_info.py -d coffea4bees/metadata/datasets_HH4b_Run3.yml 
-python src/tools/check_event_counts.py -y skimmer/metadata/picoaod_datasets_data_2023_BPix.yml
+./run_container python src/tools/check_event_counts.py -f output/skims/skimmer/picoaod_*.yml -m coffea4bees/metadata/datasets/ -o output/skims/checks/event_counts.yml
 ```
 
 Compares processed lumi sections against those expected in json

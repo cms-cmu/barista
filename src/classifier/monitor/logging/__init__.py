@@ -23,12 +23,40 @@ def _common():
         sys.excepthook = _excepthook
 
 
+def _render_arg(arg) -> str:
+    if isinstance(arg, str):
+        return arg
+    from rich.console import Console
+    from rich.protocol import is_renderable
+
+    if not is_renderable(arg):
+        return repr(arg)
+    console = Console(width=160, no_color=True, force_terminal=False)
+    with console.capture() as capture:
+        console.print(arg)
+    return capture.get().rstrip()
+
+
+class _PlainFormatter(logging.Formatter):
+    """The classifier logs rich renderables as extra arguments, e.g. ``logging.info("title", table)``,
+    which the monitor's handlers render after the message (see MultiPlatformHandler.emit). A plain
+    handler would raise on ``msg % args`` ("--- Logging error ---"), so print them below the message."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        if record.args and isinstance(record.msg, str):
+            try:
+                record.msg % record.args
+            except (TypeError, ValueError):
+                record = logging.makeLogRecord(record.__dict__)  # other handlers keep the original
+                record.msg = "\n".join([record.msg, *map(_render_arg, record.args)])
+                record.args = None
+        return super().format(record)
+
+
 def disable_monitor():
-    logging.basicConfig(
-        handlers=[logging.StreamHandler(sys.stdout)],
-        level=cfg.Log.level,
-        format="[%(asctime)s] [%(levelname)s] %(message)s",
-    )
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(_PlainFormatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+    logging.basicConfig(handlers=[handler], level=cfg.Log.level)
 
 
 @cfg.check(cfg.Log, default=disable_monitor, is_callable=True)
