@@ -123,13 +123,14 @@ python src/tools/convert_json_to_root.py \
 
 ## merge_yaml_datasets.py
 
-Merges picoAOD file lists from one or more datasets YMLs into a main datasets file.
+Merges picoAOD file lists from skimmer registries into a main datasets file. Registry keys are matched against the metadata (`{dataset}_{year}` for MC, `{dataset}_{year}{era}` for data); a key that matches nothing is an error. `-n` also writes just the added entries, which is the file to review and merge into `coffea4bees/metadata/datasets/`.
 
 ```bash
 python src/tools/merge_yaml_datasets.py \
-    -m coffea4bees/metadata/datasets_HH4b.yml \
-    -f output/picoaod_datasets_UL18.yml \
-    -o coffea4bees/metadata/datasets_HH4b_merged.yml
+    -m coffea4bees/metadata/datasets/ \
+    -f output/skims/skimmer/picoaod_*.yml \
+    -o output/skims/modified_datasets/modified_datasets.yml \
+    -n output/skims/modified_datasets/new_datasets.yml
 ```
 
 ## merge_coffea_files.py
@@ -142,7 +143,12 @@ python src/tools/merge_coffea_files.py -i file1.coffea file2.coffea -o merged.co
 
 ## check_event_counts.py
 
-Compares event counts between a datasets YAML and processed output to check for missing or duplicate processing.
+Checks that skims read every event of their input datasets: compares each registry's `total_events` (and lumi-section count) with DBS, queried over REST with the grid proxy. Writes a YAML report plus a markdown table and exits non-zero on any mismatch. Runs as the `check_event_counts` rule of `Snakefile_PhaseA_1_skimmer.smk`.
+
+```bash
+./run_container python src/tools/check_event_counts.py -f output/skims/skimmer/picoaod_*.yml \
+    -m coffea4bees/metadata/datasets/ -o output/skims/checks/event_counts.yml
+```
 
 ## check_lumi_sections.py
 

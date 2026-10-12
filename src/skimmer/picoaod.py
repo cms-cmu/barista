@@ -28,7 +28,23 @@ class SkimmingError(Exception):
     __module__ = Exception.__module__
 
 
+# A read through XRootD/fsspec that fails transiently surfaces as an OSError, or as a bare
+# ValueError from the XRootD client ("I/O operation on closed file", fsspec_xrootd vector_read).
+_TRANSIENT_IO_MESSAGES = ("I/O operation on closed file",)
+
+
+def _is_transient_io(e: Exception) -> bool:
+    return isinstance(e, OSError) or (
+        isinstance(e, ValueError) and any(m in str(e) for m in _TRANSIENT_IO_MESSAGES)
+    )
+
+
 def _log_exception(e, *_):
+    if _is_transient_io(e):
+        # Re-raise, so the dask executor retries the task (DaskExecutor retries) with a fresh file
+        # handle. Returned empty here, the chunk silently went missing and the whole skim failed its
+        # integrity check (mixeddata_run3_2024: 1-2 of ~2300 chunks per run, out of ~14 such errors).
+        raise e
     logging.error("The following exception occurred during skimming:", exc_info=e)
     return {}
 
@@ -106,7 +122,9 @@ class PicoAOD(ProcessorABC):
     def preselected(self):
         return self._preselected
 
-    # no retry, return empty dict if any exception
+    # no retry here, return empty dict if any exception -- except transient I/O errors, which
+    # _log_exception re-raises so that dask retries the whole task (a retry here would reuse the
+    # lazily-read events and their closed file handle)
     @retry(1, handler=_log_exception, skip=(SkimmingError,))
     def process(self, events: ak.Array):
         EOS.set_retry(3, 10)  # 3 retries with 10 seconds interval
@@ -360,6 +378,18 @@ def fetch_metadata(
     return results
 
 
+def _has_no_events(file) -> bool:
+    """True for an input with zero entries (or no Events tree): it yields no chunk, so its absence
+    from the outputs is not a failure. PromptReco NanoAOD datasets carry such files (2025
+    ParkingHH1: 15 of 3,7k files); without this every era holding one skipped the merge."""
+    try:
+        with uproot.open(str(file), timeout=120) as f:
+            return "Events" not in f or f["Events"].num_entries == 0
+    except Exception as e:
+        logging.warning(f'Could not open "{file}" to check for zero entries: {e}')
+        return False
+
+
 def integrity_check(
     fileset: dict[str, dict[str, list[str]]],
     output: dict[str, dict[str, dict[str, list[tuple[int, int]]]]],
@@ -387,7 +417,9 @@ def integrity_check(
         file_missing = []
         chunk_missing = []
         for file in inputs:
-            if file not in outputs:
+            if file not in outputs and _has_no_events(file):
+                logging.info(f'Input file has no events, nothing to skim: "{file}"')
+            elif file not in outputs:
                 logging.error(f'The whole file is missing in outputs: "{file}"')
                 complete = False
                 file_missing.append(str(file))
