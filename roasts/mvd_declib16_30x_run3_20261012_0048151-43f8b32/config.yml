@@ -101,7 +101,7 @@ mvd:
     --metadata: '{roast:mvd_declib16_run3_20261011_c41b495-f2d2cf8}/handoff/classifier_metadata'
     --JCM-weight: '"source:mixed_all" {roast:mvd_declib16_run3_20261011_c41b495-f2d2cf8}/handoff/jetCombinatoricModel_SB_mixeddata_tight.yml@@JCM_weights'
     --friends "": '{roast:mvd_declib16_run3_20261011_c41b495-f2d2cf8}/handoff/classifier_inputs_MvD.json@@HCR_input'
-    --max-evaluators: '2'
+    --max-evaluators: '1'
   workflow_inserts:
     --data-source:
     - --data-mixed-all-name mixeddata_all_declib16

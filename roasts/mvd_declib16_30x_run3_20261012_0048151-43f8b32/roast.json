@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/mvd_run3_declib16_30x.yml",
     "captured": "config.yml",
-    "sha256": "845026240ef2ef42ff898037c0e4d7fefd41eeb1ee51512050a931d1ae5b7265",
+    "sha256": "37dea4f11d1831a1d19eb776ae4a4b93abc62174bb11a538d90d6a6040dc5bf0",
     "base": [
       {
         "source": "coffea4bees/workflows/config/mvd_run3.yml",
@@ -116,6 +116,32 @@
           "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD_2_train",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "845026240ef2"
+        },
+        {
+          "ts": "2026-10-12 15:32:22",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "37dea4f11d18"
+        },
+        {
+          "ts": "2026-10-12 15:32:52",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD_2_train",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "37dea4f11d18"
         }
       ]
     },
@@ -170,6 +196,23 @@
     },
     {
       "ts": "2026-10-12 08:02:22",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-12 15:32:22",
+      "event": "config-edited",
+      "sha256": "37dea4f11d18"
+    },
+    {
+      "ts": "2026-10-12 15:32:22",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-12 15:32:52",
       "event": "submit",
       "step": "MvD_2_train",
       "host": "falcon"

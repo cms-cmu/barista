@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast mvd_declib16_30x_run3_20261012_0048151-43f8b32 step MvD_2_train -- generated 2026-10-12 08:02:21
+# roast mvd_declib16_30x_run3_20261012_0048151-43f8b32 step MvD_2_train -- generated 2026-10-12 15:32:51
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
