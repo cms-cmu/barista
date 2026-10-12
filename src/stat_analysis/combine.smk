@@ -233,6 +233,7 @@ rule limits:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/limits_{{path}}__{{signallabel}}.log"
     shell:
@@ -269,6 +270,12 @@ rule limits:
             fi
         fi
 
+        BLIND_OPT=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running AsymptoticLimits with --run blind"
+            BLIND_OPT="--run blind"
+        fi
+
         echo "[$(date)] Running AsymptoticLimits"
         cd $(dirname $OUT_TXT) && \
             combine -M AsymptoticLimits $WORKSPACE_FILE \
@@ -276,6 +283,7 @@ rule limits:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
+            $BLIND_OPT \
             -n _{params.signallabel} \
             > temp_limits.txt && \
         echo "[$(date)] Running CollectLimits" && \
@@ -297,6 +305,7 @@ rule significance:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/significance_{{path}}__{{signallabel}}.log"
     shell:
@@ -336,22 +345,34 @@ rule significance:
         fi
 
         cd $(dirname $OUT_LOG) && \
-        echo "=== Observed Significance ===" > $(basename {output.log}) && \
-        combine -M Significance $WORKSPACE_FILE \
-            -m {params.mass} \
-            $SET_ZERO_OPT \
-            $FREEZE_OPT \
-            --redefineSignalPOIs r{params.signallabel} \
-            -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
-        echo "" >> $(basename {output.log}) && \
-        echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
-        combine -M Significance $WORKSPACE_FILE \
-            -m {params.mass} \
-            --redefineSignalPOIs r{params.signallabel} \
-            $SET_EXP_OPT \
-            $FREEZE_OPT \
-            -n _{params.signallabel}_exp \
-            -t -1 >> $(basename {output.log}) 2>&1 && \
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running only expected significance (-t -1)"
+            echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" > $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                --redefineSignalPOIs r{params.signallabel} \
+                $SET_EXP_OPT \
+                $FREEZE_OPT \
+                -n _{params.signallabel}_exp \
+                -t -1 >> $(basename {output.log}) 2>&1
+        else
+            echo "=== Observed Significance ===" > $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                $SET_ZERO_OPT \
+                $FREEZE_OPT \
+                --redefineSignalPOIs r{params.signallabel} \
+                -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
+            echo "" >> $(basename {output.log}) && \
+            echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                --redefineSignalPOIs r{params.signallabel} \
+                $SET_EXP_OPT \
+                $FREEZE_OPT \
+                -n _{params.signallabel}_exp \
+                -t -1 >> $(basename {output.log}) 2>&1
+        fi && \
         python3 -c '
 import re, json, sys
 
@@ -647,11 +668,11 @@ rule impacts_initial_fit:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
-        WORKSPACE_FILE=$(realpath {input})
-        OUT_FILE=$(realpath {output})
+        LOG=$(realpath -m {log})
         mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname $OUT_FILE)
+        mkdir -p $(dirname {output})
+        WORKSPACE_FILE=$(realpath {input})
+        OUT_FILE=$(realpath -m {output})
         (
         echo "[$(date)] Starting impacts_initial_fit rule with signal {params.signallabel}"
 
@@ -663,7 +684,7 @@ rule impacts_initial_fit:
         fi
 
         # Check if there are any nuisance parameters
-        NUISANCES=$(find output -maxdepth 5 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
+        NUISANCES=$(grep -h "kmax" $(dirname $WORKSPACE_FILE)/*.txt 2>/dev/null | awk '{{print $2}}' | head -n 1 || true)
         if [ "$NUISANCES" = "0" ]; then
             echo "no_nuisances" > $OUT_FILE
             exit 0
@@ -694,7 +715,7 @@ rule impacts_initial_fit:
             $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input} .root) && \
             mv higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule impacts_do_fits:
@@ -722,13 +743,13 @@ rule impacts_do_fits:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
+        LOG=$(realpath -m {log})
+        mkdir -p $(dirname $LOG)
+        mkdir -p {output.fits_dir}
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
         WORKSPACE_FILE=$(realpath {input.workspace})
         INIT_FIT_FILE=$(realpath {input.init_fit})
-        OUT_DIR=$(realpath {output.fits_dir})
-        mkdir -p $(dirname $LOG)
-        mkdir -p $OUT_DIR
+        OUT_DIR=$(realpath -m {output.fits_dir})
         (
         echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
 
@@ -771,7 +792,7 @@ rule impacts_do_fits:
             $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input.workspace} .root) && \
             cp $INIT_FIT_FILE $OUT_DIR/
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule impacts_collect:
@@ -794,13 +815,13 @@ rule impacts_collect:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
+        LOG=$(realpath -m {log})
+        mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname {output.pdf})
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
         WORKSPACE_FILE=$(realpath {input.workspace})
-        FITS_DONE_DIR=$(realpath {input.fits_done})
-        OUT_FILE=$(realpath {output.pdf})
-        mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname $OUT_FILE)
+        FITS_DONE_DIR=$(realpath -m {input.fits_done})
+        OUT_FILE=$(realpath -m {output.pdf})
         (
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
@@ -836,7 +857,7 @@ rule impacts_collect:
             --POI r{params.signallabel} \
             --per-page {params.per_page} --left-margin 0.3 --height 400 --label-size 0.04 && \
             mv impacts_plot.pdf $OUT_FILE
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule gof_data:

@@ -59,9 +59,9 @@ def is_channel_blinded(wildcards, config):
     """
     if not config:
         return False
-    if config.get("blind") is False:
-        return False
     if hasattr(wildcards, "path"):
+        if "unblinded" in wildcards.path or "mixeddata" in wildcards.path:
+            return False
         channel = wildcards.path.rstrip("/").split("/")[-1]
         ch_cfg = config.get("channels", {}).get(channel, {})
         if ch_cfg.get("blind") is False:
@@ -71,6 +71,8 @@ def is_channel_blinded(wildcards, config):
         flags = config.get("combine_flags", "")
     if "--blind" in str(flags):
         return True
+    if config.get("blind") is False:
+        return False
     if config.get("blind", False) or config.get("analysis_config", {}).get("config", {}).get("blind", False):
         return True
     return False

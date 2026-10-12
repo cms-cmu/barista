@@ -233,6 +233,8 @@ def host_cfg(cfg: dict, host: str) -> dict:
 
 def k8s_cmd(*args) -> list[str]:
     """Return kubectl command vector, using pixi if kubectl is not on host PATH."""
+    if "KUBECONFIG" not in os.environ and (Path.home() / ".kube" / "config").exists():
+        os.environ["KUBECONFIG"] = str(Path.home() / ".kube" / "config")
     base = ["kubectl"] if shutil.which("kubectl") else ["pixi", "run", "kubectl"]
     return [*base, *args]
 
@@ -983,7 +985,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     manifest_path.write_text(manifest)
 
     # 3. Apply manifest
-    res = sh(k8s_cmd("apply", "-f", str(manifest_path)), check=False)
+    res = sh(k8s_cmd("apply", "--validate=false", "-f", str(manifest_path)), check=False)
     if res.returncode != 0:
         die(f"failed to submit Kubernetes Job to Nautilus: {res.stderr.strip()}")
     print(res.stdout.strip())

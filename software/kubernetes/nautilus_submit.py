@@ -7,6 +7,7 @@ are automatically submitted as Kubernetes Jobs to NRP Nautilus using the shared
 CephFS volume. All lightweight/local rules run locally on the submit machine.
 """
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -155,6 +156,30 @@ spec:
                 - RTX-A4000
                 - NVIDIA-RTX-A4500
                 - Quadro-RTX-5000
+                - NVIDIA-A10
+                - NVIDIA-GeForce-RTX-3090
+                - NVIDIA-GeForce-RTX-3090-Ti
+                - NVIDIA-GeForce-RTX-4090
+                - NVIDIA-RTX-A5000
+                - NVIDIA-TITAN-RTX
+                - Quadro-RTX-6000
+                - NVIDIA-A30
+              - key: nvidia.com/gpu.memory
+                operator: NotIn
+                values:
+                - "8192"
+                - "9728"
+                - "11264"
+                - "12288"
+                - "15356"
+                - "15360"
+                - "16376"
+                - "16384"
+                - "20475"
+                - "23028"
+                - "23034"
+                - "24564"
+                - "24576"
       containers:
       - name: worker
         image: {IMAGE}
@@ -229,16 +254,21 @@ def main():
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
+    roast_id = os.environ.get("ROAST_ID") or config.get("roast_id", "")
+    roast_step = os.environ.get("ROAST_STEP", "")
+
     # Sanitize job name for Kubernetes (RFC 1123, max 63 characters)
     clean_rule = re.sub(r"[^a-z0-9-]", "-", rule.lower())[:20].strip("-")
     uid = uuid.uuid4().hex[:6]
-    job_name = f"smk-{clean_rule}-{jobid}-{uid}"
+    if roast_id:
+        roast_hash = hashlib.sha256(roast_id.encode("utf-8")).hexdigest()[:6]
+        job_name = f"smk-{roast_hash}-{clean_rule}-{jobid}-{uid}"
+    else:
+        job_name = f"smk-{clean_rule}-{jobid}-{uid}"
 
     with open(jobscript, "r") as f:
         jobscript_content = f.read()
 
-    roast_id = os.environ.get("ROAST_ID") or config.get("roast_id", "")
-    roast_step = os.environ.get("ROAST_STEP", "")
     labels = {}
     if roast_id:
         labels["roast"] = roast_id
