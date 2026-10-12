@@ -262,6 +262,8 @@ if __name__ == '__main__':
 
     # Inherit properties from config YAML if present (checking both root and runner section)
     cfg_runner = configs.get('runner', {}) if isinstance(configs.get('runner'), dict) else {}
+    if getattr(args, 'friend_base', None):
+        cfg_runner['friend_base'] = args.friend_base
     if 'processor' in configs and configs['processor']:
         args.processor = configs['processor']
     elif 'processor' in cfg_runner and cfg_runner['processor']:

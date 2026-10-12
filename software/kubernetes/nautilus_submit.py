@@ -7,6 +7,7 @@ are automatically submitted as Kubernetes Jobs to NRP Nautilus using the shared
 CephFS volume. All lightweight/local rules run locally on the submit machine.
 """
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -79,32 +80,47 @@ def should_submit(rule, resources, config):
     return rule in rules
 
 
-def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16):
+def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, labels=None):
     """Generate the Kubernetes Job manifest."""
-    # Indent the script for YAML block scalar
-    indented_script = "\n".join("            " + line for line in jobscript_content.splitlines())
+    import base64
+    b64_script = base64.b64encode(jobscript_content.encode("utf-8")).decode("utf-8")
+
+    labels_block = ""
+    if labels:
+        lines = [f"    {k}: \"{v}\"" for k, v in labels.items() if v]
+        if lines:
+            labels_block = "  labels:\n" + "\n".join(lines)
+
+    template_labels_block = ""
+    if labels:
+        lines = [f"        {k}: \"{v}\"" for k, v in labels.items() if v]
+        if lines:
+            template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
     if gpus > 0:
         req_cpu = max(int(cpus), 6)
-        lim_cpu = max(req_cpu + 2, 8)
-        req_mem = f"{max(int(mem_gb), 16)}Gi"
-        lim_mem = "32Gi"
+        lim_cpu = req_cpu
+        req_mem = f"{max(int(mem_gb), 28)}Gi"
+        lim_mem = req_mem
         gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
         gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
     else:
         req_cpu = max(int(cpus), 1)
-        lim_cpu = max(req_cpu + 1, 2)
+        lim_cpu = req_cpu
         gpu_limits = f"cpu: '{lim_cpu}'\n            memory: 8Gi"
-        gpu_requests = f"cpu: '{req_cpu}'\n            memory: 2Gi"
+        gpu_requests = f"cpu: '{req_cpu}'\n            memory: 8Gi"
+
+    labels_section = f"\n{labels_block}" if labels_block else ""
+    template_labels_section = f"\n{template_labels_block}" if template_labels_block else ""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
 metadata:
   name: {job_name}
-  namespace: {NAMESPACE}
+  namespace: {NAMESPACE}{labels_section}
 spec:
-  backoffLimit: 1
-  template:
+  backoffLimit: 0
+  template:{template_labels_section}
     spec:
       restartPolicy: Never
       affinity:
@@ -117,6 +133,53 @@ spec:
                 values:
                 - gpn-fiona-mizzou-8.rnet.missouri.edu
                 - nautilus-ext-gpu01.fullerton.edu
+                - nautilus-it-gpu05.fullerton.edu
+                - fiona.offn.oscer.ou.edu
+                - dtn-gpu2.kreonet.net
+                - dtn-gpu1.kreonet.net
+                - ry-gpu-15.sdsc.optiputer.net
+              - key: nvidia.com/gpu.product
+                operator: NotIn
+                values:
+                - NVIDIA-GeForce-GTX-1080-Ti
+                - NVIDIA-GeForce-GTX-1080
+                - NVIDIA-GeForce-RTX-2080-Ti
+                - NVIDIA-TITAN-Xp
+                - NVIDIA-TITAN-X-Pascal
+                - Quadro-M4000
+                - Tesla-T4
+                - NVIDIA-A2
+                - Tesla-V100-PCIE-16GB
+                - Tesla-V100-SXM2-16GB
+                - NVIDIA-A100-80GB-PCIe-MIG-1g.10gb
+                - NVIDIA-RTX-A4000
+                - RTX-A4000
+                - NVIDIA-RTX-A4500
+                - Quadro-RTX-5000
+                - NVIDIA-A10
+                - NVIDIA-GeForce-RTX-3090
+                - NVIDIA-GeForce-RTX-3090-Ti
+                - NVIDIA-GeForce-RTX-4090
+                - NVIDIA-RTX-A5000
+                - NVIDIA-TITAN-RTX
+                - Quadro-RTX-6000
+                - NVIDIA-A30
+              - key: nvidia.com/gpu.memory
+                operator: NotIn
+                values:
+                - "8192"
+                - "9728"
+                - "11264"
+                - "12288"
+                - "15356"
+                - "15360"
+                - "16376"
+                - "16384"
+                - "20475"
+                - "23028"
+                - "23034"
+                - "24564"
+                - "24576"
       containers:
       - name: worker
         image: {IMAGE}
@@ -127,11 +190,19 @@ spec:
           - |
             set -e
             source /entrypoint.sh 2>/dev/null || true
-            export PYTHONPATH={WORKDIR}:$PYTHONPATH
+            export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
             export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
             export CLASSIFIER_CONFIG_PATHS=coffea4bees
+            export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
             cd {WORKDIR}
-{indented_script}
+            if ! /opt/conda/envs/hep/bin/python -c "import snakemake" >/dev/null 2>&1; then
+                /opt/conda/envs/hep/bin/pip install --no-cache-dir --quiet snakemake==9.27.0
+            fi
+            mkdir -p /opt/conda/envs/snakemake/bin
+            ln -sf /opt/conda/envs/hep/bin/python /opt/conda/envs/snakemake/bin/python3.14
+            ln -sf /opt/conda/envs/hep/bin/python /opt/conda/envs/snakemake/bin/python3
+            echo "{b64_script}" | base64 -d > /tmp/jobscript.sh
+            exec bash /tmp/jobscript.sh
         resources:
           limits:
             {gpu_limits}
@@ -178,33 +249,51 @@ def main():
     gpus = n_gpus(resources) or 1
     threads = props.get("threads", 1)
     cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
-    mem_mb = int(resources.get("mem_mb", 16000))
-    mem_gb = max(16, mem_mb // 1024)
+    mem_mb = int(resources.get("mem_mb", 28000))
+    mem_gb = max(28, mem_mb // 1024)
 
     os.makedirs(LOG_DIR, exist_ok=True)
+
+    roast_id = os.environ.get("ROAST_ID") or config.get("roast_id", "")
+    roast_step = os.environ.get("ROAST_STEP", "")
 
     # Sanitize job name for Kubernetes (RFC 1123, max 63 characters)
     clean_rule = re.sub(r"[^a-z0-9-]", "-", rule.lower())[:20].strip("-")
     uid = uuid.uuid4().hex[:6]
-    job_name = f"smk-{clean_rule}-{jobid}-{uid}"
+    if roast_id:
+        roast_hash = hashlib.sha256(roast_id.encode("utf-8")).hexdigest()[:6]
+        job_name = f"smk-{roast_hash}-{clean_rule}-{jobid}-{uid}"
+    else:
+        job_name = f"smk-{clean_rule}-{jobid}-{uid}"
 
     with open(jobscript, "r") as f:
         jobscript_content = f.read()
 
+    labels = {}
+    if roast_id:
+        labels["roast"] = roast_id
+    if roast_step:
+        labels["step"] = roast_step
+    labels["rule"] = clean_rule
+    labels["app"] = "roast-worker"
+
     manifest_yaml = build_k8s_job_yaml(
-        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb
+        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels
     )
     manifest_path = os.path.join(LOG_DIR, f"{job_name}.yaml")
 
     with open(manifest_path, "w") as f:
         f.write(manifest_yaml)
 
+    env = os.environ.copy()
+    env.pop("KUBECONFIG", None)
     try:
         subprocess.run(
-            ["kubectl", "apply", "-f", manifest_path],
+            ["kubectl", "apply", "--validate=false", "-f", manifest_path],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
         )
     except subprocess.CalledProcessError as e:
         print(
