@@ -59,7 +59,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-12 02:24:55",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "create_analysis_config",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_F",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "3aa685187a6a"
+        },
+        {
+          "ts": "2026-10-12 02:25:45",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "create_analysis_config",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_F",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "3aa685187a6a"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -69,7 +97,17 @@
       "checked_out": "2026-10-11 22:41:29"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a/",
+    "ts": "2026-10-12 02:29:11",
+    "ok": true,
+    "pages": [
+      "output/Run3_2024_nominal/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_2024_nominal/computeJCM/cutflow_wJCM.html",
+      "output/Run3_2024_nominal/computeJCM/plots_wJCM/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-11 22:40:08",
@@ -91,6 +129,30 @@
       "event": "submit",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 02:24:55",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 02:25:45",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 02:26:52",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-12 02:29:11",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
@@ -98,5 +160,10 @@
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_20261011_852c1c2-be0604a",
+    "ts": "2026-10-12 02:26:52",
+    "ok": true
   }
 }
