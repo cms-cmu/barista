@@ -126,7 +126,13 @@
       "checked_out": "2026-10-11 11:08:56"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16_run3_20261011_b948dfc-33f3094",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16_run3_20261011_b948dfc-33f3094/",
+    "ts": "2026-10-11 22:43:30",
+    "ok": true,
+    "pages": []
+  },
   "history": [
     {
       "ts": "2026-10-11 11:06:28",
@@ -148,6 +154,12 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 22:43:27",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "16x library declustering (libA_run3 library), MvD background model for mvd_run3_declib16 with v3 trigger weights",
