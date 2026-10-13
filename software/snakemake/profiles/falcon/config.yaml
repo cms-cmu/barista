@@ -25,20 +25,7 @@ default-resources:
   tmpdir: "'/tmp'"
   mpi: "'none'"
   tasks: 2
-
-set-resources:
-  train:
-    slurm_partition: "work"
-    gres: "mps:25"
-    qos: "light"
-    mem_mb: 22000
-    cpus_per_task: 6
-    runtime: "7h"
-  evaluate:
-    slurm_partition: "work"
-    gres: "mps:25"
-    qos: "light"
-    mem_mb: 8000
-    cpus_per_task: 2
-    runtime: "45m"
-
+# No set-resources for train/evaluate: a profile set-resources overrides the rule resources and every
+# workflow's config. The classifier workflow (src/classifier/workflow/Snakefile) defaults to mps:50 on
+# qos medium with 8 h runtimes; a lighter workflow sets gpu_gres / gpu_qos / train_runtime / eval_runtime
+# in its own config instead (mps:25 caps GPU memory at 20 GB, too little for the 30x MvD).
