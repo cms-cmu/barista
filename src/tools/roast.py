@@ -813,6 +813,19 @@ def _window_name(r: dict, step: dict) -> str:
     return f"{r['label']}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
 
 
+def _tmux_session(r: dict | None = None) -> str:
+    """tmux session name for a roast.
+
+    Each roast runs in its own isolated tmux session ('roast_<id>') so that
+    multiple roasts running concurrently or resumed independently on the same
+    host do not clobber each other's sessions.
+    """
+    if not r or "id" not in r:
+        return TMUX_SESSION
+    clean = re.sub(r"[^A-Za-z0-9_-]", "_", r["id"])
+    return f"roast_{clean}"
+
+
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
                 targets: str = "") -> str:
     """The bash script that runs one step inside its tmux window."""
@@ -1067,23 +1080,27 @@ def _submit(args, resume: bool) -> None:
         if local_kube.is_file():
             sh(["scp", "-q", "-p", *SSH_OPTS, str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
 
+    session = _tmux_session(r)
     window = _window_name(r, step)
     driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
     # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
     # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
     guard = textwrap.dedent(f"""\
-        tmux has-session -t {TMUX_SESSION} 2>/dev/null || tmux new-session -d -s {TMUX_SESSION} -n hub
+        tmux has-session -t {session} 2>/dev/null || tmux new-session -d -s {session} -n hub
         if pgrep -u "$USER" -f {shlex.quote(driver_pat)} >/dev/null 2>&1; then
             echo "a snakemake driver for this roast is still running on $(hostname); refusing to double-submit" >&2
             exit 3
         fi
-        if tmux list-windows -t {TMUX_SESSION} -F '#W' | grep -qx {shlex.quote(window)}; then
-            tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)}
+        if tmux list-windows -t {session} -F '#W' 2>/dev/null | grep -qx {shlex.quote(window)}; then
+            tmux kill-window -t {session}:{shlex.quote(window)}
             if [ -f {rq(ckpt)}/logs/{step['name']}.exit ]; then
                 echo "closed finished window {window} (exit=$(cat {rq(ckpt)}/logs/{step['name']}.exit))"
             else
                 echo "closed stale window {window} (no driver process, no exit file)"
             fi
+        fi
+        if tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -qx {shlex.quote(window)}; then
+            tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)} 2>/dev/null || true
         fi
     """)
     res = ssh_run(target, guard, check=False)
@@ -1112,8 +1129,8 @@ def _submit(args, resume: bool) -> None:
         set -e
         SCRIPT={rq(f"{ckpt}/roasts/{r['id']}/run_{step['name']}.sh")}
         chmod +x "$SCRIPT"
-        tmux new-window -d -t {TMUX_SESSION} -n {shlex.quote(window)} "bash $SCRIPT"
-        echo "launched tmux {TMUX_SESSION}:{window}"
+        tmux new-window -d -t {session} -n {shlex.quote(window)} "bash $SCRIPT"
+        echo "launched tmux {session}:{window}"
     """)
     res = ssh_run(target, remote, check=False)
     if res.returncode != 0:
@@ -1133,7 +1150,7 @@ def _submit(args, resume: bool) -> None:
                                         "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
     save_roast(r)
-    info(f"attach: ssh -t {target} tmux attach -t {TMUX_SESSION}    |    {TOOL} status {r['id']}")
+    info(f"attach: ssh -t {target} tmux attach -t {session}    |    {TOOL} status {r['id']}")
 
 
 # Lines worth seeing when scanning a step's log for what went wrong. `Traceback` is deliberately
@@ -1254,9 +1271,11 @@ def cmd_attach(args) -> None:
         os.execvp(cmd[0], cmd)
 
     target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
-    tmux = f"tmux attach -t {TMUX_SESSION}"
+    session = _tmux_session(r)
     if window:
-        tmux += f" \\; select-window -t {shlex.quote(window)}"
+        tmux = f"tmux attach -t {session} \\; select-window -t {shlex.quote(window)} 2>/dev/null || tmux attach -t {TMUX_SESSION} \\; select-window -t {shlex.quote(window)}"
+    else:
+        tmux = f"tmux attach -t {session} 2>/dev/null || tmux attach -t {TMUX_SESSION}"
     info(f"ssh -t {target} {tmux}")
     os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, tmux])
 
@@ -1703,7 +1722,8 @@ def cmd_rm(args) -> None:
                 die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
             continue
         target = roast_ssh(cfg, r, host)
-        chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+        session = _tmux_session(r)
+        chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
@@ -1882,10 +1902,11 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
         ])
     else:
         batch = "true"
+    session = _tmux_session(r)
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         if pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} >/dev/null 2>&1; then live=1; else live=0; fi
-        WINDOWS=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null || true)
+        WINDOWS=$( (tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) || true )
         for SW in {step_windows}; do
             S=${{SW%%:*}}; W=${{SW#*:}}
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";

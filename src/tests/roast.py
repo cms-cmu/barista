@@ -393,6 +393,26 @@ class TestConcurrentRoasts(unittest.TestCase):
         self.assertNotIn(":", w)     # tmux target syntax is session:window
         self.assertLessEqual(len(w), 40)
 
+    def test_session_is_isolated_per_roast(self):
+        r1 = fake_roast()
+        r1["id"] = "roast_1"
+        r2 = fake_roast()
+        r2["id"] = "roast_2"
+        self.assertNotEqual(roast._tmux_session(r1), roast._tmux_session(r2))
+        self.assertEqual(roast._tmux_session(r1), "roast_roast_1")
+
+    def test_session_fallback_when_none(self):
+        self.assertEqual(roast._tmux_session(None), "roast")
+        self.assertEqual(roast._tmux_session({}), "roast")
+
+    def test_session_is_tmux_safe(self):
+        r = fake_roast()
+        r["id"] = "analysis:run.test_123"
+        s = roast._tmux_session(r)
+        self.assertNotIn(":", s)
+        self.assertNotIn(".", s)
+        self.assertEqual(s, "roast_analysis_run_test_123")
+
 
 try:
     import yaml
