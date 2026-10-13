@@ -94,14 +94,70 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-13 15:14:13",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_C4",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "6729edd0c60f"
+        },
+        {
+          "ts": "2026-10-13 15:15:14",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_C4",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "6729edd0c60f"
+        }
+      ]
     },
     {
       "name": "D",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-13 15:14:54",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6729edd0c60f"
+        },
+        {
+          "ts": "2026-10-13 15:15:14",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6729edd0c60f"
+        }
+      ]
     },
     {
       "name": "F",
@@ -234,6 +290,30 @@
       "ts": "2026-10-13 08:59:49",
       "event": "submit",
       "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 15:14:13",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 15:14:54",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 15:15:14",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 15:15:14",
+      "event": "submit",
+      "step": "D",
       "host": "falcon"
     }
   ],
