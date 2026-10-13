@@ -150,14 +150,57 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-12 17:46:38",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD",
+          "ssh": "jda102@cmslpc309.fnal.gov",
+          "config_sha256": "37dea4f11d18"
+        },
+        {
+          "ts": "2026-10-13 01:36:49",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD",
+          "ssh": "jda102@cmslpc309.fnal.gov",
+          "config_sha256": "37dea4f11d18"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-12 17:48:10",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_run3_0048151-43f8b32_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "37dea4f11d18"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -172,7 +215,20 @@
       "checked_out": "2026-10-12 08:01:05"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_30x_run3_20261012_0048151-43f8b32",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_30x_run3_20261012_0048151-43f8b32/",
+    "ts": "2026-10-13 02:15:37",
+    "ok": true,
+    "pages": [
+      "output/MvD_30x/yields.html",
+      "output/SvB_MvD_30x/yields.html",
+      "output/mvd_declib16_30x_run3_20261012_0048151-43f8b32/V2c/cutflow_MvD_30x_closure.html",
+      "output/mvd_declib16_30x_run3_20261012_0048151-43f8b32/V2c/plots_MvD_30x_closure/index.html",
+      "output/mvd_declib16_30x_run3_20261012_0048151-43f8b32/V4/plots_MvD_30x/index.html",
+      "output/mvd_declib16_30x_run3_20261012_0048151-43f8b32/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-12 07:59:27",
@@ -216,6 +272,48 @@
       "event": "submit",
       "step": "MvD_2_train",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-10-12 17:46:38",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-12 17:48:10",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 01:36:20",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 01:36:43",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 01:36:49",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 02:13:47",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 02:15:35",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "30x MvD + SvB (n_features 54) on declib16_run3, v3 trigger weights; V.1 from mvd_declib16_run3_20261011_c41b495-f2d2cf8",
