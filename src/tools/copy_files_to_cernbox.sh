@@ -79,7 +79,7 @@ if [[ $use_tar -eq 1 ]]; then
       tmp_dir="$(mktemp -d -p /tmp)"
       trap 'rm -rf "$tmp_dir"' EXIT
       archive_name="transfer_$(date +%s).tar.gz"
-      tar -C "$source_folder" -czf "$tmp_dir/$archive_name" .
+      tar --warning=no-file-changed -C "$source_folder" --exclude="previous_run_buggy" --exclude="test_v0_closure" --exclude="tests_mix14" -czf "$tmp_dir/$archive_name" . || [ $? -eq 1 ]
       
       echo "Transferring tarball ${archive_name}"
       xrdfs root://eosuser.cern.ch mkdir -p "$destination_folder"

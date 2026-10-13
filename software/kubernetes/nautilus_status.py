@@ -52,7 +52,7 @@ def main():
     failed = status.get("failed", 0)
     active = status.get("active", 0)
 
-    if succeeded > 0:
+    if succeeded > 0 and failed == 0:
         print("success")
     elif failed > 0:
         print("failed")

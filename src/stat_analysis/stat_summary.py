@@ -30,8 +30,11 @@ import logging
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
 from collections import OrderedDict
+
 
 logger = logging.getLogger("stat_summary")
 
@@ -218,6 +221,7 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         ("significance log", "significance", f"datacard_significance__{signal}.log"),
         ("likelihood scan pdf", "likelihood_scan", f"datacard_likelihood_scan__{signal}.pdf"),
         ("postfit pdf", "postfit", f"datacard_postfit__{signal}.pdf"),
+        ("impacts pdf", "impacts", f"datacard_impacts__{signal}.pdf"),
         ("fitDiagnostics (b-only)", "postfit", f"datacard_fitDiagnostics_bonly__{signal}.root"),
         ("diffNuisances (b-only)", "postfit", f"datacard_diffNuisances_bonly__{signal}.root"),
         ("correlation (physics) pdf", "postfit", "plots", "correlation_fit_s.pdf"),
@@ -239,7 +243,26 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         info["figures"]["correlation (all)"] = rel("postfit", "plots", "correlation_fit_s_all.png")
     elif exists("postfit", "covariance_fit_s.png"):
         info["figures"]["covariance (fit_s)"] = rel("postfit", "covariance_fit_s.png")
+
+    impacts_pdf = os.path.join(d, "impacts", f"datacard_impacts__{signal}.pdf")
+    is_stat_only = "_stat_only" in channel or channel.endswith("_stat")
+    if os.path.exists(impacts_pdf) and not is_stat_only:
+        impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "impacts_page-*.png")))
+        if not impacts_pngs and shutil.which("pdftoppm"):
+            try:
+                subprocess.run(
+                    ["pdftoppm", "-png", "-r", "150", impacts_pdf, os.path.join(d, "impacts", "impacts_page")],
+                    check=False, capture_output=True
+                )
+                impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "impacts_page-*.png")))
+            except Exception as e:
+                logger.warning(f"Could not convert impacts PDF to PNG: {e}")
+        if impacts_pngs:
+            info["figures"]["impacts"] = rel("impacts", os.path.basename(impacts_pngs[0]))
+
     return info
+
+
 
 
 # --------------------------------------------------------------------------- formatting
