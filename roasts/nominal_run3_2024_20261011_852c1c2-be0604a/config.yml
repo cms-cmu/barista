@@ -1,14 +1,18 @@
 # ==============================================================================
 # 2024 nominal (TIGHT four-tag) JCM + classifier inputs -- upstream of the 2024 MvD roast
 # ==============================================================================
-#   roast new --config coffea4bees/workflows/config/nominal_run3_2024.yml --phases B,F
+#   roast new --config coffea4bees/workflows/config/nominal_run3_2024.yml --phases B,C,C4,D,F
 #   roast submit <id> --step B                                   # cmslpc: B.1 JCM, B.2 classifier inputs (data, ttbar, ggF)
-#   roast submit <id> --step F --targets create_analysis_config  # cmslpc: the F.1 runner config only
+#   roast submit <id> --step F --targets create_analysis_config  # cmslpc: the F.1 runner config (all the MvD needs)
+#   roast submit <id> --step C                                   # falcon: FvT
+#   roast submit <id> --step C4                                  # cmslpc: FvT closure
+#   roast submit <id> --step D                                   # falcon: SvB vs 3b x JCM x FvT
+#   roast submit <id> --step F                                   # cmslpc: F.1 analysis + F.2 stat-only limits
 #
 # mvd_run3_2024.yml reads from this roast what mvd_run3.yml reads from the nominal Run 3 roast: the
 # B.1 JCM + its data/ttbar histograms (and analysis_config_noJCM.yml), the B.2 classifier-input
 # manifest + config, and the F.1 analysis config -- all with the tight selection, which
-# Snakefile_MvD.smk requires. No C/D/F.1 processing: the MvD roast replaces the FvT and the SvB.
+# Snakefile_MvD.smk requires. C/C4/D/F give the FvT-based 2024 result the MvD is compared against.
 #
 # A copy of nominal_run3_2024_nontight.yml (standalone, not a `base:` variant: the layered merge
 # would keep the 2022/2023 year_eras of nominal_run3.yml next to 2024). What differs from it:
@@ -160,6 +164,29 @@ fvt_closure:
     friends_include: [trigWeight, FvT]
 
 # ==============================================================================
+# PHASE D: SvB (falcon). As nominal_run3.yml: the HH4b_Run3/SvB templates (ggF only), background
+# = 3b data x JCM x THIS roast's FvT (train_template), inputs from the handoff area.
+# ==============================================================================
+svb:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_Run3/SvB"
+  label: "SvB_nominal"
+  output_dir: "output/SvB_nominal/"
+  plot_inputs: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_nominal"
+  eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --metadata: coffea4bees/metadata/datasets/
+    --JCM-weight: '"" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_2024_v1.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+
+# ==============================================================================
 # PHASE B.1: JCM FIT — cutflow references
 # ==============================================================================
 # Same trap as fvt_closure.known_counts: known_fullCounts_JCM_{NoJCM,wJCM}_Run3.yml exist and hold
@@ -272,7 +299,7 @@ known_counts: "coffea4bees/analysis/tests/known_fullCounts_Run3_2024_nominal.yml
 plot_config: "coffea4bees/plots/metadata/plotsAll_ttbarWeights.yml"
 
 # ==============================================================================
-# PHASE F.2: COMBINE (not run here; as nominal_run3.yml with a one-bin 2024 template)
+# PHASE F.2: COMBINE (as nominal_run3.yml with a one-bin 2024 template)
 # ==============================================================================
 combine_flags: "--blind"
 combine_outdir: "datacards/HH4b_run3_2024"

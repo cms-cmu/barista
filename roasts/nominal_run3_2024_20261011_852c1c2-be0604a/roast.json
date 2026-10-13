@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/nominal_run3_2024.yml",
     "captured": "config.yml",
-    "sha256": "3aa685187a6ac07e4085b96b4d5d0d608806056890a031a6f23b8b8595a20506"
+    "sha256": "6729edd0c60f742d2bc113fbe5e032a011862aac95dde6f0a57b94f9a22f1451"
   },
   "steps": [
     {
@@ -53,6 +53,55 @@
           "config_sha256": "3aa685187a6a"
         }
       ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-13 08:59:34",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6729edd0c60f"
+        },
+        {
+          "ts": "2026-10-13 08:59:49",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_C",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "6729edd0c60f"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": ""
     },
     {
       "name": "F",
@@ -95,6 +144,11 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a/barista",
       "ssh": "jda102@cmslpc317.fnal.gov",
       "checked_out": "2026-10-11 22:41:29"
+    },
+    "falcon": {
+      "checkout": "~/work/prod/nominal_run3_2024_20261011_852c1c2-be0604a/barista",
+      "ssh": "jalison@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-13 08:59:26"
     }
   },
   "publish": {
@@ -153,6 +207,34 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-13",
+      "event": "steps-added",
+      "steps": "C,C4,D",
+      "note": "svb block added to captured config (c4b 2e77aebcb); FvT comparison for the 2024 MvD"
+    },
+    {
+      "ts": "2026-10-13 08:59:26",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 08:59:34",
+      "event": "config-edited",
+      "sha256": "6729edd0c60f"
+    },
+    {
+      "ts": "2026-10-13 08:59:34",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 08:59:49",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
     }
   ],
   "notes": "",
