@@ -34,6 +34,11 @@ DEFAULT_GPU_RULES = {
     "evaluate_single_dataset_svb",
     "bkg_syst_C_2_train",
     "bkg_syst_C_3_evaluate",
+    "yields",
+    "analyze",
+    "plot_inputs_raw",
+    "plot_inputs_dataprep",
+    "plot_weights",
 }
 
 LOG_DIR = "k8s_logs"
@@ -98,9 +103,9 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
             template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
     if gpus > 0:
-        req_cpu = max(int(cpus), 6)
+        req_cpu = max(int(cpus), 8)
         lim_cpu = req_cpu
-        req_mem = f"{max(int(mem_gb), 28)}Gi"
+        req_mem = f"{max(int(mem_gb), 32)}Gi"
         lim_mem = req_mem
         gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
         gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
@@ -113,18 +118,24 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
     labels_section = f"\n{labels_block}" if labels_block else ""
     template_labels_section = f"\n{template_labels_block}" if template_labels_block else ""
 
-    manifest = f"""apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {job_name}
-  namespace: {NAMESPACE}{labels_section}
-spec:
-  backoffLimit: 0
-  template:{template_labels_section}
-    spec:
-      restartPolicy: Never
-      affinity:
+    affinity_block = ""
+    if gpus > 0:
+        affinity_block = """      affinity:
         nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: In
+                values:
+                - NVIDIA-H100-80GB-HBM3
+                - NVIDIA-A100-SXM4-80GB
+                - NVIDIA-A100-80GB-PCIe
+                - NVIDIA-A100-PCIE-40GB
+                - NVIDIA-L40S
+                - NVIDIA-L40
+                - NVIDIA-RTX-6000-Ada-Generation
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
@@ -138,6 +149,14 @@ spec:
                 - dtn-gpu2.kreonet.net
                 - dtn-gpu1.kreonet.net
                 - ry-gpu-15.sdsc.optiputer.net
+                - k8s-chase-ci-01.calit2.optiputer.net
+                - k8s-chase-ci-02.calit2.optiputer.net
+                - k8s-chase-ci-04.calit2.optiputer.net
+                - k8s-chase-ci-07.calit2.optiputer.net
+                - k8s-chase-ci-10.calit2.optiputer.net
+                - hcc-chase-shor-c4705.unl.edu
+                - hcc-chase-shor-c4715.unl.edu
+                - hcc-chase-shor-c4719.unl.edu
               - key: nvidia.com/gpu.product
                 operator: NotIn
                 values:
@@ -179,8 +198,19 @@ spec:
                 - "23028"
                 - "23034"
                 - "24564"
-                - "24576"
-      containers:
+                - "24576"\n"""
+
+    manifest = f"""apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {job_name}
+  namespace: {NAMESPACE}{labels_section}
+spec:
+  backoffLimit: 0
+  template:{template_labels_section}
+    spec:
+      restartPolicy: Never
+{affinity_block}      containers:
       - name: worker
         image: {IMAGE}
         imagePullPolicy: IfNotPresent
@@ -192,6 +222,7 @@ spec:
             source /entrypoint.sh 2>/dev/null || true
             export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
             export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
+            chmod 600 {WORKDIR}/proxy/x509_proxy 2>/dev/null || true
             export CLASSIFIER_CONFIG_PATHS=coffea4bees
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
             cd {WORKDIR}
@@ -246,11 +277,24 @@ def main():
         print(f"local_job_{rule}_{jobid}")
         sys.exit(res.returncode)
 
-    gpus = n_gpus(resources) or 1
+    gpu_needed_rules = {
+        "train",
+        "evaluate",
+        "evaluate_all",
+        "evaluate_single_dataset",
+        "evaluate_all_svb",
+        "evaluate_single_dataset_svb",
+        "bkg_syst_C_2_train",
+        "bkg_syst_C_3_evaluate",
+    }
+    if n_gpus(resources) > 0 or rule in gpu_needed_rules:
+        gpus = max(n_gpus(resources), 1)
+    else:
+        gpus = 0
     threads = props.get("threads", 1)
     cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
-    mem_mb = int(resources.get("mem_mb", 28000))
-    mem_gb = max(28, mem_mb // 1024)
+    mem_mb = int(resources.get("mem_mb", 32000))
+    mem_gb = max(32, mem_mb // 1024)
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
