@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: snakemake-runner
+  namespace: cms-cmu
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: orchestrator
+        image: gitlab-registry.cern.ch/cms-cmu/barista:classifier_latest
+        imagePullPolicy: IfNotPresent
+        workingDir: /workspace/users/algomez/barista
+        command: ["bash", "-c"]
+        args:
+          - |
+            set -e
+            echo "=== Snakemake In-Cluster Runner Initializing ==="
+            source /entrypoint.sh 2>/dev/null || true
+            export PYTHONPATH=/workspace/users/algomez/barista:$PYTHONPATH
+            export X509_USER_PROXY=/workspace/users/algomez/barista/proxy/x509_proxy
+            export KUBECONFIG=/workspace/users/algomez/.kube/config
+            export CLASSIFIER_CONFIG_PATHS=coffea4bees
+            cd /workspace/users/algomez/barista
+
+            # Ensure kubectl is present in PATH
+            if ! command -v kubectl >/dev/null 2>&1; then
+                export PATH=/workspace/users/algomez/barista/.pixi/envs/default/bin:$PATH
+            fi
+
+            echo "=== Active Kubernetes Context ==="
+            kubectl get ns cms-cmu
+
+            echo "=== Executing Workflow via Nautilus Profile ==="
+            snakemake --snakefile coffea4bees/workflows/Snakefile_bkg_syst_C_2_train.smk \
+                      --profile software/snakemake/profiles/nautilus \
+                      --jobs 16 \
+                      "$@"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "8Gi"
+          requests:
+            cpu: "1"
+            memory: "4Gi"
+        volumeMounts:
+        - mountPath: /workspace
+          name: ceph-storage
+        - mountPath: /cvmfs
+          name: cvmfs-storage
+          readOnly: true
+        - mountPath: /dev/shm
+          name: dshm
+      volumes:
+      - name: ceph-storage
+        persistentVolumeClaim:
+          claimName: cms-cmu-storage
+      - name: cvmfs-storage
+        persistentVolumeClaim:
+          claimName: cvmfs
+          readOnly: true
+      - name: dshm
+        emptyDir:
+          medium: Memory
