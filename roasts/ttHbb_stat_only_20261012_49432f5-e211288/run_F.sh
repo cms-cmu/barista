@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast ttHbb_stat_only_20261012_49432f5-e211288 step F -- generated 2026-10-13 09:41:57
+# roast ttHbb_stat_only_20261012_49432f5-e211288 step F -- generated 2026-10-13 12:16:59
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {

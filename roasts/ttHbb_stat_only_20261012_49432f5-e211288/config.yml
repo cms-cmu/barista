@@ -541,6 +541,7 @@ channels:
     closure_subdir: "ttHbb"
     region: "SR"
     cut: "sum"
+    rebin: 1
     stat_only: true
     combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
   ttHbb_SvB_ps:
@@ -551,6 +552,7 @@ channels:
     closure_subdir: "ttHbb"
     region: "SR"
     cut: "sum"
+    rebin: 1
     stat_only: true
     combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
   ttHbb_SvB_MA_ps_ttHbb:
@@ -561,6 +563,8 @@ channels:
     closure_subdir: "ttHbb"
     region: "SR"
     cut: "sum"
+    rebin: 12
     stat_only: true
     combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+
 

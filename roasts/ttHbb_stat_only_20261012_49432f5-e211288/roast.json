@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/analysis_ttHbb.yml",
     "captured": "config.yml",
-    "sha256": "bdb81c3e3b6ebf5c90cf28638854944e1549d09a3b33698cd7a8c009c4fce959"
+    "sha256": "7de22dacb11c4e90feca56926deb9c6fac94dbc2c31a84a2a4da285d81bde999"
   },
   "steps": [
     {
@@ -1017,6 +1017,45 @@
           "window": "ttHbb_stat_only_49432f5-e211288_F",
           "ssh": "algomez@cmslpc314.fnal.gov",
           "config_sha256": "bdb81c3e3b6e"
+        },
+        {
+          "ts": "2026-10-13 13:14:36",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_49432f5-e211288_F",
+          "ssh": "algomez@cmslpc314.fnal.gov",
+          "config_sha256": "7de22dacb11c"
+        },
+        {
+          "ts": "2026-10-13 13:16:09",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_49432f5-e211288_F",
+          "ssh": "algomez@cmslpc314.fnal.gov",
+          "config_sha256": "7de22dacb11c"
+        },
+        {
+          "ts": "2026-10-13 12:17:07",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_49432f5-e211288_F",
+          "ssh": "algomez@cmslpc314.fnal.gov",
+          "config_sha256": "7de22dacb11c"
         }
       ]
     }
@@ -1040,7 +1079,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_stat_only_20261012_49432f5-e211288",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_stat_only_20261012_49432f5-e211288/",
-    "ts": "2026-10-13 10:57:22",
+    "ts": "2026-10-13 13:41:45",
     "ok": true,
     "pages": [
       "output/ttHbb/computeJCM/cutflow_NoJCM.html",
@@ -1571,6 +1610,35 @@
     },
     {
       "ts": "2026-10-13 10:57:22",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 13:14:36",
+      "event": "config-edited",
+      "sha256": "7de22dacb11c"
+    },
+    {
+      "ts": "2026-10-13 13:14:36",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 13:16:09",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 12:17:07",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 13:41:43",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
