@@ -108,6 +108,8 @@ mvd:
     --training:
     - --architecture
     - n_features: 54
+  gpu_gres: mps:50
+  gpu_qos: medium
   classifier_setting:
   - module: ml.DataLoader
     option:
@@ -165,6 +167,8 @@ mvd:
 closure:
   label: MvD_30x_c6_closure
   known_counts: null
+  config:
+    plot_extra_canjet_vars: true
 svb_mvd:
   eos_base: '{eos_prod}/{roast_id}'
   plot_base: '{web_prod}/{roast_id}/classifier'
@@ -193,6 +197,8 @@ svb_mvd:
     --training:
     - --architecture
     - n_features: 54
+  gpu_gres: mps:50
+  gpu_qos: medium
   classifier_setting:
   - module: ml.DataLoader
     option:
@@ -238,6 +244,8 @@ analysis:
   - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
   plot_config: coffea4bees/plots/metadata/plotsAll_MvD_roast.yml
   known_counts: null
+  config:
+    plot_extra_canjet_vars: true
 combine_flags: --blind
 combine_outdir: datacards/HH4b_run3_MvD_declib16_30x_c6mvd_c6
 metadata_template: coffea4bees/stats_analysis/metadata/HH4b_run3.yml

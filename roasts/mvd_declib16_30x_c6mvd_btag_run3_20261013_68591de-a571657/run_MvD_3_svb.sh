@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# roast mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205 step MvD_2_train -- generated 2026-10-13 08:10:29
+# roast mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657 step MvD_3_svb -- generated 2026-10-13 23:57:04
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
-cd "$HOME/work/prod/mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205/barista" || exit 97
-LOG=logs/MvD_2_train.log
-EXIT=logs/MvD_2_train.exit
+cd "$HOME/work/prod/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657/barista" || exit 97
+LOG=logs/MvD_3_svb.log
+EXIT=logs/MvD_3_svb.exit
 rm -f "$EXIT"
-echo "=== roast mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205 step MvD_2_train start $(date) on $(hostname) ===" | tee -a "$LOG"
+echo "=== roast mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657 step MvD_3_svb start $(date) on $(hostname) ===" | tee -a "$LOG"
 echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
 # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
 # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
@@ -22,12 +22,12 @@ elif [ -s "$HOME/.kube/config" ]; then
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD_2_train.smk --configfile roasts/mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205 eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD_3_svb.smk --configfile roasts/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657 eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-echo "=== roast mvd_declib16_30x_c6mvd_run3_20261013_eab87ec-5c4f205 step MvD_2_train exit $RC $(date) ===" | tee -a "$LOG"
+echo "=== roast mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657 step MvD_3_svb exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
 if [ "$RC" != "0" ]; then
-    echo "step MvD_2_train FAILED (rc=$RC). Shell kept open for inspection; exit to close."
+    echo "step MvD_3_svb FAILED (rc=$RC). Shell kept open for inspection; exit to close."
     exec bash
 fi
 sleep 5
