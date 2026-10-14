@@ -128,20 +128,50 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-13 16:50:38",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc347.fnal.gov",
+          "config_sha256": "0c2c70240b32"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
       "host": "falcon",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-13 16:52:10",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "0c2c70240b32"
+        }
+      ]
     }
   ],
   "hosts": {
     "cmslpc": {
       "checkout": "~/nobackup/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/barista",
-      "ssh": "jda102@cmslpc347.fnal.gov",
+      "ssh": "jda102@cmslpc311.fnal.gov",
       "checked_out": "2026-10-13 11:01:05"
     },
     "falcon": {
@@ -150,7 +180,18 @@
       "checked_out": "2026-10-13 11:01:12"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/",
+    "ts": "2026-10-13 21:01:07",
+    "ok": true,
+    "pages": [
+      "output/MvD_30x_c6/yields.html",
+      "output/SvB_MvD_30x_c6_c6mvd/yields.html",
+      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V2c/cutflow_MvD_30x_c6_closure.html",
+      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V2c/plots_MvD_30x_c6_closure/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-13 10:59:52",
@@ -177,6 +218,30 @@
       "event": "submit",
       "step": "MvD_2_train",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 16:50:38",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 16:52:10",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-13 21:00:41",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 21:01:06",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "30x c6 MvD (15 CanJet features, no area) + c6 SvB on the 16x declustered model (declib16_run3), v3/v4 signal trigger weights; floor 0.01, 1 evaluator, mps:50",
