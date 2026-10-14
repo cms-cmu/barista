@@ -191,6 +191,32 @@
           "window": "nominal_run3_2024_852c1c2-be0604a_F",
           "ssh": "jda102@cmslpc317.fnal.gov",
           "config_sha256": "3aa685187a6a"
+        },
+        {
+          "ts": "2026-10-14 00:08:38",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_F",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "6729edd0c60f"
+        },
+        {
+          "ts": "2026-10-14 00:09:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_852c1c2-be0604a_F",
+          "ssh": "jda102@cmslpc317.fnal.gov",
+          "config_sha256": "6729edd0c60f"
         }
       ]
     }
@@ -332,6 +358,18 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-14 00:08:38",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 00:09:17",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
     }
   ],
   "notes": "",
