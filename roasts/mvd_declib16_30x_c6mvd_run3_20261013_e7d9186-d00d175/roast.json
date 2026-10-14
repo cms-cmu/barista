@@ -235,7 +235,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/",
-    "ts": "2026-10-13 21:01:07",
+    "ts": "2026-10-13 22:19:04",
     "ok": true,
     "pages": [
       "output/MvD_30x_c6/yields.html",
@@ -323,6 +323,18 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 22:18:54",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-13 22:19:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "30x c6 MvD (15 CanJet features, no area) + c6 SvB on the 16x declustered model (declib16_run3), v3/v4 signal trigger weights; floor 0.01, 1 evaluator, mps:50",
