@@ -143,7 +143,22 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-14 08:02:13",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_btag_run3_68591de-a571657_MvD",
+          "ssh": "jda102@cmslpc309.fnal.gov",
+          "config_sha256": "171d0f363e0b"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -158,7 +173,17 @@
       "checked_out": "2026-10-13 23:54:19"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657/",
+    "ts": "2026-10-14 08:48:28",
+    "ok": true,
+    "pages": [
+      "output/SvB_MvD_30x_btag_c6mvd/yields.html",
+      "output/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657/V4/plots_MvD_30x_c6mvd_btag/index.html",
+      "output/mvd_declib16_30x_c6mvd_btag_run3_20261013_68591de-a571657/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-13 23:51:34",
@@ -185,6 +210,36 @@
       "event": "submit",
       "step": "MvD_3_svb",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 08:01:54",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 08:02:10",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 08:02:13",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 08:48:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 08:48:27",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
