@@ -130,6 +130,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 operator: In
                 values:
                 - NVIDIA-H100-80GB-HBM3
+                - NVIDIA-H200-NVL
+                - NVIDIA-GH200-480GB
                 - NVIDIA-A100-SXM4-80GB
                 - NVIDIA-A100-80GB-PCIe
                 - NVIDIA-A100-PCIE-40GB
@@ -137,6 +139,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - NVIDIA-L40
                 - NVIDIA-RTX-6000-Ada-Generation
                 - NVIDIA-RTX-5000-Ada-Generation
+                - NVIDIA-RTX-A6000
+                - Quadro-RTX-8000
                 - Tesla-V100-SXM2-32GB
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
@@ -163,6 +167,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 operator: In
                 values:
                 - NVIDIA-H100-80GB-HBM3
+                - NVIDIA-H200-NVL
+                - NVIDIA-GH200-480GB
                 - NVIDIA-A100-SXM4-80GB
                 - NVIDIA-A100-80GB-PCIe
                 - NVIDIA-A100-PCIE-40GB
@@ -171,6 +177,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - NVIDIA-L40
                 - NVIDIA-RTX-6000-Ada-Generation
                 - NVIDIA-RTX-5000-Ada-Generation
+                - NVIDIA-RTX-A6000
+                - Quadro-RTX-8000
                 - Tesla-V100-SXM2-32GB
                 - NVIDIA-A10
                 - NVIDIA-L4
@@ -178,6 +186,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - NVIDIA-GeForce-RTX-4090
                 - NVIDIA-RTX-A5000
                 - Quadro-RTX-6000
+                - NVIDIA-TITAN-RTX
                 - TITAN-RTX\n"""
 
     manifest = f"""apiVersion: batch/v1
