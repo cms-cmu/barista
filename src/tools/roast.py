@@ -59,7 +59,7 @@ TMUX_SESSION = "roast"
 # --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
 # it uses %C, a fixed-length hash of the connection parameters.
 SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR",
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
             "-o", "HostName=%h",
             "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
@@ -958,7 +958,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                 - |
                   set -e
                   echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
-                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic
+                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd
+                  mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
+                  export X509_USER_PROXY="$PWD/proxy/x509_proxy"
                   export PATH=/workspace/shared/bin:$PATH
                   export NAUTILUS_WORKDIR={ckpt}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
@@ -969,6 +971,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
                   rm -f "$EXIT"
+                  rm -rf .snakemake/locks || true
                   {unlock}
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
