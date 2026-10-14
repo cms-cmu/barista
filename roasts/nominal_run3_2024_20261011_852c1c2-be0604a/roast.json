@@ -236,7 +236,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2024_20261011_852c1c2-be0604a/",
-    "ts": "2026-10-13 16:41:50",
+    "ts": "2026-10-14 01:16:13",
     "ok": true,
     "pages": [
       "output/FvT_nominal/yields.html",
@@ -246,7 +246,12 @@
       "output/Run3_2024_nominal/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
       "output/Run3_2024_nominal/computeJCM/cutflow_NoJCM.html",
       "output/Run3_2024_nominal/computeJCM/cutflow_wJCM.html",
-      "output/Run3_2024_nominal/computeJCM/plots_wJCM/index.html"
+      "output/Run3_2024_nominal/computeJCM/plots_wJCM/index.html",
+      "output/Run3_2024_nominal/cutflow_Run3_2024_nominal.html",
+      "output/Run3_2024_nominal/cutflow_crosscheck_Run3_2024_nominal.html",
+      "output/Run3_2024_nominal/plots_Run3_2024_nominal/index.html",
+      "output/Run3_2024_nominal/stat_analysis/summary.html",
+      "output/SvB_nominal/yields.html"
     ]
   },
   "history": [
@@ -370,6 +375,30 @@
       "event": "submit",
       "step": "F",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 01:12:59",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 01:13:05",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 01:15:58",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 01:16:13",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
@@ -380,7 +409,7 @@
   },
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_20261011_852c1c2-be0604a",
-    "ts": "2026-10-12 02:26:52",
+    "ts": "2026-10-14 01:13:05",
     "ok": true
   }
 }
