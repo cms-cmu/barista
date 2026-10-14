@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/mvd_run3_declib16_30x_c6mvd.yml",
     "captured": "config.yml",
-    "sha256": "0c2c70240b32035d8cc2892181bbaa2857867dced0873a53cc9297c746323953",
+    "sha256": "a2084638faf5d6045b35c9a8f0e35d7baaf24c5a3123b21843e7c521b6f694bf",
     "base": [
       {
         "source": "coffea4bees/workflows/config/mvd_run3.yml",
@@ -142,6 +142,58 @@
           "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
           "ssh": "jda102@cmslpc347.fnal.gov",
           "config_sha256": "0c2c70240b32"
+        },
+        {
+          "ts": "2026-10-13 21:35:54",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc311.fnal.gov",
+          "config_sha256": "a2084638faf5"
+        },
+        {
+          "ts": "2026-10-13 21:36:25",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc311.fnal.gov",
+          "config_sha256": "a2084638faf5"
+        },
+        {
+          "ts": "2026-10-13 21:36:57",
+          "cores": 8,
+          "extra": "--forcerun V2c_config -n",
+          "user_extra": "--forcerun V2c_config",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc311.fnal.gov",
+          "config_sha256": "a2084638faf5"
+        },
+        {
+          "ts": "2026-10-13 21:37:17",
+          "cores": 8,
+          "extra": "--forcerun V2c_config",
+          "user_extra": "--forcerun V2c_config",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc311.fnal.gov",
+          "config_sha256": "a2084638faf5"
         }
       ]
     },
@@ -242,6 +294,35 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-13 21:35:54",
+      "event": "config-edited",
+      "sha256": "a2084638faf5"
+    },
+    {
+      "ts": "2026-10-13 21:35:54",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 21:36:25",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 21:36:57",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-13 21:37:17",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
     }
   ],
   "notes": "30x c6 MvD (15 CanJet features, no area) + c6 SvB on the 16x declustered model (declib16_run3), v3/v4 signal trigger weights; floor 0.01, 1 evaluator, mps:50",
