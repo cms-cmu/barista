@@ -194,6 +194,19 @@
           "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
           "ssh": "jda102@cmslpc311.fnal.gov",
           "config_sha256": "a2084638faf5"
+        },
+        {
+          "ts": "2026-10-14 02:37:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_30x_c6mvd_run3_e7d9186-d00d175_MvD",
+          "ssh": "jda102@cmslpc306.fnal.gov",
+          "config_sha256": "a2084638faf5"
         }
       ]
     },
@@ -223,7 +236,7 @@
   "hosts": {
     "cmslpc": {
       "checkout": "~/nobackup/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/barista",
-      "ssh": "jda102@cmslpc311.fnal.gov",
+      "ssh": "jda102@cmslpc306.fnal.gov",
       "checked_out": "2026-10-13 11:01:05"
     },
     "falcon": {
@@ -235,13 +248,15 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/",
-    "ts": "2026-10-13 22:19:04",
+    "ts": "2026-10-14 04:51:11",
     "ok": true,
     "pages": [
       "output/MvD_30x_c6/yields.html",
       "output/SvB_MvD_30x_c6_c6mvd/yields.html",
       "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V2c/cutflow_MvD_30x_c6_closure.html",
-      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V2c/plots_MvD_30x_c6_closure/index.html"
+      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V2c/plots_MvD_30x_c6_closure/index.html",
+      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V4/plots_MvD_30x_c6mvd_c6/index.html",
+      "output/mvd_declib16_30x_c6mvd_run3_20261013_e7d9186-d00d175/V4/stat_analysis/summary.html"
     ]
   },
   "history": [
@@ -332,6 +347,42 @@
     },
     {
       "ts": "2026-10-13 22:19:03",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 02:36:09",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-14 02:36:21",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 02:37:13",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc306.fnal.gov"
+    },
+    {
+      "ts": "2026-10-14 02:37:15",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 04:51:01",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 04:51:11",
       "event": "publish",
       "host": "falcon",
       "ok": true
