@@ -160,35 +160,25 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - hcc-chase-shor-c4715.unl.edu
                 - hcc-chase-shor-c4719.unl.edu
               - key: nvidia.com/gpu.product
-                operator: NotIn
+                operator: In
                 values:
-                - NVIDIA-GeForce-GTX-1080-Ti
-                - NVIDIA-GeForce-GTX-1080
-                - NVIDIA-GeForce-RTX-2080-Ti
-                - NVIDIA-TITAN-Xp
-                - NVIDIA-TITAN-X-Pascal
-                - Quadro-M4000
-                - Tesla-T4
-                - NVIDIA-A2
-                - Tesla-V100-PCIE-16GB
-                - Tesla-V100-SXM2-16GB
-                - NVIDIA-A100-80GB-PCIe-MIG-1g.10gb
-                - NVIDIA-RTX-A4000
-                - RTX-A4000
-                - NVIDIA-RTX-A4500
-                - Quadro-RTX-5000
-              - key: nvidia.com/gpu.memory
-                operator: NotIn
-                values:
-                - "8192"
-                - "9728"
-                - "11264"
-                - "12288"
-                - "15356"
-                - "15360"
-                - "16376"
-                - "16384"
-                - "20475"\n"""
+                - NVIDIA-H100-80GB-HBM3
+                - NVIDIA-A100-SXM4-80GB
+                - NVIDIA-A100-80GB-PCIe
+                - NVIDIA-A100-PCIE-40GB
+                - NVIDIA-A40
+                - NVIDIA-L40S
+                - NVIDIA-L40
+                - NVIDIA-RTX-6000-Ada-Generation
+                - NVIDIA-RTX-5000-Ada-Generation
+                - Tesla-V100-SXM2-32GB
+                - NVIDIA-A10
+                - NVIDIA-L4
+                - NVIDIA-GeForce-RTX-3090
+                - NVIDIA-GeForce-RTX-4090
+                - NVIDIA-RTX-A5000
+                - Quadro-RTX-6000
+                - TITAN-RTX\n"""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
