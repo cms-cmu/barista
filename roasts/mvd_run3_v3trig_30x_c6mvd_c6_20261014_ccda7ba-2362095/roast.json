@@ -157,6 +157,19 @@
           "window": "mvd_run3_v3trig_30x_c6mvd_c6_ccda7ba-2362095_MvD_3_svb",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "896ffee91247"
+        },
+        {
+          "ts": "2026-10-14 16:18:01",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_v3trig_30x_c6mvd_c6_ccda7ba-2362095_MvD_3_svb",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "896ffee91247"
         }
       ]
     }
@@ -206,6 +219,18 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 16:18:01",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 16:18:08",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "note": "V.1 stopped after V1_metadata (John: inputs exist). handoff/classifier_inputs_MvD.json = mvd_run3_20260927 manifest's 268 mixeddata_all entries + nominal_run3_20261008 manifest (543), merged with src.friendtrees.merge_friend_meta; classifier_metadata.yml from this roast's V1_metadata. Both copied to handoff/ by hand. 35 orphaned dask workers (scheduler on cmslpc311) condor_rm'd."
     }
   ],
   "notes": "",
