@@ -103,9 +103,9 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
             template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
     if gpus > 0:
-        req_cpu = max(int(cpus), 8)
+        req_cpu = 4
         lim_cpu = req_cpu
-        req_mem = f"{max(int(mem_gb), 32)}Gi"
+        req_mem = "24Gi"
         lim_mem = req_mem
         gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
         gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
@@ -136,6 +136,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - NVIDIA-L40S
                 - NVIDIA-L40
                 - NVIDIA-RTX-6000-Ada-Generation
+                - NVIDIA-RTX-5000-Ada-Generation
+                - Tesla-V100-SXM2-32GB
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
@@ -175,14 +177,6 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - RTX-A4000
                 - NVIDIA-RTX-A4500
                 - Quadro-RTX-5000
-                - NVIDIA-A10
-                - NVIDIA-GeForce-RTX-3090
-                - NVIDIA-GeForce-RTX-3090-Ti
-                - NVIDIA-GeForce-RTX-4090
-                - NVIDIA-RTX-A5000
-                - NVIDIA-TITAN-RTX
-                - Quadro-RTX-6000
-                - NVIDIA-A30
               - key: nvidia.com/gpu.memory
                 operator: NotIn
                 values:
@@ -194,11 +188,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - "15360"
                 - "16376"
                 - "16384"
-                - "20475"
-                - "23028"
-                - "23034"
-                - "24564"
-                - "24576"\n"""
+                - "20475"\n"""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -293,8 +283,8 @@ def main():
         gpus = 0
     threads = props.get("threads", 1)
     cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
-    mem_mb = int(resources.get("mem_mb", 32000))
-    mem_gb = max(32, mem_mb // 1024)
+    mem_mb = int(resources.get("mem_mb", 24000))
+    mem_gb = max(24, mem_mb // 1024)
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
