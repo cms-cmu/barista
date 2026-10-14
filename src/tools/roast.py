@@ -1917,7 +1917,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
                 else st="stalled"; fi
             else st="not started"; fi
             win=$(printf '%s\\n' "$WINDOWS" | grep -cx -- "$W" || true)
-            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
+            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -a -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
