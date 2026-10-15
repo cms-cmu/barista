@@ -17,7 +17,10 @@ Run it directly:
     python3 src/tests/eos_error.py
 """
 import importlib.util
+import os
 import pickle
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -109,6 +112,33 @@ class TestMkdirAcceptsAnExistingDirectory(unittest.TestCase):
         d = eos.EOS("root://cmsdata.phys.cmu.edu//store/group/HH4b/z")
         with self.assertRaises(eos.EOSError):
             d.mkdir(recursive=True)
+
+
+class TestLocalPathsAnswerWhetherTheyExist(unittest.TestCase):
+    """`Path` in src/storage/eos.py is PurePosixPath, which never touches a filesystem.
+
+    `exists` called .exists() on it, so every local path raised AttributeError.  Nothing noticed
+    until mkdir started asking, and then 36 jobs failed at once (2026-10-15).
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_an_existing_local_directory_is_reported(self):
+        self.assertTrue(eos.EOS(self.tmp).exists)
+
+    def test_a_missing_local_path_is_reported(self):
+        self.assertFalse(eos.EOS(os.path.join(self.tmp, "nope")).exists)
+
+    def test_mkdir_creates_a_local_directory_and_then_accepts_it(self):
+        d = os.path.join(self.tmp, "a", "b")
+        eos.EOS(d).mkdir(recursive=True)
+        self.assertTrue(os.path.isdir(d))
+        eos.EOS(d).mkdir(recursive=True)            # second call must not raise
+        self.assertTrue(os.path.isdir(d))
 
 
 if __name__ == "__main__":
