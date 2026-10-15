@@ -185,6 +185,19 @@ class EOS:
 
     @_devnull()
     def mkdir(self, recursive: bool = False) -> EOS:
+        """Create the directory, and treat one that is already there as success.
+
+        `mkdir -p` is defined to be a no-op on an existing directory, but xrdfs does not honour
+        that when the directory belongs to somebody else: it answers [3010] permission denied.
+        So a job that created its output directory on one run failed on every run afterwards,
+        against the directory it had made itself -- which is how SvB_friendtree_coffea4bees
+        passed at 14:43 on 2026-10-15 and then failed six times in a row on the same commit.
+        """
+        try:
+            if self.exists:
+                return self
+        except EOSError:
+            pass            # cannot tell whether it is there; let mkdir answer, as before
         if self.call("mkdir", "-p" if recursive else "", self.path)[0]:
             return self
 

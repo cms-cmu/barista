@@ -65,5 +65,51 @@ class TestEOSErrorCrossesProcessBoundaries(unittest.TestCase):
             eos.EOSError(CMD, b"\xff\xfe")          # documents today's behaviour, not an endorsement
 
 
+class TestMkdirAcceptsAnExistingDirectory(unittest.TestCase):
+    """xrdfs refuses `mkdir -p` on a directory owned by someone else, so creating an output
+    directory once then reusing it has to not be an error."""
+
+    def setUp(self):
+        self.calls = []
+        self.saved = eos.EOS.call
+
+    def tearDown(self):
+        eos.EOS.call = self.saved
+
+    def fake_call(self, present: bool, mkdir_ok: bool = False):
+        """Stand in for xrdfs: `ls` answers whether the path is there, `mkdir` is refused."""
+        def call(cls, op, *args):
+            self.calls.append(op)
+            if op == "ls":
+                if present:
+                    return (True, b"")
+                raise eos.EOSError(["xrdfs", "ls"], b"[3011] no such file or directory")
+            if op == "mkdir":
+                if mkdir_ok:
+                    return (True, b"")
+                raise eos.EOSError(["xrdfs", "mkdir"], b"[3010] permission denied")
+            return (True, b"")
+        return classmethod(call)
+
+    def test_an_existing_directory_is_not_recreated(self):
+        eos.EOS.call = self.fake_call(present=True)
+        d = eos.EOS("root://cmsdata.phys.cmu.edu//store/group/HH4b/x")
+        self.assertIsNotNone(d.mkdir(recursive=True))
+        self.assertNotIn("mkdir", self.calls, "it tried to create a directory that was already there")
+
+    def test_a_missing_directory_is_created(self):
+        eos.EOS.call = self.fake_call(present=False, mkdir_ok=True)
+        d = eos.EOS("root://cmsdata.phys.cmu.edu//store/group/HH4b/y")
+        self.assertIsNotNone(d.mkdir(recursive=True))
+        self.assertIn("mkdir", self.calls)
+
+    def test_a_genuine_failure_still_raises(self):
+        """Tolerating an existing directory must not swallow a real permission problem."""
+        eos.EOS.call = self.fake_call(present=False, mkdir_ok=False)
+        d = eos.EOS("root://cmsdata.phys.cmu.edu//store/group/HH4b/z")
+        with self.assertRaises(eos.EOSError):
+            d.mkdir(recursive=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
