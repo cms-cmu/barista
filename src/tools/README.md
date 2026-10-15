@@ -310,3 +310,59 @@ Tested by `src/tests/roast.py` (29 unit tests, stdlib only, no ssh or cluster) i
 `status` reports each step as `not started`, `running` (a snakemake driver process is alive), `error` (the driver died after a job failed), `stalled` (died with no error) or `exit=N`, plus snakemake progress and the last log line. It also lists this roast's batch jobs, matched by the scheduler's record of the submitting directory: HTCondor dask workers on cmslpc, grouped by their dask scheduler address (spooling destroys the submit directory, so the scheduler the step started is what identifies them) and attributed to the step whose log announced that scheduler, with unclaimed groups listed separately, and on falcon each slurm job with its rule name, state, elapsed/limit, node, cpus/mem/gres and the last line of that job's own slurm log (training loss, batch counter), followed by jobs that finished in the last two days and a one-line cluster summary. Slurm jobs are grouped per rule so a retried rule shows the attempt that replaced the failure, annotated with how many attempts it took, rather than the stale failures.
 
 Ids are `<label>_<YYYYMMDD>_<barista7>-<coffea4bees7>`; any unique prefix works. The configured cmslpc target is the `cmslpc-el9` gateway: `checkout` records whichever interactive node the load balancer gives, and every later command for that roast follows that record, since only the driver and its tmux window are node-bound. A dead node is re-pinned automatically on the next submit or resume. A `host_file` (e.g. `~/.cmslpc-claude-host`) still overrides the configured target for roasts that have not been checked out yet. Stdlib only.
+
+## repo_activity.py
+
+`repo_activity.py` plots how much lands on `origin/master` of **barista** and **coffea4bees**.
+It does three things:
+
+1. fetches `origin` in both repos;
+2. counts commits and merged MRs;
+3. writes figures (PNG + PDF) and summary CSVs.
+
+It is read-only: the only git command that touches the repos is `git fetch origin`.
+
+### Usage
+
+Run on the host, not in the container: the script needs `git` with access to the CERN GitLab remotes, plus `matplotlib` and `pandas`.
+
+```bash
+# From the barista root; coffea4bees defaults to ./coffea4bees (the usual workspace layout)
+python src/tools/repo_activity.py
+
+# Options
+python src/tools/repo_activity.py \
+    --since 2025-09-01 \
+    --until 2026-10-14 \
+    --outdir repo_activity_output \
+    --coffea4bees ../coffea4bees \
+    --no-fetch
+```
+
+- `--since`: start date (default `2025-09-01`).
+- `--until`: end date (default today).
+- `--outdir`: where outputs go (default `./repo_activity_output`).
+- `--coffea4bees`: path to a different coffea4bees clone.
+- `--no-fetch`: skip `git fetch`, e.g. when offline.
+
+To run it weekly, put it in cron or launchd. The fetch only works unattended if your SSH key is available to the job (no passphrase, or a passphrase stored in the keychain).
+
+### Outputs
+
+| File | Content |
+|---|---|
+| `repo_activity_commits.{png,pdf}` | Non-merge commits per day; one panel per repo; human vs Claude-involved |
+| `repo_activity_mrs.{png,pdf}` | MRs merged per day; one panel per repo; human vs Claude-involved |
+| `summed_{commits,mrs}_daily.{png,pdf}` | Both repos summed, per day, with a 7-day average |
+| `summed_{commits,mrs}_weekly.{png,pdf}` | Both repos summed, per Monday-start week, with a 4-week average |
+| `summary.csv`, `summary_summed.csv` | Totals, peaks, current averages |
+
+### Definitions
+
+- **Commits:** non-merge commits reachable from `origin/master`, bucketed by author date.
+- **MRs:** first-parent merge commits on `origin/master`.
+- **Claude-involved:** the commit message has a `Co-Authored-By: Claude` trailer.
+  - For MRs: the merge commit, or any commit on the merged branch, has the trailer.
+  - This is a lower bound, because Claude-assisted commits without the trailer count as human.
+- **Shared history:** barista was forked from coffea4bees in Sep 2025. Commits present in both repos are counted once, under coffea4bees.
+- **Weekly plots:** the current, partial week is drawn faded. It is left out of the peak and out of the average.
