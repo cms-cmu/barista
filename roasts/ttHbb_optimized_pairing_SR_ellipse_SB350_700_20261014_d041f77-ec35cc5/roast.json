@@ -1,0 +1,398 @@
+{
+  "id": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5",
+  "label": "ttHbb_optimized_pairing_SR_ellipse_SB350_700",
+  "created": "2026-10-14 00:51:15",
+  "owner": "Sindhu Murthy",
+  "barista": {
+    "sha": "d041f7732a469f9135098d85940741028cff5043",
+    "origin": "https://gitlab.cern.ch/cms-cmu/barista.git",
+    "web": "https://https///gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "ec35cc51c1066c06507285c2ba3ac944c3498daa",
+    "origin": "https://gitlab.cern.ch/cms-cmu/coffea4bees.git",
+    "web": "https://https///gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_ttHbb_optimized_pairing_and_SR.yml",
+    "captured": "config.yml",
+    "sha256": "fa9177b6dddd5af883825f050a85938bf1129e462511e4b08e1160ae1b8f3d2e"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-14 00:52:34",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc311.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 01:35:05",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc311.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 01:36:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc311.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 03:54:05",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 06:53:28",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 09:53:26",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 12:53:39",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_B",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-14 18:07:54",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_C",
+          "ssh": "sindhum@falcon.phys.cmu.edu",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 18:08:44",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_C",
+          "ssh": "sindhum@falcon.phys.cmu.edu",
+          "config_sha256": "fa9177b6dddd"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-14 21:53:26",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_D",
+          "ssh": "sindhum@falcon.phys.cmu.edu",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-14 21:54:54",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_D",
+          "ssh": "sindhum@falcon.phys.cmu.edu",
+          "config_sha256": "fa9177b6dddd"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-15 00:58:11",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_F",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        },
+        {
+          "ts": "2026-10-15 00:58:48",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_optimized_pairing_SR_ellipse_SB350_700_d041f77-ec35cc5_F",
+          "ssh": "smurthy@cmslpc318.fnal.gov",
+          "config_sha256": "fa9177b6dddd"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/smurthy/ttHbb/prod/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5/barista",
+      "ssh": "smurthy@cmslpc318.fnal.gov",
+      "checked_out": "2026-10-14 00:52:18"
+    },
+    "falcon": {
+      "checkout": "/home/export/sindhum/roast_prod/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5/barista",
+      "ssh": "sindhum@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-14 00:52:23"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/s/simurthy/www/ttHbb/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5",
+    "url": "https://simurthy.web.cern.ch/ttHbb/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5/",
+    "ts": "2026-10-15 04:55:06",
+    "ok": true,
+    "pages": [
+      "output/FvT_ttHbb_stitched/yields.html",
+      "output/SvB_ttHbb_stitched/yields.html",
+      "output/ttHbb/computeJCM/cutflow_NoJCM.html",
+      "output/ttHbb/computeJCM/cutflow_wJCM.html",
+      "output/ttHbb/computeJCM/plots_wJCM/index.html",
+      "output/ttHbb/cutflow_crosscheck_ttHbb.html",
+      "output/ttHbb/cutflow_ttHbb.html",
+      "output/ttHbb/plots_ttHbb/index.html",
+      "output/ttHbb/stat_analysis/summary.html"
+    ]
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/smurthy/ttHbb/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5",
+    "ts": "2026-10-15 17:14:52",
+    "ok": true
+  },
+  "history": [
+    {
+      "ts": "2026-10-14 00:51:15",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-14 00:52:18",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 00:52:23",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 00:52:34",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 01:35:05",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 01:36:15",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 03:54:03",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc318.fnal.gov"
+    },
+    {
+      "ts": "2026-10-14 03:54:05",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 06:53:28",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 09:53:26",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 12:53:39",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 18:07:54",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 18:08:44",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 21:53:26",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-14 21:54:54",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-15 00:58:11",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-15 00:58:48",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-15 04:12:43",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-15 04:13:06",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-15 04:21:11",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-15 04:54:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-15 04:55:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/smurthy/ttHbb",
+    "web_prod": "root://eosuser.cern.ch//eos/user/s/simurthy/www/ttHbb"
+  }
+}

@@ -85,7 +85,7 @@ def should_submit(rule, resources, config):
     return rule in rules
 
 
-def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, labels=None):
+def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, labels=None, rule=""):
     """Generate the Kubernetes Job manifest."""
     import base64
     b64_script = base64.b64encode(jobscript_content.encode("utf-8")).decode("utf-8")
@@ -102,18 +102,23 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
         if lines:
             template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
-    if gpus > 0:
-        req_cpu = max(int(cpus), 8)
+    if "evaluate" in rule.lower():
+        req_cpu = 2
         lim_cpu = req_cpu
-        req_mem = f"{max(int(mem_gb), 32)}Gi"
+        req_mem = "16Gi"
         lim_mem = req_mem
-        gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
-        gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
     else:
         req_cpu = max(int(cpus), 1)
         lim_cpu = req_cpu
-        gpu_limits = f"cpu: '{lim_cpu}'\n            memory: 8Gi"
-        gpu_requests = f"cpu: '{req_cpu}'\n            memory: 8Gi"
+        req_mem = f"{max(int(mem_gb), 4)}Gi"
+        lim_mem = req_mem
+
+    if gpus > 0:
+        gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
+        gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
+    else:
+        gpu_limits = f"cpu: '{lim_cpu}'\n            memory: {lim_mem}"
+        gpu_requests = f"cpu: '{req_cpu}'\n            memory: {req_mem}"
 
     labels_section = f"\n{labels_block}" if labels_block else ""
     template_labels_section = f"\n{template_labels_block}" if template_labels_block else ""
@@ -129,13 +134,22 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
-                - NVIDIA-H100-80GB-HBM3
-                - NVIDIA-A100-SXM4-80GB
-                - NVIDIA-A100-80GB-PCIe
-                - NVIDIA-A100-PCIE-40GB
+                - NVIDIA-GeForce-RTX-3090
+                - NVIDIA-GeForce-RTX-4090
+                - NVIDIA-RTX-A5000
+                - NVIDIA-RTX-A6000
+                - NVIDIA-A40
                 - NVIDIA-L40S
                 - NVIDIA-L40
                 - NVIDIA-RTX-6000-Ada-Generation
+                - NVIDIA-RTX-5000-Ada-Generation
+                - Quadro-RTX-8000
+                - Quadro-RTX-6000
+                - NVIDIA-TITAN-RTX
+                - TITAN-RTX
+                - Tesla-V100-SXM2-32GB
+                - NVIDIA-A10
+                - NVIDIA-L4
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
@@ -158,47 +172,29 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - hcc-chase-shor-c4715.unl.edu
                 - hcc-chase-shor-c4719.unl.edu
               - key: nvidia.com/gpu.product
-                operator: NotIn
+                operator: In
                 values:
-                - NVIDIA-GeForce-GTX-1080-Ti
-                - NVIDIA-GeForce-GTX-1080
-                - NVIDIA-GeForce-RTX-2080-Ti
-                - NVIDIA-TITAN-Xp
-                - NVIDIA-TITAN-X-Pascal
-                - Quadro-M4000
-                - Tesla-T4
-                - NVIDIA-A2
-                - Tesla-V100-PCIE-16GB
-                - Tesla-V100-SXM2-16GB
-                - NVIDIA-A100-80GB-PCIe-MIG-1g.10gb
-                - NVIDIA-RTX-A4000
-                - RTX-A4000
-                - NVIDIA-RTX-A4500
-                - Quadro-RTX-5000
+                - NVIDIA-A40
+                - NVIDIA-L40S
+                - NVIDIA-L40
+                - NVIDIA-RTX-6000-Ada-Generation
+                - NVIDIA-RTX-5000-Ada-Generation
+                - NVIDIA-RTX-A6000
+                - Quadro-RTX-8000
+                - Tesla-V100-SXM2-32GB
                 - NVIDIA-A10
+                - NVIDIA-L4
                 - NVIDIA-GeForce-RTX-3090
-                - NVIDIA-GeForce-RTX-3090-Ti
                 - NVIDIA-GeForce-RTX-4090
                 - NVIDIA-RTX-A5000
-                - NVIDIA-TITAN-RTX
                 - Quadro-RTX-6000
-                - NVIDIA-A30
-              - key: nvidia.com/gpu.memory
-                operator: NotIn
-                values:
-                - "8192"
-                - "9728"
-                - "11264"
-                - "12288"
-                - "15356"
-                - "15360"
-                - "16376"
-                - "16384"
-                - "20475"
-                - "23028"
-                - "23034"
-                - "24564"
-                - "24576"\n"""
+                - NVIDIA-TITAN-RTX
+                - TITAN-RTX
+                - NVIDIA-GeForce-RTX-3080
+                - NVIDIA-GeForce-RTX-3080-Ti
+                - NVIDIA-GeForce-RTX-4080
+                - NVIDIA-RTX-A4000
+"""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -293,8 +289,9 @@ def main():
         gpus = 0
     threads = props.get("threads", 1)
     cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
-    mem_mb = int(resources.get("mem_mb", 32000))
-    mem_gb = max(32, mem_mb // 1024)
+    default_mem = 24000 if "train" in rule.lower() else 8000
+    mem_mb = int(resources.get("mem_mb", default_mem))
+    mem_gb = max(4, (mem_mb + 1023) // 1024)
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -322,7 +319,7 @@ def main():
     labels["app"] = "roast-worker"
 
     manifest_yaml = build_k8s_job_yaml(
-        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels
+        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels, rule=clean_rule
     )
     manifest_path = os.path.join(LOG_DIR, f"{job_name}.yaml")
 

@@ -123,6 +123,7 @@ nav:
         - index: bbWW/index.md
     - Cupping Notes:
         - Using roast: prod/using_roast.md
+        - Using roast on Nautilus: prod/using_roast_nautilus.md
         - All families: prod/index.md
         - declustered: prod/declustered.md
         - mixeddata: prod/mixeddata.md

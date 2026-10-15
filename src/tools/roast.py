@@ -59,7 +59,8 @@ TMUX_SESSION = "roast"
 # --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
 # it uses %C, a fixed-length hash of the connection parameters.
 SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR",
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+            "-o", "HostName=%h",
             "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
 
