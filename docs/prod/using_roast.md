@@ -75,10 +75,12 @@ Phases map to machines the way the
 
 | Phase | A | B | C | D | E | F |
 |---|---|---|---|---|---|---|
-| runs on | cmslpc | cmslpc | falcon | falcon | cmslpc | cmslpc |
+| runs on | cmslpc | cmslpc | falcon / nautilus | falcon / nautilus | cmslpc | cmslpc |
+
+Passing `--nautilus` to `bin/roast new` maps the GPU phases (`C`, `D`, `BKG_C`) to run as Kubernetes Jobs on the **NRP Nautilus** cluster instead of Falcon (see [Using roast on Nautilus](using_roast_nautilus.md)).
 
 `--phases B,C,D,F` sets up several steps at once; each is submitted separately, and you
-move to the next when the previous one reports `exit=0`. Run `checkout` for both machines
+move to the next when the previous one reports `exit=0`. Run `checkout` for each machine
 when a roast spans them. Workflows outside the A–F scheme are added with
 `--step host:Snakefile[:targets]`, for example:
 
