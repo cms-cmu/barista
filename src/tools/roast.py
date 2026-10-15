@@ -2488,7 +2488,7 @@ def cmd_publish(args) -> None:
     write_docs(r)
     write_index()
     info(f"results: {url}")
-    info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; commit roasts/ and docs/prod/ to update the Pages site")
+    info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; run `{TOOL} commit {r['id']}` to commit the roast manifest")
 
 
 def cmd_archive(args) -> None:
@@ -2527,6 +2527,87 @@ def cmd_archive(args) -> None:
     write_docs(r)
     write_index()
     info(f"archive: {eos_url}/{dst_dir}   (list: xrdfs {eos_url} ls -R {dst_dir})")
+
+
+def _default_commit_message(r: dict) -> str:
+    rid = r["id"]
+    completed_steps = []
+    for h in r.get("history", []):
+        if isinstance(h, dict) and h.get("event") == "exit" and h.get("code") == 0:
+            step = h.get("step")
+            if step and step not in completed_steps:
+                completed_steps.append(step)
+
+    details = []
+    if completed_steps:
+        s_text = f"step{'s' if len(completed_steps) > 1 else ''} {','.join(completed_steps)} done"
+        details.append(s_text)
+    if r.get("archive", {}).get("ok"):
+        details.append("archived")
+    if r.get("publish", {}).get("ok"):
+        details.append("published")
+
+    summary = "; ".join(details) if details else "update manifest and configuration"
+    return f"roast {rid}: {summary}"
+
+
+def cmd_commit(args) -> None:
+    """Commit the roast manifest and associated files under roasts/<id>/ to git, with optional push."""
+    r = load_roast(args.id)
+    rid = r["id"]
+    rdir = roast_dir(rid)
+    if not rdir.exists():
+        die(f"roast directory {rdir} does not exist")
+
+    rel_rdir = rdir.relative_to(ROOT)
+
+    res_status = sh(["git", "status", "--porcelain", "--", str(rel_rdir)], cwd=ROOT, check=True)
+    res_staged = sh(["git", "diff", "--name-only", "--cached", "--", str(rel_rdir)], cwd=ROOT, check=True)
+
+    status_out = res_status.stdout.strip()
+    staged_out = res_staged.stdout.strip()
+
+    if not status_out and not staged_out:
+        info(f"Nothing to commit in {rel_rdir}")
+        return
+
+    if args.message:
+        msg = args.message.strip()
+        if not msg.startswith(f"roast {rid}"):
+            msg = f"roast {rid}: {msg}"
+    else:
+        msg = _default_commit_message(r)
+
+    if args.dry_run:
+        info(f"[dry-run] would stage: git add {rel_rdir}")
+        info(f"[dry-run] would commit with message: {msg}")
+        if args.push:
+            res_branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, check=True)
+            branch = res_branch.stdout.strip()
+            remote = args.remote or "origin"
+            info(f"[dry-run] would push to {remote} {branch}")
+        return
+
+    info(f"staging {rel_rdir}")
+    sh(["git", "add", str(rel_rdir)], cwd=ROOT, check=True)
+
+    res_diff = sh(["git", "diff", "--name-only", "--cached", "--", str(rel_rdir)], cwd=ROOT, check=True)
+    if not res_diff.stdout.strip():
+        info(f"Nothing staged to commit in {rel_rdir}")
+        return
+
+    info(f"committing: {msg.splitlines()[0]}")
+    sh(["git", "commit", "-m", msg, "--", str(rel_rdir)], cwd=ROOT, check=True)
+
+    if args.push:
+        res_branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, check=True)
+        branch = res_branch.stdout.strip()
+        if not branch or branch == "HEAD":
+            die("cannot push from detached HEAD")
+        remote = args.remote or "origin"
+        info(f"pushing to {remote} {branch}")
+        sh(["git", "push", "-u", remote, branch], cwd=ROOT, check=True)
+
 
 
 # ---------------------------------------------------------------------------
@@ -2816,6 +2897,14 @@ def main(argv=None) -> None:
     s = sub.add_parser("show", help="print a manifest")
     s.add_argument("id")
     s.set_defaults(func=cmd_show)
+
+    s = sub.add_parser("commit", help="stage and commit roasts/<id>/ (and optionally push)")
+    s.add_argument("id")
+    s.add_argument("-m", "--message", help="commit message (default: generated from roast status)")
+    s.add_argument("--push", action="store_true", help="push the commit to the current branch on the remote")
+    s.add_argument("--remote", default="origin", help="git remote for --push (default: origin)")
+    s.add_argument("-n", "--dry-run", action="store_true", help="show what would be committed without committing")
+    s.set_defaults(func=cmd_commit)
 
     args = p.parse_args(argv)
     try:

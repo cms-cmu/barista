@@ -1177,5 +1177,74 @@ class TestStatusScriptBehaviour(unittest.TestCase):
         self.assertEqual(self.classify(log=log), "stalled")
 
 
+class TestRoastCommit(unittest.TestCase):
+    def test_default_commit_message_empty(self):
+        r = fake_roast()
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: update manifest and configuration")
+
+    def test_default_commit_message_with_steps_and_publish(self):
+        r = fake_roast()
+        r["history"] = [
+            {"event": "exit", "step": "B", "code": 0},
+            {"event": "exit", "step": "C", "code": 0},
+        ]
+        r["archive"] = {"ok": True, "eos": "root://cmseos.fnal.gov/store/..."}
+        r["publish"] = {"ok": True, "url": "https://..."}
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: steps B,C done; archived; published")
+
+    def test_cmd_commit_flow(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
+            (repo / "run_container").touch()
+            (repo / "coffea4bees").mkdir()
+            (repo / "initial.txt").write_text("init\n")
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True)
+
+            rid = "mytest_20261015_1234567-abcdef0"
+            rdir = repo / "roasts" / rid
+            rdir.mkdir(parents=True)
+            manifest = fake_roast()
+            manifest["id"] = rid
+            (rdir / "roast.json").write_text(json.dumps(manifest))
+
+            (repo / "unrelated.txt").write_text("do not commit\n")
+
+            orig_root, orig_roasts = roast.ROOT, roast.ROASTS
+            try:
+                roast.ROOT = repo
+                roast.ROASTS = repo / "roasts"
+
+                # 1. Dry run
+                args = argparse.Namespace(id=rid, message=None, push=False, remote="origin", dry_run=True)
+                roast.cmd_commit(args)
+                status = subprocess.run(["git", "status", "--porcelain", "--", f"roasts/{rid}"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertIn(f"roasts/{rid}", status)
+
+                # 2. Real commit with custom message
+                args = argparse.Namespace(id=rid, message="add Phase B", push=False, remote="origin", dry_run=False)
+                roast.cmd_commit(args)
+
+                log = subprocess.run(["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+                self.assertEqual(log, f"roast {rid}: add Phase B")
+
+                status2 = subprocess.run(["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertNotIn("roasts/", status2)
+                self.assertIn("?? unrelated.txt", status2)
+
+                # 3. Calling commit again reports nothing to commit
+                roast.cmd_commit(args)
+
+            finally:
+                roast.ROOT = orig_root
+                roast.ROASTS = orig_roasts
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
