@@ -939,7 +939,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
             step: "{name}"
             app: "roast-runner"
         spec:
-          backoffLimit: 0
+          backoffLimit: 3
           template:
             metadata:
               labels:
