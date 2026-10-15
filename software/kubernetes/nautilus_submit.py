@@ -85,7 +85,7 @@ def should_submit(rule, resources, config):
     return rule in rules
 
 
-def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, labels=None):
+def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, labels=None, rule=""):
     """Generate the Kubernetes Job manifest."""
     import base64
     b64_script = base64.b64encode(jobscript_content.encode("utf-8")).decode("utf-8")
@@ -102,18 +102,21 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
         if lines:
             template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
+    if "evaluate" in rule.lower():
+        req_cpu = min(max(int(cpus), 1), 2)
+        req_mem = "8Gi"
+    else:
+        req_cpu = max(int(cpus), 1)
+        req_mem = f"{max(int(mem_gb), 4)}Gi"
+    lim_cpu = req_cpu
+    lim_mem = req_mem
+
     if gpus > 0:
-        req_cpu = 4
-        lim_cpu = req_cpu
-        req_mem = "24Gi"
-        lim_mem = req_mem
         gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
         gpu_requests = f"nvidia.com/gpu: {gpus}\n            cpu: '{req_cpu}'\n            memory: {req_mem}"
     else:
-        req_cpu = max(int(cpus), 1)
-        lim_cpu = req_cpu
-        gpu_limits = f"cpu: '{lim_cpu}'\n            memory: 8Gi"
-        gpu_requests = f"cpu: '{req_cpu}'\n            memory: 8Gi"
+        gpu_limits = f"cpu: '{lim_cpu}'\n            memory: {lim_mem}"
+        gpu_requests = f"cpu: '{req_cpu}'\n            memory: {req_mem}"
 
     labels_section = f"\n{labels_block}" if labels_block else ""
     template_labels_section = f"\n{template_labels_block}" if template_labels_block else ""
@@ -187,7 +190,14 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=6, mem_gb=16, l
                 - NVIDIA-RTX-A5000
                 - Quadro-RTX-6000
                 - NVIDIA-TITAN-RTX
-                - TITAN-RTX\n"""
+                - TITAN-RTX
+                - NVIDIA-GeForce-RTX-3080
+                - NVIDIA-GeForce-RTX-3080-Ti
+                - NVIDIA-GeForce-RTX-4080
+                - NVIDIA-RTX-A4000
+                - NVIDIA-GeForce-RTX-2080-Ti
+                - Tesla-T4
+"""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -282,8 +292,9 @@ def main():
         gpus = 0
     threads = props.get("threads", 1)
     cpus = int(resources.get("cpu", resources.get("cpus_per_task", threads)))
-    mem_mb = int(resources.get("mem_mb", 24000))
-    mem_gb = max(24, mem_mb // 1024)
+    default_mem = 24000 if "train" in rule.lower() else 8000
+    mem_mb = int(resources.get("mem_mb", default_mem))
+    mem_gb = max(4, (mem_mb + 1023) // 1024)
 
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -311,7 +322,7 @@ def main():
     labels["app"] = "roast-worker"
 
     manifest_yaml = build_k8s_job_yaml(
-        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels
+        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels, rule=clean_rule
     )
     manifest_path = os.path.join(LOG_DIR, f"{job_name}.yaml")
 

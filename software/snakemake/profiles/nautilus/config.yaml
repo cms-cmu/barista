@@ -17,7 +17,7 @@ default-resources:
 
 set-threads:
   train: 4
-  evaluate: 4
+  evaluate: 2
 
 set-resources:
   train:
@@ -25,6 +25,6 @@ set-resources:
     gpus: 1
     cpu: 4
   evaluate:
-    mem_mb: 24000
+    mem_mb: 8000
     gpus: 1
-    cpu: 4
+    cpu: 2
