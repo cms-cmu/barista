@@ -104,12 +104,14 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
 
     if "evaluate" in rule.lower():
         req_cpu = min(max(int(cpus), 1), 2)
-        req_mem = "8Gi"
+        lim_cpu = 4
+        req_mem = "12Gi"
+        lim_mem = "24Gi"
     else:
         req_cpu = max(int(cpus), 1)
+        lim_cpu = req_cpu
         req_mem = f"{max(int(mem_gb), 4)}Gi"
-    lim_cpu = req_cpu
-    lim_mem = req_mem
+        lim_mem = req_mem
 
     if gpus > 0:
         gpu_limits = f"nvidia.com/gpu: {gpus}\n            cpu: '{lim_cpu}'\n            memory: {lim_mem}"
@@ -195,8 +197,6 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - NVIDIA-GeForce-RTX-3080-Ti
                 - NVIDIA-GeForce-RTX-4080
                 - NVIDIA-RTX-A4000
-                - NVIDIA-GeForce-RTX-2080-Ti
-                - Tesla-T4
 """
 
     manifest = f"""apiVersion: batch/v1
