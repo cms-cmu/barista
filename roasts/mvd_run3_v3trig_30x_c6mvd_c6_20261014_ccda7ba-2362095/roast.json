@@ -135,6 +135,19 @@
           "window": "mvd_run3_v3trig_30x_c6mvd_c6_ccda7ba-2362095_MvD",
           "ssh": "jda102@cmslpc311.fnal.gov",
           "config_sha256": "896ffee91247"
+        },
+        {
+          "ts": "2026-10-14 20:09:27",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_v3trig_30x_c6mvd_c6_ccda7ba-2362095_MvD",
+          "ssh": "jda102@cmslpc311.fnal.gov",
+          "config_sha256": "896ffee91247"
         }
       ]
     },
@@ -186,7 +199,17 @@
       "checked_out": "2026-10-14 16:08:57"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_v3trig_30x_c6mvd_c6_20261014_ccda7ba-2362095",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_v3trig_30x_c6mvd_c6_20261014_ccda7ba-2362095/",
+    "ts": "2026-10-14 20:56:01",
+    "ok": true,
+    "pages": [
+      "output/SvB_MvD_30x_c6_c6mvd_v3trig/yields.html",
+      "output/mvd_run3_v3trig_30x_c6mvd_c6_20261014_ccda7ba-2362095/V4/plots_MvD_30x_c6mvd_c6_v3trig/index.html",
+      "output/mvd_run3_v3trig_30x_c6mvd_c6_20261014_ccda7ba-2362095/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-14 16:06:09",
@@ -231,6 +254,36 @@
       "event": "hotpatch",
       "host": "cmslpc",
       "note": "V.1 stopped after V1_metadata (John: inputs exist). handoff/classifier_inputs_MvD.json = mvd_run3_20260927 manifest's 268 mixeddata_all entries + nominal_run3_20261008 manifest (543), merged with src.friendtrees.merge_friend_meta; classifier_metadata.yml from this roast's V1_metadata. Both copied to handoff/ by hand. 35 orphaned dask workers (scheduler on cmslpc311) condor_rm'd."
+    },
+    {
+      "ts": "2026-10-14 20:09:08",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 20:09:25",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 20:09:27",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-14 20:55:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 20:56:01",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
