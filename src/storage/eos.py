@@ -28,6 +28,14 @@ class EOSError(Exception):
     def __init__(self, cmd: list[str], stderr: bytes, *args):
         msg = f'Operation failed\n  Command: {" ".join(cmd)}\n  Message: {stderr.decode()}'
         super().__init__(msg, *args)
+        self.cmd = cmd
+        self.stderr = stderr
+        self._extra_args = args
+
+    def __reduce__(self):
+        # default Exception pickling calls cls(*self.args), which lacks `stderr`
+        # and breaks un-serialization of results from worker processes
+        return (self.__class__, (self.cmd, self.stderr, *self._extra_args))
 
 
 class EOS:
