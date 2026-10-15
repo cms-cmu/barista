@@ -103,10 +103,10 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
             template_labels_block = "    metadata:\n      labels:\n" + "\n".join(lines)
 
     if "evaluate" in rule.lower():
-        req_cpu = min(max(int(cpus), 1), 2)
-        lim_cpu = 4
-        req_mem = "12Gi"
-        lim_mem = "24Gi"
+        req_cpu = 2
+        lim_cpu = req_cpu
+        req_mem = "16Gi"
+        lim_mem = req_mem
     else:
         req_cpu = max(int(cpus), 1)
         lim_cpu = req_cpu
