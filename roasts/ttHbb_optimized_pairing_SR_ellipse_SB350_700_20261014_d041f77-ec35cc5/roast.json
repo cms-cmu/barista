@@ -254,6 +254,11 @@
       "output/ttHbb/stat_analysis/summary.html"
     ]
   },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/smurthy/ttHbb/ttHbb_optimized_pairing_SR_ellipse_SB350_700_20261014_d041f77-ec35cc5",
+    "ts": "2026-10-15 17:14:52",
+    "ok": true
+  },
   "history": [
     {
       "ts": "2026-10-14 00:51:15",
