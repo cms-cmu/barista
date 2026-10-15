@@ -1,0 +1,54 @@
+{
+  "id": "nominal_run3_2025_nontight_20261015_9ac9a30-b172c05",
+  "label": "nominal_run3_2025_nontight",
+  "created": "2026-10-15 14:08:27",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "9ac9a305edabac82fd6b6f15aded46d706cf2203",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "b172c05378d63102c26f160c4dd91ce135d1b222",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2025_nontight.yml",
+    "captured": "config.yml",
+    "sha256": "cb092ad2e213093ee534c80d2d74f197b7e3d003064e2fb76bda58ba51665728"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-15 14:08:27",
+      "event": "new"
+    }
+  ],
+  "notes": "2025 data non-tight JCM + FvT; ttbar = Summer24 MC as year 2025, L=110.625/fb (prelim). Supersedes daa12d2-dfbf873 (C failed: 5 zero-golden picoAODs had no B.2 friends; dropped from data.yml).",
+  "category": ""
+}
