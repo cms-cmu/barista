@@ -10,6 +10,16 @@ code_roast_barista:
   script:
     - python3 src/tests/roast.py
 
+# EOSError has to survive pickling or a worker's EOS failure takes the pool down with an
+# unrelated message.  Pure python, no EOS and no network, so it sits next to roast rather than
+# queueing behind the analysis image.
+code_eos_error_barista:
+  stage: code
+  image: gitlab-registry.cern.ch/cms-cmu/barista:latest
+  needs: []
+  script:
+    - python3 src/tests/eos_error.py
+
 code_hist_collection_barista:
   stage: code
   extends:

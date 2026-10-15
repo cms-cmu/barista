@@ -26,8 +26,20 @@ __all__ = ["EOS", "PathLike", "EOSError", "save", "load"]
 
 class EOSError(Exception):
     def __init__(self, cmd: list[str], stderr: bytes, *args):
+        self.cmd, self.stderr = cmd, stderr
         msg = f'Operation failed\n  Command: {" ".join(cmd)}\n  Message: {stderr.decode()}'
         super().__init__(msg, *args)
+
+    def __reduce__(self):
+        """Make the exception survive being sent between processes.
+
+        Exception's default pickling replays __init__ with self.args, which here holds only the
+        rendered message -- one argument where __init__ wants cmd and stderr.  Unpickling then
+        raised TypeError inside the worker-result reader, so a coffea run whose worker touched
+        an unreachable EOS path died with "A result has failed to un-serialize" and the actual
+        EOS message, the part that says what went wrong, was never shown (2026-10-15).
+        """
+        return (self.__class__, (self.cmd, self.stderr))
 
 
 class EOS:
