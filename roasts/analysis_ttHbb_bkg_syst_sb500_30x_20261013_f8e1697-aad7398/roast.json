@@ -502,7 +502,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/",
-    "ts": "2026-10-16 05:48:42",
+    "ts": "2026-10-16 14:57:20",
     "ok": true,
     "pages": [
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_A_2_make_subsamples/study/index.html",
@@ -516,14 +516,28 @@
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure/summary_SvB_SB.html",
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure/summary_SvB_SR.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_12subsamples_quickfix/summary_SvB_MA_SB.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_12subsamples_quickfix/summary_SvB_SB.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/closure_summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/closure_summary_SB.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/closure_summary_SR.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/summary_SvB_MA_SB.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/summary_SvB_MA_SR.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/summary_SvB_SB.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_2_run_two_stage_closure_16subsamples_with_outliers/summary_SvB_SR.html",
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
       "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats/summary.html",
-      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
-      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
-      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
-      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
-      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/summary.html"
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats_16subsamples_with_outliers/stat_analysis_rebin15/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats_16subsamples_with_outliers/stat_analysis_rebin24/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_3_stats_16subsamples_with_outliers/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_12subsamples_quickfix/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_16subsamples_with_outliers/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_16subsamples_with_outliers/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_16subsamples_with_outliers/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_16subsamples_with_outliers/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/analysis_ttHbb_bkg_syst_sb500_30x_20261013_f8e1697-aad7398/bkg_syst_F_4_stats_mixeddata_16subsamples_with_outliers/summary.html"
     ]
   },
   "history": [
@@ -759,6 +773,12 @@
     {
       "ts": "2026-10-16 05:49:24",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-16 14:57:19",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }
