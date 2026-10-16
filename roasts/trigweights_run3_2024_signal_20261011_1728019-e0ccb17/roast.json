@@ -105,6 +105,13 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-14 16:32:56",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
     }
   ],
   "notes": "",
@@ -117,5 +124,11 @@
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/trigweights_run3_2024_signal_20261011_1728019-e0ccb17",
     "ts": "2026-10-11 22:07:29",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-14 16:32:56",
+    "hosts": [
+      "cmslpc"
+    ]
   }
 }
