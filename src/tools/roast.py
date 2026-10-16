@@ -867,11 +867,15 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         echo "=== roast {r['id']} step {name} start $(date) on $(hostname) ===" | tee -a "$LOG"
         echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
         # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
-        # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
+        # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) or the shared copy
+        # `roast proxy` leaves in ~/.roast (LPC /tmp is node-local), whichever is newer than the
+        # checkout's. run_container `touch`es a missing proxy, so an empty file counts as none.
         mkdir -p proxy
-        if [ ! -s proxy/x509_proxy ] || [ "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" -nt proxy/x509_proxy ]; then
-            cp -f "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}} ===" | tee -a "$LOG"
-        fi
+        for src in "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" {rq(SHARED_PROXY)}; do
+            if [ -s "$src" ] && {{ [ ! -s proxy/x509_proxy ] || [ "$src" -nt proxy/x509_proxy ]; }}; then
+                cp -f "$src" proxy/x509_proxy && echo "=== proxy copied from $src ===" | tee -a "$LOG"
+            fi
+        done
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
