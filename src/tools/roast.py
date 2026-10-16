@@ -2123,6 +2123,20 @@ def _cleaned_summary(r: dict, width: int) -> str:
     return f"  {r['id']:<{width}s}  {glyphs}{' ' * max(1, 24 - visible)} {note}".rstrip()
 
 
+def _is_step_worker(pod: dict, r: dict, step_name: str, jname: str) -> bool:
+    """Is `pod` a worker of this roast's step? By label when it has one (older pods may lack
+    `step`), else by the roast hash nautilus_submit.py puts in the pod name."""
+    md = pod.get("metadata", {})
+    pname = md.get("name", "")
+    if jname in pname:                                   # the step's own orchestrator
+        return False
+    labels = md.get("labels") or {}
+    if labels.get("roast"):
+        return labels["roast"] == r["id"] and labels.get("step", step_name) == step_name
+    h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+    return pname.startswith(f"smk-{h}-")
+
+
 def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
     hc = host_cfg(cfg, "nautilus")
     ns = hc.get("namespace", "cms-cmu")
@@ -2167,15 +2181,9 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
                 st = "pending"
                 colour = ""
 
-            # Child worker pods: match roast label, or smk- prefix if this job is active
-            child_pods = [
-                p for p in all_pods
-                if jname not in p.get("metadata", {}).get("name", "")
-                and (
-                    p.get("metadata", {}).get("labels", {}).get("roast") == r["id"]
-                    or (status_f.get("active", 0) > 0 and p.get("metadata", {}).get("name", "").startswith("smk-"))
-                )
-            ]
+            # Child worker pods (nautilus_submit.py): labelled roast=<id>, step=<step>, and named
+            # smk-<sha256(id)[:6]>-<rule>-... Other roasts' pods in the shared namespace must not count.
+            child_pods = [p for p in all_pods if _is_step_worker(p, r, name, jname)]
 
             n_done, n_run, n_pend, n_fail = 0, 0, 0, 0
             rows = []
