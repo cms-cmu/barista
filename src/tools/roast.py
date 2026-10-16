@@ -2507,6 +2507,8 @@ def cmd_archive(args) -> None:
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
     for host in hosts:
+        if host == "nautilus":
+            continue
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
         res = ssh_run(roast_ssh(cfg, r, host),
