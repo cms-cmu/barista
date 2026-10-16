@@ -1,0 +1,65 @@
+{
+  "id": "mixeddata_run3_2025_20261016_daa12d2-a494d4b",
+  "label": "mixeddata_run3_2025",
+  "created": "2026-10-16 14:32:36",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "daa12d22",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "a494d4b1ccd1e4a577484cadcf888baeab971638",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3_2025.yml",
+    "captured": "config.yml",
+    "sha256": "2cb6975fdc5b64751c72be38d4c54dfb5b4d5256313c12f9d5811113e595f203"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2025_nontight_20261015_9ac9a30-b172c05",
+        "barista": "9ac9a305edabac82fd6b6f15aded46d706cf2203",
+        "coffea4bees": "b172c05378d63102c26f160c4dd91ce135d1b222",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_nontight_20261015_9ac9a30-b172c05",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_2025_nontight_20261015_9ac9a30-b172c05}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2025_nontight_20261015_9ac9a30-b172c05"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2025_nontight_20261015_9ac9a30-b172c05}/output/Run3_2025_nontight/computeJCM/JCM_Run3_2025_nontight_v1/jetCombinatoricModel_SB_Run3_2025_nontight_v1.yml",
+        "roast": "nominal_run3_2025_nontight_20261015_9ac9a30-b172c05"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2025_nontight_20261015_9ac9a30-b172c05}/output/Run3_2025_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2025_nontight_20261015_9ac9a30-b172c05"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-16 14:32:36",
+      "event": "new"
+    }
+  ],
+  "notes": "2025 mixed data (MakeMixedData M.1-M.6) from the 2025 non-tight roast nominal_run3_2025_nontight_20261015_9ac9a30-b172c05 (FvT, JCM); M.7 off. Supersedes mixeddata_run3_2025_20261016_daa12d2-b193f36 (M.1 used 6 of 16 eras).",
+  "category": ""
+}
