@@ -2389,25 +2389,88 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
-        LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
-        trap 'rm -f "$LIST" "$HAVE" "$TODO" "$DIRS"' EXIT
+        LIST=$(mktemp); HAVE=$(mktemp); HAVE_DIRS=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
+        trap 'rm -f "$LIST" "$HAVE" "$HAVE_DIRS" "$RAW_HAVE" "$TODO" "$DIRS"' EXIT
         {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
            {extra_dirs} }} | sort -u > "$LIST"
         N=$(wc -l < "$LIST")
         {dry}
-        # What is already there (path<TAB>size), so reruns only copy new or changed files.
-        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null | awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' | sort > "$HAVE" || true
-        while IFS= read -r f; do
-            sz=$(stat -c %s "$f")
-            if ! grep -qxF "$f	$sz" "$HAVE"; then echo "$f"; fi
-        done < "$LIST" > "$TODO"
+        # What is already there (path<TAB>size and directories), so reruns only copy new or changed files.
+        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
+        awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
+        awk -v b="{dst_dir}/" '$1 ~ /^d/ {{ p=$NF; sub(b,"",p); sub(/\\/$/, "", p); if (length(p)>0) print p }}' "$RAW_HAVE" | sort -u > "$HAVE_DIRS"
+        rm -f "$RAW_HAVE"
+        python3 -c '
+import os, sys
+have = dict()
+with open(sys.argv[2], "r", errors="replace") as f:
+    for line in f:
+        parts = line.strip().split("\t", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            have[parts[0]] = int(parts[1])
+with open(sys.argv[1], "r", errors="replace") as f_in, open(sys.argv[3], "w") as f_out:
+    for line in f_in:
+        p = line.strip()
+        if not p:
+            continue
+        try:
+            if have.get(p) != os.path.getsize(p):
+                print(p, file=f_out)
+        except OSError:
+            pass
+' "$LIST" "$HAVE" "$TODO" || {{ echo "python diff failed" >&2; exit 1; }}
         T=$(wc -l < "$TODO")
         {ht}
         echo "copying from $(hostname):$PWD -> $DST_BASE"
         echo "$N files selected, $((N-T)) already up to date, $T to copy ({jobs} in parallel)"
         [ "$T" = 0 ] && exit 0
         sed 's#/[^/]*$##' "$TODO" | sort -u > "$DIRS"
-        while IFS= read -r d; do xrdfs $EOS mkdir -p "{dst_dir}/$d" 2>/dev/null || true; done < "$DIRS"
+        python3 -c '
+import sys, os, subprocess, concurrent.futures
+dirs_file = sys.argv[1]
+have_dirs_file = sys.argv[2]
+eos = sys.argv[3]
+dst_dir = sys.argv[4].rstrip("/")
+jobs = int(sys.argv[5])
+
+have = set()
+if os.path.exists(have_dirs_file):
+    with open(have_dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d:
+                have.add(d)
+
+needed = set()
+if os.path.exists(dirs_file):
+    with open(dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d and d not in have:
+                parts = d.split("/")
+                for i in range(1, len(parts) + 1):
+                    prefix = "/".join(parts[:i])
+                    if prefix not in have:
+                        needed.add(prefix)
+
+if not needed:
+    sys.exit(0)
+
+subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+by_depth = dict()
+for d in needed:
+    depth = d.count("/")
+    by_depth.setdefault(depth, []).append(d)
+
+for depth in sorted(by_depth.keys()):
+    batch = by_depth[depth]
+    def mk(rel_d):
+        subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir + "/" + rel_d],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, 32)) as ex:
+        list(ex.map(mk, batch))
+' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}" || {{ echo "python mkdir failed" >&2; exit 1; }}
         export DST_BASE
         tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'
