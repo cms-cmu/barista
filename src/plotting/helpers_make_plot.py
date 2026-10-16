@@ -129,7 +129,7 @@ _SHAPE_GEOMETRY_KEYS = {
     "polygon":   {"points"},
     "line":      {"points"},
     "rectangle": {"x", "y"},
-    "ellipse":   {"center", "width", "height", "angle"},
+    "ellipse":   {"center", "width", "height", "angle", "xrange", "yrange"},
     "circle":    {"center", "radius"},
     "hline":     {"y", "xmin", "xmax"},
     "vline":     {"x", "ymin", "ymax"},
@@ -146,7 +146,9 @@ def draw_shapes(shapes: List[Dict], ax=None) -> None:
     - polygon:   points: [[x, y], ...]           (closed)
     - line:      points: [[x, y], ...]           (open polyline)
     - rectangle: x: [xlo, xhi], y: [ylo, yhi]
-    - ellipse:   center: [x, y], width, height, angle (deg, optional)
+    - ellipse:   center: [x, y], width, height, angle (deg, optional). Optional
+                 xrange / yrange: [lo, hi] draw only the part of the ellipse inside
+                 that range (use None for an open end), e.g. yrange: [300, 800]
     - circle:    center: [x, y], radius
     - hline:     y: value   (optional xmin/xmax in axes fraction)
     - vline:     x: value   (optional ymin/ymax in axes fraction)
@@ -198,8 +200,17 @@ def draw_shapes(shapes: List[Dict], ax=None) -> None:
             ax.add_patch(mpatches.Rectangle((x0, y0), x1 - x0, y1 - y0, **patch_style))
             default_xy = ((x0 + x1) / 2, (y0 + y1) / 2)
         elif kind == "ellipse":
-            ax.add_patch(mpatches.Ellipse(s["center"], s["width"], s["height"],
-                                          angle=s.get("angle", 0), **patch_style))
+            ell = mpatches.Ellipse(s["center"], s["width"], s["height"],
+                                   angle=s.get("angle", 0), **patch_style)
+            ax.add_patch(ell)
+            if "xrange" in s or "yrange" in s:
+                # Clip to the requested window (None = open end)
+                big = 1e9
+                (x0, x1), (y0, y1) = [[big * -1 if lo is None else lo, big if hi is None else hi]
+                                      for lo, hi in (s.get("xrange", (None, None)),
+                                                     s.get("yrange", (None, None)))]
+                ell.set_clip_path(mpatches.Rectangle((x0, y0), x1 - x0, y1 - y0,
+                                                     transform=ax.transData))
             default_xy = s["center"]
         elif kind == "circle":
             ax.add_patch(mpatches.Circle(s["center"], s["radius"], **patch_style))
