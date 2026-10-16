@@ -843,6 +843,16 @@ class TestProxyPicking(unittest.TestCase):
                                roast.copy_settings("publish", CFG, fake_roast()))
         self.assertIn("no grid proxy with time left", s)
 
+    def test_copy_script_fast_diff_and_depth_dirs(self):
+        """Verify _copy_script uses fast in-memory diff and depth-stratified dir creation."""
+        s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
+                               roast.copy_settings("publish", CFG, fake_roast()))
+        self.assertIn("HAVE_DIRS", s)
+        self.assertIn("by_depth", s)
+        self.assertIn("concurrent.futures.ThreadPoolExecutor", s)
+        # Verify it no longer contains the slow sequential while loop
+        self.assertNotIn("while IFS= read -r d; do xrdfs $EOS mkdir -p", s)
+
 
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
     """The point of recording `cleaned`: status answers for finished work without a network call."""
