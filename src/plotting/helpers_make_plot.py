@@ -628,20 +628,21 @@ def _resolve_hist_source(source: HistSource, plot_data: Dict) -> Tuple[np.ndarra
     hist_entry is the raw HistEntry dict for a single histogram, used to copy
     metadata fields (edges, x_label, under_flow, over_flow) needed by
     step/fill ratio rendering.  For stack sources it returns the first entry.
+    2D entries carry no "centers", so an empty list is returned for them.
     """
     if source.source == "hists":
         h = plot_data["hists"][source.key]
-        return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
+        return np.array(h["values"]), np.array(h["variances"]), h.get("centers", []), h
     # source == "stack": the whole stack, or with a key one component of it (e.g. the ttbar part,
     # so a ttbar pseudodata overlay can be ratioed to the MC it should follow)
     stack = plot_data["stack"]
     if source.key:
         h = stack[source.key]
-        return np.array(h["values"]), np.array(h["variances"]), h["centers"], h
+        return np.array(h["values"]), np.array(h["variances"]), h.get("centers", []), h
     values = np.sum([np.array(v["values"]) for v in stack.values()], axis=0)
     variances = np.sum([np.array(v["variances"]) for v in stack.values()], axis=0)
     first = next(iter(stack.values()))
-    return values, variances, first["centers"], first
+    return values, variances, first.get("centers", []), first
 
 
 def _compute_ratio_entry(spec: RatioSpec, plot_data: Dict) -> Dict:
@@ -851,36 +852,22 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
             if opts.debug:
                 logger.info(f'\t doing ratio')
 
-            key_iter = iter(plot_data["hists"])
-            num_key = next(key_iter)
-            num_hist_data = plot_data["hists"][num_key]
-            den_key = next(key_iter)
-            den_hist_data = plot_data["hists"][den_key]
+            num_hist_data = plot_data["hists"][next(iter(plot_data["hists"]))]
             ratio_key = next(iter(plot_data["ratio"]))
 
             hist_obj_2d = _make_masked_2d_hist(num_hist_data, values=plot_data["ratio"][ratio_key]["ratio"])
 
-            scale = 2
-            fig = plt.figure(figsize=(10*scale, 6*scale))
-            gs = fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[1, 1], wspace=0.3, hspace=0.4)
-            ax_big = fig.add_subplot(gs[:, 0])
+            fig = plt.figure()
+            fig.add_axes((0.1, 0.15, 0.85, 0.8))
             hist_obj_2d.plot2d(cmap="turbo", cmin=opts.rlim[0], cmax=opts.rlim[1])
 
-            ax_top_right = fig.add_subplot(gs[0, 1])
-            _make_masked_2d_hist(num_hist_data).plot2d(
-                cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
-
-            ax_bottom_right = fig.add_subplot(gs[1, 1])
-            _make_masked_2d_hist(den_hist_data).plot2d(
-                cmap="turbo", cmin=opts.zlim[0], cmax=opts.zlim[1])
-
-            axis_list = [ax_big, ax_top_right, ax_bottom_right]
+            ax = fig.gca()
             if opts.xlim:
-                for ax in axis_list:
-                    ax.set_xlim(*opts.xlim)
+                ax.set_xlim(*opts.xlim)
             if opts.ylim:
-                for ax in axis_list:
-                    ax.set_ylim(*opts.ylim)
+                ax.set_ylim(*opts.ylim)
+            if opts.shapes:
+                draw_shapes(opts.shapes, ax=ax)
 
         else:
             if len(plot_data.get("hists", {})):
