@@ -201,7 +201,10 @@ def make2DPlot(cfg, process, var='selJets.pt',
     r"""
     Takes Options:
 
-       process  : str
+       process  : str or list of str. With a list of 2+ processes:
+                    doRatio=True (default)  -> one map of the ratio
+                                               second/first process
+                    doRatio=False           -> processes are summed into one map
        debug    : False,
        var      : 'selJets.pt',
        year     : "2017",
@@ -217,9 +220,9 @@ def make2DPlot(cfg, process, var='selJets.pt',
     debug   = kwargs.get("debug", False)
     if debug: print(f"In make2DPlot kwargs={kwargs}")
 
-    # Note: a list of processes is intentionally excluded here — for a 2D plot
-    # multiple processes are summed into one combined map (see
-    # get_plot_dict_from_config), not plotted/ratioed separately like other lists.
+    # Note: a list of processes is intentionally excluded here. For a 2D plot,
+    # get_plot_dict_from_config ratios them (doRatio=True, the default) or sums
+    # them into one combined map (doRatio=False), rather than overlaying them.
     if (isinstance(cut, list)) or _is_axis_opts_list(axis_opts) or (len(cfg.hists) > 1 and not cfg.combine_input_files) or (isinstance(var, list)) or (isinstance(year, list)):
         try:
             plot_data =  plot_helpers_make_plot_dict.get_plot_dict_from_list(cfg=cfg, var=var, cut=cut, axis_opts=axis_opts, process=process, do2d=True, **kwargs)
