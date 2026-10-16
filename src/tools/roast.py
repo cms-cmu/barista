@@ -2415,10 +2415,10 @@ with open(sys.argv[1], "r", errors="replace") as f_in, open(sys.argv[3], "w") as
             continue
         try:
             if have.get(p) != os.path.getsize(p):
-                f_out.write(p + "\n")
+                print(p, file=f_out)
         except OSError:
             pass
-' "$LIST" "$HAVE" "$TODO"
+' "$LIST" "$HAVE" "$TODO" || {{ echo "python diff failed" >&2; exit 1; }}
         T=$(wc -l < "$TODO")
         {ht}
         echo "copying from $(hostname):$PWD -> $DST_BASE"
@@ -2470,7 +2470,7 @@ for depth in sorted(by_depth.keys()):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, 32)) as ex:
         list(ex.map(mk, batch))
-' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}"
+' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}" || {{ echo "python mkdir failed" >&2; exit 1; }}
         export DST_BASE
         tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'

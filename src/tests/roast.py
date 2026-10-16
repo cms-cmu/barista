@@ -850,6 +850,9 @@ class TestProxyPicking(unittest.TestCase):
         self.assertIn("HAVE_DIRS", s)
         self.assertIn("by_depth", s)
         self.assertIn("concurrent.futures.ThreadPoolExecutor", s)
+        self.assertIn("print(p, file=f_out)", s)
+        self.assertIn("python diff failed", s)
+        self.assertIn("python mkdir failed", s)
         # Verify it no longer contains the slow sequential while loop
         self.assertNotIn("while IFS= read -r d; do xrdfs $EOS mkdir -p", s)
 
