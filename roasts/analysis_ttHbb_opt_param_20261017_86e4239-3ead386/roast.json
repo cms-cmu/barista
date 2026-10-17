@@ -173,7 +173,22 @@
       "checked_out": "2026-10-17 07:01:22"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_opt_param_20261017_86e4239-3ead386",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_opt_param_20261017_86e4239-3ead386/",
+    "ts": "2026-10-17 12:36:55",
+    "ok": true,
+    "pages": [
+      "output/FvT_ttHbb_opt_param/yields.html",
+      "output/SvB_MA_ttHbb_opt_param/yields.html",
+      "output/SvB_ttHbb_opt_param/yields.html",
+      "output/analysis_ttHbb_opt_param_20261017_86e4239-3ead386/combine/summary.html",
+      "output/ttHbb_opt_param/cutflow_crosscheck_ttHbb_opt_param.html",
+      "output/ttHbb_opt_param/cutflow_ttHbb_opt_param.html",
+      "output/ttHbb_opt_param/plots_ttHbb_opt_param/index.html",
+      "output/ttHbb_opt_param/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-17 07:00:31",
@@ -241,6 +256,30 @@
       "event": "resume",
       "step": "D",
       "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 12:34:58",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-17 12:35:02",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-17 12:36:35",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-17 12:36:54",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
@@ -248,5 +287,10 @@
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_opt_param_20261017_86e4239-3ead386",
+    "ts": "2026-10-17 12:35:02",
+    "ok": true
   }
 }
