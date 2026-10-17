@@ -169,14 +169,18 @@ def read_impacts(path: str, poi: str = "r") -> list[dict] | None:
     for p in params:
         name = p.get("name", "")
         fit = p.get("fit", [0, 0, 0])
-        impact = p.get(f"impact_{poi}", 0.0)
-        if not impact and poi in p:
+        # combineTool: impact_<poi> is a number, <poi> is [lo, nominal, hi]. A genuine 0.0 impact is
+        # falsy, so only fall back when the key is missing, and turn a [lo, nom, hi] into (hi - lo) / 2.
+        impact = p.get(f"impact_{poi}")
+        if impact is None and poi in p:
             impact = p[poi]
-        if not impact:
+        if impact is None:
             for k, v in p.items():
                 if (k.startswith("impact_r") or k.startswith("r")) and isinstance(v, (int, float)):
                     impact = v
                     break
+        if isinstance(impact, (list, tuple)):
+            impact = (impact[-1] - impact[0]) / 2 if len(impact) >= 2 else (impact[0] if impact else 0.0)
         out.append({
             "name": name,
             "fit": fit,
