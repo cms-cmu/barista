@@ -49,17 +49,91 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-16 14:33:46",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_daa12d2-a494d4b_MakeMixedData",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "2cb6975fdc5b"
+        },
+        {
+          "ts": "2026-10-16 14:35:37",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_daa12d2-a494d4b_MakeMixedData",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "2cb6975fdc5b"
+        },
+        {
+          "ts": "2026-10-16 15:28:01",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_daa12d2-a494d4b_MakeMixedData",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "2cb6975fdc5b"
+        }
+      ]
     }
   ],
-  "hosts": {},
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_2025_20261016_daa12d2-a494d4b/barista",
+      "ssh": "jda102@cmslpc305.fnal.gov",
+      "checked_out": "2026-10-16 14:33:37"
+    }
+  },
   "publish": {},
   "history": [
     {
       "ts": "2026-10-16 14:32:36",
       "event": "new"
+    },
+    {
+      "ts": "2026-10-16 14:33:37",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 14:33:46",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 14:35:37",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 15:28:01",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
     }
   ],
   "notes": "2025 mixed data (MakeMixedData M.1-M.6) from the 2025 non-tight roast nominal_run3_2025_nontight_20261015_9ac9a30-b172c05 (FvT, JCM); M.7 off. Supersedes mixeddata_run3_2025_20261016_daa12d2-b193f36 (M.1 used 6 of 16 eras).",
-  "category": ""
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  }
 }
