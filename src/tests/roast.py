@@ -1004,6 +1004,12 @@ class TestCommandLine(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("invalid choice", res.stderr)
 
+    def test_bridges2_flags(self):
+        res = self.run_roast("new", "--help")
+        self.assertIn("--bridges2", res.stdout)
+        res = self.run_roast("init", "--help")
+        self.assertIn("--bridges2-user", res.stdout)
+
 
 class TestStatusGrouping(unittest.TestCase):
     """Slurm jobs are reported under the step that submitted them.

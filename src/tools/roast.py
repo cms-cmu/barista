@@ -113,6 +113,12 @@ DEFAULT_CONFIG = {
             "reference": "~/work/barista",
             "cores": 4,
         },
+        "bridges2": {
+            "ssh": "<user>@bridges2.psc.edu",
+            "prod_root": "/ocean/projects/phy260026p/<user>/HH4b/prod",
+            "reference": "/ocean/projects/phy260026p/<user>/HH4b/barista",
+            "cores": 16,
+        },
         "nautilus": {
             "namespace": "cms-cmu",
             "user": "<user>",
@@ -224,6 +230,14 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "user": user,
             "prod_root": f"/workspace/users/{user}/prod",
             "reference": f"/workspace/users/{user}/barista",
+            "cores": 16,
+        }
+    if host == "bridges2" and "bridges2" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "ssh": f"{user}@bridges2.psc.edu",
+            "prod_root": f"/ocean/projects/phy260026p/{user}/HH4b/prod",
+            "reference": f"/ocean/projects/phy260026p/{user}/HH4b/barista",
             "cores": 16,
         }
     try:
@@ -561,6 +575,11 @@ def cmd_init(args) -> None:
         cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
+    if getattr(args, "bridges2_user", None):
+        u = args.bridges2_user
+        cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
+        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/HH4b/prod"
+        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/HH4b/barista"
     if args.cern_user:
         u = args.cern_user
         cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/HH4b/prod"
@@ -599,7 +618,9 @@ def cmd_new(args) -> None:
         if ph not in PHASES:
             die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
         host, smk = PHASES[ph]
-        if getattr(args, "nautilus", False) and host == "falcon":
+        if getattr(args, "bridges2", False) and host == "falcon":
+            host = "bridges2"
+        elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
         steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     for spec in args.step or []:
@@ -679,6 +700,9 @@ def _checkout_script(hc: dict, r: dict, ckpt: str) -> str:
             git clone -q --no-checkout {rq(ref + '/coffea4bees')} coffea4bees
         fi
         (cd coffea4bees && git remote set-url origin {shlex.quote(r['coffea4bees']['origin'])})
+        if [ -s {rq(ref + '/proxy/x509_proxy')} ] && [ ! -s proxy/x509_proxy ]; then
+            mkdir -p proxy && cp -p {rq(ref + '/proxy/x509_proxy')} proxy/x509_proxy 2>/dev/null || true
+        fi
         echo "prepared $CK"
     """)
 
@@ -781,6 +805,14 @@ def cmd_checkout(args) -> None:
         print(res.stdout.strip())
         files = sorted(p for p in roast_dir(r["id"]).iterdir() if p.is_file())
         scp_to(target, files, f"{ckpt}/roasts/{r['id']}/")
+        for up in r.get("inputs", {}).get("upstream", []):
+            up_id = up.get("id")
+            up_dir = roast_dir(up_id)
+            if up_dir.is_dir():
+                ssh_run(target, f"mkdir -p {rq(f'{ckpt}/roasts/{up_id}')}")
+                up_files = sorted(p for p in up_dir.iterdir() if p.is_file())
+                if up_files:
+                    scp_to(target, up_files, f"{ckpt}/roasts/{up_id}/")
         r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}
         log_event(r, "checkout", host=host)
         save_roast(r)
@@ -854,6 +886,13 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     unlock = f"{base} --unlock || true\n" if resume else ""
     if resume:
         base += " --rerun-incomplete"
+    ref = host_cfg(cfg, step["host"]).get("reference", "")
+    ref_proxy = f"{ref}/proxy/x509_proxy" if ref else ""
+    proxy_srcs = ['"${X509_USER_PROXY:-}"', '"$HOME/.roast/x509_proxy"']
+    if ref_proxy:
+        proxy_srcs.append(rq(ref_proxy))
+    proxy_srcs.append('"/tmp/x509up_u$(id -u)"')
+    proxy_list = " ".join(proxy_srcs)
     return textwrap.dedent(f"""\
         #!/usr/bin/env bash
         # roast {r['id']} step {name} -- generated {now()}
@@ -869,7 +908,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
         # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
         mkdir -p proxy
-        for _p in "${{X509_USER_PROXY:-}}" "$HOME/.roast/x509_proxy" "/tmp/x509up_u$(id -u)"; do
+        for _p in {proxy_list}; do
             if [ -n "$_p" ] && [ -s "$_p" ] && voms-proxy-info -exists -valid 0:05 -file "$_p" >/dev/null 2>&1; then
                 cp -f "$_p" proxy/x509_proxy && echo "=== proxy copied from $_p ===" | tee -a "$LOG"
                 break
@@ -1899,7 +1938,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             # claims are reported too: they belong to a roast this checkout cannot see.
             f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
-    elif host == "falcon":
+    elif host in ("falcon", "bridges2"):
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
             f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
@@ -2850,7 +2889,7 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
@@ -2865,6 +2904,7 @@ def main(argv=None) -> None:
     s.add_argument("--id", help="override the generated roast id")
     s.add_argument("--notes", help="free text for the cupping notes")
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
+    s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
     s.set_defaults(func=cmd_new)
 
