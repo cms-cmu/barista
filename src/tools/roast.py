@@ -869,9 +869,12 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
         # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
         mkdir -p proxy
-        if [ ! -s proxy/x509_proxy ] || [ "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" -nt proxy/x509_proxy ]; then
-            cp -f "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}} ===" | tee -a "$LOG"
-        fi
+        for _p in "${{X509_USER_PROXY:-}}" "$HOME/.roast/x509_proxy" "/tmp/x509up_u$(id -u)"; do
+            if [ -n "$_p" ] && [ -s "$_p" ] && voms-proxy-info -exists -valid 0:05 -file "$_p" >/dev/null 2>&1; then
+                cp -f "$_p" proxy/x509_proxy && echo "=== proxy copied from $_p ===" | tee -a "$LOG"
+                break
+            fi
+        done
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
