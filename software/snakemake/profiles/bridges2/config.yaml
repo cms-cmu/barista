@@ -54,8 +54,8 @@ set-resources:
     slurm_account: "phy260026p"
     gres: "gpu:1"
     qos: "gpu"
-    mem_mb: 8000
-    cpus_per_task: 2
+    mem_mb: 22000
+    cpus_per_task: 4
     runtime: "2h"
   extract_friend_manifest:
     slurm_partition: "RM-shared"
