@@ -269,9 +269,6 @@ rebin: 12
 convert_hist_to_json:
   histos:
   - SvB_MA.ps_ttHbb
-  - SvB_MA.ps_ttHbb_gt6
-  - SvB_MA.ps_ttHbb_lepveto
-  - SvB_MA.ps_ttHbb_gt6_lepveto
 combine_outdir: bkg_syst_F_3_stats/datacards/
 make_combine_inputs:
   stat_only: ''
@@ -309,7 +306,7 @@ channels:
   ttHbb_gt6:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_gt6
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
@@ -318,7 +315,7 @@ channels:
   ttHbb_gt6_stat_only:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_gt6
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
@@ -328,7 +325,7 @@ channels:
   ttHbb_lepveto:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_lepveto
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
@@ -337,7 +334,7 @@ channels:
   ttHbb_lepveto_stat_only:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_lepveto
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
@@ -347,7 +344,7 @@ channels:
   ttHbb_gt6_lepveto:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_gt6_lepveto
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
@@ -356,7 +353,7 @@ channels:
   ttHbb_gt6_lepveto_stat_only:
     signallabel: ttHbb
     othersignal: ''
-    variable: SvB_MA.ps_ttHbb_gt6_lepveto
+    variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     closure_subdir: ttHbb
     region: SR
