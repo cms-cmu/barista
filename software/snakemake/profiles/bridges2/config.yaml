@@ -36,7 +36,7 @@ set-resources:
     qos: "gpu"
     mem_mb: 22000
     cpus_per_task: 4
-    runtime: "90m"
+    runtime: "4h"
   train_fvt_subsample:
     slurm_partition: "GPU-shared"
     slurm_account: "phy260026p"
@@ -56,7 +56,7 @@ set-resources:
     qos: "gpu"
     mem_mb: 8000
     cpus_per_task: 2
-    runtime: "45m"
+    runtime: "2h"
   extract_friend_manifest:
     slurm_partition: "RM-shared"
     mem_mb: 4000
