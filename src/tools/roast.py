@@ -59,10 +59,24 @@ TMUX_SESSION = "roast"
 # --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
 # it uses %C, a fixed-length hash of the connection parameters.
 SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
-            "-o", "HostName=%h",
-            "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+
+
+def ssh_opts(target: str = "") -> list[str]:
+    """SSH command line options.
+
+    Hosts like Bridges-2 use persistent 2FA master sockets managed by ssh-guardian
+    or ~/.ssh/config. Overriding ControlPath breaks their existing authentication.
+    For standard hosts (cmslpc, falcon), multiplexing into ~/.ssh/roast-cm-%C is enabled.
+    """
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+            "-o", "HostName=%h"]
+    if target and ("bridges2" in target or "psc.edu" in target):
+        return opts
+    return [*opts, "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
+
+
+SSH_OPTS = ssh_opts()
 
 # Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
 PHASES = {
@@ -290,14 +304,25 @@ def roast_ssh(cfg: dict, r: dict, host: str) -> str:
 
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
     """Run a bash script on a remote host via stdin (no quoting games)."""
-    return sh(["ssh", *SSH_OPTS, target, "bash -s"], check=check, capture=capture, input=script)
+    return sh(["ssh", *ssh_opts(target), target, "bash -s"], check=check, capture=capture, input=script)
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
     # -p: keep mtimes. The captured config.yml is an input of the workflows' create_*_config rules;
     # re-shipping it with a fresh mtime on every submit/resume made snakemake regenerate those
     # configs and rerun every processor job downstream of them.
-    sh(["scp", "-q", "-p", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
+    # On clusters without scp (e.g. PSC Bridges-2), stream a tar archive over ssh.
+    if "bridges2" in target or "psc.edu" in target:
+        import io
+        import tarfile
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for s in srcs:
+                tar.add(str(s), arcname=s.name)
+        cmd = ["ssh", *ssh_opts(target), target, f"mkdir -p {rq(dst)} && tar -xf - -C {rq(dst)}"]
+        subprocess.run(cmd, input=buf.getvalue(), check=True)
+        return
+    sh(["scp", "-q", "-p", *ssh_opts(target), *map(str, srcs), f"{target}:{dst}"])
 
 
 def rq(path: str) -> str:
@@ -790,7 +815,7 @@ def cmd_checkout(args) -> None:
         res = ssh_run(target, _checkout_script(hc, r, ckpt))
         node = next((l[5:].strip() for l in res.stdout.splitlines() if l.startswith("NODE|")), "")
         print("\n".join(l for l in res.stdout.splitlines() if not l.startswith("NODE|")).strip())
-        if node and "@" in target:
+        if host == "cmslpc" and node and "@" in target:
             user = target.split("@", 1)[0]
             if f"{user}@{node}" != target:
                 info(f"[{host}] the gateway placed this roast on {node}")
@@ -1124,7 +1149,7 @@ def _submit(args, resume: bool) -> None:
     if host == "cmslpc":
         local_kube = Path.home() / ".kube" / "config"
         if local_kube.is_file():
-            sh(["scp", "-q", "-p", *SSH_OPTS, str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
+            sh(["scp", "-q", "-p", *ssh_opts(target), str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
 
     session = _tmux_session(r)
     window = _window_name(r, step)
@@ -1247,7 +1272,7 @@ def cmd_log(args) -> None:
         cmd = f"tail -n {int(args.lines)} -F {rq(log)}"
         if args.errors:
             cmd += f" | grep -E --line-buffered {shlex.quote(_LOG_ERROR_RE)}"
-        os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
+        os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
 
     if args.stats:
         # The last "Job stats:" block: the job counts and the reasons snakemake gives for them.
@@ -1323,7 +1348,7 @@ def cmd_attach(args) -> None:
     else:
         tmux = f"tmux attach -t {session} 2>/dev/null || tmux attach -t {TMUX_SESSION}"
     info(f"ssh -t {target} {tmux}")
-    os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, tmux])
+    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, tmux])
 
 
 def cmd_proxy(args) -> None:
@@ -1359,7 +1384,7 @@ def cmd_proxy(args) -> None:
            f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
            f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
     info(f"ssh -t {target} {cmd}")
-    os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
+    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
 
 
 def cmd_pull(args) -> None:
@@ -1388,7 +1413,7 @@ def cmd_pull(args) -> None:
             cmd += ["--include=*/", "--exclude=*"]
         if args.dry_run:
             cmd += ["-n", "-v"]
-        cmd += ["-e", "ssh " + " ".join(SSH_OPTS), src, str(dst) + "/"]
+        cmd += ["-e", "ssh " + " ".join(ssh_opts(target)), src, str(dst) + "/"]
         info(f"[{host}] {' '.join(shlex.quote(c) for c in cmd[1:-2])} ...")
         info(f"[{host}] {src} -> {dst}/")
         res = subprocess.run(cmd, text=True)
@@ -1840,7 +1865,7 @@ def _rsync_from(target: str, ckpt: str, rel_paths: list[str], dest_root: Path) -
     a file already present with the same size and mtime is not transferred again."""
     dest_root.mkdir(parents=True, exist_ok=True)
     cmd = ["rsync", "-a", "-v", "--files-from=-",
-           "-e", "ssh " + " ".join(SSH_OPTS), f"{target}:{ckpt}/", str(dest_root) + "/"]
+           "-e", "ssh " + " ".join(ssh_opts(target)), f"{target}:{ckpt}/", str(dest_root) + "/"]
     res = subprocess.run(cmd, text=True, input="\n".join(rel_paths) + "\n")
     if res.returncode != 0:
         die(f"rsync failed ({res.returncode})")
