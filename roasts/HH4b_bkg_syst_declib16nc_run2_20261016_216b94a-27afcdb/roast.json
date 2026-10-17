@@ -304,7 +304,34 @@
       "checked_out": "2026-10-16 12:02:46"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/",
+    "ts": "2026-10-17 09:07:57",
+    "ok": true,
+    "pages": [
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_2_run_two_stage_closure/closure_summary_SB.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_2_run_two_stage_closure/closure_summary_SR.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SB.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/stat_analysis_rebin12/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/stat_analysis_rebin16/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_3_stats/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin12/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb/bkg_syst_F_4_stats_mixeddata/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-16 11:43:40",
@@ -481,6 +508,12 @@
       "event": "submit",
       "step": "BKG_F",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 09:07:56",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "HH4b Run 2 background systematic: 16 declib16nc closure subsamples vs nominal_run2_20260919; FvT (C) on NRP Nautilus. Worker hh4b-syst-nrp.",
