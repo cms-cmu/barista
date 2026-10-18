@@ -177,6 +177,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - hcc-chase-shor-c4705.unl.edu
                 - hcc-chase-shor-c4715.unl.edu
                 - hcc-chase-shor-c4719.unl.edu
+                - nautilus-it-gpu06.fullerton.edu
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
