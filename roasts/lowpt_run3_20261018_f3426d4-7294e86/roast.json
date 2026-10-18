@@ -116,6 +116,19 @@
           "window": "lowpt_run3_f3426d4-7294e86_B",
           "ssh": "algomez@cmslpc340.fnal.gov",
           "config_sha256": "a63c5661181c"
+        },
+        {
+          "ts": "2026-10-18 12:31:14",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "a63c5661181c"
         }
       ]
     },
@@ -151,7 +164,7 @@
   "hosts": {
     "cmslpc": {
       "checkout": "/uscms_data/d3/algomez/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86/barista",
-      "ssh": "algomez@cmslpc340.fnal.gov",
+      "ssh": "algomez@cmslpc355.fnal.gov",
       "checked_out": "2026-10-18 08:02:24"
     },
     "falcon": {
@@ -231,6 +244,18 @@
     },
     {
       "ts": "2026-10-18 11:46:50",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 12:31:12",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc355.fnal.gov"
+    },
+    {
+      "ts": "2026-10-18 12:31:14",
       "event": "resume",
       "step": "B",
       "host": "cmslpc"
