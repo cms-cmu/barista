@@ -1,0 +1,68 @@
+{
+  "id": "lowpt_run3_20261018_f3426d4-7294e86",
+  "label": "lowpt_run3",
+  "created": "2026-10-18 08:01:32",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "f3426d49254510451bb81baa319e0458b2f3ee4a",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "7294e861e3a2d48a3a87294ee20f34596d1d5f49",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/lowpt_run3.yml",
+    "captured": "config.yml",
+    "sha256": "e060dd1634e91f7082e5311882597a13d8c54f61118b9c472da2edd464620db7"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-18 08:01:32",
+      "event": "new"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}
