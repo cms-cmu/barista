@@ -1,0 +1,87 @@
+{
+  "id": "analysis_ttHbb_opt_param_20261018_846d264-1e8d320",
+  "label": "analysis_ttHbb_opt_param",
+  "created": "2026-10-18 08:47:51",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "846d2645c4299efc5538bca131eafdd45304aed8",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "1e8d32023f793efa4cd8aaaadf52e8a939b4a3a9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_ttHbb_opt_param.yml",
+    "captured": "config.yml",
+    "sha256": "634596d24feaeb4e581c9258f7a804f7c6b72b6b52523518ade12d906a869912"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "ttHbb_stat_only_20261012_49432f5-e211288",
+        "barista": "49432f581ea68a39559ce86862e27019635e0036",
+        "coffea4bees": "e211288f2310ccb0528cc7ea63ced927f4b4a3af",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_20261012_49432f5-e211288",
+        "archived": false
+      }
+    ],
+    "refs": {}
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/HH4b/prod/analysis_ttHbb_opt_param_20261018_846d264-1e8d320/barista",
+      "ssh": "algomez@cmslpc320.fnal.gov",
+      "checked_out": "2026-10-18 08:48:41"
+    },
+    "falcon": {
+      "checkout": "/home/export/tgomezes/workingArea/roast_prod/analysis_ttHbb_opt_param_20261018_846d264-1e8d320/barista",
+      "ssh": "tgomezes@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-18 08:48:49"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-18 08:47:51",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-18 08:48:41",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 08:48:49",
+      "event": "checkout",
+      "host": "falcon"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}
