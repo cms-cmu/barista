@@ -1,0 +1,98 @@
+{
+  "id": "mvd_run3_2025_20261018_1b7885b-6284aae",
+  "label": "mvd_run3_2025",
+  "created": "2026-10-18 17:00:16",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "1b7885bb027e75c9f674f0640a3b8847f35bbe0a",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "6284aaefdc3895f2fac11a9586f19560bdf2a6fe",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mvd_run3_2025.yml",
+    "captured": "config.yml",
+    "sha256": "ffa07bbf4e87a23a4b8a4d087c181552fa2cc21a916eef5a2b09a29f0ef8c787"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2025_20261017_db7bbcd-feb07f3",
+        "barista": "db7bbcd522205e0d33600537b3e8998e1d564bf8",
+        "coffea4bees": "feb07f39a75773767aeb0d65936b0e4648b03f42",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_20261017_db7bbcd-feb07f3",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_2025_20261016_daa12d2-15d1d03",
+        "barista": "daa12d22",
+        "coffea4bees": "15d1d03338ac62079eabd61b990c9ae9022bc6c5",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2025_20261016_daa12d2-15d1d03",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:mixeddata_run3_2025_20261016_daa12d2-15d1d03}/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_2025_20261016_daa12d2-15d1d03"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_run3_2025_20261017_db7bbcd-feb07f3}/handoff/classifier_inputs_nominal_run3_2025_20261017_db7bbcd-feb07f3.json",
+        "roast": "nominal_run3_2025_20261017_db7bbcd-feb07f3"
+      },
+      "classifier_inputs_config": {
+        "url": "{roast:nominal_run3_2025_20261017_db7bbcd-feb07f3}/output/Run3_2025_nominal/classifier_inputs/classifier_inputs_config.yml",
+        "roast": "nominal_run3_2025_20261017_db7bbcd-feb07f3"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2025_20261017_db7bbcd-feb07f3}/handoff/jetCombinatoricModel_SB_Run3_2025_v1.yml",
+        "roast": "nominal_run3_2025_20261017_db7bbcd-feb07f3"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2025_20261017_db7bbcd-feb07f3}/output/Run3_2025_nominal/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2025_20261017_db7bbcd-feb07f3"
+      },
+      "analysis_config": {
+        "url": "{roast:nominal_run3_2025_20261017_db7bbcd-feb07f3}/output/Run3_2025_nominal/analysis_config.yml",
+        "roast": "nominal_run3_2025_20261017_db7bbcd-feb07f3"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MvD",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "MvD_2_train",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "MvD_3_svb",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {},
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-18 17:00:16",
+      "event": "new"
+    }
+  ],
+  "notes": "2025 MvD (V.1-V.4) on the tight 2025 nominal nominal_run3_2025_20261017_db7bbcd-feb07f3 + 2025 mixed data mixeddata_run3_2025_20261016_daa12d2-15d1d03; mvd_pmix4_floor 0.01.",
+  "category": ""
+}
