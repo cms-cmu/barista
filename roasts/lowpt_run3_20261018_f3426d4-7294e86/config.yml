@@ -56,6 +56,7 @@ jcm_known_counts_wJCM: "none"
 
 jcm:
   config:
+    fill_histograms: "kinematics"
     require_trigWeight: true
     friends_include: [trigWeight]
 
