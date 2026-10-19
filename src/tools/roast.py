@@ -142,8 +142,18 @@ DEFAULT_CONFIG = {
         },
     },
     "cernbox": {
-        "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
-        "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
+        "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+        "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+        "analyses": {
+            "ttHbb": {
+                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+            },
+            "HH4b": {
+                "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
+                "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
+            },
+        },
     },
     "owner": "<your name>",
     "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/HH4b_prod"},
@@ -426,7 +436,7 @@ def upstream_config_value(rid: str, key: str) -> str:
     return value.replace("{roast_id}", rid)
 
 
-def check_inputs(cfg: dict, wf: dict) -> dict | None:
+def check_inputs(cfg: dict, wf: dict, analysis: str | None = None) -> dict | None:
     """Validate a workflow config's `inputs:` block: the products it reads from other roasts.
 
         inputs:
@@ -455,7 +465,7 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
     areas = {up["id"]: _norm_url(_roast_eos(cfg, up)) for up in ups}
     # configs name the production area as {eos_prod} / {web_prod} (resolved at submit time):
     # expand them the same way before checking where an input lives
-    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg).items()}
+    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg, analysis=analysis).items()}
 
     refs, bad = {}, []
     def walk(node, key):
@@ -607,8 +617,18 @@ def cmd_init(args) -> None:
         cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/HH4b/barista"
     if args.cern_user:
         u = args.cern_user
-        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/HH4b/prod"
-        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/HH4b/prod"
+        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/ttHbb/prod"
+        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/ttHbb/prod"
+        cfg["cernbox"]["analyses"] = {
+            "ttHbb": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/ttHbb/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/ttHbb/prod",
+            },
+            "HH4b": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            },
+        }
     cfg["owner"] = args.owner or getpass.getuser()
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
@@ -619,6 +639,99 @@ def cmd_init(args) -> None:
         info(f"  {key:12s} {val}")
     if any("<" in json.dumps(cfg[k]) for k in ("hosts", "cernbox", "eos")):
         info("  placeholders in <angle brackets> still need editing")
+
+
+def detect_analysis(r: dict | None = None, config_path: Path | str | None = None, label: str | None = None) -> str:
+    """Detect whether a roast belongs to HH4b or ttHbb. Defaults to ttHbb."""
+    if r and r.get("analysis"):
+        return r["analysis"]
+    if r:
+        web = (r.get("user_paths") or {}).get("web_prod", "") or (r.get("publish") or {}).get("eos", "")
+        if "/www/HH4b/" in web:
+            return "HH4b"
+        if "/www/ttHbb/" in web:
+            return "ttHbb"
+    text_to_check = []
+    if label:
+        text_to_check.append(str(label).lower())
+    if r:
+        if r.get("id"):
+            text_to_check.append(str(r["id"]).lower())
+        if r.get("label"):
+            text_to_check.append(str(r["label"]).lower())
+        if r.get("config", {}).get("source"):
+            text_to_check.append(str(r["config"]["source"]).lower())
+    if config_path:
+        text_to_check.append(str(config_path).lower())
+
+    joined = " ".join(text_to_check)
+    if "tthbb" in joined or "ttbb" in joined:
+        return "ttHbb"
+    if any(k in joined for k in ("hh4b", "lowpt", "nominal", "mvd", "declustered", "mixeddata")):
+        return "HH4b"
+
+    cfg_file = None
+    if config_path and Path(config_path).exists():
+        cfg_file = Path(config_path)
+    elif r and r.get("id") and (roast_dir(r["id"]) / "config.yml").exists():
+        cfg_file = roast_dir(r["id"]) / "config.yml"
+    if cfg_file:
+        try:
+            content = cfg_file.read_text()
+            if re.search(r"channel:\s*['\"]?ttHbb", content, re.I):
+                return "ttHbb"
+            if re.search(r"(processor_HH4b|channel:\s*['\"]?HH4b|friends_HH4b)", content, re.I):
+                return "HH4b"
+        except Exception:
+            pass
+
+    return "ttHbb"
+
+
+def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> tuple[str, str]:
+    """Return (eos_path, url) for CERNBox.
+    Defaults to ttHbb from cfg['cernbox'], or selects from cfg['cernbox']['analyses'] / replaces path for HH4b.
+    """
+    cb = cfg.get("cernbox") or {}
+    ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
+    analyses = cb.get("analyses") or {}
+    if ana and ana in analyses:
+        eos_path = analyses[ana].get("eos_path", "")
+        url = analyses[ana].get("url", "")
+    elif cb.get("eos_path"):
+        base_eos = cb["eos_path"]
+        base_url = cb.get("url", "")
+        if ana == "HH4b" and "/www/ttHbb" in base_eos:
+            eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b")
+            url = base_url.replace("/ttHbb", "/HH4b")
+        elif ana == "ttHbb" and "/www/HH4b" in base_eos:
+            eos_path = base_eos.replace("/www/HH4b", "/www/ttHbb")
+            url = base_url.replace("/HH4b", "/ttHbb")
+        else:
+            eos_path = base_eos
+            url = base_url
+    else:
+        eos_path = ""
+        url = ""
+    return eos_path, url
+
+
+def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> dict:
+    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
+
+    Derived from what `roast init` already wrote, so a config in git never names a person,
+    and a colleague re-running your roast writes into their own area rather than yours.
+    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
+    """
+    out = {}
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
+    web, _ = cernbox_paths(cfg, r, analysis)
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
 
 
 def cmd_new(args) -> None:
@@ -665,6 +778,7 @@ def cmd_new(args) -> None:
             info(f"WARNING: {s['snakefile']} not found in this tree (may exist at the pinned sha)")
 
     label = args.label or re.sub(r"[^A-Za-z0-9_.-]", "_", config_src.stem)
+    analysis = getattr(args, "analysis", None) or detect_analysis(config_path=config_src, label=label)
     rid = f"{label}_{dt.datetime.now():%Y%m%d}_{barista_sha[:7]}-{c4b_sha[:7]}"
     if args.id:
         rid = args.id
@@ -678,7 +792,7 @@ def cmd_new(args) -> None:
             import yaml  # noqa: F401  (only configs with `inputs:` or `base:` need it)
         except ImportError:
             die(f"{config_src} has an `inputs:` or `base:` block; reading it needs PyYAML")
-        inputs = check_inputs(cfg, _load_layered_config(config_src)[0])
+        inputs = check_inputs(cfg, _load_layered_config(config_src)[0], analysis=analysis)
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
@@ -688,6 +802,7 @@ def cmd_new(args) -> None:
     r = {
         "id": rid,
         "label": label,
+        "analysis": analysis,
         "created": now(),
         "owner": cfg.get("owner", getpass.getuser()),
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
@@ -695,6 +810,7 @@ def cmd_new(args) -> None:
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
                    **({"base": config_bases} if config_bases else {})},
         **({"inputs": inputs} if inputs else {}),
+        "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
         "hosts": {},
         "publish": {},
@@ -844,22 +960,7 @@ def cmd_checkout(args) -> None:
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
 
 
-def user_paths(cfg: dict) -> dict:
-    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
 
-    Derived from what `roast init` already wrote, so a config in git never names a person,
-    and a colleague re-running your roast writes into their own area rather than yours.
-    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
-    """
-    out = {}
-    eos = cfg.get("eos") or {}
-    if eos.get("path") and "<" not in eos["path"]:
-        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
-        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
-    web = (cfg.get("cernbox") or {}).get("eos_path")
-    if web and "<" not in web:
-        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
-    return out
 
 
 def _window_name(r: dict, step: dict) -> str:
@@ -901,7 +1002,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # --config carries what the captured YAML deliberately does not know: which run this is
     # (from the manifest) and whose production area to write into (from ~/.config/roast/config.json).
     # More name=value pairs are safe here; a bare target is not, hence tgts above.
-    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
     base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
@@ -982,7 +1083,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     smk = step["snakefile"]
     configfile = f"roasts/{r['id']}/config.yml"
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
-    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
     base = (f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
@@ -1207,7 +1308,7 @@ def _submit(args, resume: bool) -> None:
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     print(res.stdout.strip())
-    paths = user_paths(cfg)
+    paths = user_paths(cfg, r)
     if paths and r.get("user_paths") != paths:
         r["user_paths"] = paths          # where this run writes; the captured config stays user-neutral
     cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
@@ -1776,7 +1877,8 @@ def cmd_rm(args) -> None:
         plan.append(f"{host:7s} {h['checkout'].rsplit('/', 1)[0]}   (whole roast dir on the host)")
     if r.get("archive", {}).get("eos") or (eos.get("path") and "<" not in eos["path"]):
         plan.append(f"eos     {eos.get('url', 'root://cmseos.fnal.gov')}/{eos.get('path', '').rstrip('/')}/{rid}   (archive AND run-scoped outputs such as friend trees)")
-    plan.append(f"cernbox root://eosuser.cern.ch/{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}")
+    cb_eos, _ = cernbox_paths(cfg, r)
+    plan.append(f"cernbox root://eosuser.cern.ch/{cb_eos.rstrip('/')}/{rid}")
     print(f"roast rm {rid} would remove:")
     for line in plan:
         print("  " + line)
@@ -1807,7 +1909,7 @@ def cmd_rm(args) -> None:
         res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -2564,8 +2666,10 @@ def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     _refuse_if_cleaned(r, "publish", allow=args.docs_only)
-    eos_dir = f"{cfg['cernbox']['eos_path'].rstrip('/')}/{r['id']}"
-    url = f"{cfg['cernbox']['url'].rstrip('/')}/{r['id']}/"
+    analysis = getattr(args, "analysis", None) or r.get("analysis") or detect_analysis(r)
+    eos_base, url_base = cernbox_paths(cfg, r, analysis)
+    eos_dir = f"{eos_base.rstrip('/')}/{r['id']}"
+    url = f"{url_base.rstrip('/')}/{r['id']}/"
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
     ps = copy_settings("publish", cfg, r, args.include_test)
@@ -2931,6 +3035,7 @@ def main(argv=None) -> None:
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
+    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="analysis channel for CERNBox web prod (default: auto-detected, fallback ttHbb)")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")
@@ -2981,6 +3086,7 @@ def main(argv=None) -> None:
     s.add_argument("--jobs", type=int, default=16, help="parallel xrdcp streams (default 16)")
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
+    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
     s.set_defaults(func=cmd_publish)
 
     s = sub.add_parser("archive", help="copy heavy products (.coffea/.root/yml/json) to FNAL EOS under eos.path/<id>/")
