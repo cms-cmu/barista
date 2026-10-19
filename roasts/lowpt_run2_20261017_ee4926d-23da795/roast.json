@@ -251,9 +251,9 @@
     }
   },
   "publish": {
-    "eos": "/eos/user/a/algomez/www/ttHbb/prod/lowpt_run2_20261017_ee4926d-23da795",
-    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/lowpt_run2_20261017_ee4926d-23da795/",
-    "ts": "2026-10-18 06:58:48",
+    "eos": "/eos/user/a/algomez/www/HH4b/prod/lowpt_run2_20261017_ee4926d-23da795",
+    "url": "https://plotsalgomez.webtest.cern.ch/HH4b/prod/lowpt_run2_20261017_ee4926d-23da795/",
+    "ts": "2026-10-19 12:52:42",
     "ok": true,
     "pages": [
       "output/lowpt_FvT/yields.html",
@@ -428,13 +428,25 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:52:25",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:52:42",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
   "category": "",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
-    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/prod"
   },
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/lowpt_run2_20261017_ee4926d-23da795",

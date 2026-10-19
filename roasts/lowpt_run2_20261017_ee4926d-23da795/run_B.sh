@@ -25,7 +25,7 @@ elif [ -s "$HOME/.kube/config" ]; then
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseB.smk --configfile roasts/lowpt_run2_20261017_ee4926d-23da795/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=lowpt_run2_20261017_ee4926d-23da795 eos_prod=root://cmseos.fnal.gov//store/user/algomez/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseB.smk --configfile roasts/lowpt_run2_20261017_ee4926d-23da795/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=lowpt_run2_20261017_ee4926d-23da795 eos_prod=root://cmseos.fnal.gov//store/user/algomez/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/prod 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast lowpt_run2_20261017_ee4926d-23da795 step B exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
