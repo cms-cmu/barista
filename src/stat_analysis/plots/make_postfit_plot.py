@@ -48,6 +48,113 @@ def filter_th2_by_labels(th2, label):
 
     return new_th2, len(x_bins)
 
+def plot_correlation_matrices(infile, out_dir):
+    cov = infile.Get("covariance_fit_s")
+    if not cov:
+        return
+
+    nbins = cov.GetNbinsX()
+    if nbins <= 1:
+        # Stat-only or 1-parameter model: no nuisance correlations
+        return
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logging.warning("matplotlib not available; skipping correlation matrix plots.")
+        return
+
+    labels = [cov.GetXaxis().GetBinLabel(i) for i in range(1, nbins + 1)]
+
+    # Full covariance array
+    cov_arr = np.zeros((nbins, nbins))
+    for i in range(nbins):
+        for j in range(nbins):
+            cov_arr[i, j] = cov.GetBinContent(i + 1, j + 1)
+
+    std = np.sqrt(np.maximum(np.diag(cov_arr), 1e-12))
+    cor_arr = cov_arr / np.outer(std, std)
+    np.fill_diagonal(cor_arr, 1.0)
+    cor_arr = np.clip(cor_arr, -1.0, 1.0)
+
+    # 1. Physics-only correlation matrix (exclude Barlow-Beeston prop_bin parameters)
+    phys_indices = [i for i, l in enumerate(labels) if not l.startswith("prop_bin")]
+    phys_labels = [labels[i] for i in phys_indices]
+    n_phys = len(phys_labels)
+
+    if n_phys > 1:
+        phys_cor = cor_arr[np.ix_(phys_indices, phys_indices)]
+
+        # Clean display labels for physics plot
+        clean_phys_labels = []
+        for l in phys_labels:
+            cl = l.replace("CMS_bbbb_resolved_bkg_datadriven_", "").replace("lumi_13TeV_", "lumi_")
+            clean_phys_labels.append(cl)
+
+        fig_w = max(8, n_phys * 0.55 + 2)
+        fig_h = max(7, n_phys * 0.55 + 1.5)
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=150)
+        im = ax.imshow(phys_cor, cmap="coolwarm", vmin=-1.0, vmax=1.0)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label("Correlation Coefficient", rotation=270, labelpad=15, fontsize=11)
+
+        ax.set_xticks(range(n_phys))
+        ax.set_yticks(range(n_phys))
+        ax.set_xticklabels(clean_phys_labels, rotation=45, ha="right", fontsize=9)
+        ax.set_yticklabels(clean_phys_labels, fontsize=9)
+
+        # Annotate numbers in cells
+        for i in range(n_phys):
+            for j in range(n_phys):
+                val = phys_cor[i, j]
+                text_color = "white" if abs(val) > 0.6 else "black"
+                txt = f"{val:+.2f}" if abs(val) >= 0.01 else "0"
+                if i == j:
+                    txt = "1.0"
+                ax.text(j, i, txt, ha="center", va="center", color=text_color, fontsize=8 if n_phys <= 20 else 6)
+
+        ax.set_title("Fit (S+B) Correlation Matrix — Physics Systematics", fontsize=12, pad=12, fontweight="bold")
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, "correlation_fit_s.png"))
+        fig.savefig(os.path.join(out_dir, "correlation_fit_s.pdf"))
+        plt.close(fig)
+        logging.info(f"Saved {os.path.join(out_dir, 'correlation_fit_s.png')}")
+
+    # 2. All parameters (including prop_bin)
+    if nbins > 1:
+        fig_w = max(12, nbins * 0.15 + 3)
+        fig_h = max(10, nbins * 0.15 + 2)
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=150)
+        im = ax.imshow(cor_arr, cmap="coolwarm", vmin=-1.0, vmax=1.0)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label("Correlation Coefficient", rotation=270, labelpad=15, fontsize=11)
+
+        ax.set_xticks(range(nbins))
+        ax.set_yticks(range(nbins))
+        short_labels = []
+        for l in labels:
+            cl = l.replace("CMS_bbbb_resolved_bkg_datadriven_", "").replace("lumi_13TeV_", "lumi_")
+            if cl.startswith("prop_bin"):
+                parts = cl.split("_bin")
+                if len(parts) == 2:
+                    cl = f"b{parts[1]}"
+                else:
+                    cl = cl.replace("prop_bin", "pb_")
+            short_labels.append(cl)
+
+        fontsize = max(4, int(180 / nbins))
+        ax.set_xticklabels(short_labels, rotation=90, ha="right", fontsize=fontsize)
+        ax.set_yticklabels(short_labels, fontsize=fontsize)
+
+        ax.set_title(f"Fit (S+B) Full Correlation Matrix ({nbins} Parameters)", fontsize=13, pad=12, fontweight="bold")
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, "correlation_fit_s_all.png"))
+        fig.savefig(os.path.join(out_dir, "correlation_fit_s_all.pdf"))
+        plt.close(fig)
+        logging.info(f"Saved {os.path.join(out_dir, 'correlation_fit_s_all.png')}")
+
 if __name__ == '__main__':
 
     #
@@ -90,8 +197,12 @@ if __name__ == '__main__':
 
     hists = { }
     channels = metadata['bin'] 
-    mj = metadata['processes']['background']['multijet']['label']
-    tt = metadata['processes']['background']['tt']['label']
+    if 'background' in metadata.get('processes', {}).get('background', {}):
+        mj = metadata['processes']['background']['background']['label']
+        tt = 'tt'
+    else:
+        mj = metadata['processes']['background'].get('multijet', {}).get('label', 'multijet')
+        tt = metadata['processes']['background'].get('tt', {}).get('label', 'tt')
     
     signal_key = args.signal
     if signal_key not in metadata['processes']['signal']:
@@ -151,19 +262,28 @@ if __name__ == '__main__':
         CMS.SaveCanvas(canv, f"{output_file}.png", close=False)
         CMS.SaveCanvas(canv, f"{output_file}.C")
 
+    # Generate publication-quality correlation heatmaps from fit_s covariance matrix
+    plot_correlation_matrices(infile, args.output)
+
     # channels = [ 'HHbb_2018' ]
     for itype in args.type_of_fit:
+        hists = {}
         print(f"Creating {itype} plot")
-        if not infile.Get(f'shapes_{itype}'):
-            print(f"WARNING: shapes_{itype} not found in file, skipping")
-            continue
+        shapes_name = f'shapes_{itype}'
+        if not infile.Get(shapes_name):
+            if infile.Get('shapes_fit_s'):
+                print(f"INFO: {shapes_name} not found, falling back to shapes_fit_s (stat-only model)")
+                shapes_name = 'shapes_fit_s'
+            else:
+                print(f"WARNING: shapes_{itype} not found in file, skipping")
+                continue
         is_first = True
         for ichannel in channels:
             folder_possibilities = [
-                f'shapes_{itype}/{ichannel}',
-                f'shapes_{itype}/ch1_{ichannel}',
-                f'shapes_{itype}/{ichannel.replace("HH4b", "HHbb")}',
-                f'shapes_{itype}/ch1_{ichannel.replace("HH4b", "HHbb")}'
+                f'{shapes_name}/{ichannel}',
+                f'{shapes_name}/ch1_{ichannel}',
+                f'{shapes_name}/{ichannel.replace("HH4b", "HHbb")}',
+                f'{shapes_name}/ch1_{ichannel.replace("HH4b", "HHbb")}'
             ]
             tmp_folder = None
             for possibility in folder_possibilities:
@@ -185,10 +305,15 @@ if __name__ == '__main__':
                         signal_key = alt_key
                         break
             
+            cur_mj = mj
+            if not infile.Get(f'{tmp_folder}/{cur_mj}') and infile.Get(f'{tmp_folder}/background'):
+                cur_mj = 'background'
+            mj = cur_mj
+
             # Validate core required objects exist before proceeding
             required_objects = {
                 'data': f'{tmp_folder}/data',
-                mj: f'{tmp_folder}/{mj}',
+                cur_mj: f'{tmp_folder}/{cur_mj}',
                 'TotalBkg': f'{tmp_folder}/total_background',
                 signal: f'{tmp_folder}/{signal_key}',
                 'cov_matrix': f'{tmp_folder}/total_covar'
@@ -199,12 +324,12 @@ if __name__ == '__main__':
 
             tt_hist = infile.Get(f'{tmp_folder}/{tt}')
             if not tt_hist:
-                tt_hist = infile.Get(f'{tmp_folder}/{mj}').Clone(f'{tmp_folder}_{tt}_empty')
+                tt_hist = infile.Get(f'{tmp_folder}/{cur_mj}').Clone(f'{tmp_folder}_{tt}_empty')
                 tt_hist.Reset()
 
             if is_first:
                 hists['data'] = convert_tgraph_to_th1(infile.Get(f'{tmp_folder}/data'), f'data{ichannel}')
-                hists[mj] = infile.Get(f'{tmp_folder}/{mj}')
+                hists[cur_mj] = infile.Get(f'{tmp_folder}/{cur_mj}')
                 hists[tt] = tt_hist
                 hists['TotalBkg'] = infile.Get(f'{tmp_folder}/total_background')
                 hists[signal] = infile.Get(f'{tmp_folder}/{signal_key}')
@@ -212,7 +337,7 @@ if __name__ == '__main__':
                 is_first = False
             else: 
                 hists['data'].Add( convert_tgraph_to_th1(infile.Get(f'{tmp_folder}/data'), f'data{ichannel}') )
-                hists[mj].Add( infile.Get(f'{tmp_folder}/{mj}') )
+                hists[cur_mj].Add( infile.Get(f'{tmp_folder}/{cur_mj}') )
                 hists[tt].Add( tt_hist )
                 hists['TotalBkg'].Add( infile.Get(f'{tmp_folder}/total_background') )
                 hists[signal].Add( infile.Get(f'{tmp_folder}/{signal_key}') )
@@ -253,7 +378,7 @@ if __name__ == '__main__':
         leg = CMS.cmsLeg(0.70, 0.89 - 0.05 * 4, 0.99, 0.89, textSize=0.04)
 
         stack = ROOT.THStack()
-        CMS.cmsDrawStack(stack, leg, {'ttbar': hists[tt], 'Multijet': hists[mj] }, data= hists['data'], palette=['#85D1FBff', '#FFDF7Fff'] )
+        CMS.cmsDrawStack(stack, leg, {'ttbar': hists[tt], mj: hists[mj] }, data= hists['data'], palette=['#85D1FBff', '#FFDF7Fff'] )
         if 'mixed' in args.input_file: 
             leg.Clear()
             leg.AddEntry( hists[mj], 'Multijet', 'f' )

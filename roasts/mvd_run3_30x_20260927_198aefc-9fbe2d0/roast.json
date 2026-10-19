@@ -452,6 +452,14 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-06 13:16:54",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "falcon"
+      ]
     }
   ],
   "notes": "Run 3 MvD with ~30x-capacity MvD and SvB (n_features 54); V.1 products from mvd_run3_20260927_91be0e9-f18c44b",
@@ -459,5 +467,12 @@
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_30x_20260927_198aefc-9fbe2d0",
     "ts": "2026-09-28 10:40:45",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-06 13:16:54",
+    "hosts": [
+      "cmslpc",
+      "falcon"
+    ]
   }
 }

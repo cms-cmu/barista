@@ -13,7 +13,10 @@ Run it directly:
 
     python3 src/tests/roast.py
 """
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -142,12 +145,23 @@ class TestGeneratedBashParses(unittest.TestCase):
                 ok, msg = bash_ok(s, f"status script ({host})")
                 self.assertTrue(ok, msg)
 
+    def test_rm_tree_script(self):
+        for top in ("~/nobackup/HH4b/prod/" + FAKE_ID, "/uscms/x y/prod/" + FAKE_ID):
+            with self.subTest(top=top):
+                s = roast._rm_tree_script(top)
+                ok, msg = bash_ok(s, "rm tree")
+                self.assertTrue(ok, msg)
+                self.assertIn("xargs -0 -r -P", s)        # parallel unlink, not one at a time
+                self.assertIn('[ -d "$T" ]', s)           # an already-gone directory is not an error
+
     def test_checkout_and_cleanup_scripts(self):
         r = fake_roast()
         hc = CFG["hosts"]["cmslpc"]
         for name, s in (("checkout", roast._checkout_script(hc, r, "~/prod/x/barista")),
                         ("finish checkout", roast._finish_checkout_script(r, "~/prod/x/barista")),
-                        ("eos rm tree", roast._eos_rm_tree_script("root://cmseos.fnal.gov", "/store/user/u/x"))):
+                        ("eos rm tree", roast._eos_rm_tree_script("root://cmseos.fnal.gov", "/store/user/u/x")),
+                        ("eos count", roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/u/user/www/x",
+                                                              *roast.proxy_candidates()))):
             with self.subTest(script=name):
                 ok, msg = bash_ok(s, name)
                 self.assertTrue(ok, msg)
@@ -272,10 +286,28 @@ class TestSummaryLine(unittest.TestCase):
         line = self.plain(roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20))
         self.assertIn("B!", line)
 
-    def test_published_is_noted_when_nothing_is_running(self):
+    def test_published_is_noted_with_its_cupping_note_when_nothing_is_running(self):
         r = self.roast_with(("B", "cmslpc"))
         r["publish"] = {"url": "https://example.cern.ch/x/"}
-        self.assertIn("published", roast._summary_line(r, self.parsed(B="exit=0      "), 20))
+        line = roast._summary_line(r, self.parsed(B="exit=0      "), 20)
+        self.assertIn("published", line)
+        self.assertIn(roast.docs_page_url(r["id"]), line)
+
+    def test_an_unreachable_host_still_shows_where_to_read_the_results(self):
+        """The case this was asked for: a published roast whose node stopped answering."""
+        r = self.roast_with(("DeClustered", "cmslpc"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        line = roast._summary_line(r, {"cmslpc": {"error": "node unreachable"}}, 20)
+        self.assertIn(roast.docs_page_url(r["id"]), line)
+
+    def test_a_running_roast_shows_progress_rather_than_a_link(self):
+        r = self.roast_with(("C", "falcon"))
+        r["publish"] = {"url": "https://example.cern.ch/x/"}
+        p = {"falcon": {"steps": [("C", "running      tmux=1  3 of 7   merging shards")],
+                        "live": {}, "done": {}, "extra": [], "error": None}}
+        line = roast._summary_line(r, p, 20)
+        self.assertIn("merging shards", line)
+        self.assertNotIn("barista.docs", line)
 
     def test_state_word_ignores_colour_codes(self):
         self.assertEqual(roast._state_word("\033[32mexit=0      \033[0m tmux=0"), "exit=0")
@@ -288,7 +320,14 @@ class TestUserPaths(unittest.TestCase):
     def test_derived_from_the_roast_config(self):
         paths = roast.user_paths(CFG)
         self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
-        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        # with nothing pointing at an analysis, roast defaults to ttHbb
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
+
+    def test_web_prod_follows_the_analysis(self):
+        self.assertEqual(roast.user_paths(CFG, analysis="HH4b")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        self.assertEqual(roast.user_paths(CFG, analysis="ttHbb")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
 
     def test_xrootd_keeps_its_doubled_slash(self):
         # root://host/abs/path silently means something else than root://host//abs/path
@@ -360,6 +399,26 @@ class TestConcurrentRoasts(unittest.TestCase):
         self.assertNotIn(" ", w)
         self.assertNotIn(":", w)     # tmux target syntax is session:window
         self.assertLessEqual(len(w), 40)
+
+    def test_session_is_isolated_per_roast(self):
+        r1 = fake_roast()
+        r1["id"] = "roast_1"
+        r2 = fake_roast()
+        r2["id"] = "roast_2"
+        self.assertNotEqual(roast._tmux_session(r1), roast._tmux_session(r2))
+        self.assertEqual(roast._tmux_session(r1), "roast_roast_1")
+
+    def test_session_fallback_when_none(self):
+        self.assertEqual(roast._tmux_session(None), "roast")
+        self.assertEqual(roast._tmux_session({}), "roast")
+
+    def test_session_is_tmux_safe(self):
+        r = fake_roast()
+        r["id"] = "analysis:run.test_123"
+        s = roast._tmux_session(r)
+        self.assertNotIn(":", s)
+        self.assertNotIn(".", s)
+        self.assertEqual(s, "roast_analysis_run_test_123")
 
 
 try:
@@ -466,12 +525,47 @@ class TestCheckInputs(unittest.TestCase):
                           "FvT": f"{{roast:{self.UP}}}/friend/FvT_nominal/result.json@@analysis.0.merged"})
         self.assertEqual(rec["refs"]["FvT"]["roast"], self.UP)
 
+    def test_roast_config_placeholder_reads_the_captured_config(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\noutput_path: "output/{roast_id}/"\n')
+        url = (f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}computeJCM/"
+               f"histAll_{{roast:{self.UP}:label}}.coffea")
+        rec = self.check({"upstream_roasts": self.UP, "jcm_hists": url})
+        self.assertEqual(rec["refs"]["jcm_hists"]["roast"], self.UP)
+        resolved = roast.UPSTREAM_REF.sub(
+            lambda m: roast.upstream_config_value(m.group(1), m.group(2)) if m.group(2) else self.AREA, url)
+        self.assertEqual(resolved, f"{self.AREA}/output/{self.UP}/computeJCM/histAll_Run3.coffea")
+
+    def test_upstream_aliases(self):
+        """upstream_roasts as {alias: id}: {roast:<alias>} and {roast:<alias>:<key>} resolve through
+        it, and {roast:<alias>:id} is the id itself."""
+        (self.tmp / self.UP / "config.yml").write_text('output_path: "output/x/"\n')
+        rec = self.check({"upstream_roasts": {"nominal": self.UP},
+                          "jcm": "{roast:nominal}/{roast:nominal:output_path}jcm.yml",
+                          "ci": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json"})
+        self.assertEqual(rec["refs"]["jcm"]["roast"], self.UP)
+        self.assertEqual(rec["refs"]["ci"]["roast"], self.UP)
+        self.assertEqual(roast.upstream_config_value(self.UP, "id"), self.UP)
+        with self.assertRaises(SystemExit):     # an alias that is not defined
+            self.check({"upstream_roasts": {"nominal": self.UP}, "jcm": "{roast:mixed}/jcm.yml"})
+
+    def test_roast_config_placeholder_needs_the_key(self):
+        (self.tmp / self.UP / "config.yml").write_text('label: "Run3"\n')
+        with self.assertRaises(SystemExit):
+            self.check({"upstream_roasts": self.UP,
+                        "jcm_hists": f"{{roast:{self.UP}}}/{{roast:{self.UP}:output_path}}histAll_NoJCM.coffea"})
+
     def test_roast_placeholder_must_be_an_upstream(self):
         with self.assertRaises(SystemExit):
             self.check({"upstream_roasts": self.UP, "FvT": "{roast:some_other_roast}/friend/FvT/result.json"})
 
     def test_no_inputs_block(self):
         self.assertIsNone(roast.check_inputs(CFG, {"label": "x"}))
+
+    def test_null_drops_an_inherited_input(self):
+        """A layered config sets `key: null` to drop an input of its base: accepted, not recorded."""
+        fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
+        rec = self.check({"upstream_roasts": self.UP, "FvT": fvt, "splitting_library": None})
+        self.assertEqual(set(rec["refs"]), {"FvT"})
 
     def test_urls_inside_the_upstream_area_are_recorded(self):
         fvt = f"{self.AREA}/friend/FvT_nominal/result.json@@analysis.0.merged"
@@ -547,6 +641,316 @@ class TestCopySettings(unittest.TestCase):
         self.assertTrue(any(e.startswith("output/") and e.endswith("logs") for e in ps["exclude"]))
 
 
+class TestStatusByFamily(unittest.TestCase):
+    """Status groups the way the catalogue does, so one definition orders both."""
+
+    def mk(self, rid, label, created, category=None):
+        r = fake_roast()
+        r["id"], r["label"], r["created"] = rid, label, created
+        if category:
+            r["category"] = category
+        return r
+
+    def test_families_alphabetical_newest_first_inside(self):
+        rs = [self.mk("n2", "nominal_run2", "2026-01-01 00:00:00"),
+              self.mk("m3", "mixeddata_run3", "2026-02-01 00:00:00"),
+              self.mk("n3", "nominal_run3", "2026-03-01 00:00:00")]
+        self.assertEqual([(f, r["id"]) for f, r in roast._by_family(rs)],
+                         [("mixeddata", "m3"), ("nominal", "n3"), ("nominal", "n2")])
+
+    def test_run_period_does_not_split_a_family(self):
+        rs = [self.mk("a", "nominal_run2", "2026-01-01 00:00:00"),
+              self.mk("b", "nominal_run3_30x", "2026-02-01 00:00:00")]
+        self.assertEqual({f for f, _ in roast._by_family(rs)}, {"nominal"})
+
+    def test_explicit_category_wins(self):
+        rs = [self.mk("l", "libA_run3", "2026-01-01 00:00:00", category="DeClustered")]
+        self.assertEqual(roast._by_family(rs)[0][0], "DeClustered")
+
+
+class TestCleanGating(unittest.TestCase):
+    """`clean` deletes the only copy of a run that is not on EOS, so every gate matters."""
+
+    def mk(self, publish=True, archive=True):
+        r = fake_roast()
+        if publish:
+            r["publish"] = {"url": "https://x.cern.ch/p/", "eos": "/eos/user/u/user/www/p", "ok": True}
+        if archive:
+            r["archive"] = {"eos": "root://cmseos.fnal.gov//store/user/u/HH4b_prod/" + FAKE_ID, "ok": True}
+        return r
+
+    def parsed(self, text="exit=0      "):
+        return {"cmslpc": {"steps": [("B", text)], "live": {}, "done": {}, "extra": [], "error": None}}
+
+    def test_a_finished_published_archived_roast_is_clean_able(self):
+        self.assertEqual(roast._clean_blockers(self.mk(), self.parsed()), [])
+
+    def test_unpublished_or_unarchived_is_refused(self):
+        self.assertIn("never published", roast._clean_blockers(self.mk(publish=False), self.parsed()))
+        self.assertIn("never archived", roast._clean_blockers(self.mk(archive=False), self.parsed()))
+
+    def test_a_note_without_a_copy_does_not_count(self):
+        r = self.mk()
+        r["publish"]["ok"] = None          # a --docs-only publish on a roast never really published
+        r["history"] = []
+        self.assertIn("never published", roast._clean_blockers(r, self.parsed()))
+
+    def test_a_docs_only_refresh_does_not_erase_an_earlier_real_publish(self):
+        """The summary field was clobbered by --docs-only; history still holds the truth."""
+        r = self.mk()
+        r["publish"]["ok"] = None
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "archive", "host": "cmslpc", "ok": True}]
+        self.assertEqual(roast._clean_blockers(r, self.parsed()), [])
+
+    def test_a_failed_copy_is_refused(self):
+        r = self.mk(); r["archive"]["ok"] = False
+        self.assertTrue(any("archive reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_the_most_recent_attempt_per_host_is_what_counts(self):
+        r = self.mk()
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "publish", "host": "cmslpc", "ok": False}]   # a later retry failed
+        self.assertTrue(any("publish reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+        r["history"].append({"event": "publish", "host": "cmslpc", "ok": True})
+        self.assertFalse(any("publish" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_one_host_failing_blocks_even_when_the_other_worked(self):
+        r = self.mk()
+        r["history"] = [{"event": "publish", "host": "cmslpc", "ok": True},
+                        {"event": "publish", "host": "falcon", "ok": False}]
+        self.assertTrue(any("publish reported a failure" in b for b in roast._clean_blockers(r, self.parsed())))
+
+    def test_a_step_that_did_not_finish_is_refused(self):
+        for state in ("running     ", "error       ", "exit=1      ", "not started "):
+            with self.subTest(state=state):
+                blockers = roast._clean_blockers(self.mk(), self.parsed(state))
+                self.assertTrue(any("not exit=0" in b for b in blockers), state)
+
+    def test_an_unreachable_host_is_refused_rather_than_assumed_finished(self):
+        p = {"cmslpc": {"error": "unreachable (u@node)"}}
+        self.assertTrue(any("unreachable" in b for b in roast._clean_blockers(self.mk(), p)))
+
+    def test_an_open_tmux_window_is_refused(self):
+        blockers = roast._clean_blockers(self.mk(), self.parsed("exit=0      tmux=1  done"))
+        self.assertTrue(any("tmux window" in b for b in blockers))
+        self.assertEqual(roast._clean_blockers(self.mk(), self.parsed("exit=0      tmux=0  done")), [])
+
+    def test_an_already_removed_checkout_does_not_block_finishing(self):
+        """Half-cleaned: one host emptied, the other not.  The second run must be able to finish."""
+        p = {"cmslpc": {"gone": True}}
+        self.assertEqual(roast._clean_blockers(self.mk(), p), [])
+
+
+class TestWindowCountIsRoastSpecific(unittest.TestCase):
+    """tmux=N must count this roast's own window, not every window ending in the same step name.
+
+    Leftover windows from other declustered roasts made every `_DeClustered` step read tmux=1,
+    which `clean` then refused to act on.
+    """
+
+    def script(self):
+        r = fake_roast(step_name="DeClustered")
+        r["label"] = "declustered_run2"
+        return roast._status_script(r, "~/prod/x/barista", r["steps"], "cmslpc")
+
+    def test_the_exact_window_name_is_matched(self):
+        s = self.script()
+        self.assertIn("declustered_run2_", s)      # the roast's own name reaches the host
+        self.assertIn("grep -cx", s)               # whole-line match, not a suffix
+        self.assertNotIn('grep -c "_$S\\$"', s)    # the old suffix count is gone
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_counting_distinguishes_two_roasts_sharing_a_step_name(self):
+        """Run the generated matcher against a window list holding another roast's window."""
+        r = fake_roast(step_name="DeClustered")
+        r["label"] = "declustered_run2"
+        mine = roast._window_name(r, r["steps"][0])
+        others = "declustered_ru_3c76ea9-564930f_DeClustered\nsigcheckB_mass_3c76ea9-564930f_DeClustered"
+        for windows, expect in ((others, "0"), (others + "\n" + mine, "1")):
+            with self.subTest(expect=expect):
+                out = subprocess.run(
+                    [BASH, "-c", f'W={shlex.quote(mine)}; printf "%s\\n" {shlex.quote(windows)} | grep -cx -- "$W" || true'],
+                    text=True, capture_output=True).stdout.strip()
+                self.assertEqual(out, expect)
+
+
+class TestProxyPicking(unittest.TestCase):
+    """LPC /tmp is node-local and the gateway is round-robin, so a roast's node often has no
+    usable proxy even right after `roast proxy` succeeded elsewhere."""
+
+    def script(self):
+        return roast._eos_count_script("root://eosuser.cern.ch", "/eos/user/j/x", *roast.proxy_candidates())
+
+    def test_shared_home_copy_is_among_the_candidates(self):
+        self.assertIn(".roast/x509_proxy", self.script())
+
+    def test_candidates_are_tried_in_order_and_validity_is_checked(self):
+        s = self.script()
+        self.assertLess(s.index("/tmp/x509up_u"), s.index(".roast/x509_proxy"))
+        self.assertIn("voms-proxy-info -exists", s)      # presence alone is not enough: it expires
+
+    def test_every_eos_script_picks_a_live_proxy(self):
+        """publish, archive, clean's verification and rm all reach EOS; none may trust $PWD alone."""
+        r = fake_roast()
+        ps = roast.copy_settings("publish", CFG, r)
+        scripts = {
+            "copy": roast._copy_script(r, "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x", ps),
+            "count": roast._eos_count_script("root://eosuser.cern.ch", "/eos/x"),
+            "rm tree": roast._eos_rm_tree_script("root://eosuser.cern.ch", "/eos/x"),
+        }
+        for name, s in scripts.items():
+            with self.subTest(script=name):
+                self.assertIn("voms-proxy-info -exists", s)
+                self.assertIn(".roast/x509_proxy", s)
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_a_copy_from_a_missing_checkout_fails_instead_of_copying_nothing(self):
+        """An unguarded `cd` let archive report success after copying zero files, and the manifest
+        then claimed the roast was archived when nothing had been."""
+        s = roast._copy_script(fake_roast(), "/nonexistent/prod/x/barista", "root://cmseos.fnal.gov",
+                               "/store/x", roast.copy_settings("archive", CFG, fake_roast()))
+        res = subprocess.run([BASH, "-c", s], text=True, capture_output=True)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("no checkout at", res.stderr)
+
+    def test_a_cleaned_roast_is_refused_with_a_usable_message(self):
+        r = fake_roast()
+        r["cleaned"] = {"ts": "2026-10-06 16:02:55", "hosts": ["cmslpc"]}
+        with self.assertRaises(SystemExit) as cm:
+            roast._refuse_if_cleaned(r, "publish")
+        roast._refuse_if_cleaned(r, "publish", allow=True)        # --docs-only needs no checkout
+        roast._refuse_if_cleaned(fake_roast(), "publish")         # an uncleaned roast is fine
+        self.assertNotEqual(cm.exception.code, 0)
+
+    def test_several_trees_are_counted_in_one_call(self):
+        items = [("archive", "root://cmseos.fnal.gov", "/store/x"),
+                 ("published", "root://eosuser.cern.ch", "/eos/y")]
+        s = roast._eos_counts_script(items, roast.proxy_candidates())
+        self.assertIn("COUNT|archive|", s)
+        self.assertIn("COUNT|published|", s)
+        # each server gets its own credential block: CERN needs the FNAL ticket hidden, FNAL does not
+        self.assertEqual(s.count("KRB5CCNAME=FILE:/dev/null"), 1)
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_the_merged_count_script_parses(self):
+        items = [("archive", "root://cmseos.fnal.gov", "/store/x"),
+                 ("published", "root://eosuser.cern.ch", "/eos/y")]
+        ok, msg = bash_ok(roast._eos_counts_script(items, roast.proxy_candidates()), "merged count")
+        self.assertTrue(ok, msg)
+
+    def test_the_auth_line_stays_one_line(self):
+        """It is interpolated into dedent()ed templates; a bare continuation line breaks dedent."""
+        self.assertEqual(len(roast._xrd_auth("root://eosuser.cern.ch", '"$PWD/p"').splitlines()), 1)
+
+    @unittest.skipIf(BASH is None, "bash not available")
+    def test_a_copy_with_no_usable_credential_fails_loudly(self):
+        """Rather than handing an expired proxy to EOS and getting 'unauthorized identity'."""
+        s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
+                               roast.copy_settings("publish", CFG, fake_roast()))
+        self.assertIn("no grid proxy with time left", s)
+
+    def test_copy_script_fast_diff_and_depth_dirs(self):
+        """Verify _copy_script uses fast in-memory diff and depth-stratified dir creation."""
+        s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
+                               roast.copy_settings("publish", CFG, fake_roast()))
+        self.assertIn("HAVE_DIRS", s)
+        self.assertIn("by_depth", s)
+        self.assertIn("concurrent.futures.ThreadPoolExecutor", s)
+        self.assertIn("print(p, file=f_out)", s)
+        self.assertIn("python diff failed", s)
+        self.assertIn("python mkdir failed", s)
+        # Verify it no longer contains the slow sequential while loop
+        self.assertNotIn("while IFS= read -r d; do xrdfs $EOS mkdir -p", s)
+
+
+class TestCleanedRoastsCostNoSsh(unittest.TestCase):
+    """The point of recording `cleaned`: status answers for finished work without a network call."""
+
+    def setUp(self):
+        self.r = fake_roast()
+        self.r["cleaned"] = {"ts": "2026-10-06 09:00:00", "hosts": ["cmslpc"]}
+        self.r["publish"] = {"url": "https://x.cern.ch/p/", "eos": "/eos/p", "ok": True}
+        self.saved = (roast.load_config, roast.all_roasts, roast.ssh_run)
+        roast.load_config = lambda: CFG
+        roast.all_roasts = lambda: [self.r]
+        def no_ssh(*a, **k):
+            raise AssertionError("status contacted a host for a cleaned roast")
+        roast.ssh_run = no_ssh
+
+    def tearDown(self):
+        roast.load_config, roast.all_roasts, roast.ssh_run = self.saved
+
+    def run_status(self, **flags):
+        args = argparse.Namespace(**{"id": None, "all": False, "detail": False,
+                                     "summary": False, "active": False, **flags})
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            roast.cmd_status(args)
+        return re.sub(r"\033\[[0-9;]*m", "", buf.getvalue())
+
+    def test_summary_shows_the_docs_link_without_ssh(self):
+        out = self.run_status()
+        self.assertIn("cleaned 2026-10-06", out)
+        self.assertIn("/prod/" + FAKE_ID + "/", out)
+
+    def test_detail_shows_the_links_and_how_to_rebuild(self):
+        out = self.run_status(detail=True)
+        self.assertIn("checkout removed", out)
+        self.assertIn("https://x.cern.ch/p/", out)
+        self.assertIn("checkout " + FAKE_ID, out)       # the command that brings it back
+
+    def test_active_hides_them(self):
+        self.assertNotIn(FAKE_ID, self.run_status(active=True))
+
+    def test_docs_page_url_follows_mkdocs(self):
+        self.assertTrue(roast.docs_page_url("x").endswith("/prod/x/"))
+        self.assertTrue(roast.docs_page_url("x").startswith("https://"))
+
+
+class TestCuppingNotesSweep(unittest.TestCase):
+    """write_index() deletes pages whose roast is gone.  It must not delete the prose.
+
+    The colleague guide lives in docs/prod so it sits in the same nav as the catalogue, and
+    was once swept away silently -- taking the URL mailed to the collaboration with it.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = (roast.DOCS_PROD, roast.ROASTS)
+        roast.DOCS_PROD = self.tmp / "prod"
+        roast.ROASTS = self.tmp / "roasts"
+        roast.DOCS_PROD.mkdir(parents=True)
+        d = roast.ROASTS / FAKE_ID
+        d.mkdir(parents=True)
+        (d / "roast.json").write_text(json.dumps(fake_roast()))
+
+    def tearDown(self):
+        roast.DOCS_PROD, roast.ROASTS = self.saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_handwritten_pages_survive_and_orphans_do_not(self):
+        guide = roast.DOCS_PROD / "using_roast.md"
+        guide.write_text("# Using roast\n")
+        orphan = roast.DOCS_PROD / "gone_20250101_dead-beef.md"
+        orphan.write_text("# a roast that no longer has a manifest\n")
+        roast.write_index()
+        self.assertTrue(guide.exists(), "the hand-written guide was swept away")
+        self.assertFalse(orphan.exists(), "a page with no roast should be removed")
+        self.assertTrue((roast.DOCS_PROD / "index.md").exists())
+
+    def test_every_handwritten_page_is_tracked_not_ignored(self):
+        """A page the sweep spares must also be committed, or CI rebuilds without it."""
+        root = Path(__file__).resolve().parents[2]
+        if not (root / ".git").exists() or shutil.which("git") is None:
+            self.skipTest("no git checkout, or no git (the CI image is python:slim)")
+        for stem in roast.HANDWRITTEN_PAGES - {"index"}:
+            rel = f"docs/prod/{stem}.md"
+            self.assertTrue((root / rel).exists(), f"{rel} is listed as hand-written but missing")
+            ignored = subprocess.run(["git", "check-ignore", "-q", rel], cwd=root).returncode == 0
+            self.assertFalse(ignored, f"{rel} is hand-written but .gitignore excludes it")
+
+
 class TestHelpers(unittest.TestCase):
     def test_rq_expands_a_leading_tilde_on_the_remote(self):
         self.assertEqual(roast.rq("~/work/x"), '"$HOME/work/x"')
@@ -606,6 +1010,12 @@ class TestCommandLine(unittest.TestCase):
         res = self.run_roast("frappuccino")
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("invalid choice", res.stderr)
+
+    def test_bridges2_flags(self):
+        res = self.run_roast("new", "--help")
+        self.assertIn("--bridges2", res.stdout)
+        res = self.run_roast("init", "--help")
+        self.assertIn("--bridges2-user", res.stdout)
 
 
 class TestStatusGrouping(unittest.TestCase):
@@ -793,5 +1203,103 @@ class TestStatusScriptBehaviour(unittest.TestCase):
         self.assertEqual(self.classify(log=log), "stalled")
 
 
+class TestRoastCommit(unittest.TestCase):
+    def test_default_commit_message_empty(self):
+        r = fake_roast()
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: update manifest and configuration")
+
+    def test_default_commit_message_with_steps_and_publish(self):
+        r = fake_roast()
+        r["history"] = [
+            {"event": "exit", "step": "B", "code": 0},
+            {"event": "exit", "step": "C", "code": 0},
+        ]
+        r["archive"] = {"ok": True, "eos": "root://cmseos.fnal.gov/store/..."}
+        r["publish"] = {"ok": True, "url": "https://..."}
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: steps B,C done; archived; published")
+
+    def test_cmd_commit_flow(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
+            (repo / "run_container").touch()
+            (repo / "coffea4bees").mkdir()
+            (repo / "initial.txt").write_text("init\n")
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True)
+
+            rid = "mytest_20261015_1234567-abcdef0"
+            rdir = repo / "roasts" / rid
+            rdir.mkdir(parents=True)
+            manifest = fake_roast()
+            manifest["id"] = rid
+            (rdir / "roast.json").write_text(json.dumps(manifest))
+
+            (repo / "unrelated.txt").write_text("do not commit\n")
+
+            orig_root, orig_roasts = roast.ROOT, roast.ROASTS
+            try:
+                roast.ROOT = repo
+                roast.ROASTS = repo / "roasts"
+
+                # 1. Dry run
+                args = argparse.Namespace(id=rid, message=None, push=False, remote="origin", dry_run=True)
+                roast.cmd_commit(args)
+                status = subprocess.run(["git", "status", "--porcelain", "--", f"roasts/{rid}"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertIn(f"roasts/{rid}", status)
+
+                # 2. Real commit with custom message
+                args = argparse.Namespace(id=rid, message="add Phase B", push=False, remote="origin", dry_run=False)
+                roast.cmd_commit(args)
+
+                log = subprocess.run(["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+                self.assertEqual(log, f"roast {rid}: add Phase B")
+
+                status2 = subprocess.run(["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertNotIn("roasts/", status2)
+                self.assertIn("?? unrelated.txt", status2)
+
+                # 3. Calling commit again reports nothing to commit
+                roast.cmd_commit(args)
+
+            finally:
+                roast.ROOT = orig_root
+                roast.ROASTS = orig_roasts
+
+
+class TestNautilusStepWorkers(unittest.TestCase):
+    """roast status counts only this roast's step's worker pods in the shared namespace."""
+
+    def test_is_step_worker(self):
+        import hashlib
+        r = {"id": "HH4b_bkg_syst_x_20261016_216b94a-27afcdb"}
+        h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+        jname = f"roast-hh4b-bkg-syst-x-{h}-bkg-c"
+
+        def pod(name, **labels):
+            return {"metadata": {"name": name, "labels": labels}}
+
+        mine = pod(f"smk-{h}-train-1-abc123-qtngz", roast=r["id"], step="BKG_C", app="roast-worker")
+        other_roast = pod("smk-aa78bd-train-13-b06b12-wndc5", roast="analysis_ttHbb_other", step="bkg_syst_C")
+        other_step = pod(f"smk-{h}-train-1-abc123-zzzzz", roast=r["id"], step="D")
+        no_step_label = pod(f"smk-{h}-evaluate-2-def456-aaaaa", roast=r["id"])
+        unlabelled_mine = pod(f"smk-{h}-train-3-ghi789-bbbbb")
+        unlabelled_other = pod("smk-aa78bd-train-13-b06b12-ccccc")
+        orchestrator = pod(f"{jname}-wv7nf", roast=r["id"], step="BKG_C")
+
+        self.assertTrue(roast._is_step_worker(mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_roast, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_step, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(no_step_label, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(unlabelled_mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(unlabelled_other, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(orchestrator, r, "BKG_C", jname))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

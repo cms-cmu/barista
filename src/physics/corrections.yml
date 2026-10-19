@@ -638,6 +638,68 @@
     - ecalBadCalibFilter
   rochesterCorrections: data/Muon/DUMMY.txt
 
+'2025':  ##### 2025 PromptReco (NanoAODv15); MC is Summer24, so tagger and WPs follow '2024'
+  year_label: '2025'
+  goldenJSON: 'src/data/goldenJSON/Cert_Collisions2025_391658_398903_Golden.json'
+  PU: '/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-25Prompt-Summer24-NanoAODv15/2026-06-05/puWeights_2025pp_Golden_Summer24_25ns_69200ub.json.gz'
+  ele_sf:
+    file: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run3-25Prompt-Summer24-NanoAODv15/2026-06-26/electron.json.gz'
+    HLT: '/cvmfs/cms-griddata.cern.ch/cat/metadata/EGM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/2025-12-15/electronHlt.json.gz'  # PLACEHOLDER: no 2025 electronHlt yet, 2024 file
+    tag: 2025Prompt  # PLACEHOLDER: check the key in the 2025 electron.json
+  mu_sf:
+    sf: /cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-25Prompt-Summer24-NanoAODv15/2026-04-28/muon_Z.json.gz
+    HLT: '/cvmfs/cms-griddata.cern.ch/cat/metadata/MUO/Run3-25Prompt-Summer24-NanoAODv15/2026-04-28/muon_Z.json.gz'
+  jet_veto_maps:
+    file: /cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-25Prompt-Summer24-NanoAODv15/2026-07-16/jetvetomaps.json.gz
+    tag: 'Summer24Prompt25_RunCDEFG_V1'
+  jec:
+    file: 'src/data/JEC/json_files_Reg/Run3Summer24Prompt25/2026-07-16/regJet_jerc.json.gz'
+    jet_type: AK4PFPuppi
+    regression_jet_type: AK4PFPuppiUParTRegressionPlusNeutrino
+    jec_campaign: Summer24Prompt25
+    jec_version: V3
+    jer_campaign: Summer24Prompt25
+    jer_version: JRV2
+  jet_id: '/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/Run3-25Prompt-Summer24-NanoAODv15/2026-07-16/jetid.json.gz'
+  jes_unc:
+    - Regrouped_Absolute
+    - Regrouped_Absolute_2025
+    - Regrouped_FlavorQCD
+    - Regrouped_EC2
+    - Regrouped_EC2_2025
+    - Regrouped_HF
+    - Regrouped_HF_2025
+    - Regrouped_BBEC1
+    - Regrouped_BBEC1_2025
+    - Regrouped_RelativeBal
+    - Regrouped_RelativeSample_2025
+  btag_algo: btagUParTAK4B
+  btagSF: '/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV/Run3-25Prompt-Summer24-NanoAODv15/2026-09-21/btagging.json.gz'
+  btagWP: # UParTAK4_wp_values in the 2025 BTV json are identical to Summer24
+    #L: 0.0246
+    L: 0.0602 # same custom L as '2024' so the 2024 and 2025 skims select the same way
+    M: 0.1272
+    T: 0.4648
+  btag_uncertainties:
+    - cferr1
+    - cferr2
+    - hf
+    - hfstats1
+    - hfstats2
+    - lf
+    - lfstats1
+    - lfstats2
+  NoiseFilter:
+    - goodVertices
+    - globalSuperTightHalo2016Filter
+    - EcalDeadCellTriggerPrimitiveFilter
+    - BadPFMuonFilter
+    - BadPFMuonDzFilter
+    - hfNoisyHitsFilter
+    - eeBadScFilter
+    - ecalBadCalibFilter
+  rochesterCorrections: data/Muon/DUMMY.txt
+
 
 # legacy for non UL HH4b sample
 '2016': 

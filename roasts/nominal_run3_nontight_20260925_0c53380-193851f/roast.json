@@ -351,6 +351,14 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-06 13:48:46",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "falcon"
+      ]
     }
   ],
   "notes": "Run 3 JCM with the non-tight four-tag selection (fourTag_use_tight: false): input to the mixeddata roast (MakeMixedData). B.1 only. Extended 2026-09-25 with B (B.2+handoff), C (non-tight FvT) and C4 (closure); config re-captured, see history.",
@@ -358,5 +366,12 @@
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
     "ts": "2026-09-26 02:46:52",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-06 13:48:46",
+    "hosts": [
+      "cmslpc",
+      "falcon"
+    ]
   }
 }

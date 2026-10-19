@@ -87,6 +87,12 @@ def make_parser() -> argparse.ArgumentParser:
         help='Path to a YAML file defining storage prefix remappings (e.g. FNAL EOS -> CMU EOS). '
              'Applied to all file paths in the datasets metadata at load time.'
     )
+    io_group.add_argument(
+        '--friend-base',
+        dest="friend_base",
+        default=None,
+        help='Base directory or URL for dumping friend trees'
+    )
 
     # Load corrections metadata and extract year keys
     with open('src/physics/corrections.yml', 'r') as f:

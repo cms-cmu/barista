@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: storage-helper
+  namespace: cms-cmu
+  labels:
+    app: storage-helper
+spec:
+  restartPolicy: Always
+  containers:
+  - name: helper
+    image: almalinux:9
+    command: ["sleep", "infinity"]
+    resources:
+      limits:
+        cpu: "1"
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    volumeMounts:
+    - mountPath: /workspace
+      name: ceph-storage
+  volumes:
+  - name: ceph-storage
+    persistentVolumeClaim:
+      claimName: cms-cmu-storage

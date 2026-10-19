@@ -747,18 +747,24 @@ def _handle_stack_sum(*, proc_config: Dict, cfg: Any, var_to_plot: str,
         stack_variances = [v["variances"] for _, v in proc_config["sum"].items()]
         proc_config["variances"] = np.sum(stack_variances, axis=0).tolist()
 
-    # Copy metadata from first sum component
-    first_sum_entry = next(iter(proc_config["sum"].values()))
-    proc_config["centers"] = first_sum_entry["centers"]
-    proc_config["edges"] = first_sum_entry["edges"]
-    proc_config["x_label"] = first_sum_entry["x_label"]
+        # Copy metadata from first sum component
+        first_sum_entry = next(iter(proc_config["sum"].values()))
+        proc_config["centers"] = first_sum_entry["centers"]
+        proc_config["edges"] = first_sum_entry["edges"]
+        proc_config["x_label"] = first_sum_entry["x_label"]
 
-    # Combine under/overflow
-    stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
+        # Combine under/overflow
+        stack_under_flow = [v["under_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["under_flow"] = float(np.sum(stack_under_flow, axis=0).tolist())
 
-    stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
-    proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+        stack_over_flow = [v["over_flow"] for _, v in proc_config["sum"].items()]
+        proc_config["over_flow"] = float(np.sum(stack_over_flow, axis=0))
+    else:
+        proc_name = proc_config.get("name", "unknown")
+        logger.warning(f"No valid sum components found for process {proc_name}")
+        proc_config["values"] = []
+        proc_config["variances"] = []
+        return False
 
 
 def get_values_variances_centers_from_dict(hist_config: Dict, plot_data: Dict) -> Tuple[np.ndarray, np.ndarray, List[float]]:
@@ -928,6 +934,7 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     rebin = kwargs.get("rebin", 1)
     do2d = kwargs.get("do2d", False)
     debug = kwargs.get("debug", False)
+    tag = kwargs.get("tag", None)
 
     if debug:
         print(f"in get_plot_dict_from_config hist process={process}, cut={cut}")
@@ -962,17 +969,57 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
             filtered = {p: {"process": p, "tag": "fourTag", "label": p} for p in process}
         hist_config = filtered
 
-    # Process each histogram
-    for _proc_name, _proc_config in hist_config.items():
-        proc_config = copy.deepcopy(_proc_config)
-        proc_config["name"] = _proc_name
-        var_to_plot = var_over_ride.get(_proc_name, var)
+    if do2d and len(hist_config) > 1 and kwargs.get("doRatio", True):
+        # Keep the requested processes as separate histograms so they can be
+        # ratioed (numerator = 2nd entry, denominator = 1st entry) instead of
+        # summed into a single combined map.
+        for _proc_name, _proc_config in hist_config.items():
+            proc_config = copy.deepcopy(_proc_config)
+            proc_config["name"] = _proc_name
+            if tag is not None:
+                proc_config["tag"] = tag
+
+            success = add_hist_data(cfg=cfg, config=proc_config,
+                          var=var, cut=cut, rebin=rebin, year=year,
+                          axis_opts=axis_opts, do2d=do2d, debug=debug)
+            if success:
+                plot_data["hists"][_proc_name] = proc_config
+        plot_data["process"] = list(hist_config.keys())
+    elif do2d and len(hist_config) > 1:
+        # A 2D plot can only show one map: sum the requested processes into
+        # a single combined histogram instead of plotting/ratioing them separately.
+        combined_process = []
+        for _proc_config in hist_config.values():
+            _proc = _proc_config["process"]
+            combined_process.extend(_proc if isinstance(_proc, list) else [_proc])
+
+        proc_config = copy.deepcopy(next(iter(hist_config.values())))
+        proc_config["process"] = combined_process
+        proc_config["name"] = "_vs_".join(hist_config.keys())
+        proc_config["label"] = "+".join(hist_config.keys())
+        if tag is not None:
+            proc_config["tag"] = tag
 
         success = add_hist_data(cfg=cfg, config=proc_config,
-                      var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                      var=var, cut=cut, rebin=rebin, year=year,
                       axis_opts=axis_opts, do2d=do2d, debug=debug)
         if success:
-            plot_data["hists"][_proc_name] = proc_config
+            plot_data["hists"][proc_config["name"]] = proc_config
+            plot_data["process"] = list(hist_config.keys())
+    else:
+        # Process each histogram
+        for _proc_name, _proc_config in hist_config.items():
+            proc_config = copy.deepcopy(_proc_config)
+            proc_config["name"] = _proc_name
+            if tag is not None:
+                proc_config["tag"] = tag
+            var_to_plot = var_over_ride.get(_proc_name, var)
+
+            success = add_hist_data(cfg=cfg, config=proc_config,
+                          var=var_to_plot, cut=cut, rebin=rebin, year=year,
+                          axis_opts=axis_opts, do2d=do2d, debug=debug)
+            if success:
+                plot_data["hists"][_proc_name] = proc_config
 
     # Process stack configuration
     stack_config = cfg.plotConfig.get("stack", {})
@@ -992,6 +1039,8 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
         ratio_config = cfg.plotConfig.get("ratios", {})
         if ratio_config:
             add_ratio_plots(ratio_config, plot_data, **kwargs)
+    elif do2d and kwargs.get("doRatio", True) and len(plot_data["hists"]) > 1:
+        _add_2d_ratio_plots(plot_data, **kwargs)
 
     return plot_data
 

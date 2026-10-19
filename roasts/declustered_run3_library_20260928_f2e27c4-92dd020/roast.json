@@ -182,7 +182,31 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-06 17:56:04",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-06 18:05:26",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
     }
   ],
-  "notes": "Library-based (replacement) declustering, rank 0 (decluster-replacement branches)"
+  "notes": "Library-based (replacement) declustering, rank 0 (decluster-replacement branches)",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declustered_run3_library_20260928_f2e27c4-92dd020",
+    "ts": "2026-10-06 17:56:04",
+    "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-06 18:05:26",
+    "hosts": [
+      "cmslpc"
+    ]
+  }
 }

@@ -94,13 +94,16 @@ def cut_order(counts: dict, requested: list | None) -> list:
 
 
 # --------------------------------------------------------------------------- aggregation
-def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_process: str | None = None,
+def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_process: str | list | None = None,
               pseudodata: list | None = None, compare: list | None = None):
     """Return (years, table) with table[year][cut] = dict of sums:
     data3, data4, data4_raw, tt3[comp], tt4[comp], mj4 (four-tag multijet_process, if given) and
     ps4 (the `pseudodata` processes, if given)."""
     pseudodata = list(pseudodata or [])
     compare = list(compare or [])
+    # several processes (e.g. the N seeds of a declustered sample, syn_v0..syn_vN-1) are summed;
+    # --multijet-scale 1/N then makes the Multijet their mean. A process may also be a --compare column.
+    multijet = {multijet_process} if isinstance(multijet_process, str) else set(multijet_process or [])
     years = OrderedDict()
     table = defaultdict(lambda: defaultdict(lambda: {
         "data3": 0.0, "data4": 0.0, "data4_raw": 0.0, "data3_raw": 0.0,
@@ -115,16 +118,11 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_pr
                 continue
             process, year, _ = parse_dataset_name(ds)
             if process == data_name:
-                kind = "data"
-            elif multijet_process and process == multijet_process:
-                kind = "mj"
-            elif process in pseudodata:
-                kind = "ps"
-            elif process in compare:
-                kind = "cmp"
-            elif process in ttbar:
-                kind = process
+                kinds = ["data"]
             else:
+                kinds = (["mj"] if process in multijet else []) + (["ps"] if process in pseudodata else []) \
+                    + (["cmp"] if process in compare else []) + ([process] if process in ttbar else [])
+            if not kinds:
                 unknown.add(process)
                 continue
             years.setdefault(year, None)
@@ -133,7 +131,7 @@ def aggregate(counts: dict, data_name: str, ttbar: list, cuts: list, multijet_pr
                 if cut not in per_cut:
                     continue
                 v = float(per_cut[cut])
-                for y in (year, "all"):
+                for y, kind in ((y, k) for y in (year, "all") for k in kinds):
                     cell = table[y][cut]
                     if kind == "data":
                         cell[f"data{block}"] += v
@@ -179,7 +177,7 @@ MULTIJET_MODES = {
 }
 _FOUR_TAG_MODES = ("mixed4b", "sample4b")      # Multijet = a four-tag sample (--multijet-process)
 _multijet_mode = "data3b-tt3b"
-_multijet_process = ""
+_multijet_process = []
 _multijet_scale = 1.0           # --multijet-scale: e.g. 1/N for a multijet sample made of N seeds
 _pseudodata: list = []          # --pseudodata: extra ttbar pseudodata column vs tt 4b
 _compare: list = []             # --compare: extra column per process vs Bkg
@@ -394,11 +392,19 @@ def html_table(title: str, cuts: list, cells: dict, ttbar: list) -> str:
             f"<tbody>{''.join(rows)}</tbody></table></div>")
 
 
+def _mj_label() -> str:
+    """The Multijet process(es) for the page: one name, or "a + ... + z (mean of N)" with the scale."""
+    if len(_multijet_process) <= 1:
+        return "".join(_multijet_process)
+    mean = f", mean of {len(_multijet_process)}" if abs(_multijet_scale * len(_multijet_process) - 1) < 1e-9 else ""
+    return f"{_multijet_process[0]} + ... + {_multijet_process[-1]} ({len(_multijet_process)} processes{mean})"
+
+
 def render_html(title: str, source: str, years: list, table, cuts: list, ttbar: list) -> str:
     tables = [html_table("all years", cuts, table["all"], ttbar)] + [html_table(y, cuts, table[y], ttbar) for y in years]
     sub = f"source: {html.escape(source)} &middot; ttbar = {html.escape(', '.join(ttbar))} &middot; years: {html.escape(', '.join(years))}"
     return (PAGE.replace("__TITLE__", html.escape(title)).replace("__SUB__", sub)
-            .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode].replace("__MJPROC__", html.escape(_multijet_process))
+            .replace("__MULTIJET__", MULTIJET_MODES[_multijet_mode].replace("__MJPROC__", html.escape(_mj_label()))
                      + (f"; tt pseudodata = {html.escape(' + '.join(_pseudodata))}, compared with tt 4b MC (error from its raw count)"
                         if _pseudodata else "")
                      + (f"; {html.escape(', '.join(_compare))} compared with Bkg (error from its raw count)"
@@ -420,8 +426,9 @@ def main(argv=None) -> int:
                     help="how the Multijet column is formed: data3b-tt3b (JCM-only model), data3b (3b weight "
                          "includes FvT), mixed4b (four-tag --multijet-process, weight JCM x MvD) or sample4b "
                          "(four-tag --multijet-process as is, e.g. declustered data; tt 4b = ttbar MC)")
-    ap.add_argument("--multijet-process", default="mixeddata_all",
-                    help="process whose four-tag cutflow is the Multijet with --multijet mixed4b / sample4b")
+    ap.add_argument("--multijet-process", nargs="+", default=["mixeddata_all"],
+                    help="process(es) whose four-tag cutflow is the Multijet with --multijet mixed4b / sample4b "
+                         "(several are summed: with --multijet-scale 1/N, the mean of N seeds)")
     ap.add_argument("--multijet-scale", type=float, default=1.0,
                     help="scale of the --multijet-process yields (mixed4b / sample4b), e.g. 1/N when it is the "
                          "union of N equivalent samples (the 4b mixing's mixeddata_all_4bmix)")
@@ -435,7 +442,7 @@ def main(argv=None) -> int:
     global _multijet_mode, _multijet_process, _multijet_scale, _pseudodata, _compare
     _multijet_mode = args.multijet
     _multijet_scale = args.multijet_scale
-    _multijet_process = args.multijet_process if args.multijet in _FOUR_TAG_MODES else ""
+    _multijet_process = list(args.multijet_process) if args.multijet in _FOUR_TAG_MODES else []
     _pseudodata = list(args.pseudodata or [])
     _compare = list(args.compare or [])
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -446,7 +453,7 @@ def main(argv=None) -> int:
                              multijet_process=_multijet_process or None, pseudodata=_pseudodata, compare=_compare)
     if not years:
         raise SystemExit(f"no '{args.data}' or ttbar datasets found in {args.input}")
-    for name, procs, key in (("multijet-process", [_multijet_process] if _multijet_mode == "sample4b" else [], "mj4"),
+    for name, procs, key in (("multijet-process", _multijet_process if _multijet_mode == "sample4b" else [], "mj4"),
                              ("pseudodata", _pseudodata, "ps4")):
         if procs and not any(cell[key] for cell in table["all"].values()):
             raise SystemExit(f"--{name} {procs} not found in the counts4 of {args.input}")

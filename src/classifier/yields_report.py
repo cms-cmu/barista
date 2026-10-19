@@ -16,7 +16,6 @@ Usage (the classifier workflow's `yields` rule):
         -o output/MvD/yields.html --json output/MvD/yields.json
 """
 
-from __future__ import annotations
 
 import argparse
 import html
@@ -49,7 +48,7 @@ def parse_log(path: str) -> dict:
     return {"regions": {r: c for r, c in regions.items() if c}, "years": {}}
 
 
-def parse_ratio(spec: str) -> tuple[str, list[str], list[tuple[int, str]]]:
+def parse_ratio(spec: str) -> tuple:
     """"d4 / t4 + mix4" -> (spec, [("d4")], [(+1, "t4"), (+1, "mix4")])."""
     if "/" not in spec:
         raise ValueError(f"ratio {spec!r}: expected 'numerator / denominator'")
@@ -129,7 +128,8 @@ def main(argv=None):
     else:
         sys.exit(f"no yields: neither {a.yields} nor {a.log} exists")
     if not yields.get("regions"):
-        sys.exit(f"no per-class yields found in {source}")
+        print(f"warning: no per-class yields found in {source}", file=sys.stderr)
+        yields = {"regions": {}, "years": {}}
     ratios = [parse_ratio(s) for s in a.ratio]
 
     os.makedirs(os.path.dirname(os.path.abspath(a.output)), exist_ok=True)

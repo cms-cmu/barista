@@ -233,6 +233,7 @@ rule limits:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/limits_{{path}}__{{signallabel}}.log"
     shell:
@@ -269,6 +270,12 @@ rule limits:
             fi
         fi
 
+        BLIND_OPT=""
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running AsymptoticLimits with --run blind"
+            BLIND_OPT="--run blind"
+        fi
+
         echo "[$(date)] Running AsymptoticLimits"
         cd $(dirname $OUT_TXT) && \
             combine -M AsymptoticLimits $WORKSPACE_FILE \
@@ -276,6 +283,7 @@ rule limits:
             --redefineSignalPOIs r{params.signallabel} \
             $SET_ZERO_OPT \
             $FREEZE_OPT \
+            $BLIND_OPT \
             -n _{params.signallabel} \
             > temp_limits.txt && \
         echo "[$(date)] Running CollectLimits" && \
@@ -297,6 +305,7 @@ rule significance:
         signallabel = "{signallabel}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
         freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        is_blinded = lambda wildcards: is_channel_blinded(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/significance_{{path}}__{{signallabel}}.log"
     shell:
@@ -336,22 +345,34 @@ rule significance:
         fi
 
         cd $(dirname $OUT_LOG) && \
-        echo "=== Observed Significance ===" > $(basename {output.log}) && \
-        combine -M Significance $WORKSPACE_FILE \
-            -m {params.mass} \
-            $SET_ZERO_OPT \
-            $FREEZE_OPT \
-            --redefineSignalPOIs r{params.signallabel} \
-            -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
-        echo "" >> $(basename {output.log}) && \
-        echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
-        combine -M Significance $WORKSPACE_FILE \
-            -m {params.mass} \
-            --redefineSignalPOIs r{params.signallabel} \
-            $SET_EXP_OPT \
-            $FREEZE_OPT \
-            -n _{params.signallabel}_exp \
-            -t -1 >> $(basename {output.log}) 2>&1 && \
+        if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+            echo "Blinded mode enabled: running only expected significance (-t -1)"
+            echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" > $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                --redefineSignalPOIs r{params.signallabel} \
+                $SET_EXP_OPT \
+                $FREEZE_OPT \
+                -n _{params.signallabel}_exp \
+                -t -1 >> $(basename {output.log}) 2>&1
+        else
+            echo "=== Observed Significance ===" > $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                $SET_ZERO_OPT \
+                $FREEZE_OPT \
+                --redefineSignalPOIs r{params.signallabel} \
+                -n _{params.signallabel}_obs >> $(basename {output.log}) 2>&1 && \
+            echo "" >> $(basename {output.log}) && \
+            echo "=== Expected Significance (Asimov t=-1, expectSignal=1) ===" >> $(basename {output.log}) && \
+            combine -M Significance $WORKSPACE_FILE \
+                -m {params.mass} \
+                --redefineSignalPOIs r{params.signallabel} \
+                $SET_EXP_OPT \
+                $FREEZE_OPT \
+                -n _{params.signallabel}_exp \
+                -t -1 >> $(basename {output.log}) 2>&1
+        fi && \
         python3 -c '
 import re, json, sys
 
@@ -545,7 +566,8 @@ rule likelihood_scan_chunk:
 
 rule likelihood_scan:
     input:
-        lambda wildcards: get_likelihood_scan_chunks(wildcards, config)
+        chunks = lambda wildcards: get_likelihood_scan_chunks(wildcards, config),
+        sanitize_script = "src/stat_analysis/sanitize_scan_roots.py"
     output: "{path}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
@@ -564,9 +586,10 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
+        SANITIZE_SCRIPT=$(realpath {input.sanitize_script})
         EXP_FILES=""
         OBS_FILES=""
-        for f in {input}; do
+        for f in {input.chunks}; do
             rf=$(realpath $f)
             # The snapshot fit is only the chunks' input: its `limit` tree carries the
             # inactive-POI branches (rggHH_kl_0/2p45/5, ...) that the -P scans drop, and
@@ -588,26 +611,36 @@ rule likelihood_scan:
         cd $DATACARD_DIR
 
         if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
-            hadd -f higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
-            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
+            (plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
                 --main-label "Observed" \
-                --others higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
+                --others $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot || \
+             plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --main-label "Expected" \
+                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot) && \
             mv scan_plot.pdf $OUT_FILE
         elif [ -n "$EXP_FILES" ]; then
-            hadd -f higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
+            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
                 --main-label "Expected" \
                 --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
         else
             INPUT_FILES=""
-            for f in {input}; do
+            for f in {input.chunks}; do
                 INPUT_FILES="$INPUT_FILES $(realpath $f)"
             done
-            hadd -f higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
-            plot1DScan.py higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
+            python3 $SANITIZE_SCRIPT \
+                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root && \
+            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
                 --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
             mv scan_plot.pdf $OUT_FILE
         fi
@@ -635,11 +668,11 @@ rule impacts_initial_fit:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
-        WORKSPACE_FILE=$(realpath {input})
-        OUT_FILE=$(realpath {output})
+        LOG=$(realpath -m {log})
         mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname $OUT_FILE)
+        mkdir -p $(dirname {output})
+        WORKSPACE_FILE=$(realpath {input})
+        OUT_FILE=$(realpath -m {output})
         (
         echo "[$(date)] Starting impacts_initial_fit rule with signal {params.signallabel}"
 
@@ -651,7 +684,7 @@ rule impacts_initial_fit:
         fi
 
         # Check if there are any nuisance parameters
-        NUISANCES=$(find output -maxdepth 5 -name "*.txt" -exec grep -h "kmax" {{}} + 2>/dev/null | awk '{{print $2}}' | head -n 1)
+        NUISANCES=$(grep -h "kmax" $(dirname $WORKSPACE_FILE)/*.txt 2>/dev/null | awk '{{print $2}}' | head -n 1 || true)
         if [ "$NUISANCES" = "0" ]; then
             echo "no_nuisances" > $OUT_FILE
             exit 0
@@ -682,7 +715,7 @@ rule impacts_initial_fit:
             $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input} .root) && \
             mv higgsCombine_initialFit_$(basename {input} .root).MultiDimFit.mH{params.mass}.root $OUT_FILE
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule impacts_do_fits:
@@ -710,13 +743,13 @@ rule impacts_do_fits:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
+        LOG=$(realpath -m {log})
+        mkdir -p $(dirname $LOG)
+        mkdir -p {output.fits_dir}
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
         WORKSPACE_FILE=$(realpath {input.workspace})
         INIT_FIT_FILE=$(realpath {input.init_fit})
-        OUT_DIR=$(realpath {output.fits_dir})
-        mkdir -p $(dirname $LOG)
-        mkdir -p $OUT_DIR
+        OUT_DIR=$(realpath -m {output.fits_dir})
         (
         echo "[$(date)] Starting impacts_do_fits rule with signal {params.signallabel}"
 
@@ -759,7 +792,7 @@ rule impacts_do_fits:
             $SET_ZERO_OPT {params.asimov_opt} \
             -n $(basename {input.workspace} .root) && \
             cp $INIT_FIT_FILE $OUT_DIR/
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule impacts_collect:
@@ -782,47 +815,25 @@ rule impacts_collect:
             echo "Skipping duplicate Slurm task (SLURM_PROCID=$SLURM_PROCID)"
             exit 0
         fi
-        LOG=$(pwd)/{log}
+        LOG=$(realpath -m {log})
+        mkdir -p $(dirname $LOG)
+        mkdir -p $(dirname {output.pdf})
         DATACARD_DIR=$(realpath $(dirname {input.workspace}))
         WORKSPACE_FILE=$(realpath {input.workspace})
-        FITS_DONE_DIR=$(realpath {input.fits_done})
-        OUT_FILE=$(realpath {output.pdf})
-        mkdir -p $(dirname $LOG)
-        mkdir -p $(dirname $OUT_FILE)
+        FITS_DONE_DIR=$(realpath -m {input.fits_done})
+        OUT_FILE=$(realpath -m {output.pdf})
         (
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
         # Check if running in stat_only mode
         if [[ "{wildcards.path}" == *"stat_only"* ]] || [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ -f $FITS_DONE_DIR/stat_only ]; then
             echo "stat_only is enabled. Creating dummy impacts plot."
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'stat_only is enabled (Impacts not run)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'stat_only is enabled (Impacts not run)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 
         if [ -f $FITS_DONE_DIR/no_nuisances ]; then
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'No Nuisance Parameters in Datacard (Impacts not applicable)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'No Nuisance Parameters in Datacard (Impacts not applicable)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 
@@ -846,7 +857,7 @@ EOF
             --POI r{params.signallabel} \
             --per-page {params.per_page} --left-margin 0.3 --height 400 --label-size 0.04 && \
             mv impacts_plot.pdf $OUT_FILE
-        ) 2>&1 | tee {log}
+        ) 2>&1 | tee "$LOG"
         """
 
 rule gof_data:
@@ -992,18 +1003,7 @@ rule gof:
 
         if [ "{params.stat_only}" = "True" ] || [ "{params.stat_only}" = "1" ] || [ "$(cat {input.data} 2>/dev/null)" = "stat_only" ]; then
             echo "stat_only is enabled. Creating dummy GoF plot."
-            cat << 'EOF' > dummy_plot.py
-import sys
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots()
-ax.text(0.5, 0.5, 'stat_only is enabled (GoF not run)', ha='center', va='center', fontsize=14)
-ax.axis('off')
-plt.savefig(sys.argv[1])
-EOF
-            python3 dummy_plot.py $OUT_FILE
-            rm dummy_plot.py
+            python3 -c "import sys, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; fig, ax = plt.subplots(); ax.text(0.5, 0.5, 'stat_only is enabled (GoF not run)', ha='center', va='center', fontsize=14); ax.axis('off'); plt.savefig('$OUT_FILE')"
             exit 0
         fi
 
@@ -1138,15 +1138,23 @@ rule fit_diagnostics_sb:
 
         SET_ZERO_OPT_SB=""
         if [ -n "{params.set_parameters_zero}" ]; then
-            formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
+            else
+                formatted_params=$(echo "{params.set_parameters_zero} r{params.signallabel}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | sed 's/r{params.signallabel}=0/r{params.signallabel}=1/' | paste -sd, -)
+            fi
             SET_ZERO_OPT_SB="--setParameters $formatted_params"
         else
-            SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=0"
+            else
+                SET_ZERO_OPT_SB="--setParameters r{params.signallabel}=1"
+            fi
         fi
 
         TOY_OPT_SB=""
         if [ "{params.is_blinded}" = "True" ] || [ "{params.is_blinded}" = "1" ]; then
-            echo "Blinded mode enabled: running FitDiagnostics S+B on Asimov dataset (-t -1 with expectSignal=1)"
+            echo "Blinded mode enabled: running FitDiagnostics S+B on background-only Asimov dataset (-t -1 with r=0)"
             TOY_OPT_SB="-t -1"
         fi
 
@@ -1162,6 +1170,50 @@ rule fit_diagnostics_sb:
             -n _$(basename {input} .root)_prefit_sb \
             --saveShapes --saveWithUncertainties --plots
 
+        # For stat-only fits (kmax 0), Combine skips fit_b and does not save shapes_prefit or shapes_fit_b.
+        # Populate shapes_prefit and shapes_fit_b from shapes_fit_s and nominal shapes so all 3 fit types can be plotted.
+        python3 -c "
+import ROOT, os, glob
+fit_file = 'fitDiagnostics_$(basename {input} .root)_prefit_sb.root'
+ws_dir = '$(dirname $WORKSPACE_FILE)'
+shapes_file = os.path.join(ws_dir, 'shapes.root')
+if not os.path.exists(shapes_file):
+    candidates = glob.glob(os.path.join(ws_dir, '*shapes.root'))
+    shapes_file = candidates[0] if candidates else None
+
+f_fit = ROOT.TFile.Open(fit_file, 'UPDATE')
+if f_fit and f_fit.Get('shapes_fit_s') and not f_fit.Get('shapes_prefit'):
+    print('[INFO] Populating shapes_prefit and shapes_fit_b for stat-only model...')
+    f_shapes = ROOT.TFile.Open(shapes_file, 'READ') if shapes_file and os.path.exists(shapes_file) else None
+    d_fit_s = f_fit.Get('shapes_fit_s')
+    d_prefit = f_fit.mkdir('shapes_prefit')
+    d_fit_b = f_fit.mkdir('shapes_fit_b')
+    for k in d_fit_s.GetListOfKeys():
+        ch = k.GetName()
+        ch_dir_s = d_fit_s.Get(ch)
+        if not hasattr(ch_dir_s, 'GetListOfKeys'): continue
+        ch_dir_pre = d_prefit.mkdir(ch)
+        ch_dir_b = d_fit_b.mkdir(ch)
+        for obj_name in ['data', 'background', 'multijet', 'tt', 'ttbar', 'total_background', 'total_covar']:
+            obj = ch_dir_s.Get(obj_name)
+            if obj:
+                ch_dir_pre.cd(); obj.Clone(obj_name).Write()
+                ch_dir_b.cd(); obj.Clone(obj_name).Write()
+        if f_shapes:
+            d_ch_shapes = f_shapes.Get(ch)
+            if d_ch_shapes:
+                for sk in d_ch_shapes.GetListOfKeys():
+                    sig_name = sk.GetName()
+                    if sig_name not in ['data_obs', 'background', 'multijet', 'tt', 'ttbar']:
+                        sig_obj = d_ch_shapes.Get(sig_name)
+                        if sig_obj:
+                            ch_dir_pre.cd(); sig_obj.Clone(sig_name).Write(); sig_obj.Clone('total_signal').Write()
+                            ch_dir_b.cd(); sig_b = sig_obj.Clone(sig_name); sig_b.Reset(); sig_b.Write(); sig_b.Clone('total_signal').Write()
+    if f_shapes: f_shapes.Close()
+    f_fit.Write()
+if f_fit: f_fit.Close()
+" || true
+
         echo "[$(date)] Running diffNuisances S+B"
         python3 $CMSSW_BASE/src/HiggsAnalysis/CombinedLimit/test/diffNuisances.py \
             -p r{params.signallabel} \
@@ -1176,11 +1228,10 @@ rule fit_diagnostics_sb:
         """
 
 def get_postfit_fit_result(wildcards):
-    fit_type = "bonly" if is_stat_only_mode() else "sb"
-    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_{fit_type}__{wildcards.signallabel}.root"
+    return f"{wildcards.path}/postfit/datacard_fitDiagnostics_sb__{wildcards.signallabel}.root"
 
 def get_postfit_plot_fit_type(wildcards):
-    return "fit_b" if is_stat_only_mode() else "fit_s"
+    return "fit_s"
 
 rule postfit:
     input:

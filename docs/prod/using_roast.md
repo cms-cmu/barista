@@ -42,8 +42,14 @@ You also need a grid proxy on the LPC, renewed about weekly:
 
 ```bash
 bin/roast proxy            # voms-proxy-init on cmslpc
-bin/roast proxy --check    # how much time is left
+bin/roast proxy --check    # how much time is left, on this node and on shared home
 ```
+
+`voms-proxy-init` writes into `/tmp`, which on the LPC belongs to one interactive node, while
+the login alias is round-robin. The proxy you just made is therefore often not on the node a
+given roast is pinned to, which shows up later as CERN EOS answering "unauthorized identity"
+even though you have a valid proxy. `roast proxy` also drops a copy in `~/.roast/x509_proxy`
+on shared home, and the commands that reach EOS take whichever copy still has time left.
 
 For looking at histograms locally, see [Local pourover](#local-pourover) below, which
 needs a one-time virtual environment.
@@ -69,10 +75,12 @@ Phases map to machines the way the
 
 | Phase | A | B | C | D | E | F |
 |---|---|---|---|---|---|---|
-| runs on | cmslpc | cmslpc | falcon | falcon | cmslpc | cmslpc |
+| runs on | cmslpc | cmslpc | falcon / nautilus | falcon / nautilus | cmslpc | cmslpc |
+
+Passing `--nautilus` to `bin/roast new` maps the GPU phases (`C`, `D`, `BKG_C`) to run as Kubernetes Jobs on the **NRP Nautilus** cluster instead of Falcon (see [Using roast on Nautilus](using_roast_nautilus.md)).
 
 `--phases B,C,D,F` sets up several steps at once; each is submitted separately, and you
-move to the next when the previous one reports `exit=0`. Run `checkout` for both machines
+move to the next when the previous one reports `exit=0`. Run `checkout` for each machine
 when a roast spans them. Workflows outside the A–F scheme are added with
 `--step host:Snakefile[:targets]`, for example:
 
@@ -155,6 +163,7 @@ Capturing a layered config needs PyYAML; plain configs are still copied verbatim
 bin/roast status                 # one line per roast: where every one of them stands
 bin/roast status <id>            # that roast in full, step by step
 bin/roast status -s              # force the one-liner; -d forces the detail
+bin/roast status --active        # hide roasts whose checkouts have been cleaned
 bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
 ```
@@ -163,11 +172,23 @@ With no arguments, `status` gives a line per roast: a mark per step, and what is
 now. `✓` finished cleanly, `●` running, `✗` failed, `·` not started, `?` a driver that died
 quietly, `!` a machine that did not answer.
 
+Roasts are grouped into the same families as the [cupping notes](index.md) sub-pages, newest
+first inside a family, so a production reads the same way here as on the website.
+
 ```
-nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published
-nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
-svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          published
+nominal
+  nominal_run2_20260919_a180b1a-a16559c       B✓ C✓ C4✓ D✓ F✓    published  https://barista.docs.cern.ch/prod/nominal_run2_20260919_a180b1a-a16559c/
+  nominal_run3_30x_20260924_8cc39b3-a512d88   C● C4· D· F·       C on falcon: 15888483/69615572 entries
+
+svbfeynnet
+  svbfeynnet_run3_20260923_5b01004-31a4b4d    SvBFeynN✓          cleaned 2026-10-06  https://barista.docs.cern.ch/prod/svbfeynnet_run3_20260923_5b01004-31a4b4d/
 ```
+
+Once nothing is running, a roast carries a link to its cupping note, whether it has been
+cleaned or not. While a step is still going, that space shows what the step is doing instead.
+A cleaned roast is answered from the manifest alone, with no machine contacted, which is what
+keeps `status` quick once a production is finished. Naming any published roast shows all its
+links: the cupping note, the CERNBox results and the EOS archive.
 
 Naming a roast gives the detail: one line per step, with that step's batch jobs underneath.
 
@@ -299,7 +320,7 @@ at the destination with the same size, so re-running after another step is cheap
 |---|---|---|
 | **FNAL EOS**, `/store/user/<you>/HH4b_prod/<id>/` | merged `.coffea` histograms, fitted JCM weights, friend-tree manifests, the config and the manifest | `xrdfs root://cmseos.fnal.gov ls -R /store/user/<you>/HH4b_prod/<id>` |
 | **CERNBox**, `https://<you>.web.cern.ch/<you>/HH4b/prod/<id>/` | plots, cutflows, limits, the step log, the roast manifest | open it in a browser |
-| **[Cupping notes](index.md)** | one row per roast with both commit hashes linked to GitLab, the config, the steps, and a link into the CERNBox area | this documentation site |
+| **[Cupping notes](index.md)** | a page per family, each with one row per roast: both commit hashes linked to GitLab, the config, the steps, and a link into the CERNBox area | this documentation site |
 
 Archiving deliberately keeps only merged products: per-dataset `singlefiles`, per-dataset
 classifier-input manifests, per-job logs, Dask reports and memory profiles stay on the
@@ -307,15 +328,17 @@ machine. Publishing keeps the browsable artefacts under 50 MB. Both selections a
 configurable per user under `publish` and `archive` in `~/.config/roast/config.json`, or
 per roast under `publish_rules` and `archive_rules` in its `roast.json`.
 
-The catalogue is only as complete as what is committed. After publishing:
+The catalogue is only as complete as what is committed. After archiving/publishing:
 
 ```bash
-git add roasts/<id> docs/prod
-git commit -m "roast <id>: Phase B results"
+bin/roast commit <id>
+# or with a custom message and automatic push:
+bin/roast commit <id> -m "Phase B results" --push
 ```
 
-and merge to `master`. The `pages` job publishes the site within a minute of the merge,
-independently of the analysis CI.
+`roast commit` stages only `roasts/<id>/` (leaving active work in the tree and other roasts untouched), creates a structured commit message detailing which steps and archiving/publishing actions are complete, and optionally pushes to your remote branch.
+
+Once merged to `master`, the `pages` job publishes the site within a minute of the merge, independently of the analysis CI.
 
 Results live in each person's own CERNBox area, so nobody needs write access to anyone
 else's; the catalogue is the shared index that ties them together.
@@ -366,13 +389,35 @@ elsewhere. To pull products without serving anything, use `bin/roast pull <id> -
 ```bash
 bin/roast ls                 # every roast, its machines, steps and whether it is published
 bin/roast show <id>          # the full manifest
+bin/roast clean <id>         # what cleaning would remove, a dry run
+bin/roast clean <id> --yes   # remove the checkouts, keeping the results and the record
+bin/roast clean --all        # every roast that qualifies
 bin/roast rm  <id>           # what deleting would remove, a dry run
 bin/roast rm  <id> --yes     # delete locally, on both machines, on EOS and on CERNBox
 ```
 
-`rm` refuses while a step is still running, and `--keep-eos`, `--keep-cernbox` and
-`--keep-hosts` spare individual locations. Old checkouts are worth removing once a roast is
-archived and published, since each one carries its own environment and outputs.
+### `clean` and `rm` are not the same thing
+
+`clean` reclaims space. It removes the checkouts on cmslpc and falcon, each of which carries
+its own pixi environment and job logs, and leaves everything that makes the run readable: the
+manifest, the cupping note, the EOS archive and the published CERNBox area. `roast checkout
+<id>` brings the checkout back, because the manifest pins both commits.
+
+It refuses unless all of this holds:
+
+* every step finished with `exit=0`, asked of the machines rather than taken from the manifest;
+* the roast was archived and published, and neither reported a failure;
+* both EOS trees still exist and are not empty, confirmed by listing them.
+
+Whether a roast was really published is read from its history, which records only the copies
+that ran, so refreshing a cupping note with `publish --docs-only` neither counts as publishing
+nor erases the real publish that came before it. If the published-tree check reports an
+unauthorized identity, that is a missing credential rather than missing data: run `bin/roast
+proxy` on cmslpc and try again.
+
+`rm` is the opposite. It deletes the roast everywhere, the record included, and `--keep-eos`,
+`--keep-cernbox` and `--keep-hosts` spare individual locations. It refuses while a step is
+still running.
 
 ## Things that catch people out
 

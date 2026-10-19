@@ -1,0 +1,155 @@
+{
+  "id": "trigweights_run3_signal_eras_20261007_27bc66d-ef555a7",
+  "label": "trigweights_run3_signal_eras",
+  "created": "2026-10-07 10:07:02",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "27bc66d7783f61a2e1e2e1467b301d98c9640db4",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "ef555a7cb565a4f9f758fbc99ead828086f151e9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/trigweights_run3_signal.yml",
+    "captured": "config.yml",
+    "sha256": "e8e7d6943fa505da8d676405cc9575d4cc11d70c56c44100e3a41fbfddc0bd6f"
+  },
+  "steps": [
+    {
+      "name": "TrigWeights",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_TrigWeights.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-07 10:09:48",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "trigweights_run3_signal_eras_27bc66d-ef555a7_TrigWeights",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "e8e7d6943fa5"
+        },
+        {
+          "ts": "2026-10-07 11:31:41",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trigweights_run3_signal_eras_27bc66d-ef555a7_TrigWeights",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "e8e7d6943fa5"
+        },
+        {
+          "ts": "2026-10-07 22:35:24",
+          "cores": 2,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trigweights_run3_signal_eras_27bc66d-ef555a7_TrigWeights",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "e8e7d6943fa5"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/trigweights_run3_signal_eras_20261007_27bc66d-ef555a7/barista",
+      "ssh": "jda102@cmslpc371.fnal.gov",
+      "checked_out": "2026-10-07 10:09:44"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/trigweights_run3_signal_eras_20261007_27bc66d-ef555a7",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/trigweights_run3_signal_eras_20261007_27bc66d-ef555a7/",
+    "ts": "2026-10-07 22:36:54",
+    "ok": true,
+    "pages": [
+      "output/trigweights_run3_signal/trig_validation/plots_2022_EE/index.html",
+      "output/trigweights_run3_signal/trig_validation/plots_2022_preEE/index.html",
+      "output/trigweights_run3_signal/trig_validation/plots_2023_BPix/index.html",
+      "output/trigweights_run3_signal/trig_validation/plots_2023_preBPix/index.html",
+      "output/trigweights_run3_signal/trig_validation/plots_Run3/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-07 10:07:02",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-07 10:09:44",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-07 10:09:48",
+      "event": "submit",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-07 11:31:39",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc371.fnal.gov"
+    },
+    {
+      "ts": "2026-10-07 11:31:41",
+      "event": "resume",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-07 14:35:37",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-07 14:35:47",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-07 22:35:24",
+      "event": "resume",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-07 22:36:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/trigweights_run3_signal_eras_20261007_27bc66d-ef555a7",
+    "ts": "2026-10-07 14:35:47",
+    "ok": true
+  }
+}

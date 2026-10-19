@@ -1,0 +1,134 @@
+{
+  "id": "trigweights_run3_2024_signal_20261011_1728019-e0ccb17",
+  "label": "trigweights_run3_2024_signal",
+  "created": "2026-10-11 21:44:43",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "17280194271cf128e3a50a8cb1c0be8e52dcd3dd",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "e0ccb17e92b65ee2c60f0962f984cde25acaafc0",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/trigweights_run3_2024_signal.yml",
+    "captured": "config.yml",
+    "sha256": "9852f9a4ba6c77930add1ed06d00b1347007463d569d1d0dc3ab285ac3e0560b"
+  },
+  "steps": [
+    {
+      "name": "TrigWeights",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_TrigWeights.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-11 21:47:13",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "trigweights_run3_2024_signal_1728019-e0ccb17_TrigWeights",
+          "ssh": "jda102@cmslpc342.fnal.gov",
+          "config_sha256": "9852f9a4ba6c"
+        },
+        {
+          "ts": "2026-10-11 21:49:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "trigweights_run3_2024_signal_1728019-e0ccb17_TrigWeights",
+          "ssh": "jda102@cmslpc342.fnal.gov",
+          "config_sha256": "9852f9a4ba6c"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/trigweights_run3_2024_signal_20261011_1728019-e0ccb17/barista",
+      "ssh": "jda102@cmslpc342.fnal.gov",
+      "checked_out": "2026-10-11 21:47:07"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/trigweights_run3_2024_signal_20261011_1728019-e0ccb17",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/trigweights_run3_2024_signal_20261011_1728019-e0ccb17/",
+    "ts": "2026-10-11 22:07:28",
+    "ok": true,
+    "pages": [
+      "output/trigweights_run3_2024_signal/trig_validation/plots_GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00/2024/index.html",
+      "output/trigweights_run3_2024_signal/trig_validation/plots_GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00/Run3/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-11 21:44:43",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-11 21:47:07",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 21:47:13",
+      "event": "submit",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 21:49:24",
+      "event": "submit",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-11 22:07:28",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-11 22:07:29",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-14 16:32:56",
+      "event": "clean",
+      "hosts": [
+        "cmslpc"
+      ]
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/trigweights_run3_2024_signal_20261011_1728019-e0ccb17",
+    "ts": "2026-10-11 22:07:29",
+    "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-14 16:32:56",
+    "hosts": [
+      "cmslpc"
+    ]
+  }
+}

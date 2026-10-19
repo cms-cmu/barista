@@ -238,6 +238,10 @@ setup_bbreww:
 
 validation:
   before_script:
+    # The cupping notes are derived from roasts/*/roast.json and are not committed: a
+    # generated index that every roast rewrites conflicts on each parallel publish.  Must
+    # run before update_mkdocs_nav.sh, which globs docs/prod to build the nav.
+    - python3 src/tools/roast.py index
     - bash docs/sync_readmes.sh
     - bash docs/update_mkdocs_nav.sh
     - cp docs/mkdocs.yml .
@@ -254,6 +258,10 @@ pages:
   # failure elsewhere in the pipeline no longer blocks them.
   needs: []
   before_script:
+    # The cupping notes are derived from roasts/*/roast.json and are not committed: a
+    # generated index that every roast rewrites conflicts on each parallel publish.  Must
+    # run before update_mkdocs_nav.sh, which globs docs/prod to build the nav.
+    - python3 src/tools/roast.py index
     - bash docs/sync_readmes.sh
     - bash docs/update_mkdocs_nav.sh
     - cp docs/mkdocs.yml .

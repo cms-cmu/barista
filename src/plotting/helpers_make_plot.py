@@ -125,6 +125,137 @@ def plot_border_ttHbb_SR(h_min: float = 95.0, h_max: float = 180.0,
             ax.text(arm_max + 100, arm_max + 100, "SB", color=sb_color, fontsize=16, weight='bold', ha='center', va='center')
 
 
+_SHAPE_GEOMETRY_KEYS = {
+    "polygon":   {"points"},
+    "line":      {"points"},
+    "rectangle": {"x", "y"},
+    "ellipse":   {"center", "width", "height", "angle"},
+    "circle":    {"center", "radius"},
+    "hline":     {"y", "xmin", "xmax"},
+    "vline":     {"x", "ymin", "ymax"},
+    "func":      {"expr", "xrange", "npoints"},
+    "hyperbola": {"a", "b", "c", "xrange", "yrange", "npoints", "branch"},  ### y = a + b/(x-c)
+}
+
+
+def draw_shapes(shapes: List[Dict], ax=None) -> None:
+    """Draw user-defined shapes (in data coordinates) on top of a plot.
+
+    Each entry is a dict with a ``type`` plus geometry and optional style keys:
+
+    - polygon:   points: [[x, y], ...]           (closed)
+    - line:      points: [[x, y], ...]           (open polyline)
+    - rectangle: x: [xlo, xhi], y: [ylo, yhi]
+    - ellipse:   center: [x, y], width, height, angle (deg, optional)
+    - circle:    center: [x, y], radius
+    - hline:     y: value   (optional xmin/xmax in axes fraction)
+    - vline:     x: value   (optional ymin/ymax in axes fraction)
+    - func:      expr: "235/x" (numpy available as np), xrange: [lo, hi], npoints (optional)
+    - hyperbola: y = a + b/(x + c), xrange: [lo, hi]. The vertical asymptote is at
+                 x = -c (c defaults to 0). branch: "left" (x < -c), "right" (x > -c)
+                 or "both" (default). Optional yrange: [lo, hi] clips the curve
+                 to that y range (points outside are dropped). a, b and c may
+                 be numbers or lists; lists draw one curve per (a, b, c) set
+                 (a scalar is broadcast). Optional "text" labels go at the
+                 right end of each curve (a list of strings gives one label
+                 per curve).
+
+    Style keys: color, linestyle, linewidth, alpha, fill (bool), facecolor,
+    and text / text_xy / text_color / fontsize to put a label on the shape.
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    for s in shapes:
+        s = dict(s)
+        kind = s.pop("type")
+        color = s.pop("color", BORDER_COLOR)
+        style = dict(
+            linestyle=s.pop("linestyle", BORDER_LINESTYLE),
+            linewidth=s.pop("linewidth", DEFAULT_LINEWIDTH),
+            alpha=s.pop("alpha", None),
+        )
+        fill = s.pop("fill", False)
+        facecolor = s.pop("facecolor", color)
+        patch_style = dict(style, edgecolor=color, fill=fill,
+                           facecolor=facecolor if fill else "none")
+        text = s.pop("text", None)
+        text_xy = s.pop("text_xy", None)
+        text_style = dict(color=s.pop("text_color", color), fontsize=s.pop("fontsize", 16),
+                          weight="bold", ha="center", va="center")
+        default_xy = None
+
+        unknown = set(s) - _SHAPE_GEOMETRY_KEYS.get(kind, set())
+        if unknown:
+            logger.warning(f"draw_shapes: ignoring unknown keys {sorted(unknown)} for {kind!r}")
+
+        if kind in ("polygon", "line"):
+            pts = np.asarray(s["points"], dtype=float)
+            ax.add_patch(mpatches.Polygon(pts, closed=(kind == "polygon"), **patch_style))
+            default_xy = pts.mean(axis=0)
+        elif kind == "rectangle":
+            (x0, x1), (y0, y1) = s["x"], s["y"]
+            ax.add_patch(mpatches.Rectangle((x0, y0), x1 - x0, y1 - y0, **patch_style))
+            default_xy = ((x0 + x1) / 2, (y0 + y1) / 2)
+        elif kind == "ellipse":
+            ax.add_patch(mpatches.Ellipse(s["center"], s["width"], s["height"],
+                                          angle=s.get("angle", 0), **patch_style))
+            default_xy = s["center"]
+        elif kind == "circle":
+            ax.add_patch(mpatches.Circle(s["center"], s["radius"], **patch_style))
+            default_xy = s["center"]
+        elif kind == "hline":
+            ax.axhline(s["y"], s.get("xmin", 0), s.get("xmax", 1), color=color, **style)
+        elif kind == "vline":
+            ax.axvline(s["x"], s.get("ymin", 0), s.get("ymax", 1), color=color, **style)
+        elif kind == "func":
+            x = np.linspace(*s["xrange"], s.get("npoints", 200))
+            y = eval(s["expr"], {"np": np, "__builtins__": {}}, {"x": x}) * np.ones_like(x)
+            ax.plot(x, y, color=color, **style)
+        elif kind == "hyperbola":
+            branch = s.get("branch", "both")
+            if branch not in ("left", "right", "both"):
+                raise ValueError(f"draw_shapes: hyperbola branch must be left/right/both, got {branch!r}")
+            a_vals, b_vals, c_vals = np.broadcast_arrays(np.atleast_1d(s.get("a", 0.0)),
+                                                         np.atleast_1d(s["b"]),
+                                                         np.atleast_1d(s.get("c", 0.0)))
+            labels = text if isinstance(text, list) else [text] * len(a_vals)
+            for a, b, c, label in zip(a_vals, b_vals, c_vals, labels):
+                x = np.linspace(*s["xrange"], s.get("npoints", 500))
+                if branch == "left":
+                    x = x[x < -c]
+                elif branch == "right":
+                    x = x[x > -c]
+                if x.size == 0:
+                    logger.warning(f"draw_shapes: hyperbola {branch} branch (asymptote x={-c}) "
+                                   f"lies outside xrange {s['xrange']}")
+                    continue
+                with np.errstate(divide="ignore"):
+                    y = a + b / (x + c)
+                # Break the line at the asymptote so the branches aren't joined
+                y[~np.isfinite(y)] = np.nan
+                if "yrange" in s:
+                    ylo, yhi = s["yrange"]
+                    y[(y < ylo) | (y > yhi)] = np.nan
+                cross = np.where(np.diff(np.sign(x + c)) != 0)[0]
+                x = np.insert(x, cross + 1, np.nan)
+                y = np.insert(y, cross + 1, np.nan)
+                ax.plot(x, y, color=color, **style)
+                if label and text_xy is None:
+                    finite = np.isfinite(y)
+                    if finite.any():
+                        last = np.where(finite)[0][-1]
+                        ax.text(x[last], y[last], label, **dict(text_style, ha="left"))
+            if isinstance(text, list) or text_xy is None:
+                text = None  # labels already drawn per curve
+        else:
+            raise ValueError(f"draw_shapes: unknown shape type {kind!r}")
+
+        xy = text_xy if text_xy is not None else default_xy
+        if text and xy is not None:
+            ax.text(*xy, text, **text_style)
+
+
 def _draw_stack(stack_dict: Dict, uniform_bins: bool, norm: bool, add_flow: bool,
                 plot_data: Dict, ax) -> None:
     """Draw the stacked histogram. Stores uniform-bin metadata in plot_data when needed."""
@@ -793,6 +924,8 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
                 plot_leadst_lines()
             if opts.plot_sublst_lines:
                 plot_sublst_lines()
+            if opts.shapes:
+                draw_shapes(opts.shapes, ax=ax)
 
         ax = fig.gca()
         hep.cms.label(opts.CMSText, data=True,

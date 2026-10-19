@@ -1,0 +1,423 @@
+# ==============================================================================
+# ttHbb Run 2 BACKGROUND SYSTEMATIC (Snakefile_bkg_syst.smk), run as a roast
+# ==============================================================================
+# Closure subsamples from the Run 2 mixed data, per-subsample JCM + FvT, two-stage closure fit, and
+# the datacards with that background systematic. Everything it reads comes from two upstream roasts
+# (see `inputs:`); everything it writes is this roast's: local output under output/{roast_id}/, EOS
+# products under {eos_prod}/{roast_id}/. No user names: {eos_prod} / {web_prod} come from the roast
+# user's profile (helpers/common.smk), and publishing goes through `roast publish`.
+#
+#   roast new --config coffea4bees/workflows/config/analysis_ttHbb_bkg_syst.yml \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_bkg_syst.smk
+#   roast submit <id> --step bkg_syst --targets all_pre_fvt      # A_1-A_3 + B_1
+#
+label: "ttHbb_bkg_syst"
+output_path: "output/{roast_id}/"
+fourTag_use_tight: false
+# EOS area this workflow writes to: the A_2 subsample picoAODs (<publish_base>/picoAOD/subsamples/v<k>/),
+# the A_3 classifier inputs / SvB friends, the C models and FvT friends
+publish_base: "{eos_prod}/{roast_id}"
+# EOS handoff between hosts: A/B products for C on the GPU host, C's friend manifests for F
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+channel: "ttHbb"
+dataset_location: "coffea4bees/metadata/datasets/"
+
+weights_file: "coffea4bees/metadata/weights/weights_ttHbb.yml"
+years:
+  - "UL16_preVFP"
+  - "UL16_postVFP"
+  - "UL17"
+  - "UL18"
+
+phase_f_output_path: "inputs/"
+phase_f_label: "ttHbb"
+
+# ttbar MC in inputs.jcm_hists: the ttbar term of the A_1 mixed-data JCM fit
+ttbar_processes:
+  - "TTTo2L2Nu_stitched"
+  - "TTToSemiLeptonic_stitched"
+  - "TTToHadronic_stitched"
+
+# ==============================================================================
+# STAGE A: CLOSURE SUBSAMPLES FROM A MIXEDDATA ROAST
+#   A_1  mixed-data JCM fit in the analysis selection (mixeddata_all vs inputs.jcm_hists)
+#   A_2  split mixeddata_all into subsamples.n subsamples with it; + ttbar pseudodata -> mixeddata_4b
+#   A_3  processor_ttHbb over each subsample (pre-JCM histograms for B_1, classifier inputs, SvB)
+# ==============================================================================
+# Everything read from other productions, checked by `roast new` to lie inside upstream_roasts.
+inputs:
+  # The two upstream roasts, by alias: {roast:<alias>} is that roast's EOS area, {roast:<alias>:<key>}
+  # a top-level value of its captured config (roasts/<id>/config.yml; `id` = the roast id itself)
+  upstream_roasts:
+    nominal: ttHbb_run2_20260929_a209210-6a2293a          # ttHbb Run 2 nominal (B, C, C4, D, F)
+    mixeddata: mixeddata_run2_20260927_c39c264-0ce4d59    # MakeMixedData Run 2, 3b mixing
+  # mixed data and ttbar pseudodata (read in place)
+  mixeddata_all: "{roast:mixeddata}/handoff/mixeddata_all.yml"
+  ttbar_psdata: "{roast:mixeddata}/handoff/ttbar_PSData.yml"
+  # From the nominal roast, laid out by its own output_path / label:
+  #   jcm_hists          B.1 4b data + ttbar MC noJCM histograms (ttHbb selection, stitched ttbar). A_1
+  #                      fits the mixed-data JCM against them, B_1 the per-subsample JCMs. A_1 histograms
+  #                      the mixed data with the runner config next to them (analysis_config_noJCM.yml).
+  #   nominal_hists      Phase F histograms: F_2 signal, F_3 / F_4 datacards
+  #   classifier_inputs  B.2 classifier-input manifest (C: the detector 3b / ttbar HCR inputs)
+  #   SvB                Phase D SvB friend of the data (F_1)
+  #   SvB_model          the Phase D model behind that friend: A_3 scores the mixed subsamples with it
+  jcm_hists: "{roast:nominal}/{roast:nominal:output_path}computeJCM/histAll_NoJCM.coffea"
+  nominal_hists: "{roast:nominal}/{roast:nominal:output_path}histAll_{roast:nominal:label}.coffea"
+  classifier_inputs: "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json"
+  SvB: "{roast:nominal}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged"
+  SvB_model: "{roast:nominal}/classifier/SvB_ttHbb_stitched/result.json"
+
+# Dask worker memory of every Stage A processor job (A_1 histograms, A_2 split / study, A_3). One value:
+# the jobs share a Dask daemon whose workers keep the memory of the job that started it. The split
+# and the A_3 pass (SvB on the fly) were OOM-killed at 4 / 6 GB.
+worker_memory: "8GB"
+
+# A_1: make_jcm_weights.py, mixeddata_all as the "3b" sample; ttbarProcesses = ttbar_processes
+mixed_jcm:
+  config: "coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config.yml"
+  region: "SB"
+  float_t: true
+
+# A_2: split_mixed_data.py / processor_study_mixed_data.py
+subsamples:
+  n: 16
+  split_template: "coffea4bees/skimmer/metadata/split_mixeddata.yml"
+  study_template: "coffea4bees/analysis/metadata/study_mixed_data.yml"
+
+# A_3: unified subsample processing (processor_ttHbb over mixeddata_4b:v0..v15). Dumps:
+#   1. Pre-JCM Histograms (selJets_noJCM.n / tagJets_noJCM.n for Stage B_1)
+#   2. Classifier Input trees on EOS & merged JSON (for Stage C_1)
+#   3. SvB Friend Trees on EOS & merged friend JSON (for Stage F_1)
+# Runtime effective configs are staged into <output_path>bkg_syst_A_3_process_subsamples/configs/
+phaseA_3:
+  runner:
+    workers: 4
+    min_workers: 25
+    max_workers: 200
+  # config: classifier inputs -> <publish_base>/classifier_inputs/mixeddata/v<k>/, SvB friends ->
+  # <publish_base>/friend/mixeddata/v<k>/, SvB_MA = inputs.SvB_model (defaults: helpers/stage_configs.py)
+
+# A_3 validation plots (rule A3_validation: makePlots + gallery, plot config
+# coffea4bees/plots/metadata/plots_bkg_syst_mixed_validation.yml): 4b data and the nominal model
+# (inputs.nominal_hists) vs the mean of the mixed subsamples and `subsample` on its own, in SR / SB,
+# inclusive and pass_nSelJets_gt6
+validation:
+  hists: ["SvB_MA.ps_ttHbb", "SvB_MA.ps", "SvB_MA.tt_vs_mj", "SvB_MA.ptt", "selJets.n", "tagJets.n"]
+  model_ttbar: ["TTbar4b_from_d3"]       # the nominal Phase F ttbar (from 3b data), filled as threeTag
+  model_ttbar_tag: "threeTag"
+  subsample: 0
+
+
+# ==============================================================================
+# STAGE B_1: DEDICATED JCM FITS & VALIDATION CLOSURE
+# Fits JCM transfer weights against 4b Data - ttbar for each subsample (v0..v15)
+# using coffea4bees/analysis/jcm_tools/make_jcm_weights.py.
+# Evaluates processor_ttHbb with JCM applied on a single subsample (v0) and
+# generates data-vs-model closure plots.
+# ==============================================================================
+phaseB_1:
+  jcm:
+    config: "coffea4bees/analysis/jcm_tools/metadata/ttHbb_subsample_jcm_config.yml"
+    plot_config: "coffea4bees/plots/metadata/plots_JCM_ttHbb.yml"
+    region: "SB"
+    year: "RunII"
+    # data_coffea: defaults to inputs.jcm_hists (as A_1)
+  validation:
+    subsample: 0
+    processor_config: "coffea4bees/workflows/config/analysis_config_bkg_syst_test_subsample.yml"
+    plot_config: "coffea4bees/plots/metadata/plots_subsample_v0_closure_ttHbb.yml"
+    runner:
+      workers: 4
+      worker_memory: "6GB"
+      condor: true
+      shared_dask: true
+    config:
+      blind: false
+      apply_FvT: false
+      apply_JCM: true
+      apply_trigWeight: false
+      apply_btagSF: true
+      apply_boosted_veto: false
+      run_SvB: false
+      top_reconstruction: "fast"
+      fill_histograms: true
+      hist_cuts:
+        - "pass_nSelJets_gt6"
+
+# ==============================================================================
+# STAGE C_1: FVT CLASSIFIER TRAINING & EVALUATION (Bridges-2 GPU)
+# Self-contained Stage C configuration (Option 1):
+#   - classifier_setting: global settings (eras, feature branches, dataloader)
+#   - fvt_train_workflow: training task template
+#   - fvt_eval_workflow: evaluation task template
+# Runtime effective configs are staged into <output_path>bkg_syst_C_FvT/models/mix_<m>/
+# ==============================================================================
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+      - num_workers: 2
+      - batch_eval: 65536
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.MC_TTbar
+    option:
+      - datasets:
+          - TTToSemiLeptonic_stitched
+          - TTToHadronic_stitched
+          - TTTo2L2Nu_stitched
+  - module: cms.CollisionData
+    option:
+      - eras:
+          UL16_preVFP: [C, D, E, F]
+          UL16_postVFP: [F, G, H]
+          UL17: [B, C, D, E, F]
+          UL18: [A, B, C, D]
+        years:
+          - UL16_preVFP
+          - UL16_postVFP
+          - UL17
+          - UL18
+  - module: HCR.InputBranch
+    option:
+      - feature_ancillary: [xW, nSelJets, xbW, year]
+  - module: ml.Training
+    option:
+      - precision: fp16
+
+fvt_train_workflow:
+  main:
+    module: train
+    option:
+      - --max-loaders 2
+      - --max-trainers 3
+      - --device cuda cpu
+  dataset:
+    - module: HCR.FvT.TrainBaseline
+      option:
+        - --metadata {metadata}
+        - --max-workers 20
+        - --data-source detector mixed
+        - --no-detector-4b
+        - --data-mixed-name {mixed_name}
+        - --data-mixed-samples {mix}
+        - --JCM-weight "" {jcm}@@JCM_weights
+        - --friends "" {nominal_ci}@@HCR_input {mixed_ci}@@HCR_input
+  model:
+    - module: HCR.FvT.baseline.Train
+      option:
+        - --kfolds 3
+        - --kfold-seed FvT random
+        - --kfold-seed-offsets 0
+        # as the nominal ttHbb FvT (classifier/config/workflows/ttHbb/FvT/train.yml): FixedStep, 20
+        # epochs. (EarlyStopStep takes es_patience / es_min_delta / es_min_epoch and needs Monitor
+        # benchmarks, which this workflow does not enable.)
+        - --training FixedStep
+        - epoch: 20
+          bs_init: 1024
+        - --finetuning FixedStep
+        - epoch: 1
+          bs_init: 16384
+  setting:
+    - module: IO
+      option:
+        - output: "{model}"
+
+fvt_eval_workflow:
+  main:
+    module: evaluate
+    option:
+      - --max-evaluators 3
+      - --device cuda cpu
+  dataset:
+    - module: HCR.FvT.Eval
+      option:
+        - --metadata {metadata}
+        - --max-workers 8
+        - --data-source detector
+        - --friends "" {nominal_ci}@@HCR_input
+  model:
+    - module: HCR.FvT.baseline.Eval
+      option:
+        - --models
+        - Final
+        - "{model}/result.json"
+  analysis:
+    - module: kfold.Merge
+      option:
+        - --name FvT
+        - --step 100000
+        - --workers 4
+        - --clean
+  setting:
+    - module: IO
+      option:
+        - output: "{FvT}"
+
+phase_e_fvt:
+  channel: "ttHbb"
+  mix_name: "ttHbb_bkg_syst"
+  n_models: 16
+  plot_base: "{web_prod}/{roast_id}/classifier_plots"
+  # nominal_classifier_inputs: inputs.classifier_inputs; the per-subsample mixed classifier inputs and
+  # JCMs default to this roast's A_3 / B_1 outputs (helpers/stage_configs.py:stage_phaseC_configs)
+  precision: "fp16"
+  # GPU resources (falcon): qos light allows <= 25 MPS per job and 3 jobs per user; medium 50 MPS but
+  # 1 job and 8 h. mps:50 on light (the Snakefile default) is refused (QOSMaxGRESPerJob), so: light +
+  # mps:25 -> 3 trainings in parallel. On Bridges-2: gpu_partition: GPU-shared, slurm_account:
+  # phy260026p, gpu_gres: gpu:1, gpu_mem/eval_mem: 22000.
+  gpu_gres: "mps:25"
+  plot_inputs: false
+  plot_weights: false
+  analyze: false
+  evaluate: true
+
+
+# Only `processor` is read (A_3, B_1): the processor of every analysis pass
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_ttHbb.py"
+  weights_file: "coffea4bees/metadata/weights/weights_ttHbb.yml"
+  runner:
+    workers: 8
+    chunksize: 100000
+    condor: false
+    shared_dask: false
+    run_performance: false
+  config:
+    fourTag_use_tight: false
+    blind: false
+    apply_FvT: false
+    apply_JCM: false
+    apply_trigWeight: false
+    apply_btagSF: true
+    apply_boosted_veto: false
+    run_SvB: true
+    SvB_MA: true
+    SvB: null
+    apply_lepton_veto: false
+    hist_cuts: ["pass_nSelJets_gt6"]
+    top_reconstruction: fast
+    plot_ttbar_with_weights: true
+
+# TWO-STAGE CLOSURE CANDIDATES & MULTI-BINNING
+closure_rebin_candidates:
+  - 2   # 120 bins (240 / 2)
+  - 12  # 20 bins (240 / 12)
+  - 15  # 16 bins (240 / 15)
+  - 16  # 15 bins (240 / 16)
+  - 20  # 12 bins (240 / 20)
+  - 24  # 10 bins (240 / 24)
+max_basis: 10
+rebin: 12
+
+
+# COMBINE STATISTICAL INTERPRETATION & LIMITS
+convert_hist_to_json:
+  histos:
+    - "SvB_MA.ps_ttHbb"
+    - "SvB_MA.ps_ttHbb_gt6"
+    - "SvB_MA.ps_ttHbb_lepveto"
+    - "SvB_MA.ps_ttHbb_gt6_lepveto"
+
+combine_outdir: "bkg_syst_F_3_stats/datacards/"
+make_combine_inputs:
+  stat_only: ""
+  metadata_template: "coffea4bees/stats_analysis/metadata/{channel}.yml"
+  multijet_process: "data"
+  tt_processes:
+    - "TTTo"
+    - "TTbar4b_from_d3"
+
+combine_flags: "--three_tag threeTag --four_tag fourTag --region sum --blind"
+likelihood_scan_points: 40
+likelihood_scan_r_min: 0
+likelihood_scan_r_max: 2
+likelihood_scan_y_cut: 30
+likelihood_scan_y_max: 30
+
+channels:
+  ttHbb:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "sum"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "sum"
+    stat_only: true
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_gt6"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_gt6"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6"
+    stat_only: true
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_lepveto:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_lepveto"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "passLeptonVeto"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_lepveto_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_lepveto"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "passLeptonVeto"
+    stat_only: true
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_lepveto:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_gt6_lepveto"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6_passLeptonVeto"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_lepveto_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb_gt6_lepveto"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6_passLeptonVeto"
+    stat_only: true
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+
+# F_1 single pass carries 16 FvT friends + 16 JCM/FvT weight sets per event: workers at the
+# Stage A 8GB (the stager's default is 4GB; the shared Dask daemon keeps its starter's memory)
+phase_f_1:
+  runner:
+    worker_memory: 8GB

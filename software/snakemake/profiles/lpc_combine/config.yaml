@@ -12,3 +12,4 @@ default-resources:
   - "tmpdir='/tmp'"
   - "mem_mb=4000"
 latency-wait: 60
+jobs: 30

@@ -25,3 +25,6 @@ default-resources:
   tmpdir: "'/tmp'"
   mpi: "'none'"
   tasks: 2
+# No set-resources for train/evaluate: a profile set-resources overrides the rule resources and every
+# workflow's config. The GPU default (mps:25, qos light) lives in src/classifier/workflow/Snakefile;
+# heavier trainings set gpu_gres / gpu_qos (and train_/eval_ runtime, mem) in their own config.

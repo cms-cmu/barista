@@ -1,0 +1,236 @@
+{
+  "id": "declib16_run2_20261003_f7183e9-9ae5088",
+  "label": "declib16_run2",
+  "created": "2026-10-03 15:39:54",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "f7183e9fc904dcb143f71ab839ef2da55f49ee06",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "9ae508817ea493bfb6d02b473919d180540d34c9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run2_library_16x.yml",
+    "captured": "config.yml",
+    "sha256": "7f55c2997fe61dbc70fff79a3f990cadadf4e8260d91fee28e8b627b9e53646f",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2.yml",
+        "sha256": "424c3986fe839b394ac2aa08275a2b3b05961c08359109547cc90e9e4742603c"
+      },
+      {
+        "source": "coffea4bees/workflows/config/declustered_run2_library.yml",
+        "sha256": "229a81c381dce05611b1cb335629c58bc63101b3e6d0b33b69d62db28b1e4269"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run2_20260919_a180b1a-a16559c",
+        "barista": "a180b1a6b5499706707ba04b2f7f4a0496ea0dfb",
+        "coffea4bees": "a16559c7b91ff76be95f9547defa5439d2b23841",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run2_20260919_a180b1a-a16559c",
+        "archived": false
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      },
+      {
+        "id": "libA_run2_20261002_7fc0957-3531140",
+        "barista": "7fc0957d8ee886c26107a492f401cc6aadfd1fff",
+        "coffea4bees": "3531140e346eadb196bba88d13a3bbbd2dbdab33",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/libA_run2_20261002_7fc0957-3531140",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal_run2_20260919_a180b1a-a16559c}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run2_20260919_a180b1a-a16559c"
+      },
+      "splitting_library": {
+        "url": "{roast:libA_run2_20261002_7fc0957-3531140}/splitting_library/splitting_library.yml",
+        "roast": "libA_run2_20261002_7fc0957-3531140"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-03 15:42:28",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
+        },
+        {
+          "ts": "2026-10-03 15:44:27",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
+        },
+        {
+          "ts": "2026-10-03 16:23:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
+        },
+        {
+          "ts": "2026-10-03 19:00:21",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
+        },
+        {
+          "ts": "2026-10-03 19:57:02",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run2_f7183e9-9ae5088_DeClustered",
+          "ssh": "jda102@cmslpc305.fnal.gov",
+          "config_sha256": "7f55c2997fe6"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/declib16_run2_20261003_f7183e9-9ae5088/barista",
+      "ssh": "jda102@cmslpc305.fnal.gov",
+      "checked_out": "2026-10-03 15:42:09"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16_run2_20261003_f7183e9-9ae5088",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16_run2_20261003_f7183e9-9ae5088/",
+    "ts": "2026-10-03 21:08:46",
+    "ok": true,
+    "pages": [
+      "output/declib16_run2_20261003_f7183e9-9ae5088/D5/cutflow_monitoring.html",
+      "output/declib16_run2_20261003_f7183e9-9ae5088/D5/plots/index.html",
+      "output/declib16_run2_20261003_f7183e9-9ae5088/D5/seed_study/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-03 15:39:54",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-03 15:42:09",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 15:42:28",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 15:44:27",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 16:23:17",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 19:00:21",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 19:57:02",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-03 21:08:45",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-03 21:08:51",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "16-seed libA Run 2 declustered sample on libA_run2's library (no D.1, D.6 off): mixeddata_all_declib16 (all seeds, one sample) + synthetic_data_lib16_{4b,multijet}; D.5 seed study (Jet_lib_index, N_eff). First consumer: ttH systematics. HOT PATCH 2026-10-03 15:20: first D.3 pass failed (No module named coffea4bees.skimmer: without D.1, D.3 starts the shared dask daemon with the Run 2 skimmer template's transfer list). Checkout's Snakefile_DeClustered_3_decluster.smk replaced by coffea4bees 9ba4eb531 (D3_config ships src + coffea4bees), D3 configs regenerated, step resumed. HOT PATCH 2 (18:58): D5_seed_study read picoAODs with uproot.iterate step_size '200 MB' -> fsspec_xrootd 'integer argument expected for offset'; script from coffea4bees 513a573c6 (file-by-file reads). OPS: shared dask daemon OOM-killed once (4.9 GB on 11 GB cmslpc305); a runner left hanging on the dead scheduler was killed by pid; UL18 workers OOM (two years' libraries cached with 16 seeds x 4 years interleaved) -> seed1/seed10 UL18 exhausted retries, rerun on a fresh daemon. All 64 seed x year registries complete (D3_check). SEED STUDY: same draw for the same event in two seeds 8.4%, identical events 2.4%, single-candidate lookups 4.0%; N_eff (16 seeds) ~3.3-6 for SR/SB shapes (lead/subl mass, xHH, canJet pT), 1 for preselection counts.",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run2_20261003_f7183e9-9ae5088",
+    "ts": "2026-10-03 21:08:51",
+    "ok": true
+  }
+}

@@ -1216,7 +1216,7 @@ run_snakemake() {
         local IS_GPU_WORKFLOW=false
         for arg in "${ARGS[@]}"; do
             case "$arg" in
-                *src/classifier/workflow/Snakefile*|*PhaseC_2*|*PhaseC_3*|*PhaseD_2*|*PhaseD_3*|*PhaseE_4*|*_training.smk|*Snakefile_PhaseC.smk|*Snakefile_PhaseD.smk)
+                *src/classifier/workflow/Snakefile*|*PhaseC_2*|*PhaseC_3*|*PhaseD_2*|*PhaseD_3*|*PhaseE_4*|*_training.smk|*_train.smk|*Snakefile_PhaseC.smk|*Snakefile_PhaseD.smk)
                     IS_GPU_WORKFLOW=true
                     break
                     ;;

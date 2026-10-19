@@ -1,0 +1,250 @@
+{
+  "id": "mixeddata_run3_2024_20261010_c773450-d2f388f",
+  "label": "mixeddata_run3_2024",
+  "created": "2026-10-10 08:13:22",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "c77345036895e14da50c863fa3c463b88e6034ee",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "d2f388fd7153265ce4a844da833a01bb2c1d38e5",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "b8fc8be64696c26285021f862572dbfa7439cec7668ce4f71025d5dcd8189ea3"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
+        "barista": "c1cd0fe3b7c10f3f2547b582f635264a783edcf5",
+        "coffea4bees": "4e83031fa8876984b2322a9b2409843e2c749450",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20261008_f839489-a481023",
+        "barista": "f839489ab9eb53565dcd43b6e7f9c1b8160f6248",
+        "coffea4bees": "a481023c6da813c474e6e037f65e2c2cf8b94091",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20261008_f839489-a481023",
+        "archived": false
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/JCM_Run3_2024_nontight_v1/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml",
+        "roast": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031"
+      },
+      "SvB_model": {
+        "url": "{eos_prod}/nominal_run3_20261008_f839489-a481023/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-10 08:24:19",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b309696e6176"
+        },
+        {
+          "ts": "2026-10-10 08:25:53",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b309696e6176"
+        },
+        {
+          "ts": "2026-10-10 08:51:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b309696e6176"
+        },
+        {
+          "ts": "2026-10-10 08:51:56",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b309696e6176"
+        },
+        {
+          "ts": "2026-10-10 11:06:47",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b8fc8be64696"
+        },
+        {
+          "ts": "2026-10-10 11:10:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b8fc8be64696"
+        },
+        {
+          "ts": "2026-10-10 12:51:54",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M3",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b8fc8be64696"
+        },
+        {
+          "ts": "2026-10-10 12:52:06",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M3",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_c773450-d2f388f_MakeMixedData",
+          "ssh": "jda102@cmslpc330.fnal.gov",
+          "config_sha256": "b8fc8be64696"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_2024_20261010_c773450-d2f388f/barista",
+      "ssh": "jda102@cmslpc330.fnal.gov",
+      "checked_out": "2026-10-10 08:24:10"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-10 08:13:22",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-10 08:24:10",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 08:24:19",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 08:25:53",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 08:51:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 08:51:56",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 11:06:47",
+      "event": "config-edited",
+      "sha256": "b8fc8be64696"
+    },
+    {
+      "ts": "2026-10-10 11:06:47",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 11:10:00",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 12:51:54",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-10 12:52:06",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "2024 mixed data, first attempt with the skimmer transient-I/O retry. M.1 OK: the ~2M-hemisphere library (prescale 0.1555 of 12,861,770) reused by mixeddata_run3_2024_20261010_952524e-5ddc954 via inputs.hemilib. HOT PATCH 2026-10-10: M.2 KilledWorker (data_2024C chunk4, silent OOM at 8GB) -> mixing.worker_memory 12GB in the captured config (mtime kept), M.2 rerun OK. M.3 FAILED: 0 events selected -- the 2024 mixed data store the jet ID as a boolean Jet_jetId, which the jetId >= 2 test rejected (fixed in coffea4bees e7f7c301b). Superseded by 952524e-5ddc954, but KEEP: its EOS hemilib/ is that roast's M.1 input.",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  }
+}

@@ -45,8 +45,9 @@ _UL_YEAR = r"UL\d{2}(?:_preVFP|_postVFP)?"
 _RUN3_YEAR = r"\d{4}(?:_preEE|_postEE|_preBPix|_BPix|_EE)?"
 _YEAR = f"(?:{_UL_YEAR}|{_RUN3_YEAR})"
 # Run 2 eras are a bare letter (UL17C). Run 3 eras carry digits too: C01, C02, C11, C12, C3,
-# C4 for 2023_preBPix and D1, D2 for 2023_BPix.
-_ERA = r"[A-H]\d*"
+# C4 for 2023_preBPix and D1, D2 for 2023_BPix. 2024 runs to era I (I2, I3): with [A-H] those
+# datasets fell through to "Unknown" and dropped out of the cutflow_closure tables.
+_ERA = r"[A-I]\d*"
 
 
 def parse_dataset_name(dataset: str, merge_ttbar: bool = False) -> Tuple[str, str, str]:

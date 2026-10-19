@@ -67,6 +67,12 @@ class TestParseDatasetNameRun3(unittest.TestCase):
     def test_2024_bare_year(self):
         self.assertEqual(parse_dataset_name("TTToHadronic_2024"), ("TTToHadronic", "2024", "2024"))
 
+    def test_2024_eras(self):
+        # 2024 runs to era I (I2, I3); an [A-H] era pattern dropped those to "Unknown"
+        for name, era in (("data_2024C", "2024_C"), ("data_2024I2", "2024_I2"), ("data_2024I3", "2024_I3")):
+            with self.subTest(name=name):
+                self.assertEqual(parse_dataset_name(name), ("data", "2024", era))
+
 
 class TestParseDatasetNameRun2(unittest.TestCase):
     """Run 2 must keep working -- the Run 3 fix shares the same regexes."""

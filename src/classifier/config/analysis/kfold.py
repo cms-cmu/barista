@@ -94,6 +94,8 @@ def _load_friends(stage: str, results: list[dict]):
     kfolds: list[Friend] = []
     logging.debug(f"_load_friends: stage={stage}, results count={len(results)}")
     for result in results:
+        if not isinstance(result, dict):
+            continue
         predictions: list[dict] = result.get(ResultKey.predictions)
         if predictions is None:
             logging.debug("_load_friends: predictions is None!")

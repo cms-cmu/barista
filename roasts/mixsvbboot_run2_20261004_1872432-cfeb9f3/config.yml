@@ -1,0 +1,93 @@
+# Captured by `roast new`: coffea4bees/workflows/config/mixeddata_run2_svbboot.yml merged over coffea4bees/workflows/config/mixeddata_run2.yml.
+# Comments are not carried over; read the sources for them.
+label: mixeddata_run2_svbboot
+output_path: output/{roast_id}/
+publish_base: '{eos_prod}/{roast_id}'
+inputs:
+  upstream_roasts:
+  - nominal_run2_20260919_a180b1a-a16559c
+  - mixeddata_run2_20260927_c39c264-0ce4d59
+  FvT: '{roast:nominal_run2_20260919_a180b1a-a16559c}/friend/FvT_nominal/result.json@@analysis.0.merged'
+  JCM: '{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/JCM_2024_v2/jetCombinatoricModel_SB_2024_v2.yml'
+  jcm_hists: '{roast:nominal_run2_20260919_a180b1a-a16559c}/output/TESTRun2/computeJCM/histAll_NoJCM.coffea'
+  SvB_model: '{eos_prod}/nominal_run2_20260919_a180b1a-a16559c/classifier/SvB_nominal/result.json'
+  subsamples: '{roast:mixeddata_run2_20260927_c39c264-0ce4d59}/handoff/mixeddata_4b.yml'
+year_eras:
+  UL16_preVFP:
+  - C
+  - D
+  - E
+  - F
+  UL16_postVFP:
+  - F
+  - G
+  - H
+  UL17:
+  - C
+  - D
+  - E
+  - F
+  UL18:
+  - A
+  - B
+  - C
+  - D
+ttbar:
+- TTToHadronic
+- TTToSemiLeptonic
+- TTTo2L2Nu
+fourTag_use_tight: false
+analysis_config:
+  processor: coffea4bees/analysis/processors/processor_HH4b.py
+  dataset_location: coffea4bees/metadata/datasets/
+  friend_file: coffea4bees/metadata/friends/friends_HH4b.yml
+  weights_file: coffea4bees/metadata/weights/weights_HH4b_2024_v2.yml
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+hemi_library:
+  config_template: coffea4bees/analysis/metadata/make_hemi_library_4b.yml
+  hemi_year_key: year
+  study_threshold: 1000
+mixing:
+  skimmer_template: coffea4bees/skimmer/metadata/mixeddata.yml
+  dataset_name: mixeddata_all
+  default_rank: 0
+  use_topk_matching: true
+  k_neighbors: 10
+  collision_mode: retry
+  use_boost_corrected_matching: true
+  boost_acceptance_eta: 2.4
+  worker_memory: 8GB
+  chunksize: 100000
+mixed_jcm:
+  config: coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config.yml
+  float_t: true
+ttbar_psdata:
+  dataset_name: ttbar_PSData
+  seed: 5
+  require_trigWeight: true
+  worker_memory: 6GB
+  chunksize: 100000
+  picosize: 100000
+signal_check:
+  enabled: true
+  datasets:
+  - GluGluToHHTo4B_cHHH1
+  subsample: 10
+  mixeddata_subsample: 10
+  chunksize: 20000
+subsamples:
+  n: 16
+  dataset_name: mixeddata_4b

@@ -1,0 +1,59 @@
+# ==============================================================================
+# 2025 DATA SKIMS (ParkingHH0 + ParkingHH1, PromptReco NanoAODv15)
+# ==============================================================================
+# ./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseA_1_skimmer.smk \
+#     --configfile coffea4bees/workflows/config/skims_2025_data.yml --cores 4 --jobs 4
+#
+# ParkingHH0/1 are an event-split pair over the same lumisections (disjoint events), so
+# both are skimmed; the era keys are those of data.yml ('2025': B01 ... G11).
+label: "skims_2025_data"
+output_path: "output/skims_2025_data/"
+
+dataset:
+  - "data"
+
+year_eras:
+  '2025':
+    - "B01"
+    - "C01"
+    - "C02"
+    - "D01"
+    - "E01"
+    - "F01"
+    - "F02"
+    - "G01"
+    - "B11"
+    - "C11"
+    - "C12"
+    - "D11"
+    - "E11"
+    - "F11"
+    - "F12"
+    - "G11"
+
+skimmer:
+  processor: "coffea4bees/skimmer/processor/skimmer_4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  runner:
+    condor: true
+    shared_dask: true
+    run_performance: true
+    # Ordered: coffea takes the first listed site holding each file. Most 2025 PromptReco
+    # blocks are not on LPC EOS (HH4b.yml's T3_US_FNALLPC-only list fails), but every file
+    # has a FNAL dCache or Wisconsin replica (checked 2026-10-09); CERN/DESY are fallbacks.
+    allowlist_sites:
+      - T1_US_FNAL_Disk
+      - T3_US_FNALLPC
+      - T2_US_Wisconsin
+      - T2_US_MIT
+      - T2_US_Purdue
+      - T2_US_Nebraska
+      - T2_US_Vanderbilt
+      - T2_US_Florida
+      - T2_US_Caltech
+      - T2_US_UCSD
+      - T2_CH_CERN
+      - T2_DE_DESY
+
+  config:
+    base_path: root://cmseos.fnal.gov//store/user/jda102/XX4b/2025_data_skims/

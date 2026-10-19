@@ -78,7 +78,12 @@ COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml" if WFS_BASE else
 # ── Cluster resource defaults ────────────────────────────────────────────────
 default_gpu_partition = config.get("gpu_partition", "work")
 default_gpu_account   = config.get("slurm_account", "")
-default_gpu_gres      = config.get("gpu_gres", "mps:50")
+# A quarter GPU on qos light by default (falcon: mps:25 = 20 GB of GPU memory). Heavier trainings
+# (e.g. the 30x MvD/FvT, ~30 GB) ask for more in their workflow config: gpu_gres "mps:50" with
+# gpu_qos "medium" -- falcon's light QOS caps a job at mps:25 (QOSMaxGRESPerJob), so the two go
+# together (d67ba6e2 paired mps:50 with light and every sbatch was rejected). Not in the falcon
+# profile: a profile set-resources would override every workflow config.
+default_gpu_gres      = config.get("gpu_gres", "mps:25")
 default_gpu_mem       = config.get("gpu_mem", 64000)
 default_gpu_qos       = config.get("gpu_qos", "light")
 
