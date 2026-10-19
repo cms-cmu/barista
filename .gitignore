@@ -221,6 +221,7 @@ condor_logs/
 # parent directory is excluded, and using_roast.md is hand-written and must stay tracked.
 docs/prod/*
 !docs/prod/using_roast.md
+!docs/prod/using_roast_nautilus.md
 
 # default output dir of src/tools/repo_activity.py
 repo_activity_output/

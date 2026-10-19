@@ -59,7 +59,8 @@ TMUX_SESSION = "roast"
 # --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
 # it uses %C, a fixed-length hash of the connection parameters.
 SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=25", "-o", "LogLevel=ERROR",
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+            "-o", "HostName=%h",
             "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
 
@@ -813,6 +814,19 @@ def _window_name(r: dict, step: dict) -> str:
     return f"{r['label']}_{r['id'].rsplit('_', 1)[-1]}_{step['name']}"
 
 
+def _tmux_session(r: dict | None = None) -> str:
+    """tmux session name for a roast.
+
+    Each roast runs in its own isolated tmux session ('roast_<id>') so that
+    multiple roasts running concurrently or resumed independently on the same
+    host do not clobber each other's sessions.
+    """
+    if not r or "id" not in r:
+        return TMUX_SESSION
+    clean = re.sub(r"[^A-Za-z0-9_-]", "_", r["id"])
+    return f"roast_{clean}"
+
+
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
                 targets: str = "") -> str:
     """The bash script that runs one step inside its tmux window."""
@@ -853,11 +867,15 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         echo "=== roast {r['id']} step {name} start $(date) on $(hostname) ===" | tee -a "$LOG"
         echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
         # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
-        # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) when the checkout has none.
+        # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) or the shared copy
+        # `roast proxy` leaves in ~/.roast (LPC /tmp is node-local), whichever is newer than the
+        # checkout's. run_container `touch`es a missing proxy, so an empty file counts as none.
         mkdir -p proxy
-        if [ ! -s proxy/x509_proxy ] || [ "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" -nt proxy/x509_proxy ]; then
-            cp -f "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" proxy/x509_proxy 2>/dev/null && echo "=== proxy copied from ${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}} ===" | tee -a "$LOG"
-        fi
+        for src in "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" {rq(SHARED_PROXY)}; do
+            if [ -s "$src" ] && {{ [ ! -s proxy/x509_proxy ] || [ "$src" -nt proxy/x509_proxy ]; }}; then
+                cp -f "$src" proxy/x509_proxy && echo "=== proxy copied from $src ===" | tee -a "$LOG"
+            fi
+        done
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
@@ -925,7 +943,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
             step: "{name}"
             app: "roast-runner"
         spec:
-          backoffLimit: 0
+          backoffLimit: 3
           template:
             metadata:
               labels:
@@ -944,7 +962,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                 - |
                   set -e
                   echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
-                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic
+                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd
+                  mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
+                  export X509_USER_PROXY="$PWD/proxy/x509_proxy"
                   export PATH=/workspace/shared/bin:$PATH
                   export NAUTILUS_WORKDIR={ckpt}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
@@ -955,6 +975,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
                   rm -f "$EXIT"
+                  rm -rf .snakemake/locks || true
                   {unlock}
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
@@ -1067,23 +1088,27 @@ def _submit(args, resume: bool) -> None:
         if local_kube.is_file():
             sh(["scp", "-q", "-p", *SSH_OPTS, str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
 
+    session = _tmux_session(r)
     window = _window_name(r, step)
     driver_pat = f"snakemake.*roasts/{r['id']}/config.yml"
     # Guard FIRST, before touching any file on the host: a live snakemake driver for this roast means
     # "running" (refuse); a window without a driver is a finished or derailed step and is closed.
     guard = textwrap.dedent(f"""\
-        tmux has-session -t {TMUX_SESSION} 2>/dev/null || tmux new-session -d -s {TMUX_SESSION} -n hub
+        tmux has-session -t {session} 2>/dev/null || tmux new-session -d -s {session} -n hub
         if pgrep -u "$USER" -f {shlex.quote(driver_pat)} >/dev/null 2>&1; then
             echo "a snakemake driver for this roast is still running on $(hostname); refusing to double-submit" >&2
             exit 3
         fi
-        if tmux list-windows -t {TMUX_SESSION} -F '#W' | grep -qx {shlex.quote(window)}; then
-            tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)}
+        if tmux list-windows -t {session} -F '#W' 2>/dev/null | grep -qx {shlex.quote(window)}; then
+            tmux kill-window -t {session}:{shlex.quote(window)}
             if [ -f {rq(ckpt)}/logs/{step['name']}.exit ]; then
                 echo "closed finished window {window} (exit=$(cat {rq(ckpt)}/logs/{step['name']}.exit))"
             else
                 echo "closed stale window {window} (no driver process, no exit file)"
             fi
+        fi
+        if tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -qx {shlex.quote(window)}; then
+            tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)} 2>/dev/null || true
         fi
     """)
     res = ssh_run(target, guard, check=False)
@@ -1112,8 +1137,8 @@ def _submit(args, resume: bool) -> None:
         set -e
         SCRIPT={rq(f"{ckpt}/roasts/{r['id']}/run_{step['name']}.sh")}
         chmod +x "$SCRIPT"
-        tmux new-window -d -t {TMUX_SESSION} -n {shlex.quote(window)} "bash $SCRIPT"
-        echo "launched tmux {TMUX_SESSION}:{window}"
+        tmux new-window -d -t {session} -n {shlex.quote(window)} "bash $SCRIPT"
+        echo "launched tmux {session}:{window}"
     """)
     res = ssh_run(target, remote, check=False)
     if res.returncode != 0:
@@ -1133,7 +1158,7 @@ def _submit(args, resume: bool) -> None:
                                         "window": window, "ssh": target, "config_sha256": cfg_sha[:12]})
     log_event(r, "resume" if resume else "submit", step=step["name"], host=host)
     save_roast(r)
-    info(f"attach: ssh -t {target} tmux attach -t {TMUX_SESSION}    |    {TOOL} status {r['id']}")
+    info(f"attach: ssh -t {target} tmux attach -t {session}    |    {TOOL} status {r['id']}")
 
 
 # Lines worth seeing when scanning a step's log for what went wrong. `Traceback` is deliberately
@@ -1254,9 +1279,11 @@ def cmd_attach(args) -> None:
         os.execvp(cmd[0], cmd)
 
     target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
-    tmux = f"tmux attach -t {TMUX_SESSION}"
+    session = _tmux_session(r)
     if window:
-        tmux += f" \\; select-window -t {shlex.quote(window)}"
+        tmux = f"tmux attach -t {session} \\; select-window -t {shlex.quote(window)} 2>/dev/null || tmux attach -t {TMUX_SESSION} \\; select-window -t {shlex.quote(window)}"
+    else:
+        tmux = f"tmux attach -t {session} 2>/dev/null || tmux attach -t {TMUX_SESSION}"
     info(f"ssh -t {target} {tmux}")
     os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, tmux])
 
@@ -1703,7 +1730,8 @@ def cmd_rm(args) -> None:
                 die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
             continue
         target = roast_ssh(cfg, r, host)
-        chk = ssh_run(target, f"tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+        session = _tmux_session(r)
+        chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
         if chk.stdout.strip() not in ("", "0"):
             die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
@@ -1882,10 +1910,11 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
         ])
     else:
         batch = "true"
+    session = _tmux_session(r)
     return textwrap.dedent(f"""\
         cd {rq(ckpt)} 2>/dev/null || {{ echo "NOCHECKOUT"; exit 0; }}
         if pgrep -u "$USER" -f {shlex.quote(f"snakemake.*roasts/{r['id']}/config.yml")} >/dev/null 2>&1; then live=1; else live=0; fi
-        WINDOWS=$(tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null || true)
+        WINDOWS=$( (tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) || true )
         for SW in {step_windows}; do
             S=${{SW%%:*}}; W=${{SW#*:}}
             if [ -f logs/$S.exit ]; then st="exit=$(cat logs/$S.exit)";
@@ -1895,7 +1924,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
                 else st="stalled"; fi
             else st="not started"; fi
             win=$(printf '%s\\n' "$WINDOWS" | grep -cx -- "$W" || true)
-            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
+            prog=$(tac logs/$S.log 2>/dev/null | sed '/=== roast .* start /q' | grep -a -m1 -oE '[0-9]+ of [0-9]+ steps \\([0-9]+%\\) done')
             last=$(tail -n 1 logs/$S.log 2>/dev/null | tr -d "\\r" | tr "|" " ")
             echo "STEP|$S|$st|tmux=$win|$prog|$last"
         done
@@ -2094,6 +2123,20 @@ def _cleaned_summary(r: dict, width: int) -> str:
     return f"  {r['id']:<{width}s}  {glyphs}{' ' * max(1, 24 - visible)} {note}".rstrip()
 
 
+def _is_step_worker(pod: dict, r: dict, step_name: str, jname: str) -> bool:
+    """Is `pod` a worker of this roast's step? By label when it has one (older pods may lack
+    `step`), else by the roast hash nautilus_submit.py puts in the pod name."""
+    md = pod.get("metadata", {})
+    pname = md.get("name", "")
+    if jname in pname:                                   # the step's own orchestrator
+        return False
+    labels = md.get("labels") or {}
+    if labels.get("roast"):
+        return labels["roast"] == r["id"] and labels.get("step", step_name) == step_name
+    h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+    return pname.startswith(f"smk-{h}-")
+
+
 def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
     hc = host_cfg(cfg, "nautilus")
     ns = hc.get("namespace", "cms-cmu")
@@ -2138,15 +2181,9 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
                 st = "pending"
                 colour = ""
 
-            # Child worker pods: match roast label, or smk- prefix if this job is active
-            child_pods = [
-                p for p in all_pods
-                if jname not in p.get("metadata", {}).get("name", "")
-                and (
-                    p.get("metadata", {}).get("labels", {}).get("roast") == r["id"]
-                    or (status_f.get("active", 0) > 0 and p.get("metadata", {}).get("name", "").startswith("smk-"))
-                )
-            ]
+            # Child worker pods (nautilus_submit.py): labelled roast=<id>, step=<step>, and named
+            # smk-<sha256(id)[:6]>-<rule>-... Other roasts' pods in the shared namespace must not count.
+            child_pods = [p for p in all_pods if _is_step_worker(p, r, name, jname)]
 
             n_done, n_run, n_pend, n_fail = 0, 0, 0, 0
             rows = []
@@ -2364,25 +2401,88 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
-        LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
-        trap 'rm -f "$LIST" "$HAVE" "$TODO" "$DIRS"' EXIT
+        LIST=$(mktemp); HAVE=$(mktemp); HAVE_DIRS=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
+        trap 'rm -f "$LIST" "$HAVE" "$HAVE_DIRS" "$RAW_HAVE" "$TODO" "$DIRS"' EXIT
         {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
            {extra_dirs} }} | sort -u > "$LIST"
         N=$(wc -l < "$LIST")
         {dry}
-        # What is already there (path<TAB>size), so reruns only copy new or changed files.
-        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null | awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' | sort > "$HAVE" || true
-        while IFS= read -r f; do
-            sz=$(stat -c %s "$f")
-            if ! grep -qxF "$f	$sz" "$HAVE"; then echo "$f"; fi
-        done < "$LIST" > "$TODO"
+        # What is already there (path<TAB>size and directories), so reruns only copy new or changed files.
+        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
+        awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
+        awk -v b="{dst_dir}/" '$1 ~ /^d/ {{ p=$NF; sub(b,"",p); sub(/\\/$/, "", p); if (length(p)>0) print p }}' "$RAW_HAVE" | sort -u > "$HAVE_DIRS"
+        rm -f "$RAW_HAVE"
+        python3 -c '
+import os, sys
+have = dict()
+with open(sys.argv[2], "r", errors="replace") as f:
+    for line in f:
+        parts = line.strip().split("\t", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            have[parts[0]] = int(parts[1])
+with open(sys.argv[1], "r", errors="replace") as f_in, open(sys.argv[3], "w") as f_out:
+    for line in f_in:
+        p = line.strip()
+        if not p:
+            continue
+        try:
+            if have.get(p) != os.path.getsize(p):
+                print(p, file=f_out)
+        except OSError:
+            pass
+' "$LIST" "$HAVE" "$TODO" || {{ echo "python diff failed" >&2; exit 1; }}
         T=$(wc -l < "$TODO")
         {ht}
         echo "copying from $(hostname):$PWD -> $DST_BASE"
         echo "$N files selected, $((N-T)) already up to date, $T to copy ({jobs} in parallel)"
         [ "$T" = 0 ] && exit 0
         sed 's#/[^/]*$##' "$TODO" | sort -u > "$DIRS"
-        while IFS= read -r d; do xrdfs $EOS mkdir -p "{dst_dir}/$d" 2>/dev/null || true; done < "$DIRS"
+        python3 -c '
+import sys, os, subprocess, concurrent.futures
+dirs_file = sys.argv[1]
+have_dirs_file = sys.argv[2]
+eos = sys.argv[3]
+dst_dir = sys.argv[4].rstrip("/")
+jobs = int(sys.argv[5])
+
+have = set()
+if os.path.exists(have_dirs_file):
+    with open(have_dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d:
+                have.add(d)
+
+needed = set()
+if os.path.exists(dirs_file):
+    with open(dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d and d not in have:
+                parts = d.split("/")
+                for i in range(1, len(parts) + 1):
+                    prefix = "/".join(parts[:i])
+                    if prefix not in have:
+                        needed.add(prefix)
+
+if not needed:
+    sys.exit(0)
+
+subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+by_depth = dict()
+for d in needed:
+    depth = d.count("/")
+    by_depth.setdefault(depth, []).append(d)
+
+for depth in sorted(by_depth.keys()):
+    batch = by_depth[depth]
+    def mk(rel_d):
+        subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir + "/" + rel_d],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, 32)) as ex:
+        list(ex.map(mk, batch))
+' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}" || {{ echo "python mkdir failed" >&2; exit 1; }}
         export DST_BASE
         tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'
@@ -2463,7 +2563,7 @@ def cmd_publish(args) -> None:
     write_docs(r)
     write_index()
     info(f"results: {url}")
-    info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; commit roasts/ and docs/prod/ to update the Pages site")
+    info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; run `{TOOL} commit {r['id']}` to commit the roast manifest")
 
 
 def cmd_archive(args) -> None:
@@ -2502,6 +2602,87 @@ def cmd_archive(args) -> None:
     write_docs(r)
     write_index()
     info(f"archive: {eos_url}/{dst_dir}   (list: xrdfs {eos_url} ls -R {dst_dir})")
+
+
+def _default_commit_message(r: dict) -> str:
+    rid = r["id"]
+    completed_steps = []
+    for h in r.get("history", []):
+        if isinstance(h, dict) and h.get("event") == "exit" and h.get("code") == 0:
+            step = h.get("step")
+            if step and step not in completed_steps:
+                completed_steps.append(step)
+
+    details = []
+    if completed_steps:
+        s_text = f"step{'s' if len(completed_steps) > 1 else ''} {','.join(completed_steps)} done"
+        details.append(s_text)
+    if r.get("archive", {}).get("ok"):
+        details.append("archived")
+    if r.get("publish", {}).get("ok"):
+        details.append("published")
+
+    summary = "; ".join(details) if details else "update manifest and configuration"
+    return f"roast {rid}: {summary}"
+
+
+def cmd_commit(args) -> None:
+    """Commit the roast manifest and associated files under roasts/<id>/ to git, with optional push."""
+    r = load_roast(args.id)
+    rid = r["id"]
+    rdir = roast_dir(rid)
+    if not rdir.exists():
+        die(f"roast directory {rdir} does not exist")
+
+    rel_rdir = rdir.relative_to(ROOT)
+
+    res_status = sh(["git", "status", "--porcelain", "--", str(rel_rdir)], cwd=ROOT, check=True)
+    res_staged = sh(["git", "diff", "--name-only", "--cached", "--", str(rel_rdir)], cwd=ROOT, check=True)
+
+    status_out = res_status.stdout.strip()
+    staged_out = res_staged.stdout.strip()
+
+    if not status_out and not staged_out:
+        info(f"Nothing to commit in {rel_rdir}")
+        return
+
+    if args.message:
+        msg = args.message.strip()
+        if not msg.startswith(f"roast {rid}"):
+            msg = f"roast {rid}: {msg}"
+    else:
+        msg = _default_commit_message(r)
+
+    if args.dry_run:
+        info(f"[dry-run] would stage: git add {rel_rdir}")
+        info(f"[dry-run] would commit with message: {msg}")
+        if args.push:
+            res_branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, check=True)
+            branch = res_branch.stdout.strip()
+            remote = args.remote or "origin"
+            info(f"[dry-run] would push to {remote} {branch}")
+        return
+
+    info(f"staging {rel_rdir}")
+    sh(["git", "add", str(rel_rdir)], cwd=ROOT, check=True)
+
+    res_diff = sh(["git", "diff", "--name-only", "--cached", "--", str(rel_rdir)], cwd=ROOT, check=True)
+    if not res_diff.stdout.strip():
+        info(f"Nothing staged to commit in {rel_rdir}")
+        return
+
+    info(f"committing: {msg.splitlines()[0]}")
+    sh(["git", "commit", "-m", msg, "--", str(rel_rdir)], cwd=ROOT, check=True)
+
+    if args.push:
+        res_branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, check=True)
+        branch = res_branch.stdout.strip()
+        if not branch or branch == "HEAD":
+            die("cannot push from detached HEAD")
+        remote = args.remote or "origin"
+        info(f"pushing to {remote} {branch}")
+        sh(["git", "push", "-u", remote, branch], cwd=ROOT, check=True)
+
 
 
 # ---------------------------------------------------------------------------
@@ -2791,6 +2972,14 @@ def main(argv=None) -> None:
     s = sub.add_parser("show", help="print a manifest")
     s.add_argument("id")
     s.set_defaults(func=cmd_show)
+
+    s = sub.add_parser("commit", help="stage and commit roasts/<id>/ (and optionally push)")
+    s.add_argument("id")
+    s.add_argument("-m", "--message", help="commit message (default: generated from roast status)")
+    s.add_argument("--push", action="store_true", help="push the commit to the current branch on the remote")
+    s.add_argument("--remote", default="origin", help="git remote for --push (default: origin)")
+    s.add_argument("-n", "--dry-run", action="store_true", help="show what would be committed without committing")
+    s.set_defaults(func=cmd_commit)
 
     args = p.parse_args(argv)
     try:
