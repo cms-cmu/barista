@@ -42,6 +42,11 @@ DEFAULT_GPU_RULES = {
 }
 
 LOG_DIR = "k8s_logs"
+# GPU products train (not evaluate) jobs may also use; NAUTILUS_TRAIN_EXTRA_GPUS (comma list) overrides
+TRAIN_EXTRA_GPU_PRODUCTS = [p for p in os.environ.get(
+    "NAUTILUS_TRAIN_EXTRA_GPUS",
+    "NVIDIA-GeForce-RTX-2080-Ti,Tesla-V100-SXM2-16GB,Tesla-V100-PCIE-16GB,Tesla-T4",
+).split(",") if p.strip()]
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
 STORAGE_CLAIM = os.environ.get("NAUTILUS_STORAGE_CLAIM", "cms-cmu-storage")
 IMAGE = os.environ.get(
@@ -196,6 +201,11 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - NVIDIA-GeForce-RTX-4080
                 - NVIDIA-RTX-A4000
 """
+        # Training uses <= ~5 GB (HCR FvT/SvB, 3 folds on one card), so it may also take the
+        # 11-16 GB Turing/Volta cards that are often free when the >= 16 GB pool is full. Evaluate
+        # keeps the list above (large eval batches). Pascal is left out: no fast fp16.
+        if "evaluate" not in rule.lower():
+            affinity_block += "".join(f"                - {p}\n" for p in TRAIN_EXTRA_GPU_PRODUCTS)
 
     manifest = f"""apiVersion: batch/v1
 kind: Job

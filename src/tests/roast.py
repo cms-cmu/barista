@@ -1271,6 +1271,35 @@ class TestRoastCommit(unittest.TestCase):
                 roast.ROASTS = orig_roasts
 
 
+class TestNautilusStepWorkers(unittest.TestCase):
+    """roast status counts only this roast's step's worker pods in the shared namespace."""
+
+    def test_is_step_worker(self):
+        import hashlib
+        r = {"id": "HH4b_bkg_syst_x_20261016_216b94a-27afcdb"}
+        h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+        jname = f"roast-hh4b-bkg-syst-x-{h}-bkg-c"
+
+        def pod(name, **labels):
+            return {"metadata": {"name": name, "labels": labels}}
+
+        mine = pod(f"smk-{h}-train-1-abc123-qtngz", roast=r["id"], step="BKG_C", app="roast-worker")
+        other_roast = pod("smk-aa78bd-train-13-b06b12-wndc5", roast="analysis_ttHbb_other", step="bkg_syst_C")
+        other_step = pod(f"smk-{h}-train-1-abc123-zzzzz", roast=r["id"], step="D")
+        no_step_label = pod(f"smk-{h}-evaluate-2-def456-aaaaa", roast=r["id"])
+        unlabelled_mine = pod(f"smk-{h}-train-3-ghi789-bbbbb")
+        unlabelled_other = pod("smk-aa78bd-train-13-b06b12-ccccc")
+        orchestrator = pod(f"{jname}-wv7nf", roast=r["id"], step="BKG_C")
+
+        self.assertTrue(roast._is_step_worker(mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_roast, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_step, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(no_step_label, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(unlabelled_mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(unlabelled_other, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(orchestrator, r, "BKG_C", jname))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
