@@ -1,0 +1,371 @@
+# ==============================================================================
+# GLOBAL WORKFLOW CONFIGURATION — Run 3 low-pT production (2022 + 2023 + 2024)
+# ==============================================================================
+label: "run3_lowpt"
+output_path: "output/run3_lowpt/"
+tag: "Run3_lowpt_v1"
+per_year_jcm: true
+
+dataset:
+  - "data"
+  - "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"
+
+year_eras:
+  2022_preEE:
+    - "B"
+    - "C"
+    - "D"
+  2022_EE:
+    - "E"
+    - "F"
+    - "G"
+  2023_preBPix:
+    - "C01"
+    - "C02"
+    - "C11"
+    - "C12"
+    - "C3"
+    - "C4"
+  2023_BPix:
+    - "D1"
+    - "D2"
+  '2024':
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+    - "G"
+    - "H"
+    - "I2"
+    - "I3"
+
+# ==============================================================================
+# PHASE B: CALIBRATION & CLASSIFIER INPUTS (JCM & Friendtrees)
+# ==============================================================================
+jcm_plot_config: "coffea4bees/plots/metadata/plotsAll_lowpt_noFvT.yml"
+jcm_extra_arguments: "--lowpt --jcm_config coffea4bees/analysis/jcm_tools/metadata/lowpt_jcm_config.yml"
+jcm_datasets:
+  - "data"
+  - "TTToSemiLeptonic"
+  - "TTTo2L2Nu"
+  - "TTToHadronic"
+
+jcm_known_counts_fatal: false
+jcm_known_counts_NoJCM: "none"
+jcm_known_counts_wJCM: "none"
+
+jcm:
+  config:
+    fill_histograms: "kinematics"
+    require_trigWeight: true
+    friends_include: [trigWeight]
+
+# ==============================================================================
+# PHASE B.2: CLASSIFIER INPUT FRIEND TREES (cmslpc)
+# ==============================================================================
+classifier_inputs:
+  datasets:
+    - data
+    - TTToHadronic
+    - TTToSemiLeptonic
+    - TTTo2L2Nu
+    - GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+  config:
+    make_classifier_input: "{eos_prod}/{roast_id}/classifier_inputs/"
+    fill_histograms: false
+    require_trigWeight: true
+
+# ==============================================================================
+# PHASE B -> C/D HANDOFF
+# ==============================================================================
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+
+# ==============================================================================
+# PHASE C & D: CLASSIFIER SETTINGS (Entirely on falcon / PSC / Nautilus)
+# ==============================================================================
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.CollisionData
+    option:
+      - eras:
+          2022_preEE: [B, C, D]
+          2022_EE: [E, F, G]
+          2023_preBPix: [C01, C02, C11, C12, C3, C4]
+          2023_BPix: [D1, D2]
+          '2024': [C, D, E, F, G, H, I2, I3]
+  - module: HCR.InputBranch
+    option:
+      - feature_ancillary: [xW, nSelJets_lowpt, xbW, year]
+      - mass_regions: [SR, SB]
+
+# ==============================================================================
+# PHASE C: FvT (falcon or nautilus)
+# ==============================================================================
+fvt:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  label: "lowpt_FvT"
+  output_dir: "output/lowpt_FvT/"
+  yields_ratio: ["d4 / d3 - t3 + t4"]
+  plot_inputs: true
+  plot_weights: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}"
+  eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt"
+  train_workflow:
+    main:
+      module: train
+      option:
+        - --max-loaders 2
+        - --max-trainers 2
+    dataset:
+      - module: HCR.FvT_lowpt.TrainBaseline
+        option:
+          - --metadata coffea4bees/metadata/datasets/
+          - --max-workers 20
+          - --data-source detector
+          - --JCM-weight year:2022_preEE {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_preEE.yml@@JCM_weights
+          - --JCM-weight year:2022_EE {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_EE.yml@@JCM_weights
+          - --JCM-weight year:2023_preBPix {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_preBPix.yml@@JCM_weights
+          - --JCM-weight year:2023_BPix {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_BPix.yml@@JCM_weights
+          - --JCM-weight year:2024 {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2024.yml@@JCM_weights
+          - --friends "" {eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt
+    model:
+      - module: HCR.FvT.baseline.Train
+        option:
+          - --kfolds 3
+          - --kfold-seed FvT random
+          - --kfold-seed-offsets 0
+          - --training FixedStep
+          - --architecture
+          - n_features: 8
+            use_kv_proj: true
+            use_attention_gate: true
+          - epoch: 20
+            bs_init: 1024
+          - --finetuning FixedStep
+          - epoch: 1
+            bs_init: 16384
+    setting:
+      - module: IO
+        option:
+          - output: "{model}"
+  eval_workflow:
+    main:
+      module: evaluate
+      option:
+        - --max-evaluators 3
+        - --device cuda cpu
+    dataset:
+      - module: HCR.FvT_lowpt.Eval
+        option:
+          - --metadata coffea4bees/metadata/datasets/
+          - --max-workers 8
+          - --data-source detector
+          - --friends "" {eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt
+    model:
+      - module: HCR.FvT.baseline.Eval
+        option:
+          - --models
+          - Final
+          - "{model}/result.json"
+    analysis:
+      - module: kfold.Merge
+        option:
+          - --name FvT
+          - --step 100000
+          - --workers 5
+          - --clean
+    setting:
+      - module: IO
+        option:
+          - output: "{FvT}"
+      - module: ml.DataLoader
+        option:
+          - num_workers: 0
+
+# ==============================================================================
+# PHASE C.4: FvT CLOSURE (cmslpc)
+# ==============================================================================
+fvt_closure:
+  datasets: [data, TTToHadronic, TTToSemiLeptonic, TTTo2L2Nu]
+  plot_config: "coffea4bees/plots/metadata/plotsAll_lowpt.yml"
+  known_counts_fatal: false
+  config:
+    require_trigWeight: true
+    friends_include: [trigWeight, FvT]
+    fill_histograms: "kinematics+FvT"
+
+# ==============================================================================
+# PHASE D: SvB (falcon or nautilus)
+# ==============================================================================
+svb:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  label: "lowpt_SvB"
+  output_dir: "output/lowpt_SvB/"
+  plot_inputs: true
+  plot_weights: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/lowpt_FvT"
+  eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt"
+  train_workflow:
+    main:
+      module: train
+      option:
+        - --max-loaders 2
+        - --max-trainers 3
+    model:
+      - module: HCR.SvB.ggF.baseline.Train
+        option:
+          - --roc-signal-by-category
+          - --kfold-seed SvB random
+          - --kfold-seed-offsets 0
+          - --architecture
+          - n_features: 8
+            use_kv_proj: true
+            use_attention_gate: true
+          - --training FixedStep
+          - epoch: 20
+            bs_init: 1024
+          - --finetuning FinetuneStep
+          - epoch: 1
+            bs_init: 16384
+    dataset:
+      - module: HCR.SvB_lowpt.Background
+        option:
+          - --metadata coffea4bees/metadata/datasets/
+          - --norm 3
+          - --JCM-weight year:2022_preEE {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_preEE.yml@@JCM_weights
+          - --JCM-weight year:2022_EE {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_EE.yml@@JCM_weights
+          - --JCM-weight year:2023_preBPix {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_preBPix.yml@@JCM_weights
+          - --JCM-weight year:2023_BPix {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_BPix.yml@@JCM_weights
+          - --JCM-weight year:2024 {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_Run3_lowpt_v1_2024.yml@@JCM_weights
+          - --friends "" {eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt
+          - --friends label:data {FvT}/result.json@@analysis.0.merged
+      - module: HCR.SvB_lowpt.Signal
+        option:
+          - --metadata coffea4bees/metadata/datasets/
+          - --mc-processes ggF
+          - --ggf-signal-pattern "GluGlutoHHto4B_kl-{{kl}}_kt-{{kt}}_c2-{{c2}}"
+          - --ggf-coupling-format fixed2
+          - --ggf-coupling-defaults "kt=1.0,c2=0.0"
+          - --ggf-load-kl 1.0
+          - --friends "" {eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt
+    setting:
+      - module: IO
+        option:
+          - output: "{model}"
+  eval_workflow:
+    main:
+      module: evaluate
+      option:
+        - --max-evaluators 1
+        - --device cuda cpu
+    model:
+      - module: HCR.SvB.ggF.baseline.Eval
+        option:
+          - --models
+          - Final
+          - "{model}/result.json"
+    dataset:
+      - module: HCR.SvB_lowpt.Eval
+        option:
+          - --metadata coffea4bees/metadata/datasets/
+          - --mc-processes ttbar ggF
+          - --ggf-signal-pattern "GluGlutoHHto4B_kl-{{kl}}_kt-{{kt}}_c2-{{c2}}"
+          - --ggf-coupling-format fixed2
+          - --ggf-coupling-defaults "kt=1.0,c2=0.0"
+          - --ggf-load-kl 1.0
+          - --max-workers 8
+          - --friends "" {eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input_lowpt
+    analysis:
+      - module: kfold.Merge
+        option:
+          - --name SvB_MA
+          - --step 100000
+          - --workers 5
+          - --clean
+    setting:
+      - module: IO
+        option:
+          - output: "{SvB}"
+      - module: ml.DataLoader
+        option:
+          - num_workers: 8
+
+# ==============================================================================
+# PHASE F.1: MAIN ANALYSIS PROCESSOR, CUTFLOWS & PLOTTING
+# ==============================================================================
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b_lowpt.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    chunksize: 10000
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_FvT: true
+    apply_JCM: true
+    JCM_file:
+      2022_preEE: "coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_preEE.yml"
+      2022_EE: "coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_lowpt_v1_2022_EE.yml"
+      2023_preBPix: "coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_preBPix.yml"
+      2023_BPix: "coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_lowpt_v1_2023_BPix.yml"
+      '2024': "coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_Run3_lowpt_v1_2024.yml"
+    friends:
+      FvT: "{eos_prod}/{roast_id}/friend/lowpt_FvT/result.json@@analysis.0.merged"
+      SvB_MA: "{eos_prod}/{roast_id}/friend/lowpt_SvB/result.json@@analysis.0.merged"
+    friends_include: [trigWeight, FvT, SvB_MA]
+    apply_trigWeight: true
+    require_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    run_SvB: true
+    SvB_MA: null
+    SvB: null
+    top_reconstruction: fast
+    plot_ttbar_with_weights: true
+    fill_histograms: "SvB"
+
+plot_config: "coffea4bees/plots/metadata/plotsAll_lowpt.yml"
+known_counts_fatal: false
+known_counts_test: "none"
+known_counts_full: "none"
+
+# ==============================================================================
+# PHASE F.2: COMBINE STATISTICAL INTERPRETATION & LIMITS
+# ==============================================================================
+combine_flags: "--three_tag lowpt_threeTag --four_tag lowpt_fourTag --blind"
+combine_outdir: "datacards/HH4b_run3_fine"
+metadata_template: "coffea4bees/stats_analysis/metadata/HH4b_run3.yml"
+
+make_combine_inputs:
+  rebin: 1
+  stat_only: "--stat_only"
+
+channels:
+  HH4b:
+    signallabel: "ggHH_kl_1_kt_1_13p0TeV_hbbhbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_hh_fine"
+    signal: "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"
+    closure_subdir: "hh"

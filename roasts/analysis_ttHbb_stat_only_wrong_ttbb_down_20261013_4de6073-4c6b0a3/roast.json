@@ -238,7 +238,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbb_down_20261013_4de6073-4c6b0a3",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbb_down_20261013_4de6073-4c6b0a3/",
-    "ts": "2026-10-15 15:58:01",
+    "ts": "2026-10-19 12:48:30",
     "ok": true,
     "pages": [
       "output/FvT_ttHbb_stitched/yields.html",
@@ -422,6 +422,30 @@
       "event": "publish",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:46:58",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:47:02",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:48:17",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:48:30",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
@@ -429,5 +453,10 @@
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_stat_only_wrong_ttbb_down_20261013_4de6073-4c6b0a3",
+    "ts": "2026-10-19 12:47:02",
+    "ok": true
   }
 }

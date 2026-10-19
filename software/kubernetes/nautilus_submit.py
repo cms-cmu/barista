@@ -164,6 +164,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - gpn-fiona-mizzou-8.rnet.missouri.edu
                 - nautilus-ext-gpu01.fullerton.edu
                 - nautilus-it-gpu05.fullerton.edu
+                - nautilus-it-gpu06.fullerton.edu
                 - fiona.offn.oscer.ou.edu
                 - dtn-gpu2.kreonet.net
                 - dtn-gpu1.kreonet.net

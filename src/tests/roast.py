@@ -320,7 +320,14 @@ class TestUserPaths(unittest.TestCase):
     def test_derived_from_the_roast_config(self):
         paths = roast.user_paths(CFG)
         self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
-        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        # with nothing pointing at an analysis, roast defaults to ttHbb
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
+
+    def test_web_prod_follows_the_analysis(self):
+        self.assertEqual(roast.user_paths(CFG, analysis="HH4b")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        self.assertEqual(roast.user_paths(CFG, analysis="ttHbb")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
 
     def test_xrootd_keeps_its_doubled_slash(self):
         # root://host/abs/path silently means something else than root://host//abs/path
@@ -1003,6 +1010,12 @@ class TestCommandLine(unittest.TestCase):
         res = self.run_roast("frappuccino")
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("invalid choice", res.stderr)
+
+    def test_bridges2_flags(self):
+        res = self.run_roast("new", "--help")
+        self.assertIn("--bridges2", res.stdout)
+        res = self.run_roast("init", "--help")
+        self.assertIn("--bridges2-user", res.stdout)
 
 
 class TestStatusGrouping(unittest.TestCase):
