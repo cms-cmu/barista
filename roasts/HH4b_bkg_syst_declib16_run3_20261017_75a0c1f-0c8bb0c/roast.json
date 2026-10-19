@@ -1,0 +1,417 @@
+{
+  "id": "HH4b_bkg_syst_declib16_run3_20261017_75a0c1f-0c8bb0c",
+  "label": "HH4b_bkg_syst_declib16_run3",
+  "created": "2026-10-17 17:14:13",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "75a0c1fdfa94ed061e4fe72a63e5a0361555bb39",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "0c8bb0caa742064fa272a73475c7e55c66032e15",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3.yml",
+    "captured": "config.yml",
+    "sha256": "50f4b0a01df69c22fd6179befa6af1c0ac161a561719727672f85ffe8b21bc1f"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16_run3_20261011_b948dfc-33f3094",
+        "barista": "b948dfc1eb2415a667048072172066b142a98adb",
+        "coffea4bees": "33f3094d441e331d0ca55f491cb00812c8f90eef",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_20261011_b948dfc-33f3094",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20261008_f839489-a481023",
+        "barista": "f839489ab9eb53565dcd43b6e7f9c1b8160f6248",
+        "coffea4bees": "a481023c6da813c474e6e037f65e2c2cf8b94091",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20261008_f839489-a481023",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16_multijet.yml",
+        "roast": "declib16_run3_20261011_b948dfc-33f3094"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "nominal_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}histAll_{roast:nominal:label}.coffea",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 17:16:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_AB",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-17 17:18:45",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_AB",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 21:04:40",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-17 21:06:00",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-17 22:16:55",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-17 22:20:07",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-17 22:24:19",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-18 10:50:06",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-hh4b-bkg-syst-declib16-run3-cb6411-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "50f4b0a01df6"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-19 00:46:40",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_F",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-19 00:47:28",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_F",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-19 01:26:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_F",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-19 01:38:52",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_F",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        },
+        {
+          "ts": "2026-10-19 01:41:55",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "HH4b_bkg_syst_declib16_run3_75a0c1f-0c8bb0c_BKG_F",
+          "ssh": "jda102@cmslpc363.fnal.gov",
+          "config_sha256": "50f4b0a01df6"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/HH4b_bkg_syst_declib16_run3_20261017_75a0c1f-0c8bb0c/barista",
+      "ssh": "jda102@cmslpc363.fnal.gov",
+      "checked_out": "2026-10-17 17:16:22"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/HH4b_bkg_syst_declib16_run3_20261017_75a0c1f-0c8bb0c/barista",
+      "checked_out": "2026-10-17 17:51:04"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-17 17:14:13",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-17 17:16:22",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 17:16:24",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 17:18:45",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 17:51:04",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-17 21:04:40",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-17 21:06:00",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-17 22:16:33",
+      "event": "manual",
+      "host": "nautilus",
+      "note": "software/snakemake/profiles/nautilus/config.yaml in the checkout: train mem_mb 24000 -> 56000 (Run 3 FvT training OOMKilled at the 24Gi limit while loading); orchestrator + worker Jobs deleted, BKG_C resumed"
+    },
+    {
+      "ts": "2026-10-17 22:16:55",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus",
+      "note": "train mem 24000 -> 56000 (Run 3 FvT OOMKilled at 24Gi while loading). NB the checkout edit was overwritten: roast submit/resume syncs the LOCAL software/ and src/ to the Nautilus checkout; fixed via barista 62e33a23 (profile)"
+    },
+    {
+      "ts": "2026-10-17 22:20:07",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-17 22:24:19",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-18 10:49:45",
+      "event": "manual",
+      "host": "nautilus",
+      "note": "16/16 trainings done; every evaluate OOMKilled at the hardcoded 16Gi. barista 9e78f37f (evaluate uses profile mem, 48000) written into the checkout + reference; orchestrator + workers deleted, BKG_C resumed"
+    },
+    {
+      "ts": "2026-10-18 10:50:06",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-19 00:46:40",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 00:47:28",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 01:25:57",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "coffea4bees": "79e61d14",
+      "from": "0c8bb0caa",
+      "note": "F_2 years_closure default = workflow years (was Run 2 UL list -> Run 3 closure found no histograms)"
+    },
+    {
+      "ts": "2026-10-19 01:26:00",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 01:38:46",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "coffea4bees": "bd8dae4e",
+      "from": "79e61d14d",
+      "note": "make_combine_inputs: metadata without uncertainty section (HH4b_run3.yml)"
+    },
+    {
+      "ts": "2026-10-19 01:38:52",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 01:41:52",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "coffea4bees": "c0d48852",
+      "from": "bd8dae4ef",
+      "note": "F_4 make_mixeddata_ave_json --years (Run 2 default)"
+    },
+    {
+      "ts": "2026-10-19 01:41:55",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "HH4b Run 3 background systematic: 16 declib16 Run 3 closure subsamples vs nominal_run3_20261008 (tight 4b); FvT (C) on NRP Nautilus. Run 3 counterpart of HH4b_bkg_syst_declib16nc_run2_20261016_216b94a-27afcdb.",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  }
+}
