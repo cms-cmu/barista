@@ -10,7 +10,7 @@ class DataLoader(GlobalSetting):
     "optimize for SliceableDataset. (best for small datasets that can be fully loaded into memory)"
     batch_skim: int = 2**17
     "batch size for skimming"
-    batch_eval: int = 2**17
+    batch_eval: int = 2**15
     "batch size for evaluation"
 
     pin_memory: bool = True
