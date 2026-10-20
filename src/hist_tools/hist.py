@@ -5,6 +5,7 @@ import threading
 from copy import deepcopy
 from textwrap import indent
 from typing import (
+    Any,
     Callable,
     Generic,
     Iterable,
@@ -242,6 +243,38 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                     mask_categories.append(category)
                 else:
                     fill_args[category] = field
+        # Pre-resolve FieldLike fill arguments on full `events` once to avoid repeated traversals
+        field_cache: dict[str, Any] = {}
+        for k, v in fill_args.items():
+            if (isinstance(v, str) and k in hists._categories) or isinstance(
+                v, bool | RealNumber
+            ):
+                continue
+            if check_type(v, FieldLike):
+                field_cache[k] = self._get_fill_arg(lambda v=v: get_field(events, v))
+
+        def _to_clean_numpy(arr: ak.Array) -> np.ndarray:
+            try:
+                np_arr = ak.to_numpy(arr)
+                if isinstance(np_arr, np.ma.MaskedArray):
+                    if not np.ma.is_masked(np_arr):
+                        return np_arr.data
+                    if np.issubdtype(np_arr.dtype, np.bool_):
+                        return np_arr.filled(False)
+                    elif np.issubdtype(np_arr.dtype, np.floating):
+                        return np_arr.filled(np.nan)
+                    elif np.issubdtype(np_arr.dtype, np.integer):
+                        return np_arr.filled(-999999)
+                    else:
+                        return np_arr.filled(np.nan)
+                return np_arr
+            except ValueError:
+                if "bool" in str(arr.type):
+                    return ak.to_numpy(ak.fill_none(arr, False))
+                elif "int" in str(arr.type):
+                    return ak.to_numpy(ak.fill_none(arr, -999999))
+                return ak.to_numpy(ak.fill_none(arr, np.nan))
+
         for fill_values in hists._generate_category_combinations(mask_categories):
             mask = and_fields(
                 events, *(_fill_field(f"{k}.{v}") for k, v in fill_values.items())
@@ -255,20 +288,25 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                         v, bool | RealNumber
                     ):
                         fill_values[k] = v
-                    elif check_type(v, FieldLike):
-                        fill_values[k] = self._get_fill_arg(
-                            lambda: get_field(masked, v)
-                        )
+                    elif k in field_cache:
+                        val = field_cache[k]
+                        if val is _MissingFillValue:
+                            fill_values[k] = _MissingFillValue
+                        elif isinstance(val, self.__backend__.anyarray):
+                            fill_values[k] = val if mask is None else val[mask]
+                        else:
+                            fill_values[k] = val
                     elif isinstance(v, self.__backend__.anyarray):
                         fill_values[k] = v if mask is None else v[mask]
                     elif isinstance(v, Callable):
-                        fill_values[k] = self._get_fill_arg(lambda: v(masked))
+                        fill_values[k] = self._get_fill_arg(lambda v=v: v(masked))
                     else:
                         raise TypeError("Unsupported fill value.")
                 except Exception:
                     raise FillError(
                         f'\nWhile preparing fill value "{_fill_repr(k)}" from\n  {type(v)}\n{indent(pretty_repr(v), "    ")}\n the above error occurred.'
                     )
+            numpy_cache: dict[int, tuple[ak.Array, np.ndarray]] = {}
             for name in self._fills:
                 hist_args = {}
                 try:
@@ -289,14 +327,17 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                         if isinstance(fill, self.__backend__.anyarray):
                             arrays[v] = fill
                             depths[v] = akext.max_depth(fill)
-                    depths_set = set(depths.values())
-                    if len(depths_set) > 1:
-                        arrays = dict(
-                            zip(arrays.keys(), _ak.broadcast_arrays(*arrays.values()))
-                        )
-                    if max(depths_set) > 1:
-                        for k in arrays:
-                            arrays[k] = _ak.ravel(arrays[k])
+                    if arrays:
+                        all_depth_1 = all(d == 1 for d in depths.values())
+                        if not all_depth_1:
+                            depths_set = set(depths.values())
+                            if len(depths_set) > 1:
+                                arrays = dict(
+                                    zip(arrays.keys(), _ak.broadcast_arrays(*arrays.values()))
+                                )
+                            if max(depths_set) > 1:
+                                for k in arrays:
+                                    arrays[k] = _ak.ravel(arrays[k])
                     for k, v in fills.items():
                         if (fill := arrays.get(v)) is None:
                             fill = fill_values[v]
@@ -311,18 +352,17 @@ class _Fill(Generic[HistType], Configurable, namespace="hist.Fill"):
                         hist_args = self.__backend__.broadcast_all(**hist_args)
                     ############################################################
                     # awkward v2 preserves optional types (?bool, ?float);
-                    # convert to concrete numpy before filling boost-histogram
+                    # convert to concrete numpy before filling boost-histogram,
+                    # using numpy_cache to avoid redundant conversions of the same array.
                     for k, v in hist_args.items():
-                        if isinstance(v, ak.Array) and ak.any(ak.is_none(v)):
-                            if "bool" in str(v.type):
-                                hist_args[k] = ak.to_numpy(ak.fill_none(v, False))
+                        if isinstance(v, ak.Array):
+                            v_id = id(v)
+                            if v_id in numpy_cache and numpy_cache[v_id][0] is v:
+                                hist_args[k] = numpy_cache[v_id][1]
                             else:
-                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
-                        elif isinstance(v, ak.Array):
-                            try:
-                                hist_args[k] = ak.to_numpy(v)
-                            except ValueError:
-                                hist_args[k] = ak.to_numpy(ak.fill_none(v, np.nan))
+                                conv = _to_clean_numpy(v)
+                                numpy_cache[v_id] = (v, conv)
+                                hist_args[k] = conv
                     hists._hists[name].fill(**hist_args)
                     hists._filled.add(name)
                 except Exception as e:
