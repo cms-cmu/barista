@@ -90,17 +90,132 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-19 22:47:18",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_blindV4_da5e57f-b9b705e_MvD",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "380a4fff4f0d"
+        },
+        {
+          "ts": "2026-10-19 22:54:05",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_blindV4_da5e57f-b9b705e_MvD",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "380a4fff4f0d"
+        },
+        {
+          "ts": "2026-10-19 23:25:42",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_blindV4_da5e57f-b9b705e_MvD",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "380a4fff4f0d"
+        },
+        {
+          "ts": "2026-10-20 01:47:06",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_blindV4_da5e57f-b9b705e_MvD",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "380a4fff4f0d"
+        }
+      ]
     }
   ],
-  "hosts": {},
-  "publish": {},
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e/barista",
+      "ssh": "jda102@cmslpc332.fnal.gov",
+      "checked_out": "2026-10-19 22:22:22"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e/",
+    "ts": "2026-10-20 02:33:19",
+    "ok": true,
+    "pages": [
+      "output/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e/V4/plots_MvD/index.html",
+      "output/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-19 22:16:58",
       "event": "new"
+    },
+    {
+      "ts": "2026-10-19 22:22:22",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:47:18",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:54:05",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 23:25:42",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 01:47:06",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 02:33:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 02:33:19",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "BLINDED rerun of V.4 for mvd_run3_2024_20261012_30628c0-2e77aeb (first V.4 was unblinded; taken down from CERNBox).",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_2024_blindV4_20261019_da5e57f-b9b705e",
+    "ts": "2026-10-20 02:33:19",
+    "ok": true
+  }
 }

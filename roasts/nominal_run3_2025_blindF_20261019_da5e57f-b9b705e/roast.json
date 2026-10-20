@@ -35,17 +35,134 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-19 22:22:37",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 22:53:52",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 23:10:01",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 23:31:13",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        }
+      ]
     }
   ],
-  "hosts": {},
-  "publish": {},
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e/barista",
+      "ssh": "jda102@cmslpc332.fnal.gov",
+      "checked_out": "2026-10-19 22:18:38"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e/",
+    "ts": "2026-10-20 02:22:48",
+    "ok": true,
+    "pages": [
+      "output/Run3_2025_nominal_blind/cutflow_Run3_2025_nominal_blind.html",
+      "output/Run3_2025_nominal_blind/cutflow_crosscheck_Run3_2025_nominal_blind.html",
+      "output/Run3_2025_nominal_blind/plots_Run3_2025_nominal_blind/index.html",
+      "output/Run3_2025_nominal_blind/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-19 22:16:58",
       "event": "new"
+    },
+    {
+      "ts": "2026-10-19 22:18:38",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:22:37",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:53:52",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 23:10:01",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 23:31:13",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 02:22:48",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 02:22:49",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "BLINDED rerun of F for nominal_run3_2025_20261017_db7bbcd-feb07f3 (first F was unblinded; taken down from CERNBox).",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e",
+    "ts": "2026-10-20 02:22:49",
+    "ok": true
+  }
 }
