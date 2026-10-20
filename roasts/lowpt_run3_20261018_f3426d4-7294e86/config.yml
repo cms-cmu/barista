@@ -317,7 +317,9 @@ analysis_config:
   friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
   weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
   runner:
-    chunksize: 10000
+    chunksize: 100000
+    min_workers: 50
+    max_workers: 250
     workers: 4
     worker_memory: 8GB
     dashboard_address: 0

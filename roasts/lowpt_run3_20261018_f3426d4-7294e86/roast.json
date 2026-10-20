@@ -16,7 +16,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/lowpt_run3.yml",
     "captured": "config.yml",
-    "sha256": "a63c5661181c536236b47262c832dfb80247b9d8c3544e4f596ed5957e836269"
+    "sha256": "02a88ea5f34e80d72be1850acfc6faebd5bc4e569e63c9cc2205f1d5434376db"
   },
   "steps": [
     {
@@ -158,7 +158,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-20 14:34:54",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_F",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "a63c5661181c"
+        },
+        {
+          "ts": "2026-10-20 14:35:46",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_F",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "02a88ea5f34e"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -258,6 +286,23 @@
       "ts": "2026-10-18 12:31:14",
       "event": "resume",
       "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 14:34:54",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 14:35:46",
+      "event": "config-edited",
+      "sha256": "02a88ea5f34e"
+    },
+    {
+      "ts": "2026-10-20 14:35:46",
+      "event": "submit",
+      "step": "F",
       "host": "cmslpc"
     }
   ],
