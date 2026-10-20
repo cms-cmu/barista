@@ -59,10 +59,24 @@ TMUX_SESSION = "roast"
 # --all` the handshakes were most of the wall clock.  ControlPath must stay under 104 bytes, so
 # it uses %C, a fixed-length hash of the connection parameters.
 SSH_CONTROL_DIR = Path("~/.ssh").expanduser()
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
-            "-o", "HostName=%h",
-            "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+
+
+def ssh_opts(target: str = "") -> list[str]:
+    """SSH command line options.
+
+    Hosts like Bridges-2 use persistent 2FA master sockets managed by ssh-guardian
+    or ~/.ssh/config. Overriding ControlPath breaks their existing authentication.
+    For standard hosts (cmslpc, falcon), multiplexing into ~/.ssh/roast-cm-%C is enabled.
+    """
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+            "-o", "HostName=%h"]
+    if target and ("bridges2" in target or "psc.edu" in target):
+        return opts
+    return [*opts, "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
+
+
+SSH_OPTS = ssh_opts()
 
 # Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
 PHASES = {
@@ -113,6 +127,12 @@ DEFAULT_CONFIG = {
             "reference": "~/work/barista",
             "cores": 4,
         },
+        "bridges2": {
+            "ssh": "<user>@bridges2.psc.edu",
+            "prod_root": "/ocean/projects/phy260026p/<user>/HH4b/prod",
+            "reference": "/ocean/projects/phy260026p/<user>/HH4b/barista",
+            "cores": 16,
+        },
         "nautilus": {
             "namespace": "cms-cmu",
             "user": "<user>",
@@ -122,8 +142,18 @@ DEFAULT_CONFIG = {
         },
     },
     "cernbox": {
-        "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
-        "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
+        "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+        "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+        "analyses": {
+            "ttHbb": {
+                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+            },
+            "HH4b": {
+                "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
+                "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
+            },
+        },
     },
     "owner": "<your name>",
     "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/HH4b_prod"},
@@ -226,6 +256,14 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "reference": f"/workspace/users/{user}/barista",
             "cores": 16,
         }
+    if host == "bridges2" and "bridges2" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "ssh": f"{user}@bridges2.psc.edu",
+            "prod_root": f"/ocean/projects/phy260026p/{user}/HH4b/prod",
+            "reference": f"/ocean/projects/phy260026p/{user}/HH4b/barista",
+            "cores": 16,
+        }
     try:
         return cfg["hosts"][host]
     except KeyError:
@@ -276,14 +314,25 @@ def roast_ssh(cfg: dict, r: dict, host: str) -> str:
 
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
     """Run a bash script on a remote host via stdin (no quoting games)."""
-    return sh(["ssh", *SSH_OPTS, target, "bash -s"], check=check, capture=capture, input=script)
+    return sh(["ssh", *ssh_opts(target), target, "bash -s"], check=check, capture=capture, input=script)
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
     # -p: keep mtimes. The captured config.yml is an input of the workflows' create_*_config rules;
     # re-shipping it with a fresh mtime on every submit/resume made snakemake regenerate those
     # configs and rerun every processor job downstream of them.
-    sh(["scp", "-q", "-p", *SSH_OPTS, *map(str, srcs), f"{target}:{dst}"])
+    # On clusters without scp (e.g. PSC Bridges-2), stream a tar archive over ssh.
+    if "bridges2" in target or "psc.edu" in target:
+        import io
+        import tarfile
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for s in srcs:
+                tar.add(str(s), arcname=s.name)
+        cmd = ["ssh", *ssh_opts(target), target, f"mkdir -p {rq(dst)} && tar -xf - -C {rq(dst)}"]
+        subprocess.run(cmd, input=buf.getvalue(), check=True)
+        return
+    sh(["scp", "-q", "-p", *ssh_opts(target), *map(str, srcs), f"{target}:{dst}"])
 
 
 def rq(path: str) -> str:
@@ -387,7 +436,7 @@ def upstream_config_value(rid: str, key: str) -> str:
     return value.replace("{roast_id}", rid)
 
 
-def check_inputs(cfg: dict, wf: dict) -> dict | None:
+def check_inputs(cfg: dict, wf: dict, analysis: str | None = None) -> dict | None:
     """Validate a workflow config's `inputs:` block: the products it reads from other roasts.
 
         inputs:
@@ -416,7 +465,7 @@ def check_inputs(cfg: dict, wf: dict) -> dict | None:
     areas = {up["id"]: _norm_url(_roast_eos(cfg, up)) for up in ups}
     # configs name the production area as {eos_prod} / {web_prod} (resolved at submit time):
     # expand them the same way before checking where an input lives
-    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg).items()}
+    placeholders = {f"{{{k}}}": v for k, v in user_paths(cfg, analysis=analysis).items()}
 
     refs, bad = {}, []
     def walk(node, key):
@@ -561,10 +610,25 @@ def cmd_init(args) -> None:
         cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
+    if getattr(args, "bridges2_user", None):
+        u = args.bridges2_user
+        cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
+        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/HH4b/prod"
+        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/HH4b/barista"
     if args.cern_user:
         u = args.cern_user
-        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/HH4b/prod"
-        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/HH4b/prod"
+        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/ttHbb/prod"
+        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/ttHbb/prod"
+        cfg["cernbox"]["analyses"] = {
+            "ttHbb": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/ttHbb/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/ttHbb/prod",
+            },
+            "HH4b": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            },
+        }
     cfg["owner"] = args.owner or getpass.getuser()
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
@@ -575,6 +639,99 @@ def cmd_init(args) -> None:
         info(f"  {key:12s} {val}")
     if any("<" in json.dumps(cfg[k]) for k in ("hosts", "cernbox", "eos")):
         info("  placeholders in <angle brackets> still need editing")
+
+
+def detect_analysis(r: dict | None = None, config_path: Path | str | None = None, label: str | None = None) -> str:
+    """Detect whether a roast belongs to HH4b or ttHbb. Defaults to ttHbb."""
+    if r and r.get("analysis"):
+        return r["analysis"]
+    if r:
+        web = (r.get("user_paths") or {}).get("web_prod", "") or (r.get("publish") or {}).get("eos", "")
+        if "/www/HH4b/" in web:
+            return "HH4b"
+        if "/www/ttHbb/" in web:
+            return "ttHbb"
+    text_to_check = []
+    if label:
+        text_to_check.append(str(label).lower())
+    if r:
+        if r.get("id"):
+            text_to_check.append(str(r["id"]).lower())
+        if r.get("label"):
+            text_to_check.append(str(r["label"]).lower())
+        if r.get("config", {}).get("source"):
+            text_to_check.append(str(r["config"]["source"]).lower())
+    if config_path:
+        text_to_check.append(str(config_path).lower())
+
+    joined = " ".join(text_to_check)
+    if "tthbb" in joined or "ttbb" in joined:
+        return "ttHbb"
+    if any(k in joined for k in ("hh4b", "lowpt", "nominal", "mvd", "declustered", "mixeddata")):
+        return "HH4b"
+
+    cfg_file = None
+    if config_path and Path(config_path).exists():
+        cfg_file = Path(config_path)
+    elif r and r.get("id") and (roast_dir(r["id"]) / "config.yml").exists():
+        cfg_file = roast_dir(r["id"]) / "config.yml"
+    if cfg_file:
+        try:
+            content = cfg_file.read_text()
+            if re.search(r"channel:\s*['\"]?ttHbb", content, re.I):
+                return "ttHbb"
+            if re.search(r"(processor_HH4b|channel:\s*['\"]?HH4b|friends_HH4b)", content, re.I):
+                return "HH4b"
+        except Exception:
+            pass
+
+    return "ttHbb"
+
+
+def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> tuple[str, str]:
+    """Return (eos_path, url) for CERNBox.
+    Defaults to ttHbb from cfg['cernbox'], or selects from cfg['cernbox']['analyses'] / replaces path for HH4b.
+    """
+    cb = cfg.get("cernbox") or {}
+    ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
+    analyses = cb.get("analyses") or {}
+    if ana and ana in analyses:
+        eos_path = analyses[ana].get("eos_path", "")
+        url = analyses[ana].get("url", "")
+    elif cb.get("eos_path"):
+        base_eos = cb["eos_path"]
+        base_url = cb.get("url", "")
+        if ana == "HH4b" and "/www/ttHbb" in base_eos:
+            eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b")
+            url = base_url.replace("/ttHbb", "/HH4b")
+        elif ana == "ttHbb" and "/www/HH4b" in base_eos:
+            eos_path = base_eos.replace("/www/HH4b", "/www/ttHbb")
+            url = base_url.replace("/HH4b", "/ttHbb")
+        else:
+            eos_path = base_eos
+            url = base_url
+    else:
+        eos_path = ""
+        url = ""
+    return eos_path, url
+
+
+def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> dict:
+    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
+
+    Derived from what `roast init` already wrote, so a config in git never names a person,
+    and a colleague re-running your roast writes into their own area rather than yours.
+    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
+    """
+    out = {}
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
+    web, _ = cernbox_paths(cfg, r, analysis)
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
 
 
 def cmd_new(args) -> None:
@@ -599,7 +756,9 @@ def cmd_new(args) -> None:
         if ph not in PHASES:
             die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
         host, smk = PHASES[ph]
-        if getattr(args, "nautilus", False) and host == "falcon":
+        if getattr(args, "bridges2", False) and host == "falcon":
+            host = "bridges2"
+        elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
         steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     for spec in args.step or []:
@@ -619,6 +778,7 @@ def cmd_new(args) -> None:
             info(f"WARNING: {s['snakefile']} not found in this tree (may exist at the pinned sha)")
 
     label = args.label or re.sub(r"[^A-Za-z0-9_.-]", "_", config_src.stem)
+    analysis = getattr(args, "analysis", None) or detect_analysis(config_path=config_src, label=label)
     rid = f"{label}_{dt.datetime.now():%Y%m%d}_{barista_sha[:7]}-{c4b_sha[:7]}"
     if args.id:
         rid = args.id
@@ -632,7 +792,7 @@ def cmd_new(args) -> None:
             import yaml  # noqa: F401  (only configs with `inputs:` or `base:` need it)
         except ImportError:
             die(f"{config_src} has an `inputs:` or `base:` block; reading it needs PyYAML")
-        inputs = check_inputs(cfg, _load_layered_config(config_src)[0])
+        inputs = check_inputs(cfg, _load_layered_config(config_src)[0], analysis=analysis)
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
@@ -642,6 +802,7 @@ def cmd_new(args) -> None:
     r = {
         "id": rid,
         "label": label,
+        "analysis": analysis,
         "created": now(),
         "owner": cfg.get("owner", getpass.getuser()),
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
@@ -649,6 +810,7 @@ def cmd_new(args) -> None:
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
                    **({"base": config_bases} if config_bases else {})},
         **({"inputs": inputs} if inputs else {}),
+        "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
         "hosts": {},
         "publish": {},
@@ -679,6 +841,9 @@ def _checkout_script(hc: dict, r: dict, ckpt: str) -> str:
             git clone -q --no-checkout {rq(ref + '/coffea4bees')} coffea4bees
         fi
         (cd coffea4bees && git remote set-url origin {shlex.quote(r['coffea4bees']['origin'])})
+        if [ -s {rq(ref + '/proxy/x509_proxy')} ] && [ ! -s proxy/x509_proxy ]; then
+            mkdir -p proxy && cp -p {rq(ref + '/proxy/x509_proxy')} proxy/x509_proxy 2>/dev/null || true
+        fi
         echo "prepared $CK"
     """)
 
@@ -766,7 +931,7 @@ def cmd_checkout(args) -> None:
         res = ssh_run(target, _checkout_script(hc, r, ckpt))
         node = next((l[5:].strip() for l in res.stdout.splitlines() if l.startswith("NODE|")), "")
         print("\n".join(l for l in res.stdout.splitlines() if not l.startswith("NODE|")).strip())
-        if node and "@" in target:
+        if host == "cmslpc" and node and "@" in target:
             user = target.split("@", 1)[0]
             if f"{user}@{node}" != target:
                 info(f"[{host}] the gateway placed this roast on {node}")
@@ -781,28 +946,21 @@ def cmd_checkout(args) -> None:
         print(res.stdout.strip())
         files = sorted(p for p in roast_dir(r["id"]).iterdir() if p.is_file())
         scp_to(target, files, f"{ckpt}/roasts/{r['id']}/")
+        for up in r.get("inputs", {}).get("upstream", []):
+            up_id = up.get("id")
+            up_dir = roast_dir(up_id)
+            if up_dir.is_dir():
+                ssh_run(target, f"mkdir -p {rq(f'{ckpt}/roasts/{up_id}')}")
+                up_files = sorted(p for p in up_dir.iterdir() if p.is_file())
+                if up_files:
+                    scp_to(target, up_files, f"{ckpt}/roasts/{up_id}/")
         r["hosts"][host] = {"checkout": ckpt, "ssh": target, "checked_out": now()}
         log_event(r, "checkout", host=host)
         save_roast(r)
     info(f"next: {TOOL} submit {r['id']} --step {r['steps'][0]['name']}")
 
 
-def user_paths(cfg: dict) -> dict:
-    """The per-user production areas, passed to the workflow as {eos_prod} / {web_prod}.
 
-    Derived from what `roast init` already wrote, so a config in git never names a person,
-    and a colleague re-running your roast writes into their own area rather than yours.
-    xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
-    """
-    out = {}
-    eos = cfg.get("eos") or {}
-    if eos.get("path") and "<" not in eos["path"]:
-        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
-        out["eos_prod"] = f"{host}//{eos['path'].strip('/')}"
-    web = (cfg.get("cernbox") or {}).get("eos_path")
-    if web and "<" not in web:
-        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
-    return out
 
 
 def _window_name(r: dict, step: dict) -> str:
@@ -844,7 +1002,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # --config carries what the captured YAML deliberately does not know: which run this is
     # (from the manifest) and whose production area to write into (from ~/.config/roast/config.json).
     # More name=value pairs are safe here; a bare target is not, hence tgts above.
-    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
     base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
@@ -854,6 +1012,13 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     unlock = f"{base} --unlock || true\n" if resume else ""
     if resume:
         base += " --rerun-incomplete"
+    ref = host_cfg(cfg, step["host"]).get("reference", "")
+    ref_proxy = f"{ref}/proxy/x509_proxy" if ref else ""
+    proxy_srcs = ['"${X509_USER_PROXY:-}"', '"$HOME/.roast/x509_proxy"']
+    if ref_proxy:
+        proxy_srcs.append(rq(ref_proxy))
+    proxy_srcs.append('"/tmp/x509up_u$(id -u)"')
+    proxy_list = " ".join(proxy_srcs)
     return textwrap.dedent(f"""\
         #!/usr/bin/env bash
         # roast {r['id']} step {name} -- generated {now()}
@@ -871,9 +1036,10 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         # `roast proxy` leaves in ~/.roast (LPC /tmp is node-local), whichever is newer than the
         # checkout's. run_container `touch`es a missing proxy, so an empty file counts as none.
         mkdir -p proxy
-        for src in "${{X509_USER_PROXY:-/tmp/x509up_u$(id -u)}}" {rq(SHARED_PROXY)}; do
-            if [ -s "$src" ] && {{ [ ! -s proxy/x509_proxy ] || [ "$src" -nt proxy/x509_proxy ]; }}; then
-                cp -f "$src" proxy/x509_proxy && echo "=== proxy copied from $src ===" | tee -a "$LOG"
+        for _p in {proxy_list}; do
+            if [ -n "$_p" ] && [ -s "$_p" ] && voms-proxy-info -exists -valid 0:05 -file "$_p" >/dev/null 2>&1; then
+                cp -f "$_p" proxy/x509_proxy && echo "=== proxy copied from $_p ===" | tee -a "$LOG"
+                break
             fi
         done
         if [ -s proxy/kubeconfig ]; then
@@ -919,7 +1085,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     smk = step["snakefile"]
     configfile = f"roasts/{r['id']}/config.yml"
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
-    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg).items()))
+    settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
     base = (f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
@@ -1086,7 +1252,7 @@ def _submit(args, resume: bool) -> None:
     if host == "cmslpc":
         local_kube = Path.home() / ".kube" / "config"
         if local_kube.is_file():
-            sh(["scp", "-q", "-p", *SSH_OPTS, str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
+            sh(["scp", "-q", "-p", *ssh_opts(target), str(local_kube), f"{target}:{ckpt}/proxy/kubeconfig"], check=False)
 
     session = _tmux_session(r)
     window = _window_name(r, step)
@@ -1144,7 +1310,7 @@ def _submit(args, resume: bool) -> None:
     if res.returncode != 0:
         die(res.stderr.strip() or res.stdout.strip())
     print(res.stdout.strip())
-    paths = user_paths(cfg)
+    paths = user_paths(cfg, r)
     if paths and r.get("user_paths") != paths:
         r["user_paths"] = paths          # where this run writes; the captured config stays user-neutral
     cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
@@ -1209,7 +1375,7 @@ def cmd_log(args) -> None:
         cmd = f"tail -n {int(args.lines)} -F {rq(log)}"
         if args.errors:
             cmd += f" | grep -E --line-buffered {shlex.quote(_LOG_ERROR_RE)}"
-        os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
+        os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
 
     if args.stats:
         # The last "Job stats:" block: the job counts and the reasons snakemake gives for them.
@@ -1285,7 +1451,7 @@ def cmd_attach(args) -> None:
     else:
         tmux = f"tmux attach -t {session} 2>/dev/null || tmux attach -t {TMUX_SESSION}"
     info(f"ssh -t {target} {tmux}")
-    os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, tmux])
+    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, tmux])
 
 
 def cmd_proxy(args) -> None:
@@ -1321,7 +1487,7 @@ def cmd_proxy(args) -> None:
            f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
            f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
     info(f"ssh -t {target} {cmd}")
-    os.execvp("ssh", ["ssh", "-t", *SSH_OPTS, target, cmd])
+    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
 
 
 def cmd_pull(args) -> None:
@@ -1350,7 +1516,7 @@ def cmd_pull(args) -> None:
             cmd += ["--include=*/", "--exclude=*"]
         if args.dry_run:
             cmd += ["-n", "-v"]
-        cmd += ["-e", "ssh " + " ".join(SSH_OPTS), src, str(dst) + "/"]
+        cmd += ["-e", "ssh " + " ".join(ssh_opts(target)), src, str(dst) + "/"]
         info(f"[{host}] {' '.join(shlex.quote(c) for c in cmd[1:-2])} ...")
         info(f"[{host}] {src} -> {dst}/")
         res = subprocess.run(cmd, text=True)
@@ -1713,7 +1879,8 @@ def cmd_rm(args) -> None:
         plan.append(f"{host:7s} {h['checkout'].rsplit('/', 1)[0]}   (whole roast dir on the host)")
     if r.get("archive", {}).get("eos") or (eos.get("path") and "<" not in eos["path"]):
         plan.append(f"eos     {eos.get('url', 'root://cmseos.fnal.gov')}/{eos.get('path', '').rstrip('/')}/{rid}   (archive AND run-scoped outputs such as friend trees)")
-    plan.append(f"cernbox root://eosuser.cern.ch/{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}")
+    cb_eos, _ = cernbox_paths(cfg, r)
+    plan.append(f"cernbox root://eosuser.cern.ch/{cb_eos.rstrip('/')}/{rid}")
     print(f"roast rm {rid} would remove:")
     for line in plan:
         print("  " + line)
@@ -1744,7 +1911,7 @@ def cmd_rm(args) -> None:
         res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cfg['cernbox']['eos_path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -1802,7 +1969,7 @@ def _rsync_from(target: str, ckpt: str, rel_paths: list[str], dest_root: Path) -
     a file already present with the same size and mtime is not transferred again."""
     dest_root.mkdir(parents=True, exist_ok=True)
     cmd = ["rsync", "-a", "-v", "--files-from=-",
-           "-e", "ssh " + " ".join(SSH_OPTS), f"{target}:{ckpt}/", str(dest_root) + "/"]
+           "-e", "ssh " + " ".join(ssh_opts(target)), f"{target}:{ckpt}/", str(dest_root) + "/"]
     res = subprocess.run(cmd, text=True, input="\n".join(rel_paths) + "\n")
     if res.returncode != 0:
         die(f"rsync failed ({res.returncode})")
@@ -1900,7 +2067,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             # claims are reported too: they belong to a roast this checkout cannot see.
             f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
-    elif host == "falcon":
+    elif host in ("falcon", "bridges2"):
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
             f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
@@ -2401,25 +2568,88 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
-        LIST=$(mktemp); HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
-        trap 'rm -f "$LIST" "$HAVE" "$TODO" "$DIRS"' EXIT
+        LIST=$(mktemp); HAVE=$(mktemp); HAVE_DIRS=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
+        trap 'rm -f "$LIST" "$HAVE" "$HAVE_DIRS" "$RAW_HAVE" "$TODO" "$DIRS"' EXIT
         {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
            {extra_dirs} }} | sort -u > "$LIST"
         N=$(wc -l < "$LIST")
         {dry}
-        # What is already there (path<TAB>size), so reruns only copy new or changed files.
-        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null | awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' | sort > "$HAVE" || true
-        while IFS= read -r f; do
-            sz=$(stat -c %s "$f")
-            if ! grep -qxF "$f	$sz" "$HAVE"; then echo "$f"; fi
-        done < "$LIST" > "$TODO"
+        # What is already there (path<TAB>size and directories), so reruns only copy new or changed files.
+        xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
+        awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
+        awk -v b="{dst_dir}/" '$1 ~ /^d/ {{ p=$NF; sub(b,"",p); sub(/\\/$/, "", p); if (length(p)>0) print p }}' "$RAW_HAVE" | sort -u > "$HAVE_DIRS"
+        rm -f "$RAW_HAVE"
+        python3 -c '
+import os, sys
+have = dict()
+with open(sys.argv[2], "r", errors="replace") as f:
+    for line in f:
+        parts = line.strip().split("\t", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            have[parts[0]] = int(parts[1])
+with open(sys.argv[1], "r", errors="replace") as f_in, open(sys.argv[3], "w") as f_out:
+    for line in f_in:
+        p = line.strip()
+        if not p:
+            continue
+        try:
+            if have.get(p) != os.path.getsize(p):
+                print(p, file=f_out)
+        except OSError:
+            pass
+' "$LIST" "$HAVE" "$TODO" || {{ echo "python diff failed" >&2; exit 1; }}
         T=$(wc -l < "$TODO")
         {ht}
         echo "copying from $(hostname):$PWD -> $DST_BASE"
         echo "$N files selected, $((N-T)) already up to date, $T to copy ({jobs} in parallel)"
         [ "$T" = 0 ] && exit 0
         sed 's#/[^/]*$##' "$TODO" | sort -u > "$DIRS"
-        while IFS= read -r d; do xrdfs $EOS mkdir -p "{dst_dir}/$d" 2>/dev/null || true; done < "$DIRS"
+        python3 -c '
+import sys, os, subprocess, concurrent.futures
+dirs_file = sys.argv[1]
+have_dirs_file = sys.argv[2]
+eos = sys.argv[3]
+dst_dir = sys.argv[4].rstrip("/")
+jobs = int(sys.argv[5])
+
+have = set()
+if os.path.exists(have_dirs_file):
+    with open(have_dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d:
+                have.add(d)
+
+needed = set()
+if os.path.exists(dirs_file):
+    with open(dirs_file, "r", errors="replace") as f:
+        for line in f:
+            d = line.strip().strip("/")
+            if d and d not in have:
+                parts = d.split("/")
+                for i in range(1, len(parts) + 1):
+                    prefix = "/".join(parts[:i])
+                    if prefix not in have:
+                        needed.add(prefix)
+
+if not needed:
+    sys.exit(0)
+
+subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+by_depth = dict()
+for d in needed:
+    depth = d.count("/")
+    by_depth.setdefault(depth, []).append(d)
+
+for depth in sorted(by_depth.keys()):
+    batch = by_depth[depth]
+    def mk(rel_d):
+        subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir + "/" + rel_d],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, 32)) as ex:
+        list(ex.map(mk, batch))
+' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}" || {{ echo "python mkdir failed" >&2; exit 1; }}
         export DST_BASE
         tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'
@@ -2446,8 +2676,10 @@ def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     _refuse_if_cleaned(r, "publish", allow=args.docs_only)
-    eos_dir = f"{cfg['cernbox']['eos_path'].rstrip('/')}/{r['id']}"
-    url = f"{cfg['cernbox']['url'].rstrip('/')}/{r['id']}/"
+    analysis = getattr(args, "analysis", None) or r.get("analysis") or detect_analysis(r)
+    eos_base, url_base = cernbox_paths(cfg, r, analysis)
+    eos_dir = f"{eos_base.rstrip('/')}/{r['id']}"
+    url = f"{url_base.rstrip('/')}/{r['id']}/"
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
     ps = copy_settings("publish", cfg, r, args.include_test)
@@ -2519,6 +2751,8 @@ def cmd_archive(args) -> None:
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
     for host in hosts:
+        if host == "nautilus":
+            continue
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
         res = ssh_run(roast_ssh(cfg, r, host),
@@ -2794,7 +3028,7 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
@@ -2809,7 +3043,9 @@ def main(argv=None) -> None:
     s.add_argument("--id", help="override the generated roast id")
     s.add_argument("--notes", help="free text for the cupping notes")
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
+    s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
+    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="analysis channel for CERNBox web prod (default: auto-detected, fallback ttHbb)")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")
@@ -2860,6 +3096,7 @@ def main(argv=None) -> None:
     s.add_argument("--jobs", type=int, default=16, help="parallel xrdcp streams (default 16)")
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
+    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
     s.set_defaults(func=cmd_publish)
 
     s = sub.add_parser("archive", help="copy heavy products (.coffea/.root/yml/json) to FNAL EOS under eos.path/<id>/")

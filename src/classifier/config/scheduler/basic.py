@@ -65,6 +65,25 @@ class FixedStep(Schedule):
 
 
 @dataclass
+class CosineAnnealing(FixedStep):
+    """
+    Cosine annealing learning rate schedule with multi-step batch size scaling.
+    """
+
+    eta_min: float = 1e-6
+
+    def lr_scheduler(self, optimizer, **kwargs):
+        from torch.optim.lr_scheduler import CosineAnnealingLR
+
+        return CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=self.epoch,
+            eta_min=self.eta_min,
+            **self.lr_kwargs | kwargs,
+        )
+
+
+@dataclass
 class AutoStep(FixedStep):
     require_benchmark = True
 
