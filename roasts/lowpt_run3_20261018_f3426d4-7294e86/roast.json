@@ -201,7 +201,27 @@
       "checked_out": "2026-10-18 08:02:27"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86",
+    "url": "https://plotsalgomez.webtest.cern.ch/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86/",
+    "ts": "2026-10-20 15:52:56",
+    "ok": true,
+    "pages": [
+      "output/lowpt_FvT/yields.html",
+      "output/lowpt_SvB/yields.html",
+      "output/run3_lowpt/FvT_closure/cutflow_FvT_closure.html",
+      "output/run3_lowpt/FvT_closure/plots_FvT_closure/index.html",
+      "output/run3_lowpt/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/run3_lowpt/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/run3_lowpt/computeJCM/cutflow_NoJCM.html",
+      "output/run3_lowpt/computeJCM/cutflow_wJCM.html",
+      "output/run3_lowpt/computeJCM/plots_wJCM/index.html",
+      "output/run3_lowpt/cutflow_crosscheck_run3_lowpt.html",
+      "output/run3_lowpt/cutflow_run3_lowpt.html",
+      "output/run3_lowpt/plots_run3_lowpt/index.html",
+      "output/run3_lowpt/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-18 08:01:32",
@@ -304,6 +324,18 @@
       "event": "submit",
       "step": "F",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 15:52:38",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 15:52:56",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
