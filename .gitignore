@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.python_history
+.pythonstartup
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -214,6 +216,8 @@ scripts/
 # lxplus: interim dask_lxplus install and HTCondor job logs
 .lxplus_site/
 condor_logs/
+.sites_map.json
+.cmslpc-local-conf
 
 # Cupping notes: generated from roasts/*/roast.json by `roast index` and rebuilt by the
 # docs jobs.  Committing them made every parallel roast conflict on the shared index.
@@ -221,6 +225,7 @@ condor_logs/
 # parent directory is excluded, and using_roast.md is hand-written and must stay tracked.
 docs/prod/*
 !docs/prod/using_roast.md
+!docs/prod/using_roast_nautilus.md
 
 # default output dir of src/tools/repo_activity.py
 repo_activity_output/

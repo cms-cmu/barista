@@ -8,7 +8,8 @@ cluster-generic-status-cmd: "python software/kubernetes/nautilus_status.py"
 cluster-generic-cancel-cmd: "python software/kubernetes/nautilus_cancel.py"
 jobs: 16
 latency-wait: 60
-retries: 2
+retries: 3
+keep-going: true
 rerun-triggers: mtime
 
 default-resources:
@@ -16,15 +17,15 @@ default-resources:
   - "cpu=1"
 
 set-threads:
-  train: 8
-  evaluate: 8
+  train: 4
+  evaluate: 2
 
 set-resources:
   train:
-    mem_mb: 32000
+    mem_mb: 56000
     gpus: 1
-    cpu: 8
+    cpu: 4
   evaluate:
-    mem_mb: 24000
+    mem_mb: 48000
     gpus: 1
-    cpu: 8
+    cpu: 2

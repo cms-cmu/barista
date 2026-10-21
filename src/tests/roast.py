@@ -320,7 +320,14 @@ class TestUserPaths(unittest.TestCase):
     def test_derived_from_the_roast_config(self):
         paths = roast.user_paths(CFG)
         self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
-        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        # with nothing pointing at an analysis, roast defaults to ttHbb
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
+
+    def test_web_prod_follows_the_analysis(self):
+        self.assertEqual(roast.user_paths(CFG, analysis="HH4b")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
+        self.assertEqual(roast.user_paths(CFG, analysis="ttHbb")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
 
     def test_xrootd_keeps_its_doubled_slash(self):
         # root://host/abs/path silently means something else than root://host//abs/path
@@ -392,6 +399,26 @@ class TestConcurrentRoasts(unittest.TestCase):
         self.assertNotIn(" ", w)
         self.assertNotIn(":", w)     # tmux target syntax is session:window
         self.assertLessEqual(len(w), 40)
+
+    def test_session_is_isolated_per_roast(self):
+        r1 = fake_roast()
+        r1["id"] = "roast_1"
+        r2 = fake_roast()
+        r2["id"] = "roast_2"
+        self.assertNotEqual(roast._tmux_session(r1), roast._tmux_session(r2))
+        self.assertEqual(roast._tmux_session(r1), "roast_roast_1")
+
+    def test_session_fallback_when_none(self):
+        self.assertEqual(roast._tmux_session(None), "roast")
+        self.assertEqual(roast._tmux_session({}), "roast")
+
+    def test_session_is_tmux_safe(self):
+        r = fake_roast()
+        r["id"] = "analysis:run.test_123"
+        s = roast._tmux_session(r)
+        self.assertNotIn(":", s)
+        self.assertNotIn(".", s)
+        self.assertEqual(s, "roast_analysis_run_test_123")
 
 
 try:
@@ -823,6 +850,19 @@ class TestProxyPicking(unittest.TestCase):
                                roast.copy_settings("publish", CFG, fake_roast()))
         self.assertIn("no grid proxy with time left", s)
 
+    def test_copy_script_fast_diff_and_depth_dirs(self):
+        """Verify _copy_script uses fast in-memory diff and depth-stratified dir creation."""
+        s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
+                               roast.copy_settings("publish", CFG, fake_roast()))
+        self.assertIn("HAVE_DIRS", s)
+        self.assertIn("by_depth", s)
+        self.assertIn("concurrent.futures.ThreadPoolExecutor", s)
+        self.assertIn("print(p, file=f_out)", s)
+        self.assertIn("python diff failed", s)
+        self.assertIn("python mkdir failed", s)
+        # Verify it no longer contains the slow sequential while loop
+        self.assertNotIn("while IFS= read -r d; do xrdfs $EOS mkdir -p", s)
+
 
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
     """The point of recording `cleaned`: status answers for finished work without a network call."""
@@ -970,6 +1010,12 @@ class TestCommandLine(unittest.TestCase):
         res = self.run_roast("frappuccino")
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("invalid choice", res.stderr)
+
+    def test_bridges2_flags(self):
+        res = self.run_roast("new", "--help")
+        self.assertIn("--bridges2", res.stdout)
+        res = self.run_roast("init", "--help")
+        self.assertIn("--bridges2-user", res.stdout)
 
 
 class TestStatusGrouping(unittest.TestCase):
@@ -1157,5 +1203,103 @@ class TestStatusScriptBehaviour(unittest.TestCase):
         self.assertEqual(self.classify(log=log), "stalled")
 
 
+class TestRoastCommit(unittest.TestCase):
+    def test_default_commit_message_empty(self):
+        r = fake_roast()
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: update manifest and configuration")
+
+    def test_default_commit_message_with_steps_and_publish(self):
+        r = fake_roast()
+        r["history"] = [
+            {"event": "exit", "step": "B", "code": 0},
+            {"event": "exit", "step": "C", "code": 0},
+        ]
+        r["archive"] = {"ok": True, "eos": "root://cmseos.fnal.gov/store/..."}
+        r["publish"] = {"ok": True, "url": "https://..."}
+        msg = roast._default_commit_message(r)
+        self.assertEqual(msg, f"roast {FAKE_ID}: steps B,C done; archived; published")
+
+    def test_cmd_commit_flow(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
+            (repo / "run_container").touch()
+            (repo / "coffea4bees").mkdir()
+            (repo / "initial.txt").write_text("init\n")
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True)
+
+            rid = "mytest_20261015_1234567-abcdef0"
+            rdir = repo / "roasts" / rid
+            rdir.mkdir(parents=True)
+            manifest = fake_roast()
+            manifest["id"] = rid
+            (rdir / "roast.json").write_text(json.dumps(manifest))
+
+            (repo / "unrelated.txt").write_text("do not commit\n")
+
+            orig_root, orig_roasts = roast.ROOT, roast.ROASTS
+            try:
+                roast.ROOT = repo
+                roast.ROASTS = repo / "roasts"
+
+                # 1. Dry run
+                args = argparse.Namespace(id=rid, message=None, push=False, remote="origin", dry_run=True)
+                roast.cmd_commit(args)
+                status = subprocess.run(["git", "status", "--porcelain", "--", f"roasts/{rid}"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertIn(f"roasts/{rid}", status)
+
+                # 2. Real commit with custom message
+                args = argparse.Namespace(id=rid, message="add Phase B", push=False, remote="origin", dry_run=False)
+                roast.cmd_commit(args)
+
+                log = subprocess.run(["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+                self.assertEqual(log, f"roast {rid}: add Phase B")
+
+                status2 = subprocess.run(["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True).stdout
+                self.assertNotIn("roasts/", status2)
+                self.assertIn("?? unrelated.txt", status2)
+
+                # 3. Calling commit again reports nothing to commit
+                roast.cmd_commit(args)
+
+            finally:
+                roast.ROOT = orig_root
+                roast.ROASTS = orig_roasts
+
+
+class TestNautilusStepWorkers(unittest.TestCase):
+    """roast status counts only this roast's step's worker pods in the shared namespace."""
+
+    def test_is_step_worker(self):
+        import hashlib
+        r = {"id": "HH4b_bkg_syst_x_20261016_216b94a-27afcdb"}
+        h = hashlib.sha256(r["id"].encode()).hexdigest()[:6]
+        jname = f"roast-hh4b-bkg-syst-x-{h}-bkg-c"
+
+        def pod(name, **labels):
+            return {"metadata": {"name": name, "labels": labels}}
+
+        mine = pod(f"smk-{h}-train-1-abc123-qtngz", roast=r["id"], step="BKG_C", app="roast-worker")
+        other_roast = pod("smk-aa78bd-train-13-b06b12-wndc5", roast="analysis_ttHbb_other", step="bkg_syst_C")
+        other_step = pod(f"smk-{h}-train-1-abc123-zzzzz", roast=r["id"], step="D")
+        no_step_label = pod(f"smk-{h}-evaluate-2-def456-aaaaa", roast=r["id"])
+        unlabelled_mine = pod(f"smk-{h}-train-3-ghi789-bbbbb")
+        unlabelled_other = pod("smk-aa78bd-train-13-b06b12-ccccc")
+        orchestrator = pod(f"{jname}-wv7nf", roast=r["id"], step="BKG_C")
+
+        self.assertTrue(roast._is_step_worker(mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_roast, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(other_step, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(no_step_label, r, "BKG_C", jname))
+        self.assertTrue(roast._is_step_worker(unlabelled_mine, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(unlabelled_other, r, "BKG_C", jname))
+        self.assertFalse(roast._is_step_worker(orchestrator, r, "BKG_C", jname))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

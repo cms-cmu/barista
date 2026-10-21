@@ -26,6 +26,7 @@ __all__ = ["EOS", "PathLike", "EOSError", "save", "load"]
 
 class EOSError(Exception):
     def __init__(self, cmd: list[str], stderr: bytes, *args):
+        self.cmd, self.stderr = cmd, stderr
         msg = f'Operation failed\n  Command: {" ".join(cmd)}\n  Message: {stderr.decode()}'
         super().__init__(msg, *args)
         self.cmd = cmd
@@ -36,6 +37,17 @@ class EOSError(Exception):
         # default Exception pickling calls cls(*self.args), which lacks `stderr`
         # and breaks un-serialization of results from worker processes
         return (self.__class__, (self.cmd, self.stderr, *self._extra_args))
+
+    def __reduce__(self):
+        """Make the exception survive being sent between processes.
+
+        Exception's default pickling replays __init__ with self.args, which here holds only the
+        rendered message -- one argument where __init__ wants cmd and stderr.  Unpickling then
+        raised TypeError inside the worker-result reader, so a coffea run whose worker touched
+        an unreachable EOS path died with "A result has failed to un-serialize" and the actual
+        EOS message, the part that says what went wrong, was never shown (2026-10-15).
+        """
+        return (self.__class__, (self.cmd, self.stderr))
 
 
 class EOS:
@@ -132,7 +144,10 @@ class EOS:
     def exists(self):
         if not self.is_local:
             return self.call("ls", self.path)[0]
-        return self.path.exists()
+        # `Path` here is PurePosixPath, which has no .exists(): a pure path never touches a
+        # filesystem.  Every local call raised AttributeError, which went unnoticed only
+        # because nothing asked a local path whether it existed until mkdir did (2026-10-15).
+        return os.path.exists(self.path)
 
     @classmethod
     @retry(5, delay = 2.0)
@@ -181,6 +196,19 @@ class EOS:
 
     @_devnull()
     def mkdir(self, recursive: bool = False) -> EOS:
+        """Create the directory, and treat one that is already there as success.
+
+        `mkdir -p` is defined to be a no-op on an existing directory, but xrdfs does not honour
+        that when the directory belongs to somebody else: it answers [3010] permission denied.
+        So a job that created its output directory on one run failed on every run afterwards,
+        against the directory it had made itself -- which is how SvB_friendtree_coffea4bees
+        passed at 14:43 on 2026-10-15 and then failed six times in a row on the same commit.
+        """
+        try:
+            if self.exists:
+                return self
+        except EOSError:
+            pass            # cannot tell whether it is there; let mkdir answer, as before
         if self.call("mkdir", "-p" if recursive else "", self.path)[0]:
             return self
 

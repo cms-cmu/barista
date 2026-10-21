@@ -1,0 +1,456 @@
+{
+  "id": "lowpt_run2_20261017_ee4926d-23da795",
+  "label": "lowpt_run2",
+  "created": "2026-10-17 10:43:31",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "ee4926d5ef8097698c2ebf088877db2ef7fa5793",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "1f9287eb4e6f9fe0050ccc5d0bbb7e74317923d6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/lowpt_run2.yml",
+    "captured": "config.yml",
+    "sha256": "cc2b28d0ace6f09173680b9b4c37f4e46b7cfe87e1eedd85160c57b1ea0230d9"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 10:44:26",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_B",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "45d5c064ae7a"
+        },
+        {
+          "ts": "2026-10-17 10:46:35",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_B",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "45d5c064ae7a"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 15:42:47",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_C",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "45d5c064ae7a"
+        },
+        {
+          "ts": "2026-10-17 16:06:12",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_C",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "45d5c064ae7a"
+        },
+        {
+          "ts": "2026-10-17 23:17:46",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_C",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "cc2b28d0ace6"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 19:51:27",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_D",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "3c80741e7e5c"
+        },
+        {
+          "ts": "2026-10-17 19:51:50",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_D",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "3c80741e7e5c"
+        },
+        {
+          "ts": "2026-10-17 20:18:09",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_D",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "3ea47799f16f"
+        },
+        {
+          "ts": "2026-10-17 20:18:26",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_D",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "3ea47799f16f"
+        },
+        {
+          "ts": "2026-10-18 01:01:44",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_D",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "cc2b28d0ace6"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-17 21:37:37",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_F",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "3ea47799f16f"
+        },
+        {
+          "ts": "2026-10-17 21:38:04",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_F",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "3ea47799f16f"
+        },
+        {
+          "ts": "2026-10-18 02:30:52",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_F",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "cc2b28d0ace6"
+        },
+        {
+          "ts": "2026-10-18 02:31:15",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run2_ee4926d-23da795_F",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "cc2b28d0ace6"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/HH4b/prod/lowpt_run2_20261017_ee4926d-23da795/barista",
+      "ssh": "algomez@cmslpc320.fnal.gov",
+      "checked_out": "2026-10-17 10:44:08"
+    },
+    "falcon": {
+      "checkout": "/home/export/tgomezes/workingArea/roast_prod/lowpt_run2_20261017_ee4926d-23da795/barista",
+      "ssh": "tgomezes@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-17 10:44:17"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/HH4b/prod/lowpt_run2_20261017_ee4926d-23da795",
+    "url": "https://plotsalgomez.webtest.cern.ch/HH4b/prod/lowpt_run2_20261017_ee4926d-23da795/",
+    "ts": "2026-10-19 12:52:42",
+    "ok": true,
+    "pages": [
+      "output/lowpt_FvT/yields.html",
+      "output/lowpt_SvB/yields.html",
+      "output/run2_lowpt/computeJCM/cutflow_NoJCM.html",
+      "output/run2_lowpt/computeJCM/cutflow_wJCM.html",
+      "output/run2_lowpt/computeJCM/plots_wJCM/index.html",
+      "output/run2_lowpt/cutflow_crosscheck_run2_lowpt.html",
+      "output/run2_lowpt/cutflow_run2_lowpt.html",
+      "output/run2_lowpt/plots_run2_lowpt/index.html",
+      "output/run2_lowpt/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-17 10:43:31",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-17 10:44:08",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 10:44:17",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 10:44:26",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 10:46:35",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 15:42:47",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 16:06:12",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 19:51:27",
+      "event": "config-edited",
+      "sha256": "3c80741e7e5c"
+    },
+    {
+      "ts": "2026-10-17 19:51:27",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 19:51:50",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 20:18:09",
+      "event": "config-edited",
+      "sha256": "3ea47799f16f"
+    },
+    {
+      "ts": "2026-10-17 20:18:09",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 20:18:26",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-17 21:37:37",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 21:38:04",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-17 23:17:46",
+      "event": "config-edited",
+      "sha256": "cc2b28d0ace6"
+    },
+    {
+      "ts": "2026-10-17 23:17:46",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-18 01:01:44",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-18 02:30:52",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 02:31:15",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 06:40:21",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:40:24",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:43:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:44:08",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:58:24",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:58:26",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:58:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-18 06:58:48",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:52:25",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-19 12:52:42",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/lowpt_run2_20261017_ee4926d-23da795",
+    "ts": "2026-10-18 06:58:26",
+    "ok": true
+  }
+}

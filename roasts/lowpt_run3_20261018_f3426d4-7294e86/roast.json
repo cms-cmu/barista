@@ -1,0 +1,347 @@
+{
+  "id": "lowpt_run3_20261018_f3426d4-7294e86",
+  "label": "lowpt_run3",
+  "created": "2026-10-18 08:01:32",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "f3426d49254510451bb81baa319e0458b2f3ee4a",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "7294e861e3a2d48a3a87294ee20f34596d1d5f49",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/lowpt_run3.yml",
+    "captured": "config.yml",
+    "sha256": "02a88ea5f34e80d72be1850acfc6faebd5bc4e569e63c9cc2205f1d5434376db"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-18 08:02:35",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "e060dd1634e9"
+        },
+        {
+          "ts": "2026-10-18 08:14:00",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc320.fnal.gov",
+          "config_sha256": "e060dd1634e9"
+        },
+        {
+          "ts": "2026-10-18 09:34:08",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc373.fnal.gov",
+          "config_sha256": "e060dd1634e9"
+        },
+        {
+          "ts": "2026-10-18 09:34:34",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc373.fnal.gov",
+          "config_sha256": "e060dd1634e9"
+        },
+        {
+          "ts": "2026-10-18 10:31:04",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc340.fnal.gov",
+          "config_sha256": "e060dd1634e9"
+        },
+        {
+          "ts": "2026-10-18 11:46:26",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc340.fnal.gov",
+          "config_sha256": "a63c5661181c"
+        },
+        {
+          "ts": "2026-10-18 11:46:50",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc340.fnal.gov",
+          "config_sha256": "a63c5661181c"
+        },
+        {
+          "ts": "2026-10-18 12:31:14",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "lowpt_run3_f3426d4-7294e86_B",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "a63c5661181c"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "D",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-20 14:34:54",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_F",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "a63c5661181c"
+        },
+        {
+          "ts": "2026-10-20 14:35:46",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "lowpt_run3_f3426d4-7294e86_F",
+          "ssh": "algomez@cmslpc355.fnal.gov",
+          "config_sha256": "02a88ea5f34e"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86/barista",
+      "ssh": "algomez@cmslpc355.fnal.gov",
+      "checked_out": "2026-10-18 08:02:24"
+    },
+    "falcon": {
+      "checkout": "/home/export/tgomezes/workingArea/roast_prod/lowpt_run3_20261018_f3426d4-7294e86/barista",
+      "ssh": "tgomezes@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-18 08:02:27"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86",
+    "url": "https://plotsalgomez.webtest.cern.ch/HH4b/prod/lowpt_run3_20261018_f3426d4-7294e86/",
+    "ts": "2026-10-20 15:52:56",
+    "ok": true,
+    "pages": [
+      "output/lowpt_FvT/yields.html",
+      "output/lowpt_SvB/yields.html",
+      "output/run3_lowpt/FvT_closure/cutflow_FvT_closure.html",
+      "output/run3_lowpt/FvT_closure/plots_FvT_closure/index.html",
+      "output/run3_lowpt/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/run3_lowpt/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/run3_lowpt/computeJCM/cutflow_NoJCM.html",
+      "output/run3_lowpt/computeJCM/cutflow_wJCM.html",
+      "output/run3_lowpt/computeJCM/plots_wJCM/index.html",
+      "output/run3_lowpt/cutflow_crosscheck_run3_lowpt.html",
+      "output/run3_lowpt/cutflow_run3_lowpt.html",
+      "output/run3_lowpt/plots_run3_lowpt/index.html",
+      "output/run3_lowpt/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-18 08:01:32",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-18 08:02:24",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 08:02:27",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-18 08:02:35",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 08:14:00",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 09:33:26",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc373.fnal.gov"
+    },
+    {
+      "ts": "2026-10-18 09:34:08",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 09:34:34",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 10:31:02",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc340.fnal.gov"
+    },
+    {
+      "ts": "2026-10-18 10:31:04",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 11:46:26",
+      "event": "config-edited",
+      "sha256": "a63c5661181c"
+    },
+    {
+      "ts": "2026-10-18 11:46:26",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 11:46:50",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-18 12:31:12",
+      "event": "repin",
+      "host": "cmslpc",
+      "node": "cmslpc355.fnal.gov"
+    },
+    {
+      "ts": "2026-10-18 12:31:14",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 14:34:54",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 14:35:46",
+      "event": "config-edited",
+      "sha256": "02a88ea5f34e"
+    },
+    {
+      "ts": "2026-10-20 14:35:46",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 15:52:38",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 15:52:56",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  }
+}

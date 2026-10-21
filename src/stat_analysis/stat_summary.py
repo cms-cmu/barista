@@ -159,6 +159,38 @@ def read_scan(path: str, poi: str) -> dict | None:
         return None
 
 
+def read_impacts(path: str, poi: str = "r") -> list[dict] | None:
+    """Read nuisance parameter impacts from a combineTool Impacts json output."""
+    d = read_json(path)
+    if not d:
+        return None
+    params = d.get("params", [])
+    out = []
+    for p in params:
+        name = p.get("name", "")
+        fit = p.get("fit", [0, 0, 0])
+        # combineTool: impact_<poi> is a number, <poi> is [lo, nominal, hi]. A genuine 0.0 impact is
+        # falsy, so only fall back when the key is missing, and turn a [lo, nom, hi] into (hi - lo) / 2.
+        impact = p.get(f"impact_{poi}")
+        if impact is None and poi in p:
+            impact = p[poi]
+        if impact is None:
+            for k, v in p.items():
+                if (k.startswith("impact_r") or k.startswith("r")) and isinstance(v, (int, float)):
+                    impact = v
+                    break
+        if isinstance(impact, (list, tuple)):
+            impact = (impact[-1] - impact[0]) / 2 if len(impact) >= 2 else (impact[0] if impact else 0.0)
+        out.append({
+            "name": name,
+            "fit": fit,
+            "impact": float(impact) if impact is not None else 0.0,
+            "type": p.get("type", ""),
+        })
+    out.sort(key=lambda x: abs(x["impact"]), reverse=True)
+    return out
+
+
 # --------------------------------------------------------------------------- discovery
 def discover_channels(stat_dir: str) -> "OrderedDict[str, str]":
     """{channel: signallabel} from <stat_dir>/<channel>/limits/datacard_limits__<signal>.json."""
@@ -212,6 +244,13 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     merged = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}*.root")))
     info["scan"] = read_scan(merged[0], f"r{signal}") if merged else None
 
+    impacts_json_path = os.path.join(d, "impacts", f"impacts_combine_datacard__{signal}_exp.json")
+    if not os.path.exists(impacts_json_path):
+        cands = sorted(glob.glob(os.path.join(d, "impacts", "impacts_combine_*.json")))
+        if cands:
+            impacts_json_path = cands[0]
+    info["impacts"] = read_impacts(impacts_json_path, f"r{signal}") if os.path.exists(impacts_json_path) else None
+
     # links
     for label, *p in (
         ("combined datacard", "datacards", f"datacard__{channel}.txt"),
@@ -222,6 +261,7 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         ("likelihood scan pdf", "likelihood_scan", f"datacard_likelihood_scan__{signal}.pdf"),
         ("postfit pdf", "postfit", f"datacard_postfit__{signal}.pdf"),
         ("impacts pdf", "impacts", f"datacard_impacts__{signal}.pdf"),
+        ("impacts json", "impacts", os.path.basename(impacts_json_path) if os.path.exists(impacts_json_path) else f"impacts_combine_datacard__{signal}_exp.json"),
         ("fitDiagnostics (b-only)", "postfit", f"datacard_fitDiagnostics_bonly__{signal}.root"),
         ("diffNuisances (b-only)", "postfit", f"datacard_diffNuisances_bonly__{signal}.root"),
         ("correlation (physics) pdf", "postfit", "plots", "correlation_fit_s.pdf"),
@@ -247,7 +287,14 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     impacts_pdf = os.path.join(d, "impacts", f"datacard_impacts__{signal}.pdf")
     is_stat_only = "_stat_only" in channel or channel.endswith("_stat")
     if os.path.exists(impacts_pdf) and not is_stat_only:
-        impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "impacts_page-*.png")))
+        split_dir = os.path.join(d, "impacts", f"datacard_impacts_split__{signal}")
+        if not os.path.isdir(split_dir):
+            split_dirs = glob.glob(os.path.join(d, "impacts", "*impacts_split*"))
+            if split_dirs:
+                split_dir = split_dirs[0]
+        impacts_pngs = sorted(glob.glob(os.path.join(split_dir, "*.png"))) if os.path.isdir(split_dir) else []
+        if not impacts_pngs:
+            impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "*.png")))
         if not impacts_pngs and shutil.which("pdftoppm"):
             try:
                 subprocess.run(
@@ -257,8 +304,9 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
                 impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "impacts_page-*.png")))
             except Exception as e:
                 logger.warning(f"Could not convert impacts PDF to PNG: {e}")
-        if impacts_pngs:
-            info["figures"]["impacts"] = rel("impacts", os.path.basename(impacts_pngs[0]))
+        for i, png in enumerate(impacts_pngs):
+            label = "impacts" if len(impacts_pngs) == 1 else f"impacts (page {i+1})"
+            info["figures"][label] = os.path.relpath(png, stat_dir)
 
     return info
 
@@ -344,7 +392,7 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
     for c in chans:
         med, one, two = flim(c["limits"])
         sig = c["significance"] or {}
-        bkg = sum(v for p, v in c["totals"].items() if p in ("multijet", "tt") or p.startswith(("multijet", "tt", "TT", "bkg")))
+        bkg = sum(v for p, v in c["totals"].items() if p != c["signal"])
         s = c["totals"].get(c["signal"], float("nan"))
         soverb = s / math.sqrt(bkg) if bkg and not math.isnan(s) else float("nan")
         sc = c["scan"]
@@ -382,6 +430,12 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
                 sc = c["scan"]
                 h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(sc))}</b></td></tr>")
             h.append("</table>")
+        if c.get("impacts"):
+            top_imps = c["impacts"][:15]
+            h.append("<h3>Top systematic impacts on &Delta;r</h3><table><tr><th class='l'>nuisance parameter</th><th>impact on r</th><th>type</th></tr>")
+            for imp in top_imps:
+                h.append(f"<tr><td><code>{e(imp['name'])}</code></td><td><b>{imp['impact']:+.4f}</b></td><td>{e(imp['type'])}</td></tr>")
+            h.append("</table>")
         if c["figures"]:
             h.append("<div class='figs'>")
             for cap, src in c["figures"].items():
@@ -400,9 +454,19 @@ def md_page(title: str, chans: list[dict], blind: bool) -> str:
     for c in chans:
         med, one, two = flim(c["limits"])
         sig = c["significance"] or {}
-        bkg = sum(v for p, v in c["totals"].items() if p.startswith(("multijet", "tt", "TT", "bkg")))
+        bkg = sum(v for p, v in c["totals"].items() if p != c["signal"])
         out.append(f"| {c['channel']} | `{c['signal']}` | {fsig(sig.get('expected'))} | {med} | {one} | {two} | "
                    f"{fnum(bkg)} | {fnum(c['totals'].get(c['signal'], float('nan')), 2)} | {fscan(c['scan'])} |")
+    if any(c.get("impacts") for c in chans):
+        out.append("\n## Top systematic impacts\n")
+        for c in chans:
+            if c.get("impacts"):
+                out.append(f"### {c['channel']} (`{c['signal']}`)\n")
+                out.append("| nuisance parameter | impact on r | type |")
+                out.append("|---|---|---|")
+                for imp in c["impacts"][:10]:
+                    out.append(f"| `{imp['name']}` | **{imp['impact']:+.4f}** | {imp['type']} |")
+                out.append("")
     return "\n".join(out) + "\n"
 
 

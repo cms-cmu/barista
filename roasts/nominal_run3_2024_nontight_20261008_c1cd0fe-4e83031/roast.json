@@ -269,6 +269,14 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-14 16:29:12",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "falcon"
+      ]
     }
   ],
   "notes": "",
@@ -281,5 +289,12 @@
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
     "ts": "2026-10-09 09:32:10",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-10-14 16:29:12",
+    "hosts": [
+      "cmslpc",
+      "falcon"
+    ]
   }
 }

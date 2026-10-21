@@ -432,11 +432,19 @@ def apply_jerc_corrections_jsonpog(
 # regressed JERC jet type shipped by JME in ``regJet_jerc.json.gz``. The JEC
 # of these jet types is derived for ``pt_raw * prod(branches)``, so the same
 # product must be passed as ``jet_corr_factor`` when applying it.
+#
+# PNet and UParT differ: PNetRegPtRawCorrNeutrino is relative to the visible (regressed) pt, so the
+# full PNet regression is the product of both branches; UParTAK4RegPtRawCorrNeutrino already includes
+# the visible part (relative to raw pt), and JME recommends it ALONE -- UParTAK4RegPtRawCorr is not
+# multiplied in. Multiplying both (the PNet convention) inflated 2024/2025 regressed b-jets by
+# UParTAK4RegPtRawCorr (5-50%): Summer24 HH signal dijet masses came out ~12% above the 2022/2023 PNet
+# ones (lead/sublead mean 137.7/127.8 vs 123.4/114.5 GeV), and the jets disagreed with another
+# group's ntuples (JME-style, Neutrino only) by exactly that factor.
 REGRESSION_PT_FACTOR_BRANCHES = {
     "AK4PFPuppiPNetRegression":              ("PNetRegPtRawCorr",),
     "AK4PFPuppiPNetRegressionPlusNeutrino":  ("PNetRegPtRawCorr", "PNetRegPtRawCorrNeutrino"),
     "AK4PFPuppiUParTRegression":             ("UParTAK4RegPtRawCorr",),
-    "AK4PFPuppiUParTRegressionPlusNeutrino": ("UParTAK4RegPtRawCorr", "UParTAK4RegPtRawCorrNeutrino"),
+    "AK4PFPuppiUParTRegressionPlusNeutrino": ("UParTAK4RegPtRawCorrNeutrino",),
 }
 
 

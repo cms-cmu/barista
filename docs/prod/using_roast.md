@@ -75,10 +75,12 @@ Phases map to machines the way the
 
 | Phase | A | B | C | D | E | F |
 |---|---|---|---|---|---|---|
-| runs on | cmslpc | cmslpc | falcon | falcon | cmslpc | cmslpc |
+| runs on | cmslpc | cmslpc | falcon / nautilus | falcon / nautilus | cmslpc | cmslpc |
+
+Passing `--nautilus` to `bin/roast new` maps the GPU phases (`C`, `D`, `BKG_C`) to run as Kubernetes Jobs on the **NRP Nautilus** cluster instead of Falcon (see [Using roast on Nautilus](using_roast_nautilus.md)).
 
 `--phases B,C,D,F` sets up several steps at once; each is submitted separately, and you
-move to the next when the previous one reports `exit=0`. Run `checkout` for both machines
+move to the next when the previous one reports `exit=0`. Run `checkout` for each machine
 when a roast spans them. Workflows outside the A–F scheme are added with
 `--step host:Snakefile[:targets]`, for example:
 
@@ -343,15 +345,17 @@ machine. Publishing keeps the browsable artefacts under 50 MB. Both selections a
 configurable per user under `publish` and `archive` in `~/.config/roast/config.json`, or
 per roast under `publish_rules` and `archive_rules` in its `roast.json`.
 
-The catalogue is only as complete as what is committed. After publishing:
+The catalogue is only as complete as what is committed. After archiving/publishing:
 
 ```bash
-git add roasts/<id> docs/prod
-git commit -m "roast <id>: Phase B results"
+bin/roast commit <id>
+# or with a custom message and automatic push:
+bin/roast commit <id> -m "Phase B results" --push
 ```
 
-and merge to `master`. The `pages` job publishes the site within a minute of the merge,
-independently of the analysis CI.
+`roast commit` stages only `roasts/<id>/` (leaving active work in the tree and other roasts untouched), creates a structured commit message detailing which steps and archiving/publishing actions are complete, and optionally pushes to your remote branch.
+
+Once merged to `master`, the `pages` job publishes the site within a minute of the merge, independently of the analysis CI.
 
 Results live in each person's own CERNBox area, so nobody needs write access to anyone
 else's; the catalogue is the shared index that ties them together.

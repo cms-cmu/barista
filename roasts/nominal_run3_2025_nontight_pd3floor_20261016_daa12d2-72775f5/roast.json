@@ -1,0 +1,129 @@
+{
+  "id": "nominal_run3_2025_nontight_pd3floor_20261016_daa12d2-72775f5",
+  "label": "nominal_run3_2025_nontight_pd3floor",
+  "created": "2026-10-16 11:49:14",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "daa12d22",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "72775f533be413da87e831c6693ede1bb9184ec6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2025_nontight_pd3floor.yml",
+    "captured": "config.yml",
+    "sha256": "86c2c044fc9412c4ddd54af583c78678d22fb038e237c8826eba1684a510a4cb",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3_2025_nontight.yml",
+        "sha256": "cb092ad2e213093ee534c80d2d74f197b7e3d003064e2fb76bda58ba51665728"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-16 11:51:21",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_nontight_pd3floor_daa12d2-72775f5_C4",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "86c2c044fc94"
+        },
+        {
+          "ts": "2026-10-16 11:55:29",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_nontight_pd3floor_daa12d2-72775f5_C4",
+          "ssh": "jda102@cmslpc320.fnal.gov",
+          "config_sha256": "86c2c044fc94"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_nontight_pd3floor_20261016_daa12d2-72775f5/barista",
+      "ssh": "jda102@cmslpc320.fnal.gov",
+      "checked_out": "2026-10-16 11:51:19"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_nontight_pd3floor_20261016_daa12d2-72775f5",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_nontight_pd3floor_20261016_daa12d2-72775f5/",
+    "ts": "2026-10-16 13:42:42",
+    "ok": true,
+    "pages": [
+      "output/Run3_2025_nontight_pd3floor/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2025_nontight_pd3floor/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2025_nontight_pd3floor/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2025_nontight_pd3floor/FvT_closure/ttbar_MC_vs_d3_cutflow.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-16 11:49:14",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-16 11:51:19",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 11:51:21",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 11:55:29",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-16 13:42:41",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-16 14:03:40",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "C.4 rerun of nominal_run3_2025_nontight_20261015_9ac9a30-b172c05 with FvT_pd3_floor 0.01",
+  "category": "",
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_nontight_pd3floor_20261016_daa12d2-72775f5",
+    "ts": "2026-10-16 14:03:40",
+    "ok": true
+  }
+}
