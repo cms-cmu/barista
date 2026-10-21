@@ -315,7 +315,6 @@ if __name__ == '__main__':
                 'data': f'{tmp_folder}/data',
                 cur_mj: f'{tmp_folder}/{cur_mj}',
                 'TotalBkg': f'{tmp_folder}/total_background',
-                signal: f'{tmp_folder}/{signal_key}',
                 'cov_matrix': f'{tmp_folder}/total_covar'
             }
             for key_name, obj_path in required_objects.items():
@@ -327,12 +326,18 @@ if __name__ == '__main__':
                 tt_hist = infile.Get(f'{tmp_folder}/{cur_mj}').Clone(f'{tmp_folder}_{tt}_empty')
                 tt_hist.Reset()
 
+            sig_hist = infile.Get(f'{tmp_folder}/{signal_key}')
+            if not sig_hist:
+                ref_hist = infile.Get(f'{tmp_folder}/{cur_mj}') or infile.Get(f'{tmp_folder}/total_background')
+                sig_hist = ref_hist.Clone(f'{tmp_folder}_{signal}_empty')
+                sig_hist.Reset()
+
             if is_first:
                 hists['data'] = convert_tgraph_to_th1(infile.Get(f'{tmp_folder}/data'), f'data{ichannel}')
                 hists[cur_mj] = infile.Get(f'{tmp_folder}/{cur_mj}')
                 hists[tt] = tt_hist
                 hists['TotalBkg'] = infile.Get(f'{tmp_folder}/total_background')
-                hists[signal] = infile.Get(f'{tmp_folder}/{signal_key}')
+                hists[signal] = sig_hist
                 hists['cov_matrix'] = infile.Get(f'{tmp_folder}/total_covar')
                 is_first = False
             else: 
@@ -340,7 +345,7 @@ if __name__ == '__main__':
                 hists[cur_mj].Add( infile.Get(f'{tmp_folder}/{cur_mj}') )
                 hists[tt].Add( tt_hist )
                 hists['TotalBkg'].Add( infile.Get(f'{tmp_folder}/total_background') )
-                hists[signal].Add( infile.Get(f'{tmp_folder}/{signal_key}') )
+                hists[signal].Add( sig_hist )
                 hists['cov_matrix'].Add( infile.Get(f'{tmp_folder}/total_covar') )
 
         if is_first:
