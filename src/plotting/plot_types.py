@@ -89,6 +89,7 @@ class RenderOptions:
     year: str = "RunII"
     year_str: Optional[str] = None   # overrides year for the CMS label only
     do_title: bool = True
+    title: Optional[str] = None   # 2D plots: replaces the default "<region>  (<cut>)" title
 
     # --- Text annotations ----------------------------------------------------
     text: Dict = field(default_factory=dict)

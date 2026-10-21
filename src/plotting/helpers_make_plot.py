@@ -929,7 +929,11 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
         hep.cms.label(opts.CMSText, data=True,
                       year=opts.year.replace("UL", "20"), loc=0, ax=ax)
 
-        if 'region' in plot_data["axis_opts"]:
+        if not opts.do_title:
+            pass
+        elif opts.title is not None:
+            ax.set_title(opts.title, fontsize=16)
+        elif 'region' in plot_data["axis_opts"]:
             ax.set_title(f"{plot_data['axis_opts']['region']}  ({plot_data['cut']})", fontsize=16)
         else:
             ax.set_title(f"                       ({plot_data['cut']})", fontsize=16)
