@@ -29,15 +29,66 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_TrigWeights.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-21 14:05:49",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "trigweights_run3_2024_regfix_f82849e-b311e97_TrigWeights",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "ed9aba55166d"
+        },
+        {
+          "ts": "2026-10-21 14:13:50",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "trigweights_run3_2024_regfix_f82849e-b311e97_TrigWeights",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "ed9aba55166d"
+        }
+      ]
     }
   ],
-  "hosts": {},
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/trigweights_run3_2024_regfix_20261021_f82849e-b311e97/barista",
+      "ssh": "jda102@cmslpc332.fnal.gov",
+      "checked_out": "2026-10-21 14:05:40"
+    }
+  },
   "publish": {},
   "history": [
     {
       "ts": "2026-10-21 14:01:33",
       "event": "new"
+    },
+    {
+      "ts": "2026-10-21 14:05:40",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-21 14:05:49",
+      "event": "submit",
+      "step": "TrigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-21 14:13:50",
+      "event": "submit",
+      "step": "TrigWeights",
+      "host": "cmslpc"
     }
   ],
   "notes": "2024 TT + SM ggF trigger-weight friends with the fixed UParT regression (barista f82849e4); replaces all 2024 entries of trigweights_Run3_v4.json.",
