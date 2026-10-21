@@ -1,0 +1,168 @@
+{
+  "id": "nominal_run3_2025_blindF_20261019_da5e57f-b9b705e",
+  "label": "nominal_run3_2025_blindF",
+  "analysis": "HH4b",
+  "created": "2026-10-19 22:16:58",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "da5e57f3697c3257bb1e1aedc9c49e85b50266dd",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "b9b705e7102126135218f00b53b82c6189e65ff0",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2025_blindF.yml",
+    "captured": "config.yml",
+    "sha256": "e44746d3ccdf69a601ace605dcf68ffc11f3f6f903edc35c28e2be4dc6154e3d",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3_2025.yml",
+        "sha256": "e87e14e78653ee8f06ba80faca683aadd94e397d0512d5071aa567cff5b95243"
+      }
+    ]
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-19 22:22:37",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 22:53:52",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 23:10:01",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        },
+        {
+          "ts": "2026-10-19 23:31:13",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_blindF_da5e57f-b9b705e_F",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "e44746d3ccdf"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e/barista",
+      "ssh": "jda102@cmslpc332.fnal.gov",
+      "checked_out": "2026-10-19 22:18:38"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e/",
+    "ts": "2026-10-20 02:22:48",
+    "ok": true,
+    "pages": [
+      "output/Run3_2025_nominal_blind/cutflow_Run3_2025_nominal_blind.html",
+      "output/Run3_2025_nominal_blind/cutflow_crosscheck_Run3_2025_nominal_blind.html",
+      "output/Run3_2025_nominal_blind/plots_Run3_2025_nominal_blind/index.html",
+      "output/Run3_2025_nominal_blind/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-19 22:16:58",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-19 22:18:38",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:22:37",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 22:53:52",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 23:10:01",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-19 23:31:13",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 02:22:48",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 02:22:49",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "BLINDED rerun of F for nominal_run3_2025_20261017_db7bbcd-feb07f3 (first F was unblinded; taken down from CERNBox).",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_blindF_20261019_da5e57f-b9b705e",
+    "ts": "2026-10-20 02:22:49",
+    "ok": true
+  }
+}
