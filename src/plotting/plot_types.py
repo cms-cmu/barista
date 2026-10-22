@@ -75,7 +75,7 @@ class RenderOptions:
     legend_order: Optional[List[str]] = None
 
     # --- Ratio panel ---------------------------------------------------------
-    doRatio: bool = True
+    doRatio: bool = True   # 2D: ratio of 2nd/1st process if True, else sum the processes
     rlabel: str = "Ratio"
     rlabel_fontsize: int = 30
     rlim: Tuple = (0, 2)
@@ -89,6 +89,7 @@ class RenderOptions:
     year: str = "RunII"
     year_str: Optional[str] = None   # overrides year for the CMS label only
     do_title: bool = True
+    title: Optional[str] = None   # 2D plots: replaces the default "<region>  (<cut>)" title
 
     # --- Text annotations ----------------------------------------------------
     text: Dict = field(default_factory=dict)
