@@ -61,6 +61,19 @@
           "window": "nominal_run3_svb1x_noMA_3d06220-52337c2_D",
           "ssh": "jalison@falcon.phys.cmu.edu",
           "config_sha256": "31a330ba60db"
+        },
+        {
+          "ts": "2026-10-23 10:00:57",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_svb1x_noMA_3d06220-52337c2_D",
+          "ssh": "jalison@falcon.phys.cmu.edu",
+          "config_sha256": "31a330ba60db"
         }
       ]
     },
@@ -83,6 +96,19 @@
           "window": "nominal_run3_svb1x_noMA_3d06220-52337c2_F",
           "ssh": "jda102@cmslpc333.fnal.gov",
           "config_sha256": "31a330ba60db"
+        },
+        {
+          "ts": "2026-10-23 13:10:09",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_svb1x_noMA_3d06220-52337c2_F",
+          "ssh": "jda102@cmslpc333.fnal.gov",
+          "config_sha256": "31a330ba60db"
         }
       ]
     }
@@ -99,7 +125,19 @@
       "checked_out": "2026-10-23 09:59:41"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_svb1x_noMA_20261023_3d06220-52337c2",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_svb1x_noMA_20261023_3d06220-52337c2/",
+    "ts": "2026-10-23 13:45:02",
+    "ok": true,
+    "pages": [
+      "output/Run3_nominal_svb1x_noMA/cutflow_Run3_nominal_svb1x_noMA.html",
+      "output/Run3_nominal_svb1x_noMA/cutflow_crosscheck_Run3_nominal_svb1x_noMA.html",
+      "output/Run3_nominal_svb1x_noMA/plots_Run3_nominal_svb1x_noMA/index.html",
+      "output/Run3_nominal_svb1x_noMA/stat_analysis/summary.html",
+      "output/SvB_1x_noMA/yields.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-23 09:50:38",
@@ -126,8 +164,49 @@
       "event": "submit",
       "step": "F",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 10:00:57",
+      "event": "submit",
+      "step": "D",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-23 13:10:09",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 13:44:44",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 13:45:02",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 13:45:04",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 13:45:06",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_svb1x_noMA_20261023_3d06220-52337c2",
+    "ts": "2026-10-23 13:45:06",
+    "ok": true
+  }
 }
