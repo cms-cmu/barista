@@ -522,10 +522,10 @@ class _generate_group_diagnostics_and_gallery:
             })
 
         template_dir = EOS(__file__).parent.parent.parent.parent / "monitor" / "template" / "html"
-        if not (template_dir / "classifier_report.html").exists():
+        if not (template_dir / "classifier_report.html").exists:
             # Fallback to repo root src/ path if __file__ is in a different relative location
             fallback_dir = EOS("src/classifier/monitor/template/html")
-            if (fallback_dir / "classifier_report.html").exists():
+            if (fallback_dir / "classifier_report.html").exists:
                 template_dir = fallback_dir
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         tpl = env.get_template("classifier_report.html")
