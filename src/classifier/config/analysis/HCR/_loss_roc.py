@@ -10,23 +10,12 @@ from itertools import chain, cycle
 from typing import TYPE_CHECKING
 
 import fsspec
-import numpy as np
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
-try:
-    import mplhep as hep
-    plt.style.use(hep.style.CMS)
-    HAS_MPLHEP = True
-except Exception:
-    HAS_MPLHEP = False
 
 from src.classifier.config.setting import IO, ResultKey
 from src.classifier.task import Analysis, ArgParser
 
 if TYPE_CHECKING:
+    import numpy as np
     import pandas as pd
 
 
@@ -180,6 +169,16 @@ class _generate_group_diagnostics_and_gallery:
 
     def __call__(self):
         import logging
+        import numpy as np
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        try:
+            import mplhep as hep
+            plt.style.use(hep.style.CMS)
+        except Exception:
+            pass
+
         from jinja2 import Environment, FileSystemLoader
         from src.classifier.monitor import Index
         from src.storage.eos import EOS
@@ -523,6 +522,11 @@ class _generate_group_diagnostics_and_gallery:
             })
 
         template_dir = EOS(__file__).parent.parent.parent.parent / "monitor" / "template" / "html"
+        if not (template_dir / "classifier_report.html").exists():
+            # Fallback to repo root src/ path if __file__ is in a different relative location
+            fallback_dir = EOS("src/classifier/monitor/template/html")
+            if (fallback_dir / "classifier_report.html").exists():
+                template_dir = fallback_dir
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         tpl = env.get_template("classifier_report.html")
 
