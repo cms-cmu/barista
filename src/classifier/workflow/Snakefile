@@ -212,7 +212,6 @@ rule train:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10200-10300 -n 1) && \
         mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         rm -f {params.yields} && \
         set +u && \
@@ -225,7 +224,6 @@ rule train:
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {input.wf} \
             -from {input.common} \
-            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
@@ -280,7 +278,6 @@ rule analyze:
             -analysis HCR.LossROC \
             -setting IO "output: {params.plot}" \
             -setting IO "report: ." \
-            -setting Monitor "enable: False" \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
@@ -313,7 +310,6 @@ rule evaluate:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10200-10300 -n 1) && \
         mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         set +u && \
         if [ -z "$X509_USER_PROXY" ] && [ -f ./proxy/x509_proxy ]; then \
@@ -328,7 +324,6 @@ rule evaluate:
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {input.eval_wf} \
             -from {input.common} \
-            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
