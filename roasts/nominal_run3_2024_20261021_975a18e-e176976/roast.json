@@ -254,7 +254,48 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-22 21:17:27",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_975a18e-e176976_F",
+          "ssh": "jda102@cmslpc365.fnal.gov",
+          "config_sha256": "e312d6e935e9"
+        },
+        {
+          "ts": "2026-10-22 21:18:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_975a18e-e176976_F",
+          "ssh": "jda102@cmslpc365.fnal.gov",
+          "config_sha256": "e312d6e935e9"
+        },
+        {
+          "ts": "2026-10-22 22:39:11",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_975a18e-e176976_F",
+          "ssh": "jda102@cmslpc365.fnal.gov",
+          "config_sha256": "e312d6e935e9"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -276,7 +317,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2024_20261021_975a18e-e176976",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2024_20261021_975a18e-e176976/",
-    "ts": "2026-10-22 16:29:00",
+    "ts": "2026-10-22 23:26:09",
     "ok": true,
     "pages": [
       "output/Run3_2024_nominal/FvT_closure/cutflow_FvT_closure.html",
@@ -285,7 +326,11 @@
       "output/Run3_2024_nominal/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
       "output/Run3_2024_nominal/computeJCM/cutflow_NoJCM.html",
       "output/Run3_2024_nominal/computeJCM/cutflow_wJCM.html",
-      "output/Run3_2024_nominal/computeJCM/plots_wJCM/index.html"
+      "output/Run3_2024_nominal/computeJCM/plots_wJCM/index.html",
+      "output/Run3_2024_nominal/cutflow_Run3_2024_nominal.html",
+      "output/Run3_2024_nominal/cutflow_crosscheck_Run3_2024_nominal.html",
+      "output/Run3_2024_nominal/plots_Run3_2024_nominal/index.html",
+      "output/Run3_2024_nominal/stat_analysis/summary.html"
     ]
   },
   "history": [
@@ -408,8 +453,49 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-22 21:17:27",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 21:18:00",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 22:39:11",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 22:46:33",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 23:26:08",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 12:29:32",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2024 tight nominal rerun after the UParT regression fix (barista !273) + trigweights v5; F blind. Supersedes nominal_run3_2024_20261011_852c1c2-be0604a / _blindF_20261019.",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_20261021_975a18e-e176976",
+    "ts": "2026-10-23 12:29:32",
+    "ok": true
+  }
 }

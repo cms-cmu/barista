@@ -194,7 +194,22 @@
       "checked_out": "2026-10-21 16:09:45"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2024_nontight_20261021_975a18e-e176976",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2024_nontight_20261021_975a18e-e176976/",
+    "ts": "2026-10-23 08:30:10",
+    "ok": true,
+    "pages": [
+      "output/FvT_nominal/yields.html",
+      "output/Run3_2024_nontight/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2024_nontight/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2024_nontight/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2024_nontight/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/Run3_2024_nontight/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_2024_nontight/computeJCM/cutflow_wJCM.html",
+      "output/Run3_2024_nontight/computeJCM/plots_wJCM/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-21 16:03:00",
@@ -269,8 +284,37 @@
       "event": "resume",
       "step": "C4",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 19:26:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 19:26:38",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 19:26:55",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 08:30:10",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2024 non-tight rerun after the UParT regression fix (barista !273) + trigweights v5. Supersedes nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031.",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261021_975a18e-e176976",
+    "ts": "2026-10-22 19:26:55",
+    "ok": true
+  }
 }

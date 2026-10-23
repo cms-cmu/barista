@@ -1,0 +1,185 @@
+# ==============================================================================
+# MvD ROAST — 2024
+# ==============================================================================
+# mvd_run3.yml for 2024 alone: the mixed-data background model (four-tag mixeddata_all x JCM x MvD),
+# an SvB trained against it, and stat-only limits. Workflow: Snakefile_MvD.smk (+ _1.._4).
+#
+# A standalone copy of mvd_run3.yml, not a `base:` overlay: the layered merge is a dict merge, so
+# the base's four 2022/2023 year_eras (and classifier eras) would survive next to 2024. What differs:
+#
+#   * upstreams     the tight 2024 nominal roast (nominal_run3_2024.yml: B.1 JCM + histograms,
+#                   B.2 classifier inputs incl. the SM ggF signal, the F.1 config) and the 2024
+#                   mixed data mixeddata_run3_2024_20261022_d7a35ab-8470e14 (non-tight library and
+#                   mixing, 2024 non-tight JCM + FvT; V.1 re-selects it with the tight selection).
+#   * eras          2024 C-I3 in one year; `year` dropped from the HCR ancillary features (constant
+#                   with one year: zero variance -> NaN input).
+#   * references    closure / analysis known counts point at not-yet-existing *_2024 files (dump,
+#                   then bless).
+#   * Combine       one HH4b_2024 bin (stats_analysis/metadata/HH4b_run3_2024.yml).
+#
+#   roast new --config coffea4bees/workflows/config/mvd_run3_2024.yml \
+#       --step cmslpc:coffea4bees/workflows/Snakefile_MvD.smk \
+#       --step falcon:coffea4bees/workflows/Snakefile_MvD_2_train.smk \
+#       --step falcon:coffea4bees/workflows/Snakefile_MvD_3_svb.smk
+#   roast submit <id> --step MvD --targets all_V1          # cmslpc: inputs + tight mixed JCM
+#   roast submit <id> --step MvD_2_train                   # falcon: MvD
+#   roast submit <id> --step MvD --targets all_V2c         # cmslpc: MvD closure (C.4 analogue)
+#   roast submit <id> --step MvD_3_svb                     # falcon: SvB vs mixed x MvD
+#   roast submit <id> --step MvD --targets all_V4          # cmslpc: analysis + stat-only limits
+# ==============================================================================
+
+label: "mvd_run3_2024"
+output_path: "output/{roast_id}/"
+publish_base: "{eos_prod}/{roast_id}"
+
+inputs:
+  upstream_roasts: [nominal_run3_2024_20261021_975a18e-e176976, mixeddata_run3_2024_20261022_d7a35ab-8470e14]
+  # Built with the NON-tight 4b hemisphere library; V.1 / V.4 re-select it with the tight selection.
+  mixeddata_all: "{roast:mixeddata_run3_2024_20261022_d7a35ab-8470e14}/handoff/mixeddata_all.yml"
+  # Tight 2024 Phase B.2: the data / ttbar / ggF classifier-input manifest, and the config that made
+  # it (V.1 makes the mixeddata_all inputs with exactly that config).
+  classifier_inputs: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/handoff/classifier_inputs_nominal_run3_2024_20261021_975a18e-e176976.json"
+  classifier_inputs_config: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/output/Run3_2024_nominal/classifier_inputs/classifier_inputs_config.yml"
+  # Tight 2024 B.1 JCM (the one the B.2 config above applies) and its data + ttbar histograms, which
+  # the tight mixed-data JCM fit reuses (analysis_config_noJCM.yml is read from the same directory).
+  JCM: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/handoff/jetCombinatoricModel_SB_Run3_2024_v1.yml"
+  jcm_hists: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/output/Run3_2024_nominal/computeJCM/histAll_NoJCM.coffea"
+  # Tight 2024 F.1 runner config (made by `--step F --targets create_analysis_config`): V.4 swaps
+  # FvT -> MvD, the JCM and SvB_MA, nothing else.
+  analysis_config: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/output/Run3_2024_nominal/analysis_config.yml"
+
+# Eras as in nominal_run3_2024.yml. '2024' MUST stay quoted (string-keyed metadata).
+year_eras:
+  '2024': ["C", "D", "E", "F", "G", "H", "I2", "I3"]
+
+# MvD uses the nominal (tight) four-tag definition; checked against every upstream config.
+fourTag_use_tight: true
+
+# V.1: the classifier dataset metadata (data / ttbar / signal file lists) the trainings read, plus
+# this roast's mixeddata_all. V.4 uses the same files minus TT.yml.
+classifier_metadata_files:
+  - coffea4bees/metadata/datasets/data.yml
+  - coffea4bees/metadata/datasets/TT.yml
+  - coffea4bees/metadata/datasets/GluGluToHHTo4B.yml
+
+# V.1: tight mixed-data JCM (mixeddata_all four-tag as the "3b" sample vs four-tag data - ttbar).
+# The seed is the 2022/2023 value; the fit floats it.
+mixed_jcm:
+  config: "coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config_Run3.yml"
+  float_t: true
+  threeTightTagFraction: 0.47781
+  tag: mixeddata_tight
+
+# check_handoff_refs: the mvd / svb_mvd blocks must read what V.1 publishes.
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+
+# As nominal_run3_2024.yml (dumped to each falcon step's common.yml).
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.CollisionData
+    option:
+      - eras:
+          '2024': [C, D, E, F, G, H, I2, I3]
+  - module: HCR.InputBranch
+    option:
+      # No `year`: one year in the training makes it a constant (zero variance -> NaN input).
+      - feature_ancillary: [xW, nSelJets, xbW]
+      - mass_regions: [SR, SB]    # see nominal_run3.yml
+
+# ==============================================================================
+# V.2 (falcon): MvD. HH4b_Run3/MvD templates (mix4 vs d4 vs t4; 4b SR data excluded from the
+# training by the dataset class); only the inputs are overridden.
+# ==============================================================================
+mvd:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_Run3/MvD"
+  label: "MvD"
+  output_dir: "output/MvD/"
+  # yields page (output/MvD/yields.html): four-tag data vs the model the MvD starts from
+  yields_ratio: ["d4 / t4 + mix4"]
+  plot_inputs: false
+  train_template: "model: {eos_base}/classifier/{label}"
+  eval_template: "model: {eos_base}/classifier/{label}, MvD: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_MvD.json@@HCR_input"
+  workflow_overrides:
+    # <url>.yml@@datasets (see Snakefile_MvD_1_inputs.smk: V1_metadata)
+    --metadata: "{eos_prod}/{roast_id}/handoff/classifier_metadata"
+    --JCM-weight: '"source:mixed_all" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_mixeddata_tight.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_MvD.json@@HCR_input"
+
+# ==============================================================================
+# V.2c (cmslpc): MvD closure, the Phase C.4 analogue -- data vs mixed x JCM x MvD + TTbar4b_from_MvD,
+# no SvB. Nothing blessed for 2024 yet: the first run dumps the cutflow for blessing.
+# ==============================================================================
+closure:
+  label: "MvD_closure"
+  known_counts: "coffea4bees/analysis/tests/known_fullCounts_MvD_closure_Run3_2024.yml"
+
+# ==============================================================================
+# V.3 (falcon): SvB against mixed x JCM x MvD. The nominal Phase D templates (HH4b_Run3/SvB: ggF
+# only, 3 folds, same training) with the multijet background swapped: four-tag mixeddata_all x
+# JCM x MvD (HCR.SvB.BackgroundMixed) instead of 3b data x JCM x FvT.
+# ==============================================================================
+svb_mvd:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  wfs_base: "coffea4bees/classifier/config/workflows/HH4b_Run3/SvB"
+  label: "SvB_MvD"
+  output_dir: "output/SvB_MvD/"
+  plot_inputs: true
+  train_template: "model: {eos_base}/classifier/{label}, MvD: {eos_base}/friend/MvD"
+  eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_MvD.json@@HCR_input"
+  workflow_modules:
+    HCR.SvB.Background: HCR.SvB.BackgroundMixed
+  workflow_overrides:
+    --metadata: "{eos_prod}/{roast_id}/handoff/classifier_metadata"
+    --data-source: mixed_all
+    # scoped to the mixed data: with "" the ttbar 4b events (BackgroundMixed JCM-weights on
+    # fourTag) would be JCM-weighted too
+    --JCM-weight: '"source:mixed_all" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_mixeddata_tight.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_MvD.json@@HCR_input"
+    # the per-event background weight: MvD (V.2) in place of the FvT
+    '--friends label:data': '{MvD}/result.json@@analysis.0.merged'
+    # Evaluate on data (detector + mixed_all, below) and the ggF signal only: V.4 never reads the
+    # SvB on ttbar MC (its ttbar is TTbar4b_from_MvD, from the mixed data).
+    'evaluate.yml::--mc-processes': ggF
+  workflow_inserts:
+    # scores for the mixed data too (V.4 histograms it); the training's signal module takes no
+    # --data-source, hence evaluate.yml only
+    'evaluate.yml::--mc-processes': ["--data-source detector mixed_all"]
+
+# ==============================================================================
+# V.4 (cmslpc): analysis + stat-only limits (Phase F.2 rules, as in nominal_run3_2024.yml)
+# ==============================================================================
+analysis:
+  label: "MvD"
+  signal_datasets: ["GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"]
+  plot_config: "coffea4bees/plots/metadata/plotsAll_MvD_roast.yml"
+  # Blind the V.4 data: 4b SR events with any SvB ps > 0.8 dropped (merged over the upstream F.1 config,
+  # which may itself be unblinded). Mixed data and MC are never blinded.
+  config:
+    blind: true
+  known_counts: "coffea4bees/analysis/tests/known_fullCounts_MvD_Run3_2024.yml"
+
+combine_flags: "--blind"
+combine_outdir: "datacards/HH4b_run3_2024_MvD"
+metadata_template: "coffea4bees/stats_analysis/metadata/HH4b_run3_2024.yml"
+make_combine_inputs:
+  stat_only: "--stat_only"
+  multijet_process: mixeddata_all      # four-tag (make_combine_inputs: non-data multijet -> fourTag)
+  tt_processes: ["TTbar4b_from_MvD"]
+channels:
+  HH4b:
+    signallabel: "ggHH_kl_1_kt_1_13p0TeV_hbbhbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_hh_fine"
+    signal: "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"
+    closure_subdir: "hh"
