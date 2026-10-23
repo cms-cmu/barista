@@ -175,6 +175,10 @@ def _all_targets():
         targets += [
             f"{OUTPUT_DIR}/plot_weights.done",
         ]
+    if PLOT_BASE and (EVALUATE or PLOT_INPUTS or PLOT_WEIGHTS):
+        targets += [
+            f"{OUTPUT_DIR}/gallery.done",
+        ]
     return targets
 
 
@@ -275,7 +279,7 @@ rule analyze:
             {params.model}/result.json \
             -analysis HCR.LossROC \
             -setting IO "output: {params.plot}" \
-            -setting IO "report: $(basename {params.model})" \
+            -setting IO "report: ." \
             -setting Monitor "enable: False" \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
@@ -427,4 +431,32 @@ rule plot_weights:
         """
 
 
-localrules: yields
+localrules: yields, classifier_gallery
+
+
+def _gallery_inputs(wildcards):
+    deps = []
+    if EVALUATE:
+        deps.append(f"{wildcards.model_dir}/analyze.done")
+    if PLOT_INPUTS:
+        deps.append(f"{wildcards.model_dir}/plot_inputs_raw.done")
+        deps.append(f"{wildcards.model_dir}/plot_inputs_dataprep.done")
+    if PLOT_WEIGHTS:
+        deps.append(f"{wildcards.model_dir}/plot_weights.done")
+    return deps
+
+
+rule classifier_gallery:
+    input:
+        _gallery_inputs,
+    output:
+        flag = "{model_dir}/gallery.done",
+    params:
+        plot_root = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}",
+        title     = lambda wildcards: f"Classifier Diagnostics - {os.path.basename(wildcards.model_dir)}",
+    shell:
+        """
+        python src/plotting/make_gallery.py {params.plot_root} --title "{params.title}"
+        touch {output.flag}
+        """
+
