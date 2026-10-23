@@ -1,0 +1,56 @@
+{
+  "id": "nominal_run3_2024_20261022_0dbe2fd-8192623",
+  "label": "nominal_run3_2024",
+  "analysis": "HH4b",
+  "created": "2026-10-22 21:29:57",
+  "owner": "cgbrody",
+  "barista": {
+    "sha": "0dbe2fd9b84b1f592c140cd5fb6081c6775e0834",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "8192623398e90a97d91d43ab03a88293cd99b968",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "1ff0a315e1d3a3e1ed89e1b019c3462c5685db3969f0ad68f6bb539dfa90ef59"
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/c/cguintob/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2024_20261022_0dbe2fd-8192623/barista",
+      "ssh": "cgbrody@cmslpc349.fnal.gov",
+      "checked_out": "2026-10-22 21:31:00"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-22 21:29:57",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-22 21:31:00",
+      "event": "checkout",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}
