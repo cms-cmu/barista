@@ -111,8 +111,8 @@ class IO(GlobalSetting):
 class Monitor(GlobalSetting):
     "Basic monitor settings."
 
-    enable: bool = True
-    "enable monitor system"
+    enable: bool = False
+    "enable monitor system (TCP socket listener disabled by default; telemetry is file-based)"
     file: str = "meta.json"
     "name of the monitor metadata file"
     address: tuple[str, int] = ":10200"
