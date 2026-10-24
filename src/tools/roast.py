@@ -913,7 +913,82 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     r.setdefault("hosts", {})["nautilus"] = {"checkout": ckpt, "checked_out": now()}
     log_event(r, "checkout", host="nautilus")
     save_roast(r)
+    _sync_nautilus_code(cfg, r, ckpt)
     info(f"[nautilus] prepared {ckpt}")
+
+
+def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
+    """Stream clean code from the roast's pinned commit SHAs directly to Nautilus CephFS.
+
+    Avoids running Git on CephFS while ensuring deleted files (ghosts) are purged and
+    both barista and coffea4bees match the exact committed state for this roast.
+    """
+    hc = host_cfg(cfg, "nautilus")
+    ns = hc.get("namespace", "cms-cmu")
+    info(f"[nautilus] syncing code to {ckpt}...")
+
+    # 1. Clean code directories in the roast checkout to prevent stale or deleted ghost files
+    clean_dirs = [
+        f"{ckpt}/software",
+        f"{ckpt}/src/classifier",
+        f"{ckpt}/src/runner",
+        f"{ckpt}/src/tools",
+        f"{ckpt}/src/workflows",
+        f"{ckpt}/coffea4bees/classifier",
+        f"{ckpt}/coffea4bees/workflows",
+        f"{ckpt}/coffea4bees/analysis",
+    ]
+    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", *clean_dirs), check=False)
+
+    # 2. Stream barista code at pinned sha
+    barista_sha = r.get("barista", {}).get("sha", "HEAD")
+    barista_paths = [
+        p for p in ["src/classifier", "src/runner", "src/tools", "src/workflows", "software", "runner.py"]
+        if (ROOT / p).exists()
+    ]
+    if barista_paths:
+        p_barista = subprocess.Popen(
+            ["git", "archive", "--format=tar.gz", barista_sha, *barista_paths],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+        )
+        res1 = subprocess.run(
+            k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
+            stdin=p_barista.stdout,
+            capture_output=True,
+            timeout=60,
+        )
+        p_barista.stdout.close()
+        if res1.returncode != 0:
+            info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
+
+    # 3. Stream coffea4bees code at pinned sha
+    c4b_dir = ROOT / "coffea4bees"
+    if c4b_dir.is_dir() and "coffea4bees" in r:
+        c4b_sha = r["coffea4bees"]["sha"]
+        c4b_paths = [
+            p for p in ["classifier/", "workflows/", "analysis/"]
+            if (c4b_dir / p.strip("/")).exists()
+        ]
+        if c4b_paths:
+            c4b_args = [*c4b_paths, ":!analysis/trigger_emulator"]
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
+            p_c4b = subprocess.Popen(
+                ["git", "archive", "--format=tar.gz", c4b_sha, *c4b_args],
+                cwd=c4b_dir,
+                stdout=subprocess.PIPE,
+            )
+            res2 = subprocess.run(
+                k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
+                stdin=p_c4b.stdout,
+                capture_output=True,
+                timeout=60,
+            )
+            p_c4b.stdout.close()
+            if res2.returncode != 0:
+                info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
+
+    info(f"[nautilus] synced code to {ckpt}")
 
 
 def cmd_checkout(args) -> None:
@@ -1164,9 +1239,8 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   claimName: cms-cmu-storage
     """)
 
-    # Sync local software and src directories to CephFS checkout (with timeout to prevent k8s stream hang)
-    for folder in ("software", "src"):
-        sh(["timeout", "10", *k8s_cmd("cp", folder, f"{ns}/storage-helper:{ckpt}/")], check=False)
+    # Sync code at pinned roast SHAs to CephFS checkout (clean archive stream, no ghost files)
+    _sync_nautilus_code(cfg, r, ckpt)
 
     manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
     manifest_path.write_text(manifest)

@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -1298,6 +1299,57 @@ class TestNautilusStepWorkers(unittest.TestCase):
         self.assertTrue(roast._is_step_worker(unlabelled_mine, r, "BKG_C", jname))
         self.assertFalse(roast._is_step_worker(unlabelled_other, r, "BKG_C", jname))
         self.assertFalse(roast._is_step_worker(orchestrator, r, "BKG_C", jname))
+
+
+class TestNautilusCodeSync(unittest.TestCase):
+    """roast _sync_nautilus_code streams exact code at pinned SHAs and purges ghost files."""
+
+    @patch.object(roast.subprocess, "run")
+    @patch.object(roast.subprocess, "Popen")
+    @patch.object(roast, "sh")
+    def test_sync_nautilus_code_invokes_git_archive_and_clean(self, mock_sh, mock_popen, mock_run):
+        mock_popen_instance = MagicMock()
+        mock_popen_instance.stdout = MagicMock()
+        mock_popen.return_value = mock_popen_instance
+        mock_run.return_value = MagicMock(returncode=0)
+
+        cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
+        r = {
+            "id": "test_roast_20261024_1111111-2222222",
+            "barista": {"sha": "1111111222222223333333444444445555555556"},
+            "coffea4bees": {"sha": "2222222333333334444444455555555566666667"},
+        }
+        ckpt = "/workspace/users/testuser/prod/test_roast"
+
+        roast._sync_nautilus_code(cfg, r, ckpt)
+
+        # 1. Verify rm -rf was called on clean_dirs (including coffea4bees/classifier)
+        rm_call = mock_sh.call_args_list[0]
+        cmd = rm_call[0][0]
+        self.assertIn("rm", cmd)
+        self.assertIn("-rf", cmd)
+        self.assertTrue(any(f"{ckpt}/coffea4bees/classifier" in arg for arg in cmd))
+
+        # 2. Verify git archive was called for barista with pinned sha
+        barista_archive_call = mock_popen.call_args_list[0]
+        args_barista = barista_archive_call[0][0]
+        self.assertEqual(args_barista[:3], ["git", "archive", "--format=tar.gz"])
+        self.assertIn(r["barista"]["sha"], args_barista)
+
+        # 3. Verify git archive was called for coffea4bees with pinned sha
+        c4b_archive_call = mock_popen.call_args_list[1]
+        args_c4b = c4b_archive_call[0][0]
+        self.assertEqual(args_c4b[:3], ["git", "archive", "--format=tar.gz"])
+        self.assertIn(r["coffea4bees"]["sha"], args_c4b)
+        self.assertIn(":!analysis/trigger_emulator", args_c4b)
+
+        # 4. Verify tar -xzf was run via kubectl
+        tar_calls = mock_run.call_args_list
+        self.assertEqual(len(tar_calls), 2)
+        for call in tar_calls:
+            k8s_args = call[0][0]
+            self.assertIn("tar", k8s_args)
+            self.assertIn("-xzf", k8s_args)
 
 
 if __name__ == "__main__":
