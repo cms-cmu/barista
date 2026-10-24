@@ -36,6 +36,7 @@ import concurrent.futures
 import datetime as dt
 import getpass
 import hashlib
+import html
 import json
 import os
 import re
@@ -2757,7 +2758,7 @@ def cmd_monitor(args) -> None:
         pass
 
 
-def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False) -> dict:
+def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False, with_pdfs: bool = False) -> dict:
     """kind = 'publish' | 'archive'.  Defaults <- user config[kind] <- roast.json[kind + '_rules']."""
     base = PUBLISH_DEFAULTS if kind == "publish" else ARCHIVE_DEFAULTS
     ps = dict(base)
@@ -2765,10 +2766,12 @@ def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False) -> 
         ps.update({k: v for k, v in src.items() if k in base})
     if include_test:
         ps["exclude"] = [e for e in ps["exclude"] if "_test" not in e]
+    if kind == "publish" and not with_pdfs:
+        ps["include"] = [e for e in ps["include"] if e not in ("*.pdf", "*.svg")]
     return ps
 
 
-def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs: int = 16,
+def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs: int = 32,
                  dry_run: bool = False, with_logs: bool = True, htaccess: bool = False) -> str:
     """Bash for the host: select files under output/ (+ logs/, roasts/<id>/), skip ones already at the
     destination with the same size, xrdcp the rest in parallel.  dst_dir is an absolute EOS path."""
@@ -2794,16 +2797,18 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
-        LIST=$(mktemp); HAVE=$(mktemp); HAVE_DIRS=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp); DIRS=$(mktemp)
-        trap 'rm -f "$LIST" "$HAVE" "$HAVE_DIRS" "$RAW_HAVE" "$TODO" "$DIRS"' EXIT
+        LIST=$(mktemp); HAVE=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp)
+        trap 'rm -f "$LIST" "$HAVE" "$RAW_HAVE" "$TODO"' EXIT
         {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
-           {extra_dirs} }} | sort -u > "$LIST"
+           {extra_dirs} \\
+           [ -f index.html ] && echo "index.html"; }} | sort -u > "$LIST"
         N=$(wc -l < "$LIST")
         {dry}
-        # What is already there (path<TAB>size and directories), so reruns only copy new or changed files.
+        # Discover publishable HTML pages for cupping notes and index summary
+        awk '/\\.html$/ && !/dask-report/ && !/_test/ && !/\\/logs\\// && !/\\/singlefiles\\// {{ print "PAGE:" $0 }}' "$LIST"
+        # What is already there (path<TAB>size), so reruns only copy new or changed files.
         xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
         awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
-        awk -v b="{dst_dir}/" '$1 ~ /^d/ {{ p=$NF; sub(b,"",p); sub(/\\/$/, "", p); if (length(p)>0) print p }}' "$RAW_HAVE" | sort -u > "$HAVE_DIRS"
         rm -f "$RAW_HAVE"
         python3 -c '
 import os, sys
@@ -2829,55 +2834,13 @@ with open(sys.argv[1], "r", errors="replace") as f_in, open(sys.argv[3], "w") as
         echo "copying from $(hostname):$PWD -> $DST_BASE"
         echo "$N files selected, $((N-T)) already up to date, $T to copy ({jobs} in parallel)"
         [ "$T" = 0 ] && exit 0
-        sed 's#/[^/]*$##' "$TODO" | sort -u > "$DIRS"
-        python3 -c '
-import sys, os, subprocess, concurrent.futures
-dirs_file = sys.argv[1]
-have_dirs_file = sys.argv[2]
-eos = sys.argv[3]
-dst_dir = sys.argv[4].rstrip("/")
-jobs = int(sys.argv[5])
-
-have = set()
-if os.path.exists(have_dirs_file):
-    with open(have_dirs_file, "r", errors="replace") as f:
-        for line in f:
-            d = line.strip().strip("/")
-            if d:
-                have.add(d)
-
-needed = set()
-if os.path.exists(dirs_file):
-    with open(dirs_file, "r", errors="replace") as f:
-        for line in f:
-            d = line.strip().strip("/")
-            if d and d not in have:
-                parts = d.split("/")
-                for i in range(1, len(parts) + 1):
-                    prefix = "/".join(parts[:i])
-                    if prefix not in have:
-                        needed.add(prefix)
-
-if not needed:
-    sys.exit(0)
-
-subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-by_depth = dict()
-for d in needed:
-    depth = d.count("/")
-    by_depth.setdefault(depth, []).append(d)
-
-for depth in sorted(by_depth.keys()):
-    batch = by_depth[depth]
-    def mk(rel_d):
-        subprocess.run(["xrdfs", eos, "mkdir", "-p", dst_dir + "/" + rel_d],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, 32)) as ex:
-        list(ex.map(mk, batch))
-' "$DIRS" "$HAVE_DIRS" "$EOS" "{dst_dir}" "{jobs}" || {{ echo "python mkdir failed" >&2; exit 1; }}
+        xrdfs $EOS mkdir -p {dst_dir} 2>/dev/null || true
         export DST_BASE
-        tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -I{{}} bash -c 'xrdcp -f -s "$1" "$DST_BASE/$1" && echo "ok $1" || echo "FAILED $1"' _ {{}} \\
+        tr '\\n' '\\0' < "$TODO" | xargs -0 -P {jobs} -n 25 bash -c '
+            for f in "$@"; do
+                xrdcp -f -s "$f" "$DST_BASE/$f" && echo "ok $f" || echo "FAILED $f"
+            done
+        ' _ \\
             | awk '/^FAILED/ {{ print; fail++ }} /^ok/ {{ ok++; if (ok % 100 == 0) print "  ... " ok " copied" }} END {{ printf "done: %d copied, %d failed\\n", ok, fail; exit fail>0 }}'
     """)
 
@@ -2898,7 +2861,7 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
             f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
 
 
-def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc") -> None:
+def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publish_mode: bool = False) -> None:
     if "nautilus" not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
         return
     hc = host_cfg(cfg, "nautilus")
@@ -2907,8 +2870,12 @@ def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc") -> N
     target_ck = r["hosts"][target_host]["checkout"]
     target_ssh = roast_ssh(cfg, r, target_host)
     info(f"[nautilus] syncing outputs to [{target_host}]...")
-    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-cf", "-", "-C", nautilus_ck, "output"), stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(["ssh", *ssh_opts(target_ssh), target_ssh, f"tar -xf - -C {rq(target_ck)}"], stdin=p1.stdout)
+    extra_tar_args = []
+    if publish_mode:
+        for pat in ("*.pt", "*.root", "*.parquet", "*.coffea", "*.tar.gz", "*.bin", "*.pkl", "*/performance/*", "*/classifier_inputs/*"):
+            extra_tar_args.extend(["--exclude", pat])
+    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-czf", "-", *extra_tar_args, "-C", nautilus_ck, "output"), stdout=subprocess.PIPE)
+    p2 = subprocess.Popen(["ssh", *ssh_opts(target_ssh), target_ssh, f"tar -xzf - -C {rq(target_ck)}"], stdin=p1.stdout)
     p1.stdout.close()
     p2.communicate()
     if p2.returncode == 0:
@@ -2927,12 +2894,15 @@ def cmd_publish(args) -> None:
     url = f"{url_base.rstrip('/')}/{r['id']}/"
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
-    ps = copy_settings("publish", cfg, r, args.include_test)
+    ps = copy_settings("publish", cfg, r, args.include_test, with_pdfs=getattr(args, "with_pdfs", False))
     if args.dry_run:
         info("publish rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb']}")
+    pages = set(r.get("publish", {}).get("pages", []))
     if not args.docs_only:
+        if not args.host:
+            pages = set()   # full publish: rebuild the list from what the hosts have now
         if not args.dry_run and "nautilus" in hosts and "cmslpc" in r.get("hosts", {}):
-            _sync_nautilus_to_host(cfg, r, "cmslpc")
+            _sync_nautilus_to_host(cfg, r, "cmslpc", publish_mode=True)
         for host in hosts:
             if host == "nautilus":
                 continue
@@ -2941,7 +2911,13 @@ def cmd_publish(args) -> None:
             res = ssh_run(roast_ssh(cfg, r, host),
                           _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
                                        dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
-            print((res.stdout + res.stderr).strip())
+            combined_out = res.stdout + res.stderr
+            for line in combined_out.splitlines():
+                if line.startswith("PAGE:"):
+                    pages.add(line.split("PAGE:", 1)[1].strip())
+            filtered_out = "\n".join(l for l in combined_out.splitlines() if not l.startswith("PAGE:"))
+            if filtered_out.strip():
+                print(filtered_out.strip())
             if args.dry_run:
                 continue
             if res.returncode != 0:
@@ -2951,39 +2927,51 @@ def cmd_publish(args) -> None:
             log_event(r, "publish", host=host, ok=res.returncode == 0)
     if args.dry_run:
         return
-    # Remember the HTML pages that were shipped (plot galleries, cutflow closure tables, ...) so the
-    # docs page can link them; they are otherwise only reachable by knowing the output path.
-    pages = set(r.get("publish", {}).get("pages", []))
-    if not args.docs_only:
-        if not args.host:
-            pages = set()   # full publish: rebuild the list from what the hosts have now
-        for host in hosts:
-            if host == "nautilus":
-                hc = host_cfg(cfg, "nautilus")
-                ns = hc.get("namespace", "cms-cmu")
-                ck = r["hosts"]["nautilus"]["checkout"]
-                find_cmd = f"cd {rq(ck)} && find -L output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort"
-                res = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", find_cmd), check=False)
-                pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
-                continue
-            ck = r["hosts"][host]["checkout"]
-            res = ssh_run(roast_ssh(cfg, r, host),
-                          f"cd {rq(ck)} && find -L output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort",
-                          check=False)
-            pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
-    # --docs-only rewrites the cupping note without touching CERNBox, so it must not overwrite what
-    # an earlier real publish recorded: doing that made five published roasts look unpublished, and
-    # anything reading `ok` -- `clean` above all -- believed it
     prev = r.get("publish") or {}
+    sorted_pages = sorted(pages)
     r["publish"] = {"eos": eos_dir, "url": url,
                     "ts": prev.get("ts", now()) if args.docs_only else now(),
                     "ok": prev.get("ok") if args.docs_only else ok,
-                    "pages": sorted(pages)}
+                    "pages": sorted_pages}
     if args.docs_only:
         r["publish"]["docs_ts"] = now()
     save_roast(r)
     write_docs(r)
     write_index()
+
+    summary_html = generate_roast_index_html(r, sorted_pages)
+    rdir = roast_dir(r["id"])
+    if rdir.exists():
+        (rdir / "index.html").write_text(summary_html, encoding="utf-8")
+    if not args.dry_run and not args.docs_only and ok:
+        pub_host = None
+        for h in hosts:
+            if h != "nautilus" and h in r.get("hosts", {}):
+                pub_host = h
+                break
+        if pub_host:
+            hinfo = r["hosts"][pub_host]
+            ck = hinfo["checkout"]
+            info(f"[{pub_host}] publishing summary roast index.html -> {url}index.html")
+            upload_script = textwrap.dedent(f"""\
+                set -e
+                cd {rq(ck)}
+                cat > index.html
+                {_xrd_auth('root://eosuser.cern.ch', *proxy_candidates())}
+                xrdcp -f -s index.html "root://eosuser.cern.ch/{eos_dir}/index.html"
+            """)
+            target_ssh = roast_ssh(cfg, r, pub_host)
+            up_res = subprocess.run(
+                ["ssh", *ssh_opts(target_ssh), target_ssh, f"bash -l -c {rq(upload_script)}"],
+                input=summary_html.encode("utf-8"),
+                capture_output=True,
+            )
+            if up_res.returncode != 0:
+                err_msg = up_res.stderr.decode("utf-8", errors="replace").strip()
+                info(f"[{pub_host}] warning: failed to upload summary index.html: {err_msg}")
+            else:
+                info(f"summary roast index: {url}index.html")
+
     info(f"results: {url}")
     info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; run `{TOOL} commit {r['id']}` to commit the roast manifest")
 
@@ -3171,6 +3159,423 @@ def write_docs(r: dict) -> None:
     (DOCS_PROD / f"{r['id']}.md").write_text("\n".join(l for l in lines if l is not None) + "\n")
 
 
+def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
+    """Generate a standalone, rich HTML summary page (index.html) for the root of the published roast folder on CERNBox."""
+    rid = html.escape(str(r.get("id", "")))
+    label = html.escape(str(r.get("label", "")))
+    owner = html.escape(str(r.get("owner", "unknown")))
+    created = html.escape(str(r.get("created", ""))[:19])
+    analysis = html.escape(str(r.get("analysis") or detect_analysis(r) or "HH4b"))
+
+    pub_info = r.get("publish", {})
+    pub_ok = pub_info.get("ok")
+    pub_ts = html.escape(str(pub_info.get("ts", ""))[:19])
+
+    if pub_ok is True:
+        status_badge = '<span class="badge badge-success">● Published</span>'
+    elif pub_ok is False:
+        status_badge = '<span class="badge badge-danger">● Failed</span>'
+    else:
+        status_badge = '<span class="badge badge-warning">● Unpublished</span>'
+
+    b = r.get("barista", {})
+    c = r.get("coffea4bees", {})
+    b_sha = str(b.get("sha", ""))
+    c_sha = str(c.get("sha", ""))
+    b_web = b.get("web", "https://gitlab.cern.ch/cms-cmu/barista")
+    c_web = c.get("web", "https://gitlab.cern.ch/cms-cmu/coffea4bees")
+
+    b_link = f'<a href="{b_web}/-/commit/{b_sha}" target="_blank" class="code-link">{b_sha[:8]}</a>' if b_sha else "—"
+    c_link = f'<a href="{c_web}/-/commit/{c_sha}" target="_blank" class="code-link">{c_sha[:8]}</a>' if c_sha else "—"
+
+    cfg_src = html.escape(str(r.get("config", {}).get("source", "—")))
+    cfg_sha = html.escape(str(r.get("config", {}).get("sha256", ""))[:12])
+
+    hosts = list(r.get("hosts", {}).keys())
+    hosts_html = " ".join(f'<span class="badge badge-host">{html.escape(h)}</span>' for h in hosts) or "—"
+
+    history = r.get("history", [])
+    step_rows = []
+    for s in r.get("steps", []):
+        sname = html.escape(str(s.get("name", "")))
+        shost = html.escape(str(s.get("host", "")))
+        snakefile = html.escape(str(s.get("snakefile", "")))
+        targets = html.escape(str(s.get("targets", "")))
+
+        last_exit = None
+        for h in history:
+            if isinstance(h, dict) and h.get("event") == "exit" and h.get("step") == s.get("name"):
+                last_exit = h.get("code")
+
+        if last_exit == 0:
+            st_badge = '<span class="badge badge-success">Done</span>'
+        elif last_exit is not None:
+            st_badge = f'<span class="badge badge-danger">Exit {last_exit}</span>'
+        else:
+            state_text = _step_state(r, s)
+            st_badge = f'<span class="badge badge-secondary">{html.escape(state_text)}</span>'
+
+        log_path = f"logs/{s.get('name')}.log"
+        log_cell = f'<a href="{log_path}" class="file-link">{sname}.log</a>'
+
+        target_str = f" <span class='muted'>({targets})</span>" if targets else ""
+        step_rows.append(f"""
+        <tr>
+            <td><strong>{sname}</strong></td>
+            <td><span class="badge badge-host">{shost}</span></td>
+            <td><code>{snakefile}</code>{target_str}</td>
+            <td>{st_badge}</td>
+            <td>{log_cell}</td>
+        </tr>""")
+
+    steps_table_html = "\n".join(step_rows) if step_rows else "<tr><td colspan='5' class='muted'>No steps registered</td></tr>"
+
+    if pages is None:
+        pages = r.get("publish", {}).get("pages", [])
+
+    galleries = []
+    cutflows = []
+    others = []
+
+    for p in pages:
+        p_esc = html.escape(p)
+        parts = p.split("/")
+        if p.endswith("index.html"):
+            wf = parts[2] if len(parts) > 3 else parts[-2] if len(parts) > 1 else "root"
+            sub = parts[-2] if len(parts) > 2 and parts[-2] != wf else ""
+            title = f"{wf} ({sub}) gallery" if sub else f"{wf} gallery"
+            galleries.append((title, p_esc, p))
+        elif "cutflow" in p.lower():
+            name = parts[-1].removesuffix(".html")
+            cutflows.append((name, p_esc, p))
+        else:
+            name = parts[-1].removesuffix(".html")
+            others.append((name, p_esc, p))
+
+    def make_page_items(items):
+        if not items:
+            return '<div class="empty-state">None found</div>'
+        html_items = []
+        for title, p_esc, p_raw in items:
+            html_items.append(f"""
+            <div class="page-item" data-search="{html.escape(p_raw.lower())}">
+                <a href="{p_esc}" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">{html.escape(title)}</span>
+                </a>
+                <span class="page-path">{p_esc}</span>
+            </div>""")
+        return "\n".join(html_items)
+
+    galleries_html = make_page_items(galleries)
+    cutflows_html = make_page_items(cutflows)
+    others_html = make_page_items(others)
+    total_pages = len(pages)
+
+    history_items = []
+    for h in reversed(history):
+        if isinstance(h, dict):
+            hts = html.escape(str(h.get("ts", "")))
+            hevt = html.escape(str(h.get("event", "")))
+            extra = html.escape(" ".join(f"{k}={v}" for k, v in h.items() if k not in ("ts", "event")))
+            history_items.append(f"<li><span class='muted'>{hts}</span> <strong>{hevt}</strong> {extra}</li>")
+    history_html = "\n".join(history_items) if history_items else "<li>No recorded history</li>"
+
+    notes_html = ""
+    if r.get("notes"):
+        notes_esc = html.escape(str(r["notes"]))
+        notes_html = f"""
+        <div class="card">
+            <div class="card-header">
+                <h2>Notes</h2>
+            </div>
+            <div class="card-body">
+                <pre class="notes-block">{notes_esc}</pre>
+            </div>
+        </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roast {rid} — Summary</title>
+    <style>
+        :root {{
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #7dd3fc;
+            --border: #334155;
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.15);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.15);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.15);
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 2rem 1.5rem;
+        }}
+        .container {{ max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }}
+        header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }}
+        .header-main h1 {{
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-mono);
+        }}
+        .header-sub {{ color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; }}
+        .header-actions {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
+        .btn {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            color: var(--text);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            transition: all 0.15s ease;
+        }}
+        .btn:hover {{
+            background: #273549;
+            border-color: var(--accent);
+            color: var(--accent);
+        }}
+        .card {{
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+        .card-header {{
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+        }}
+        .card-header h2 {{ font-size: 1.05rem; font-weight: 600; }}
+        .card-body {{ padding: 1.25rem; }}
+        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }}
+        .meta-table {{ width: 100%; border-collapse: collapse; }}
+        .meta-table td {{ padding: 0.45rem 0.6rem; vertical-align: top; }}
+        .meta-label {{ color: var(--text-muted); width: 120px; font-weight: 500; }}
+        .badge {{
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }}
+        .badge-success {{ background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }}
+        .badge-danger {{ background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }}
+        .badge-warning {{ background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }}
+        .badge-host {{ background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); font-family: var(--font-mono); text-transform: none; }}
+        .badge-analysis {{ background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); text-transform: none; font-family: var(--font-mono); }}
+        .badge-secondary {{ background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); text-transform: none; }}
+        code {{ font-family: var(--font-mono); font-size: 0.85em; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 4px; }}
+        a.code-link {{ font-family: var(--font-mono); color: var(--accent); text-decoration: none; }}
+        a.code-link:hover {{ text-decoration: underline; }}
+        a.file-link {{ color: var(--accent); text-decoration: none; }}
+        a.file-link:hover {{ text-decoration: underline; }}
+        table.data-table {{ width: 100%; border-collapse: collapse; text-align: left; }}
+        table.data-table th, table.data-table td {{ padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); }}
+        table.data-table th {{ color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 600; }}
+        table.data-table tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        .search-box {{
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            background: #0b1120;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            margin-bottom: 1rem;
+        }}
+        .search-box:focus {{ border-color: var(--accent); }}
+        .section-title {{ font-size: 0.9rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 1rem 0 0.5rem 0; letter-spacing: 0.05em; }}
+        .page-list {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+        .page-item {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            transition: background 0.15s ease;
+        }}
+        .page-item:hover {{ background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3); }}
+        .page-link {{ color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; }}
+        .page-icon {{ font-size: 0.85rem; opacity: 0.7; }}
+        .page-path {{ font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }}
+        .empty-state {{ color: var(--text-muted); font-style: italic; padding: 0.5rem 0; font-size: 0.85rem; }}
+        .muted {{ color: var(--text-muted); }}
+        .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; }}
+        details summary {{ cursor: pointer; color: var(--text-muted); font-weight: 500; padding: 0.5rem 0; user-select: none; }}
+        details summary:hover {{ color: var(--text); }}
+        .history-list {{ list-style: none; padding-left: 0.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }}
+        footer {{ text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem 0; border-top: 1px solid var(--border); }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-main">
+                <span class="badge badge-analysis">{analysis}</span>
+                <h1>{rid}</h1>
+                {status_badge}
+                <div class="header-sub">
+                    <strong>{label}</strong> • Roasted by {owner} on {created}
+                    {f" • Published {pub_ts}" if pub_ts else ""}
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="output/" class="btn">📁 Browse output/</a>
+                <a href="roasts/{rid}/roast.json" class="btn">⚙️ roast.json</a>
+                <a href="roasts/{rid}/config.yml" class="btn">📝 config.yml</a>
+            </div>
+        </header>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Configuration & Provenance</h2>
+                </div>
+                <div class="card-body">
+                    <table class="meta-table">
+                        <tr>
+                            <td class="meta-label">barista</td>
+                            <td>{b_link}</td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">coffea4bees</td>
+                            <td>{c_link}</td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">config</td>
+                            <td><code>{cfg_src}</code> <span class="muted">(sha256 {cfg_sha})</span></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">hosts</td>
+                            <td>{hosts_html}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Pipeline Steps</h2>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Host</th>
+                                <th>Snakefile</th>
+                                <th>State</th>
+                                <th>Log</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {steps_table_html}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Interactive Results & Galleries</h2>
+                <span class="muted">{total_pages} pages available</span>
+            </div>
+            <div class="card-body">
+                <input type="text" id="pageSearch" class="search-box" placeholder="Filter pages by name, workflow, or dataset (e.g. cutflow, signal, 4b)...">
+
+                <div class="section-title">📊 Plot Galleries</div>
+                <div class="page-list" id="galleriesList">
+                    {galleries_html}
+                </div>
+
+                <div class="section-title">📈 Cutflow & Closure Tables</div>
+                <div class="page-list" id="cutflowsList">
+                    {cutflows_html}
+                </div>
+
+                <div class="section-title">📑 Other Pages & Reports</div>
+                <div class="page-list" id="othersList">
+                    {others_html}
+                </div>
+            </div>
+        </div>
+
+        {notes_html}
+
+        <details>
+            <summary>Execution History & Timeline ({len(history)} events)</summary>
+            <div class="card" style="margin-top: 0.5rem;">
+                <div class="card-body">
+                    <ul class="history-list">
+                        {history_html}
+                    </ul>
+                </div>
+            </div>
+        </details>
+
+        <footer>
+            Roast published with barista • CERNBox Web Distribution
+        </footer>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('pageSearch');
+        if (searchInput) {{
+            searchInput.addEventListener('input', function() {{
+                const q = this.value.toLowerCase().trim();
+                document.querySelectorAll('.page-item').forEach(item => {{
+                    const s = item.getAttribute('data-search') || '';
+                    item.style.display = s.includes(q) ? '' : 'none';
+                }});
+            }});
+        }}
+    </script>
+</body>
+</html>
+"""
+
+
 def roast_category(r: dict) -> str:
     """Which production family a roast belongs to, for the catalogue's sub-pages.
 
@@ -3356,7 +3761,8 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")
     s.add_argument("id"); s.add_argument("--host"); s.add_argument("--docs-only", action="store_true")
-    s.add_argument("--jobs", type=int, default=16, help="parallel xrdcp streams (default 16)")
+    s.add_argument("--jobs", type=int, default=32, help="parallel xrdcp streams (default 32)")
+    s.add_argument("--with-pdfs", action="store_true", help="include heavy .pdf and .svg files (excluded by default for fast web publishing)")
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
     s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
