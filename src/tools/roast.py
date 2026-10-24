@@ -931,10 +931,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     # 1. Clean code directories in the roast checkout to prevent stale or deleted ghost files
     clean_dirs = [
         f"{ckpt}/software",
-        f"{ckpt}/src/classifier",
-        f"{ckpt}/src/runner",
-        f"{ckpt}/src/tools",
-        f"{ckpt}/src/workflows",
+        f"{ckpt}/src",
         f"{ckpt}/coffea4bees/classifier",
         f"{ckpt}/coffea4bees/workflows",
         f"{ckpt}/coffea4bees/analysis",
@@ -944,7 +941,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     # 2. Stream barista code at pinned sha
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
     barista_paths = [
-        p for p in ["src/classifier", "src/runner", "src/tools", "src/workflows", "software", "runner.py"]
+        p for p in ["src", "software", "runner.py"]
         if (ROOT / p).exists()
     ]
     if barista_paths:
@@ -957,7 +954,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
             k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
             stdin=p_barista.stdout,
             capture_output=True,
-            timeout=60,
+            timeout=300,
         )
         p_barista.stdout.close()
         if res1.returncode != 0:
@@ -983,7 +980,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
                 k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
                 stdin=p_c4b.stdout,
                 capture_output=True,
-                timeout=60,
+                timeout=300,
             )
             p_c4b.stdout.close()
             if res2.returncode != 0:
