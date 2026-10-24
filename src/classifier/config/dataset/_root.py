@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from functools import cached_property, reduce
 from itertools import chain
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Iterable
 from src.classifier.config.main._utils import progress_advance
 from src.classifier.task import ArgParser, Dataset, converter, parse
 from src.classifier.typetools import sort_frozenset
+from src.storage.eos import EOS
 from src.utils import unique
 
 from ..setting import IO as IOSetting
@@ -80,6 +82,12 @@ class LoadRoot(ABC, Dataset):
         "--eval-base",
         default="chunks",
         help="the base path to store the evaluation results",
+        condition="evaluable",
+    )
+    argparser.add_argument(
+        "--eval-scratch",
+        default=os.environ.get("EVAL_SCRATCH"),
+        help="local scratch directory to store unmerged evaluation chunks before kfold.Merge",
         condition="evaluable",
     )
     argparser.add_argument(
@@ -202,7 +210,11 @@ class LoadRoot(ABC, Dataset):
                             to_tensor=self.to_tensor,
                             postprocessors=self.postprocessors,
                         ),
-                        dump_base_path=IOSetting.output / self.opts.eval_base,
+                        dump_base_path=(
+                            EOS(self.opts.eval_scratch) / self.opts.eval_base
+                            if self.opts.eval_scratch
+                            else IOSetting.output / self.opts.eval_base
+                        ),
                         dump_naming=self.opts.eval_naming,
                     )
 

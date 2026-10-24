@@ -1,0 +1,326 @@
+{
+  "id": "declib16_run3_2024_20261020_95e76d3-d10d916",
+  "label": "declib16_run3_2024",
+  "analysis": "HH4b",
+  "created": "2026-10-20 07:45:45",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "95e76d35502e5a30d7b653654581ab177cd2f316",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "d10d916f7f9dfc7e5a5f7c9c8886feec3030ec67",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/declustered_run3_2024_library_16x.yml",
+    "captured": "config.yml",
+    "sha256": "35305b85b13e6de1119a2d5dda73fd07c1bbe2db82f59dd5dce3127b402283d5"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
+        "barista": "c1cd0fe3b7c10f3f2547b582f635264a783edcf5",
+        "coffea4bees": "4e83031fa8876984b2322a9b2409843e2c749450",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_2024_20261010_952524e-5ddc954",
+        "barista": "952524e394c0a7501d1d522b1858573098bd01a6",
+        "coffea4bees": "5ddc954f8",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2024_20261010_952524e-5ddc954",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_2024_20261011_852c1c2-be0604a",
+        "barista": "852c1c2d457d3b091821b255902e0494d7145652",
+        "coffea4bees": "be0604a07a9693e26c13e3e96ac9968141ef96a4",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_20261011_852c1c2-be0604a",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata_run3_2024_20261010_952524e-5ddc954}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_2024_20261010_952524e-5ddc954"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal_run3_2024_20261011_852c1c2-be0604a}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_2024_20261011_852c1c2-be0604a"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "DeClustered",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_DeClustered.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-20 07:49:05",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "-n",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 07:51:22",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 08:27:15",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 08:27:41",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 09:45:31",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 10:12:38",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "ee844db446ff"
+        },
+        {
+          "ts": "2026-10-20 18:48:40",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "35305b85b13e"
+        },
+        {
+          "ts": "2026-10-20 18:49:37",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "35305b85b13e"
+        },
+        {
+          "ts": "2026-10-20 22:02:57",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "-n",
+          "targets": "all_D6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "35305b85b13e"
+        },
+        {
+          "ts": "2026-10-20 22:04:55",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2024_95e76d3-d10d916_DeClustered",
+          "ssh": "jda102@cmslpc316.fnal.gov",
+          "config_sha256": "35305b85b13e"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/declib16_run3_2024_20261020_95e76d3-d10d916/barista",
+      "ssh": "jda102@cmslpc316.fnal.gov",
+      "checked_out": "2026-10-20 07:48:47"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16_run3_2024_20261020_95e76d3-d10d916",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16_run3_2024_20261020_95e76d3-d10d916/",
+    "ts": "2026-10-20 22:50:18",
+    "ok": true,
+    "pages": [
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D5/cutflow_monitoring.html",
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D5/plots/index.html",
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D5/seed_study/index.html",
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D5/svb_bootstrap/index.html",
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D6/plots_declustered/index.html",
+      "output/declib16_run3_2024_20261020_95e76d3-d10d916/D6/plots_signal/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-20 07:45:45",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-20 07:48:47",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 07:49:05",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 07:51:22",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 08:27:15",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 08:27:41",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 09:45:31",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 10:12:38",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 18:48:40",
+      "event": "config-edited",
+      "sha256": "35305b85b13e"
+    },
+    {
+      "ts": "2026-10-20 18:48:40",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 18:49:37",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 22:02:57",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 22:04:55",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-20 22:50:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-20 22:50:21",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "2024 16x library declustering (own D.1 library, prescaled to 3.5M rows); MvD model mixeddata_all_declib16_2024 HOT PATCH 2026-10-20 07:30: D1_library_merge failed (consolidated registry key `2024:` unquoted -> int, 'no files for 2024'); coffea4bees 07d83036 (str(key)) applied by hand in the cmslpc checkout (pinned d10d916f), D1_cluster/regroup/consolidate kept, resumed. D.1 library: 23,878,091 splittings, prescaled to 3,506,388 (fraction 0.1466, 835 files). HOT PATCH 2 2026-10-20 08:45: every D3 seed lost 4 data_2024G chunks ([25000,50000) of chunk103/176/272/393: zero selected events -> cluster_bs untyped jet_flavor -> AssertionError swallowed by the skimmer); coffea4bees 25516a22 (early return on empty chunks) applied by hand, shared daemon restarted (8GB), verified on those 4 files, D3 resumed. HOT PATCH 3 2026-10-20 17:30: D5_seed_study OOM-killed on the login node twice (cmslpc316 refused ssh ~1h) and D5_svb_dump IndexError (HCREnsemble hardcoded `year` ancillary; the 2024 SvB has none); coffea4bees 49f518fb applied by hand, captured config + validation.seed_study_subsample: 20 (mtime restored), daemon restarted. RESULTS: closure SR 1.016 SB 1.016; seed draw overlap 3.44%; SvB bootstrap N_eff 4.42 pooled (low-SvB bin 2.8, SvB>0.025 bins 10-20); D.6 SvB>0.8 yield declustered/original 0.025, SR frac 0.576->0.334.",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_2024_20261020_95e76d3-d10d916",
+    "ts": "2026-10-20 22:50:21",
+    "ok": true
+  }
+}

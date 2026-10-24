@@ -2420,6 +2420,28 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
     return out
 
 
+def _gather_status(cfg: dict, r: dict) -> dict:
+    """{host: parsed status} for every host a roast has a checkout on (one ssh/kubectl round per host)."""
+    parsed = {}
+    for host, hinfo in r["hosts"].items():
+        if host == "nautilus":
+            parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host])
+            continue
+        target = roast_ssh(cfg, r, host)
+        res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
+        if res.returncode == 255:
+            node = target.split("@")[-1]
+            parsed[host] = {"error": f"{node} unreachable — the driver is gone; "
+                                     f"`{TOOL} resume <id> --step <step>` moves this roast to a live node"}
+        elif res.returncode != 0:
+            parsed[host] = {"error": f"ssh failed ({target}): {res.stderr.strip()[:80]}"}
+        else:
+            st = _parse_status(res.stdout)
+            st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
+            parsed[host] = st
+    return parsed
+
+
 def cmd_status(args) -> None:
     cfg = load_config()
     roasts = [load_roast(args.id)] if args.id else [r for r in all_roasts() if r.get("hosts")]
@@ -2454,23 +2476,7 @@ def cmd_status(args) -> None:
             print(f"\n\033[1m{r['id']}\033[0m  barista {r['barista']['sha'][:7]}  coffea4bees {r['coffea4bees']['sha'][:7]}  {r['config']['source']}")
         # One ssh per host, but the report is ordered by step: a roast is a pipeline, and
         # which machine a phase happens to run on matters less than where the pipeline is.
-        parsed = {}
-        for host, hinfo in r["hosts"].items():
-            if host == "nautilus":
-                parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host])
-                continue
-            target = roast_ssh(cfg, r, host)
-            res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
-            if res.returncode == 255:
-                node = target.split("@")[-1]
-                parsed[host] = {"error": f"{node} unreachable — the driver is gone; "
-                                         f"`{TOOL} resume <id> --step <step>` moves this roast to a live node"}
-            elif res.returncode != 0:
-                parsed[host] = {"error": f"ssh failed ({target}): {res.stderr.strip()[:80]}"}
-            else:
-                st = _parse_status(res.stdout)
-                st["error"] = f"checkout missing at {hinfo['checkout']}" if st["nocheckout"] else None
-                parsed[host] = st
+        parsed = _gather_status(cfg, r)
         if not detail:
             print(_summary_line(r, parsed, width))
             continue
@@ -2529,6 +2535,138 @@ def cmd_status(args) -> None:
         if r.get("publish", {}).get("url"):
             for line in _links(r):
                 print(f"  {'':<{w}s} {line}")
+
+
+ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+
+
+def _roast_snapshot(cfg: dict, r: dict) -> dict:
+    """JSON-ready state of one roast for the HTML monitor: the data `status --detail` prints, as fields."""
+    snap = {"id": r["id"], "label": r.get("label", r["id"]), "family": roast_category(r),
+            "created": r["created"], "config": r["config"]["source"], "steps": [], "errors": [],
+            "cleaned": bool(r.get("cleaned")), "docs": (r.get("publish") or {}).get("url", "")}
+    if r.get("cleaned"):
+        snap["steps"] = [{"name": s["name"], "host": s["host"], "state": "exit=0", "pct": 100, "detail": "checkout removed", "jobs": []}
+                         for s in r["steps"]]
+        return snap
+    parsed = _gather_status(cfg, r)
+    for host, st in parsed.items():
+        if st.get("error"):
+            snap["errors"].append(f"{host}: {st['error']}")
+    for step in r["steps"]:
+        name, host = step["name"], step["host"]
+        st = parsed.get(host)
+        if st is None or st.get("error"):
+            snap["steps"].append({"name": name, "host": host, "state": "unreachable" if st else "not started",
+                                  "pct": None, "detail": "", "jobs": []})
+            continue
+        text = ANSI_RE.sub("", dict(st["steps"]).get(name, "not started"))
+        state = _state_word(text)
+        m = re.search(r"(\d+) of (\d+) steps \((\d+)%\) done", text)
+        pct = int(m.group(3)) if m else (100 if state == "exit=0" else None)
+        detail = " ".join(text.replace(m.group(0), "").split()[1:]) if m else " ".join(text.split()[1:])
+        jobs = []
+        if st.get("condor", {}).get(name):
+            jobs += _condor_row(st["condor"][name]).splitlines()
+        jobs += _slurm_rows(st["live"].get(name, []), st["done"].get(name, []))
+        jobs += st.get("k8s_pods", {}).get(name, [])
+        snap["steps"].append({"name": name, "host": host, "state": state, "pct": pct,
+                              "done": int(m.group(1)) if m else None, "total": int(m.group(2)) if m else None,
+                              "detail": detail[:160], "jobs": [" ".join(ANSI_RE.sub("", j).split()) for j in jobs]})
+    return snap
+
+
+def _roast_finished(snap: dict) -> bool:
+    return bool(snap["steps"]) and all(s["state"] == "exit=0" for s in snap["steps"])
+
+
+def cmd_monitor(args) -> None:
+    """Serve a self-refreshing HTML dashboard of roast progress (stdlib http.server, bound to localhost)."""
+    import http.server
+    import threading
+    import time
+
+    cfg = load_config()
+    page = Path(__file__).with_name("roast_monitor.html")
+    if not page.exists():
+        die(f"{page} is missing")
+    snaps: dict[str, dict] = {}                  # id -> snapshot (+ "polled": epoch seconds)
+    lock = threading.Lock()
+    force = threading.Event()
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=args.workers)
+
+    def wanted() -> list[dict]:
+        if args.ids:
+            return [load_roast(i) for i in args.ids]
+        return [r for r in all_roasts() if r.get("hosts") and not r.get("cleaned")]
+
+    def poll(r: dict) -> None:
+        try:
+            snap = _roast_snapshot(cfg, r)
+        except Exception as e:                   # one bad roast must not blank the page
+            snap = {"id": r["id"], "label": r.get("label", r["id"]), "family": roast_category(r), "created": r["created"],
+                    "config": r["config"]["source"], "steps": [], "errors": [f"monitor: {e}"], "cleaned": False, "docs": ""}
+        snap["polled"] = time.time()
+        with lock:
+            snaps[r["id"]] = snap
+
+    def loop() -> None:
+        while True:
+            try:
+                todo = []
+                for r in wanted():
+                    old = snaps.get(r["id"])
+                    # a roast whose every step is exit=0 cannot change; the refresh button re-polls it anyway
+                    if old and _roast_finished(old) and not force.is_set():
+                        continue
+                    todo.append(r)
+                force.clear()
+                list(pool.map(poll, todo))
+            except Exception as e:
+                print(f"monitor loop: {e}", file=sys.stderr)
+            force.wait(args.interval)
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path.split("?")[0] == "/api/status":
+                with lock:
+                    data = {"now": time.time(), "interval": args.interval,
+                            "roasts": sorted(snaps.values(), key=lambda x: x["created"], reverse=True)}
+                self._send(200, json.dumps(data).encode(), "application/json")
+            elif self.path.split("?")[0] in ("/", "/index.html"):
+                self._send(200, page.read_bytes(), "text/html; charset=utf-8")
+            else:
+                self._send(404, b"not found", "text/plain")
+
+        def do_POST(self):
+            if self.path == "/api/refresh":
+                force.set()
+                self._send(200, b"{}", "application/json")
+            else:
+                self._send(404, b"not found", "text/plain")
+
+        def log_message(self, *a):
+            pass
+
+    threading.Thread(target=loop, daemon=True).start()
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    url = f"http://127.0.0.1:{args.port}/"
+    info(f"roast monitor on {url}  (polls every {args.interval}s; Ctrl-C to stop)")
+    if not args.no_open:
+        import webbrowser
+        webbrowser.open(url)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False) -> dict:
@@ -3090,6 +3228,14 @@ def main(argv=None) -> None:
     s.add_argument("-s", "--summary", action="store_true", help="one line per roast, even for a single one")
     s.add_argument("--active", action="store_true", help="hide cleaned roasts (whose checkouts are gone)")
     s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser("monitor", help="serve an auto-refreshing HTML dashboard of roast progress on localhost")
+    s.add_argument("ids", nargs="*", help="roasts to watch (default: every roast with a live checkout)")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--interval", type=int, default=60, help="seconds between polls of each host")
+    s.add_argument("--workers", type=int, default=4, help="roasts polled in parallel")
+    s.add_argument("--no-open", action="store_true", help="do not open a browser")
+    s.set_defaults(func=cmd_monitor)
 
     s = sub.add_parser("publish", help="copy results to CERNBox and write cupping notes")
     s.add_argument("id"); s.add_argument("--host"); s.add_argument("--docs-only", action="store_true")

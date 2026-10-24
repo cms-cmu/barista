@@ -166,11 +166,28 @@ bin/roast status -s              # force the one-liner; -d forces the detail
 bin/roast status --active        # hide roasts whose checkouts have been cleaned
 bin/roast log    <id> --step B   # that step's log, without a tmux window
 bin/roast attach <id> --step B   # drop into the tmux window on that machine
+bin/roast monitor                # HTML dashboard of every live roast, in your browser
 ```
 
 With no arguments, `status` gives a line per roast: a mark per step, and what is running
 now. `✓` finished cleanly, `●` running, `✗` failed, `·` not started, `?` a driver that died
 quietly, `!` a machine that did not answer.
+
+`monitor` serves the same information as a self-refreshing page on `http://127.0.0.1:8765/`:
+a card per roast, and per step a state pill, a progress bar (snakemake `N of M steps`) and
+the last log line, with condor workers, slurm jobs or nautilus pods listed underneath.
+
+```bash
+bin/roast monitor                       # every roast with a live checkout; opens a browser
+bin/roast monitor <id> [<id> ...]       # only these roasts
+bin/roast monitor --no-open --port 9000 --interval 120
+```
+
+A background thread polls each host every `--interval` seconds (default 60; one ssh per host
+per roast), and the page re-reads that cache every 5 s, so a slow host never freezes it. A
+roast whose steps are all `exit=0` is not polled again until you press *Refresh now*. It
+listens on localhost only and needs the same ssh/kubectl access as `status`, so renew the
+proxy and any ssh session first: a password prompt would stall the polling thread.
 
 Roasts are grouped into the same families as the [cupping notes](index.md) sub-pages, newest
 first inside a family, so a production reads the same way here as on the website.

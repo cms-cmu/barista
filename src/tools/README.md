@@ -211,6 +211,7 @@ bin/roast submit <id> --step B           # the real thing, tmux session "roast",
 bin/roast submit <id> --step B --extra "--touch"   # any extra snakemake args
 bin/roast status                         # one line per roast: a mark per step + what is running now
 bin/roast status <id>                    # that roast in detail: per-step state + its batch jobs
+bin/roast monitor [<id> ...]              # HTML progress dashboard on http://127.0.0.1:8765/ (--port, --interval, --no-open); see docs/prod/using_roast.md
 bin/roast attach <id> [--step B]         # ssh -t into the host's roast tmux session on that window
 bin/roast resume <id> --step B           # after a failure / dead driver: --unlock + --rerun-incomplete, same args as last submit
 bin/roast publish <id> [-n] [--docs-only]   # xrdcp small artefacts to CERNBox, write docs/prod/<id>.md + index.md

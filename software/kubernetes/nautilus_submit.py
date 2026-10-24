@@ -110,7 +110,8 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
     if "evaluate" in rule.lower():
         req_cpu = 2
         lim_cpu = req_cpu
-        req_mem = "16Gi"
+        # the profile's evaluate mem_mb, at least 16 Gi (Run 3 HH4b FvT evaluation needs more than 16)
+        req_mem = f"{max(int(mem_gb), 16)}Gi"
         lim_mem = req_mem
     else:
         req_cpu = max(int(cpus), 1)
@@ -177,6 +178,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - hcc-chase-shor-c4705.unl.edu
                 - hcc-chase-shor-c4715.unl.edu
                 - hcc-chase-shor-c4719.unl.edu
+                - nautilus-it-gpu06.fullerton.edu
               - key: nvidia.com/gpu.product
                 operator: In
                 values:

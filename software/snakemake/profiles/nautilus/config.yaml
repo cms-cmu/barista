@@ -22,10 +22,10 @@ set-threads:
 
 set-resources:
   train:
-    mem_mb: 24000
+    mem_mb: 56000
     gpus: 1
     cpu: 4
   evaluate:
-    mem_mb: 8000
+    mem_mb: 48000
     gpus: 1
     cpu: 2

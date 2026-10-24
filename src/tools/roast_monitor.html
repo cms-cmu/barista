@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roast monitor</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #fff; --fg: #1f1d1a; --muted: #77716a; --line: #e4e0d9;
+    --ok: #2e7d4f; --run: #b7791f; --bad: #c0392b; --idle: #a8a29a; --bar: #e9e5de;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171614; --card: #211f1c; --fg: #ece8e1; --muted: #9a938a; --line: #34312c;
+            --ok: #5fbf88; --run: #e0a93b; --bad: #ee6b5b; --idle: #6f6a63; --bar: #34312c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 1; }
+  h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  button, input { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
+  button { cursor: pointer; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; display: grid; gap: 14px; }
+  .family { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 6px 0 -4px; }
+  .roast { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .roast h2 { font-size: 14px; margin: 0; font-weight: 600; word-break: break-all; }
+  .meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .meta a { color: inherit; }
+  .step { display: grid; grid-template-columns: 110px 70px 1fr; gap: 4px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .step .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; color: #fff; text-align: center; }
+  .s-ok { background: var(--ok); } .s-run { background: var(--run); } .s-bad { background: var(--bad); } .s-idle { background: var(--idle); }
+  .bar { height: 8px; background: var(--bar); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--run); transition: width .4s; }
+  .bar.ok i { background: var(--ok); } .bar.bad i { background: var(--bad); }
+  .prog { display: flex; align-items: center; gap: 10px; }
+  .prog .bar { flex: 1; }
+  .prog span { font-variant-numeric: tabular-nums; font-size: 12px; min-width: 120px; text-align: right; }
+  .detail { grid-column: 2 / -1; font: 12px ui-monospace, Menlo, monospace; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
+  .err { color: var(--bad); font-size: 12px; margin: 4px 0; }
+  .empty { text-align: center; padding: 40px; }
+  @media (max-width: 600px) { .step { grid-template-columns: 80px 1fr; } .step .host { display: none; } .detail { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Roast monitor</h1>
+  <span id="status" class="muted">connecting…</span>
+  <span class="sp"></span>
+  <input id="filter" placeholder="filter" size="14">
+  <label class="muted"><input type="checkbox" id="hideDone"> hide finished</label>
+  <button id="refresh">Refresh now</button>
+</header>
+<main id="main"><div class="empty muted">Waiting for the first poll (one ssh per host per roast)…</div></main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cls = st => st === "exit=0" ? "ok" : st === "running" ? "run"
+  : (st === "error" || st === "stalled" || st === "unreachable" || /^exit=/.test(st)) ? "bad" : "idle";
+const ago = s => s < 90 ? `${Math.round(s)}s ago` : s < 5400 ? `${Math.round(s/60)}m ago` : `${(s/3600).toFixed(1)}h ago`;
+let last = null;
+
+function stepHtml(s, rid) {
+  const c = cls(s.state);
+  const key = rid + "/" + s.name;
+  const pct = s.pct;
+  const bar = pct == null
+    ? `<div class="muted">${esc(s.detail) || "&nbsp;"}</div>`
+    : `<div class="prog"><div class="bar ${c === "ok" ? "ok" : c === "bad" ? "bad" : ""}"><i style="width:${pct}%"></i></div>
+       <span>${s.total ? `${s.done}/${s.total} · ` : ""}${pct}%</span></div>`;
+  const lines = [pct != null && s.detail ? s.detail : "", ...(s.jobs || [])].filter(Boolean);
+  return `<div class="step">
+    <div class="name" title="${esc(s.name)}">${esc(s.name)}</div>
+    <div><span class="pill s-${c}">${esc(s.state === "exit=0" ? "done" : s.state)}</span></div>
+    <div>${bar}</div>
+    ${lines.length ? `<div class="detail">${esc(lines.join("\n"))}</div>` : ""}
+  </div>`;
+}
+
+function render() {
+  if (!last) return;
+  const q = $("filter").value.toLowerCase(), hide = $("hideDone").checked;
+  let html = "", fam = null, n = 0;
+  for (const r of last.roasts) {
+    const done = r.steps.length && r.steps.every(s => s.state === "exit=0");
+    if (hide && done) continue;
+    if (q && !(r.id + r.label + r.family).toLowerCase().includes(q)) continue;
+    n++;
+    if (r.family !== fam) { fam = r.family; html += `<div class="family">${esc(fam)}</div>`; }
+    const age = last.now - r.polled;
+    html += `<section class="roast">
+      <h2>${esc(r.id)}</h2>
+      <div class="meta"><span>${esc(r.config)}</span><span>created ${esc(r.created)}</span><span>polled ${ago(age)}</span>
+        ${r.docs ? `<a href="${esc(r.docs)}" target="_blank">published</a>` : ""}</div>
+      ${r.errors.map(e => `<div class="err">${esc(e)}</div>`).join("")}
+      ${r.steps.map(s => stepHtml(s, r.id)).join("")}
+    </section>`;
+  }
+  $("main").innerHTML = html || `<div class="empty muted">No roasts to show.</div>`;
+}
+
+async function tick() {
+  try {
+    last = await (await fetch("/api/status")).json();
+    const running = last.roasts.flatMap(r => r.steps).filter(s => s.state === "running").length;
+    $("status").textContent = `${last.roasts.length} roasts · ${running} steps running · polling every ${last.interval}s`;
+    document.title = running ? `▶ ${running} running — Roast monitor` : "Roast monitor";
+    render();
+  } catch (e) { $("status").textContent = "server unreachable"; }
+}
+$("refresh").onclick = async () => { $("status").textContent = "refreshing…"; await fetch("/api/refresh", {method: "POST"}); setTimeout(tick, 4000); };
+$("filter").oninput = $("hideDone").onchange = render;
+tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>
