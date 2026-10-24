@@ -882,7 +882,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al)
     copy_script = f"""
-    for item in coffea4bees output proxy run_container runner.py software src roasts; do
+    for item in bin coffea4bees output proxy run_container runner.py software src roasts; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -931,64 +931,49 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     # 1. Clean code directories in the roast checkout to prevent stale or deleted ghost files
     clean_dirs = [
         f"{ckpt}/software",
-        f"{ckpt}/src/classifier",
-        f"{ckpt}/src/runner",
-        f"{ckpt}/src/tools",
-        f"{ckpt}/src/workflows",
-        f"{ckpt}/src/stat_analysis",
-        f"{ckpt}/coffea4bees/classifier",
-        f"{ckpt}/coffea4bees/workflows",
-        f"{ckpt}/coffea4bees/analysis",
+        f"{ckpt}/src",
+        f"{ckpt}/bin",
     ]
+    c4b_dir = ROOT / "coffea4bees"
+    if c4b_dir.is_dir() and "coffea4bees" in r:
+        clean_dirs.append(f"{ckpt}/coffea4bees")
     sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", *clean_dirs), check=False)
 
-    # 2. Stream barista code at pinned sha
+    # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata)
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
-    barista_paths = [
-        p for p in ["src/classifier", "src/runner", "src/tools", "src/workflows", "src/stat_analysis", "software", "runner.py"]
-        if (ROOT / p).exists()
-    ]
-    if barista_paths:
-        p_barista = subprocess.Popen(
-            ["git", "archive", "--format=tar.gz", barista_sha, *barista_paths],
-            cwd=ROOT,
+    p_barista = subprocess.Popen(
+        ["git", "archive", "--format=tar.gz", barista_sha, ":!roasts"],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+    )
+    res1 = subprocess.run(
+        k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
+        stdin=p_barista.stdout,
+        capture_output=True,
+        timeout=300,
+    )
+    p_barista.stdout.close()
+    if res1.returncode != 0:
+        info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
+
+    # 3. Stream coffea4bees code at pinned sha (entire subrepo)
+    if c4b_dir.is_dir() and "coffea4bees" in r:
+        c4b_sha = r["coffea4bees"]["sha"]
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
+        p_c4b = subprocess.Popen(
+            ["git", "archive", "--format=tar.gz", c4b_sha],
+            cwd=c4b_dir,
             stdout=subprocess.PIPE,
         )
-        res1 = subprocess.run(
-            k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
-            stdin=p_barista.stdout,
+        res2 = subprocess.run(
+            k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
+            stdin=p_c4b.stdout,
             capture_output=True,
             timeout=300,
         )
-        p_barista.stdout.close()
-        if res1.returncode != 0:
-            info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
-
-    # 3. Stream coffea4bees code at pinned sha
-    c4b_dir = ROOT / "coffea4bees"
-    if c4b_dir.is_dir() and "coffea4bees" in r:
-        c4b_sha = r["coffea4bees"]["sha"]
-        c4b_paths = [
-            p for p in ["classifier/", "workflows/", "analysis/"]
-            if (c4b_dir / p.strip("/")).exists()
-        ]
-        if c4b_paths:
-            c4b_args = [*c4b_paths, ":!analysis/trigger_emulator"]
-            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
-            p_c4b = subprocess.Popen(
-                ["git", "archive", "--format=tar.gz", c4b_sha, *c4b_args],
-                cwd=c4b_dir,
-                stdout=subprocess.PIPE,
-            )
-            res2 = subprocess.run(
-                k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
-                stdin=p_c4b.stdout,
-                capture_output=True,
-                timeout=300,
-            )
-            p_c4b.stdout.close()
-            if res2.returncode != 0:
-                info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
+        p_c4b.stdout.close()
+        if res2.returncode != 0:
+            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
 
     info(f"[nautilus] synced code to {ckpt}")
 

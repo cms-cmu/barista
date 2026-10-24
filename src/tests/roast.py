@@ -1335,30 +1335,32 @@ class TestNautilusCodeSync(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_root:
             tmp_root_path = Path(tmp_root)
-            (tmp_root_path / "src" / "tools").mkdir(parents=True)
-            (tmp_root_path / "coffea4bees" / "classifier").mkdir(parents=True)
+            (tmp_root_path / "src").mkdir(parents=True)
+            (tmp_root_path / "coffea4bees").mkdir(parents=True)
             with patch.object(roast, "ROOT", tmp_root_path):
                 roast._sync_nautilus_code(cfg, r, ckpt)
 
-        # 1. Verify rm -rf was called on clean_dirs (including coffea4bees/classifier)
+        # 1. Verify rm -rf was called on clean_dirs (including src, software, bin, and coffea4bees)
         rm_call = mock_sh.call_args_list[0]
         cmd = rm_call[0][0]
         self.assertIn("rm", cmd)
         self.assertIn("-rf", cmd)
-        self.assertTrue(any(f"{ckpt}/coffea4bees/classifier" in arg for arg in cmd))
+        self.assertTrue(any(f"{ckpt}/src" in arg for arg in cmd))
+        self.assertTrue(any(f"{ckpt}/software" in arg for arg in cmd))
+        self.assertTrue(any(f"{ckpt}/coffea4bees" in arg for arg in cmd))
 
-        # 2. Verify git archive was called for barista with pinned sha
+        # 2. Verify git archive was called for barista with pinned sha shipping repo (excluding roasts)
         barista_archive_call = mock_popen.call_args_list[0]
         args_barista = barista_archive_call[0][0]
         self.assertEqual(args_barista[:3], ["git", "archive", "--format=tar.gz"])
         self.assertIn(r["barista"]["sha"], args_barista)
+        self.assertIn(":!roasts", args_barista)
 
-        # 3. Verify git archive was called for coffea4bees with pinned sha
+        # 3. Verify git archive was called for all coffea4bees with pinned sha (no excluded folders)
         c4b_archive_call = mock_popen.call_args_list[1]
         args_c4b = c4b_archive_call[0][0]
         self.assertEqual(args_c4b[:3], ["git", "archive", "--format=tar.gz"])
         self.assertIn(r["coffea4bees"]["sha"], args_c4b)
-        self.assertIn(":!analysis/trigger_emulator", args_c4b)
 
         # 4. Verify tar -xzf was run via kubectl
         tar_calls = mock_run.call_args_list
