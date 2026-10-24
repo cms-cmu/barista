@@ -143,7 +143,12 @@ class EOS:
     @_devnull(True)
     def exists(self):
         if not self.is_local:
-            return self.call("ls", self.path)[0]
+            try:
+                prev_allow_fail = self.__class__.allow_fail
+                self.__class__.allow_fail = True
+                return self.call("ls", self.path)[0]
+            finally:
+                self.__class__.allow_fail = prev_allow_fail
         # `Path` here is PurePosixPath, which has no .exists(): a pure path never touches a
         # filesystem.  Every local call raised AttributeError, which went unnoticed only
         # because nothing asked a local path whether it existed until mkdir did (2026-10-15).
