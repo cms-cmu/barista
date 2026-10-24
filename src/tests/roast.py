@@ -1333,7 +1333,12 @@ class TestNautilusCodeSync(unittest.TestCase):
         }
         ckpt = "/workspace/users/testuser/prod/test_roast"
 
-        roast._sync_nautilus_code(cfg, r, ckpt)
+        with tempfile.TemporaryDirectory() as tmp_root:
+            tmp_root_path = Path(tmp_root)
+            (tmp_root_path / "src" / "tools").mkdir(parents=True)
+            (tmp_root_path / "coffea4bees" / "classifier").mkdir(parents=True)
+            with patch.object(roast, "ROOT", tmp_root_path):
+                roast._sync_nautilus_code(cfg, r, ckpt)
 
         # 1. Verify rm -rf was called on clean_dirs (including coffea4bees/classifier)
         rm_call = mock_sh.call_args_list[0]
@@ -1362,6 +1367,33 @@ class TestNautilusCodeSync(unittest.TestCase):
             k8s_args = call[0][0]
             self.assertIn("tar", k8s_args)
             self.assertIn("-xzf", k8s_args)
+
+    @patch.object(roast.subprocess, "run")
+    @patch.object(roast.subprocess, "Popen")
+    @patch.object(roast, "sh")
+    def test_sync_nautilus_code_skips_coffea4bees_when_not_present(self, mock_sh, mock_popen, mock_run):
+        mock_popen_instance = MagicMock()
+        mock_popen_instance.stdout = MagicMock()
+        mock_popen.return_value = mock_popen_instance
+        mock_run.return_value = MagicMock(returncode=0)
+
+        cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
+        r = {
+            "id": "test_roast_20261024_1111111-2222222",
+            "barista": {"sha": "1111111222222223333333444444445555555556"},
+            "coffea4bees": {"sha": "2222222333333334444444455555555566666667"},
+        }
+        ckpt = "/workspace/users/testuser/prod/test_roast"
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            tmp_root_path = Path(tmp_root)
+            (tmp_root_path / "src" / "tools").mkdir(parents=True)
+            with patch.object(roast, "ROOT", tmp_root_path):
+                roast._sync_nautilus_code(cfg, r, ckpt)
+
+        # Barista is synced (1 call), coffea4bees is skipped
+        self.assertEqual(len(mock_popen.call_args_list), 1)
+        self.assertEqual(len(mock_run.call_args_list), 1)
 
 
 class TestSummaryRoastIndexHtml(unittest.TestCase):
