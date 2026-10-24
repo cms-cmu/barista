@@ -28,6 +28,9 @@ except ImportError:
 DEFAULT_GPU_RULES = {
     "train",
     "evaluate",
+    "evaluate_split",
+    # CPU pod (gpus 0 below): it needs the classifier image, which the orchestrator pod lacks
+    "evaluate_combine",
     "evaluate_all",
     "evaluate_single_dataset",
     "evaluate_all_svb",
@@ -289,6 +292,7 @@ def main():
     gpu_needed_rules = {
         "train",
         "evaluate",
+        "evaluate_split",
         "evaluate_all",
         "evaluate_single_dataset",
         "evaluate_all_svb",

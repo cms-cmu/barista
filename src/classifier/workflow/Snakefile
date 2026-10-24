@@ -75,6 +75,14 @@ FRIEND         = _r(config.get("friend", ""))
 PLOT_BASE = config.get("plot_base", "")
 COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml" if WFS_BASE else "common.yml"))
 
+# Split evaluation: {split name: {dataset option: value}}. Each split is a separate (smaller) evaluate
+# job over the datasets its options select, written to <IO output>/split_<name>; evaluate_combine
+# then sums the split friend trees into the usual <IO output>/result.json (analysis.0.merged), so
+# consumers are unchanged. The options are set on every dataset module of evaluate.yml, replacing
+# any existing value: e.g. {detector: {--data-source: detector, --mc-processes: ""}} (an empty
+# string passes the flag with no values, null removes it). The splits must not overlap.
+EVAL_SPLITS = config.get("eval_splits") or {}
+
 
 def _get_plot_root(wildcards):
     if PLOT_BASE and not str(PLOT_BASE).startswith("root://"):
@@ -305,31 +313,7 @@ rule analyze:
         """
 
 
-rule evaluate:
-    retries: 0 if config.get("test", False) else config.get("retries", 3)
-    input:
-        train_flag = "{model_dir}/train.done",
-        eval_wf    = _get_eval_wf,
-        common     = _get_common,
-    output:
-        flag = "{model_dir}/evaluate.done",
-    log:
-        "{model_dir}/evaluate.log",
-    container: CLASSIFIER
-    resources:
-        runtime         = config.get("eval_runtime", 480),
-        mem_mb          = config.get("eval_mem", default_gpu_mem),
-        gres            = config.get("eval_gres", default_gpu_gres),
-        qos             = config.get("eval_qos", default_gpu_qos),
-        slurm_partition = config.get("eval_partition", default_gpu_partition),
-        slurm_account   = config.get("slurm_account", default_gpu_account),
-    threads: config.get("eval_threads", 8)
-    params:
-        init                    = INIT,
-        classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
-        template_str            = _get_eval_template,
-    shell:
-        """
+EVAL_SHELL = """
         {params.init} && \
         mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         set +u && \
@@ -350,6 +334,120 @@ rule evaluate:
         test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
         """
+
+if not EVAL_SPLITS:
+
+    rule evaluate:
+        retries: 0 if config.get("test", False) else config.get("retries", 3)
+        input:
+            train_flag = "{model_dir}/train.done",
+            eval_wf    = _get_eval_wf,
+            common     = _get_common,
+        output:
+            flag = "{model_dir}/evaluate.done",
+        log:
+            "{model_dir}/evaluate.log",
+        container: CLASSIFIER
+        resources:
+            runtime         = config.get("eval_runtime", 480),
+            mem_mb          = config.get("eval_mem", default_gpu_mem),
+            gres            = config.get("eval_gres", default_gpu_gres),
+            qos             = config.get("eval_qos", default_gpu_qos),
+            slurm_partition = config.get("eval_partition", default_gpu_partition),
+            slurm_account   = config.get("slurm_account", default_gpu_account),
+        threads: config.get("eval_threads", 8)
+        params:
+            init                    = INIT,
+            classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+            template_str            = _get_eval_template,
+        shell:
+            EVAL_SHELL
+
+else:
+
+    wildcard_constraints:
+        split = "|".join(map(str, EVAL_SPLITS)),
+
+    rule evaluate_split_wf:
+        input:
+            eval_wf = _get_eval_wf,
+        output:
+            eval_wf = "{model_dir}/wfs/evaluate.split_{split}.yml",
+            out_dir = "{model_dir}/wfs/evaluate.split_{split}.out",
+        params:
+            template_str = _get_eval_template,
+        run:
+            import sys
+            import yaml
+
+            sys.path.insert(0, os.getcwd())
+            from src.classifier.workflow.eval_splits import split_workflow
+
+            with open(input.eval_wf) as f:
+                wf = yaml.safe_load(f)
+            wf, out_dir = split_workflow(
+                wf, wildcards.split, EVAL_SPLITS[wildcards.split], params.template_str
+            )
+            with open(output.eval_wf, "w") as f:
+                yaml.safe_dump(wf, f, sort_keys=False, width=float("inf"))
+            with open(output.out_dir, "w") as f:
+                f.write(out_dir + "\n")
+
+    rule evaluate_split:
+        retries: 0 if config.get("test", False) else config.get("retries", 3)
+        input:
+            train_flag = "{model_dir}/train.done",
+            eval_wf    = "{model_dir}/wfs/evaluate.split_{split}.yml",
+            common     = _get_common,
+        output:
+            flag = "{model_dir}/evaluate.split_{split}.done",
+        log:
+            "{model_dir}/evaluate.split_{split}.log",
+        container: CLASSIFIER
+        resources:
+            runtime         = config.get("eval_runtime", 480),
+            mem_mb          = config.get("eval_split_mem", config.get("eval_mem", default_gpu_mem)),
+            gres            = config.get("eval_gres", default_gpu_gres),
+            qos             = config.get("eval_qos", default_gpu_qos),
+            slurm_partition = config.get("eval_partition", default_gpu_partition),
+            slurm_account   = config.get("slurm_account", default_gpu_account),
+        threads: config.get("eval_threads", 8)
+        params:
+            init                    = INIT,
+            classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+            template_str            = _get_eval_template,
+        shell:
+            EVAL_SHELL
+
+    # Not a GPU rule: on nautilus it runs as a small CPU pod in the classifier image (it reads and
+    # writes result.json on EOS with the barista Friend code, which the orchestrator image lacks).
+    rule evaluate_combine:
+        input:
+            flags    = expand("{{model_dir}}/evaluate.split_{split}.done", split=list(EVAL_SPLITS)),
+            out_dirs = expand("{{model_dir}}/wfs/evaluate.split_{split}.out", split=list(EVAL_SPLITS)),
+        output:
+            flag = "{model_dir}/evaluate.done",
+        log:
+            "{model_dir}/evaluate.log",
+        container: CLASSIFIER
+        resources:
+            runtime = 60,
+            mem_mb  = 4000,
+        params:
+            init = INIT,
+        shell:
+            """
+            {params.init} && \
+            set +u && \
+            if [ -z "$X509_USER_PROXY" ] && [ -f ./proxy/x509_proxy ]; then \
+                export X509_USER_PROXY="$PWD/proxy/x509_proxy"; \
+            fi && \
+            set -u && \
+            PYTHONPATH=$PWD python -m src.classifier.workflow.eval_splits $(cat {input.out_dirs}) \
+                2>&1 | tee -a {log}
+            test ${{PIPESTATUS[0]}} -eq 0
+            touch {output.flag}
+            """
 
 
 rule plot_inputs_raw:
@@ -448,6 +546,8 @@ rule plot_weights:
 
 
 localrules: yields, classifier_gallery
+if EVAL_SPLITS:
+    localrules: evaluate_split_wf
 
 
 def _gallery_inputs(wildcards):
