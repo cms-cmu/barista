@@ -935,6 +935,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         f"{ckpt}/src/runner",
         f"{ckpt}/src/tools",
         f"{ckpt}/src/workflows",
+        f"{ckpt}/src/stat_analysis",
         f"{ckpt}/coffea4bees/classifier",
         f"{ckpt}/coffea4bees/workflows",
         f"{ckpt}/coffea4bees/analysis",
@@ -944,7 +945,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     # 2. Stream barista code at pinned sha
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
     barista_paths = [
-        p for p in ["src/classifier", "src/runner", "src/tools", "src/workflows", "software", "runner.py"]
+        p for p in ["src/classifier", "src/runner", "src/tools", "src/workflows", "src/stat_analysis", "software", "runner.py"]
         if (ROOT / p).exists()
     ]
     if barista_paths:
@@ -957,7 +958,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
             k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
             stdin=p_barista.stdout,
             capture_output=True,
-            timeout=60,
+            timeout=300,
         )
         p_barista.stdout.close()
         if res1.returncode != 0:
@@ -983,7 +984,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
                 k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
                 stdin=p_c4b.stdout,
                 capture_output=True,
-                timeout=60,
+                timeout=300,
             )
             p_c4b.stdout.close()
             if res2.returncode != 0:
@@ -1173,6 +1174,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
 
     unlock = f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus --unlock || true\n" if resume else ""
 
+    # RFC 1123 / Kubernetes label value must be at most 63 chars
+    roast_label = r["id"] if len(r["id"]) <= 63 else f"{r['id'][:50]}-{hashlib.sha256(r['id'].encode()).hexdigest()[:12]}"
+
     # 2. Build Job manifest
     manifest = textwrap.dedent(f"""\
         apiVersion: batch/v1
@@ -1181,7 +1185,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
           name: {jname}
           namespace: {ns}
           labels:
-            roast: "{r['id']}"
+            roast: "{roast_label}"
             step: "{name}"
             app: "roast-runner"
         spec:
@@ -1189,7 +1193,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
           template:
             metadata:
               labels:
-                roast: "{r['id']}"
+                roast: "{roast_label}"
                 step: "{name}"
             spec:
               restartPolicy: Never
