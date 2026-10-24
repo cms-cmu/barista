@@ -325,7 +325,8 @@ def main():
 
     labels = {}
     if roast_id:
-        labels["roast"] = roast_id
+        # RFC 1123 / Kubernetes label value must be at most 63 chars
+        labels["roast"] = roast_id if len(roast_id) <= 63 else f"{roast_id[:50]}-{hashlib.sha256(roast_id.encode()).hexdigest()[:12]}"
     if roast_step:
         labels["step"] = roast_step
     labels["rule"] = clean_rule
