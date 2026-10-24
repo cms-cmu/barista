@@ -1496,12 +1496,26 @@ def cmd_pull(args) -> None:
     r = load_roast(args.id)
     hosts = [args.host] if args.host else list(r["hosts"])
     for host in hosts:
-        target = roast_ssh(cfg, r, host)
         ckpt = r["hosts"][host]["checkout"]
         rel = args.path.strip("/")
-        src = f"{target}:{ckpt}/{rel}/"
         dst = ROOT / "output" / "roasts" / r["id"] / rel
         dst.mkdir(parents=True, exist_ok=True)
+        if host == "nautilus":
+            hc = host_cfg(cfg, "nautilus")
+            ns = hc.get("namespace", "cms-cmu")
+            info(f"[nautilus] pulling {rel} -> {dst}/")
+            if not args.dry_run:
+                p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-cf", "-", "-C", ckpt, rel), stdout=subprocess.PIPE)
+                p2 = subprocess.Popen(["tar", "-xf", "-", "-C", str(ROOT / "output" / "roasts" / r["id"])], stdin=p1.stdout)
+                p1.stdout.close()
+                p2.communicate()
+                if p2.returncode != 0:
+                    die(f"pull from nautilus failed ({p2.returncode})")
+                log_event(r, "pull", host="nautilus", path=rel)
+                save_roast(r)
+            continue
+        target = roast_ssh(cfg, r, host)
+        src = f"{target}:{ckpt}/{rel}/"
         cmd = ["rsync", "-a", "--progress", "--exclude=*_test", "--exclude=*_test/"]
         if not args.include_test:
             pass
@@ -2810,6 +2824,25 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
             f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
 
 
+def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc") -> None:
+    if "nautilus" not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
+        return
+    hc = host_cfg(cfg, "nautilus")
+    ns = hc.get("namespace", "cms-cmu")
+    nautilus_ck = r["hosts"]["nautilus"]["checkout"]
+    target_ck = r["hosts"][target_host]["checkout"]
+    target_ssh = roast_ssh(cfg, r, target_host)
+    info(f"[nautilus] syncing outputs to [{target_host}]...")
+    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-cf", "-", "-C", nautilus_ck, "output"), stdout=subprocess.PIPE)
+    p2 = subprocess.Popen(["ssh", *ssh_opts(target_ssh), target_ssh, f"tar -xf - -C {rq(target_ck)}"], stdin=p1.stdout)
+    p1.stdout.close()
+    p2.communicate()
+    if p2.returncode == 0:
+        info(f"[nautilus] synced outputs to [{target_host}]")
+    else:
+        info(f"[nautilus] sync to [{target_host}] returned code {p2.returncode}")
+
+
 def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
@@ -2824,6 +2857,8 @@ def cmd_publish(args) -> None:
     if args.dry_run:
         info("publish rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb']}")
     if not args.docs_only:
+        if not args.dry_run and "nautilus" in hosts and "cmslpc" in r.get("hosts", {}):
+            _sync_nautilus_to_host(cfg, r, "cmslpc")
         for host in hosts:
             if host == "nautilus":
                 continue
@@ -2850,6 +2885,12 @@ def cmd_publish(args) -> None:
             pages = set()   # full publish: rebuild the list from what the hosts have now
         for host in hosts:
             if host == "nautilus":
+                hc = host_cfg(cfg, "nautilus")
+                ns = hc.get("namespace", "cms-cmu")
+                ck = r["hosts"]["nautilus"]["checkout"]
+                find_cmd = f"cd {rq(ck)} && find -L output -name '*.html' -not -name '*dask-report*' -not -path '*_test*' -not -path '*/logs/*' -not -path '*/singlefiles/*' | sort"
+                res = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", find_cmd), check=False)
+                pages.update(p.strip() for p in res.stdout.splitlines() if p.strip())
                 continue
             ck = r["hosts"][host]["checkout"]
             res = ssh_run(roast_ssh(cfg, r, host),
@@ -2888,6 +2929,8 @@ def cmd_archive(args) -> None:
         info("archive rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb'] or 'none'}")
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
+    if not args.dry_run and "nautilus" in hosts and "cmslpc" in r.get("hosts", {}):
+        _sync_nautilus_to_host(cfg, r, "cmslpc")
     for host in hosts:
         if host == "nautilus":
             continue
