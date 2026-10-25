@@ -946,16 +946,18 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         cwd=ROOT,
         stdout=subprocess.PIPE,
     )
-    res1 = subprocess.run(
+    p_tar1 = subprocess.Popen(
         k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
         stdin=p_barista.stdout,
-        capture_output=True,
-        timeout=900,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     p_barista.stdout.close()
-    if res1.returncode != 0:
-        err = res1.stderr.decode("utf-8", errors="replace").strip() if res1.stderr else ""
-        info(f"[nautilus] warning: barista code sync returned {res1.returncode}" + (f": {err}" if err else ""))
+    _, stderr1 = p_tar1.communicate(timeout=900)
+    p_barista.wait()
+    if p_tar1.returncode != 0:
+        err = stderr1.decode("utf-8", errors="replace").strip() if stderr1 else ""
+        info(f"[nautilus] warning: barista code sync returned {p_tar1.returncode}" + (f": {err}" if err else ""))
 
     # 3. Stream coffea4bees code at pinned sha (excluding heavy non-code assets not needed for remote execution)
     if c4b_dir.is_dir() and "coffea4bees" in r:
@@ -972,16 +974,18 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
             cwd=c4b_dir,
             stdout=subprocess.PIPE,
         )
-        res2 = subprocess.run(
+        p_tar2 = subprocess.Popen(
             k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
             stdin=p_c4b.stdout,
-            capture_output=True,
-            timeout=900,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         p_c4b.stdout.close()
-        if res2.returncode != 0:
-            err = res2.stderr.decode("utf-8", errors="replace").strip() if res2.stderr else ""
-            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}" + (f": {err}" if err else ""))
+        _, stderr2 = p_tar2.communicate(timeout=900)
+        p_c4b.wait()
+        if p_tar2.returncode != 0:
+            err = stderr2.decode("utf-8", errors="replace").strip() if stderr2 else ""
+            info(f"[nautilus] warning: coffea4bees code sync returned {p_tar2.returncode}" + (f": {err}" if err else ""))
 
     info(f"[nautilus] synced code to {ckpt}")
 
