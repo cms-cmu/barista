@@ -100,6 +100,123 @@
           "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
           "ssh": "jda102@cmslpc371.fnal.gov",
           "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 08:58:48",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 08:59:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 12:16:38",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 12:17:02",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 13:35:54",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 13:52:18",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 20:57:56",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 20:59:28",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-25 10:15:55",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2024_c1e0fcf-788068e_MvD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "464afe99b6d3"
         }
       ]
     },
@@ -133,6 +250,66 @@
           "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
           "namespace": "cms-cmu",
           "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-23 15:08:33",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-23 18:56:45",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-23 19:55:53",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-23 19:56:57",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-23 19:57:52",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
         }
       ]
     },
@@ -141,7 +318,33 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-24 13:54:20",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        },
+        {
+          "ts": "2026-10-24 13:55:57",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2024-6ca215-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "464afe99b6d3"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -155,7 +358,18 @@
       "checked_out": "2026-10-23 13:04:44"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_2024_20261023_c1e0fcf-788068e",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_2024_20261023_c1e0fcf-788068e/",
+    "ts": "2026-10-25 10:26:27",
+    "ok": true,
+    "pages": [
+      "output/mvd_run3_2024_20261023_c1e0fcf-788068e/V2c/cutflow_MvD_closure.html",
+      "output/mvd_run3_2024_20261023_c1e0fcf-788068e/V2c/plots_MvD_closure/index.html",
+      "output/mvd_run3_2024_20261023_c1e0fcf-788068e/V4/plots_MvD/index.html",
+      "output/mvd_run3_2024_20261023_c1e0fcf-788068e/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-23 12:50:39",
@@ -194,8 +408,121 @@
       "event": "submit",
       "step": "MvD_2_train",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-23 15:08:33",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-23 18:56:45",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-23 19:55:53",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-23 19:56:57",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-23 19:57:52",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-24 08:58:48",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 08:59:17",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 12:16:38",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 12:17:02",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 13:35:54",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 13:52:18",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 13:54:20",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-24 13:55:57",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-24 20:57:56",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-24 20:59:28",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-25 10:15:55",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-25 10:21:25",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-25 10:26:26",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_2024_20261023_c1e0fcf-788068e",
+    "ts": "2026-10-25 10:21:25",
+    "ok": true
+  }
 }
