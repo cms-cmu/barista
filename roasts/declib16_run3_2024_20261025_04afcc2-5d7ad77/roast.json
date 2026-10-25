@@ -172,6 +172,6 @@
       "host": "cmslpc"
     }
   ],
-  "notes": "2024 16x library declustering after the UParT regression fix (regfix non-tight FvT, mixed-data ttbar PS, tight SvB); MvD model mixeddata_all_declib16_2024 HOT PATCH 2026-10-25 13:20: every D3 seed failed the picoAOD integrity check on data_2024E chunk74 [0,25000) (one jet's library lookup fell to the coarse level, changing its b/j content -> make_synthetic_event count mismatch, swallowed by the skimmer); coffea4bees 1e991a80 (retry, then keep the changed count) applied by hand in the cmslpc checkout (pinned 5d7ad774), shared daemon restarted, resumed. Identical output otherwise (checked vs old code).",
+  "notes": "2024 16x library declustering after the UParT regression fix (regfix non-tight FvT, mixed-data ttbar PS, tight SvB); MvD model mixeddata_all_declib16_2024 HOT PATCH 2026-10-25 13:20: every D3 seed failed the picoAOD integrity check on data_2024E chunk74 [0,25000) (one jet's library lookup fell to the coarse level, changing its b/j content -> make_synthetic_event count mismatch, swallowed by the skimmer); coffea4bees 1e991a80 (retry, then keep the changed count) applied by hand in the cmslpc checkout (pinned 5d7ad774), shared daemon restarted, resumed. Identical output otherwise (checked vs old code). | 2026-10-25 13:47 CDT: shared dask scheduler OOM-killed on cmslpc342 (8 GB RSS, node has 11 GB) with 8 seeds in flight; seeds 1/8/14 failed. Killed all, resumed all_D5 with --cores 4 (5/16 seeds already done).",
   "category": ""
 }
