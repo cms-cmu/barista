@@ -75,6 +75,17 @@ FRIEND         = _r(config.get("friend", ""))
 PLOT_BASE = config.get("plot_base", "")
 COMMON    = _r(config.get("common", f"{WFS_BASE}/../common.yml" if WFS_BASE else "common.yml"))
 
+
+def _get_plot_root(wildcards):
+    if PLOT_BASE and not str(PLOT_BASE).startswith("root://"):
+        return f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}"
+    return f"{wildcards.model_dir}/plots"
+
+
+def _get_plot_target(wildcards, kind):
+    root = _get_plot_root(wildcards)
+    return f"{root}/{kind}" if kind else root
+
 # ── Cluster resource defaults ────────────────────────────────────────────────
 default_gpu_partition = config.get("gpu_partition", "work")
 default_gpu_account   = config.get("slurm_account", "")
@@ -157,15 +168,29 @@ def _get_model_path(wildcards):
     return MODEL
 
 
+def _get_friend_path(wildcards):
+    friend_fn = config.get("friend_fn")
+    if callable(friend_fn):
+        return friend_fn(wildcards)
+    friends = config.get("friends_dict") or config.get("friends")
+    if isinstance(friends, dict) and wildcards.model_dir in friends:
+        return friends[wildcards.model_dir]
+    if isinstance(FRIEND, str) and "{model_dir}" in FRIEND:
+        return FRIEND.format(model_dir=wildcards.model_dir, eos_base=EOS_BASE, label=LABEL)
+    return FRIEND
+
+
 # ── Target Rules ─────────────────────────────────────────────────────────────
 
 def _all_targets():
-    targets = [f"{OUTPUT_DIR}/train.done", f"{OUTPUT_DIR}/yields.html"]
+    targets = [
+        f"{OUTPUT_DIR}/train.done",
+        f"{OUTPUT_DIR}/yields.html",
+        f"{OUTPUT_DIR}/analyze.done",
+        f"{OUTPUT_DIR}/gallery.done",
+    ]
     if EVALUATE:
-        targets += [
-            f"{OUTPUT_DIR}/evaluate.done",
-            f"{OUTPUT_DIR}/analyze.done",
-        ]
+        targets.append(f"{OUTPUT_DIR}/evaluate.done")
     if PLOT_INPUTS:
         targets += [
             f"{OUTPUT_DIR}/plot_inputs_raw.done",
@@ -208,7 +233,6 @@ rule train:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10200-10300 -n 1) && \
         mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         rm -f {params.yields} && \
         set +u && \
@@ -221,7 +245,6 @@ rule train:
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {input.wf} \
             -from {input.common} \
-            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
@@ -265,7 +288,7 @@ rule analyze:
         init                    = INIT,
         classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
         model                   = _get_model_path,
-        plot                    = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/analyze",
+        plot                    = lambda wildcards: _get_plot_target(wildcards, "analyze"),
     shell:
         """
         {params.init} && \
@@ -275,8 +298,7 @@ rule analyze:
             {params.model}/result.json \
             -analysis HCR.LossROC \
             -setting IO "output: {params.plot}" \
-            -setting IO "report: $(basename {params.model})" \
-            -setting Monitor "enable: False" \
+            -setting IO "report: ." \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
@@ -309,7 +331,6 @@ rule evaluate:
     shell:
         """
         {params.init} && \
-        PORT=$(shuf -i 10200-10300 -n 1) && \
         mkdir -p $(dirname {output.flag}) $(dirname {log}) && \
         set +u && \
         if [ -z "$X509_USER_PROXY" ] && [ -f ./proxy/x509_proxy ]; then \
@@ -324,7 +345,6 @@ rule evaluate:
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {input.eval_wf} \
             -from {input.common} \
-            -setting Monitor "enable: False" \
             -flag debug \
             2>&1 | tee -a {log}
         test ${{PIPESTATUS[0]}} -eq 0
@@ -348,7 +368,7 @@ rule plot_inputs_raw:
         init     = INIT,
         model    = _get_model_path,
         metadata = METADATA,
-        plot     = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/inputs_raw",
+        plot     = lambda wildcards: _get_plot_target(wildcards, "inputs_raw"),
     shell:
         """
         {params.init} && \
@@ -378,7 +398,7 @@ rule plot_inputs_dataprep:
         init     = INIT,
         model    = _get_model_path,
         metadata = METADATA,
-        plot     = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/inputs_dataprep",
+        plot     = lambda wildcards: _get_plot_target(wildcards, "inputs_dataprep"),
     shell:
         """
         {params.init} && \
@@ -408,10 +428,10 @@ rule plot_weights:
         init         = INIT,
         model        = _get_model_path,
         metadata     = METADATA,
-        plot         = lambda wildcards: f"{PLOT_BASE}/{DATE}_{os.path.basename(wildcards.model_dir)}/weights",
+        plot         = lambda wildcards: _get_plot_target(wildcards, "weights"),
         wfs_base     = _get_train_wf,
         template_str = _get_train_template,
-        friend_path  = FRIEND,
+        friend_path  = _get_friend_path,
     shell:
         """
         {params.init} && \
@@ -427,4 +447,30 @@ rule plot_weights:
         """
 
 
-localrules: yields
+localrules: yields, classifier_gallery
+
+
+def _gallery_inputs(wildcards):
+    deps = [f"{wildcards.model_dir}/analyze.done"]
+    if PLOT_INPUTS:
+        deps.append(f"{wildcards.model_dir}/plot_inputs_raw.done")
+        deps.append(f"{wildcards.model_dir}/plot_inputs_dataprep.done")
+    if PLOT_WEIGHTS:
+        deps.append(f"{wildcards.model_dir}/plot_weights.done")
+    return deps
+
+
+rule classifier_gallery:
+    input:
+        _gallery_inputs,
+    output:
+        flag = "{model_dir}/gallery.done",
+    params:
+        plot_root = _get_plot_root,
+        title     = lambda wildcards: f"Classifier Diagnostics - {os.path.basename(wildcards.model_dir)}",
+    shell:
+        """
+        python src/plotting/make_gallery.py {params.plot_root} --title "{params.title}"
+        touch {output.flag}
+        """
+

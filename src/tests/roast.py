@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -640,6 +641,18 @@ class TestCopySettings(unittest.TestCase):
         self.assertTrue(any("dask-report" in e for e in ps["exclude"]))
         self.assertTrue(any(e.startswith("output/") and e.endswith("logs") for e in ps["exclude"]))
 
+    def test_publish_excludes_heavy_vector_formats_by_default(self):
+        r = fake_roast()
+        pub_default = roast.copy_settings("publish", CFG, r)
+        self.assertNotIn("*.pdf", pub_default["include"])
+        self.assertNotIn("*.svg", pub_default["include"])
+        self.assertIn("*.png", pub_default["include"])
+
+        pub_with_pdfs = roast.copy_settings("publish", CFG, r, with_pdfs=True)
+        self.assertIn("*.pdf", pub_with_pdfs["include"])
+        self.assertIn("*.svg", pub_with_pdfs["include"])
+        self.assertIn("*.png", pub_with_pdfs["include"])
+
 
 class TestStatusByFamily(unittest.TestCase):
     """Status groups the way the catalogue does, so one definition orders both."""
@@ -850,18 +863,18 @@ class TestProxyPicking(unittest.TestCase):
                                roast.copy_settings("publish", CFG, fake_roast()))
         self.assertIn("no grid proxy with time left", s)
 
-    def test_copy_script_fast_diff_and_depth_dirs(self):
-        """Verify _copy_script uses fast in-memory diff and depth-stratified dir creation."""
+    def test_copy_script_fast_diff_and_direct_xrdcp(self):
+        """Verify _copy_script uses fast in-memory diff and relies on direct xrdcp without slow xrdfs mkdir loop."""
         s = roast._copy_script(fake_roast(), "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/x",
                                roast.copy_settings("publish", CFG, fake_roast()))
-        self.assertIn("HAVE_DIRS", s)
-        self.assertIn("by_depth", s)
-        self.assertIn("concurrent.futures.ThreadPoolExecutor", s)
+        self.assertNotIn("HAVE_DIRS", s)
+        self.assertNotIn("by_depth", s)
+        self.assertNotIn("concurrent.futures.ThreadPoolExecutor", s)
+        self.assertNotIn("python mkdir failed", s)
         self.assertIn("print(p, file=f_out)", s)
         self.assertIn("python diff failed", s)
-        self.assertIn("python mkdir failed", s)
-        # Verify it no longer contains the slow sequential while loop
-        self.assertNotIn("while IFS= read -r d; do xrdfs $EOS mkdir -p", s)
+        self.assertIn("PAGE:", s)
+        self.assertIn("-n 25", s)
 
 
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
@@ -1298,6 +1311,142 @@ class TestNautilusStepWorkers(unittest.TestCase):
         self.assertTrue(roast._is_step_worker(unlabelled_mine, r, "BKG_C", jname))
         self.assertFalse(roast._is_step_worker(unlabelled_other, r, "BKG_C", jname))
         self.assertFalse(roast._is_step_worker(orchestrator, r, "BKG_C", jname))
+
+
+class TestNautilusCodeSync(unittest.TestCase):
+    """roast _sync_nautilus_code streams exact code at pinned SHAs and purges ghost files."""
+
+    @patch.object(roast.subprocess, "run")
+    @patch.object(roast.subprocess, "Popen")
+    @patch.object(roast, "sh")
+    def test_sync_nautilus_code_invokes_git_archive_and_clean(self, mock_sh, mock_popen, mock_run):
+        mock_popen_instance = MagicMock()
+        mock_popen_instance.stdout = MagicMock()
+        mock_popen.return_value = mock_popen_instance
+        mock_run.return_value = MagicMock(returncode=0)
+
+        cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
+        r = {
+            "id": "test_roast_20261024_1111111-2222222",
+            "barista": {"sha": "1111111222222223333333444444445555555556"},
+            "coffea4bees": {"sha": "2222222333333334444444455555555566666667"},
+        }
+        ckpt = "/workspace/users/testuser/prod/test_roast"
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            tmp_root_path = Path(tmp_root)
+            (tmp_root_path / "src").mkdir(parents=True)
+            (tmp_root_path / "coffea4bees").mkdir(parents=True)
+            with patch.object(roast, "ROOT", tmp_root_path):
+                roast._sync_nautilus_code(cfg, r, ckpt)
+
+        # 1. Verify rm -rf was called on clean_dirs (including src, software, bin, and coffea4bees)
+        rm_call = mock_sh.call_args_list[0]
+        cmd = rm_call[0][0]
+        self.assertIn("rm", cmd)
+        self.assertIn("-rf", cmd)
+        self.assertTrue(any(f"{ckpt}/src" in arg for arg in cmd))
+        self.assertTrue(any(f"{ckpt}/software" in arg for arg in cmd))
+        self.assertTrue(any(f"{ckpt}/coffea4bees" in arg for arg in cmd))
+
+        # 2. Verify git archive was called for barista with pinned sha shipping repo (excluding roasts)
+        barista_archive_call = mock_popen.call_args_list[0]
+        args_barista = barista_archive_call[0][0]
+        self.assertEqual(args_barista[:3], ["git", "archive", "--format=tar.gz"])
+        self.assertIn(r["barista"]["sha"], args_barista)
+        self.assertIn(":!roasts", args_barista)
+
+        # 3. Verify git archive was called for all coffea4bees with pinned sha (no excluded folders)
+        c4b_archive_call = mock_popen.call_args_list[1]
+        args_c4b = c4b_archive_call[0][0]
+        self.assertEqual(args_c4b[:3], ["git", "archive", "--format=tar.gz"])
+        self.assertIn(r["coffea4bees"]["sha"], args_c4b)
+
+        # 4. Verify tar -xzf was run via kubectl
+        tar_calls = mock_run.call_args_list
+        self.assertEqual(len(tar_calls), 2)
+        for call in tar_calls:
+            k8s_args = call[0][0]
+            self.assertIn("tar", k8s_args)
+            self.assertIn("-xzf", k8s_args)
+
+    @patch.object(roast.subprocess, "run")
+    @patch.object(roast.subprocess, "Popen")
+    @patch.object(roast, "sh")
+    def test_sync_nautilus_code_skips_coffea4bees_when_not_present(self, mock_sh, mock_popen, mock_run):
+        mock_popen_instance = MagicMock()
+        mock_popen_instance.stdout = MagicMock()
+        mock_popen.return_value = mock_popen_instance
+        mock_run.return_value = MagicMock(returncode=0)
+
+        cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
+        r = {
+            "id": "test_roast_20261024_1111111-2222222",
+            "barista": {"sha": "1111111222222223333333444444445555555556"},
+            "coffea4bees": {"sha": "2222222333333334444444455555555566666667"},
+        }
+        ckpt = "/workspace/users/testuser/prod/test_roast"
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            tmp_root_path = Path(tmp_root)
+            (tmp_root_path / "src" / "tools").mkdir(parents=True)
+            with patch.object(roast, "ROOT", tmp_root_path):
+                roast._sync_nautilus_code(cfg, r, ckpt)
+
+        # Barista is synced (1 call), coffea4bees is skipped
+        self.assertEqual(len(mock_popen.call_args_list), 1)
+        self.assertEqual(len(mock_run.call_args_list), 1)
+
+
+class TestSummaryRoastIndexHtml(unittest.TestCase):
+    def test_generate_roast_index_html(self):
+        r = fake_roast()
+        r["analysis"] = "HH4b"
+        r["publish"] = {"ok": True, "ts": "2026-10-24 12:00:00"}
+        pages = [
+            "output/nominal_run3/PhaseB/plots/index.html",
+            "output/nominal_run3/PhaseB/cutflow_Run3_2024.html",
+            "output/nominal_run3/PhaseC/summary.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn(r["id"], html_out)
+        self.assertIn("PhaseB", html_out)
+        self.assertIn("cutflow_Run3_2024", html_out)
+        self.assertIn("summary.html", html_out)
+        self.assertIn("barista", html_out)
+        self.assertIn("coffea4bees", html_out)
+        self.assertIn("roast.json", html_out)
+        self.assertIn("config.yml", html_out)
+        self.assertIn("badge-success", html_out)
+        self.assertIn("Published", html_out)
+
+
+class TestSyncNautilusPublishMode(unittest.TestCase):
+    @patch.object(roast.subprocess, "Popen")
+    def test_sync_nautilus_excludes_heavy_data_in_publish_mode(self, mock_popen):
+        p1_mock = MagicMock()
+        p1_mock.stdout = MagicMock()
+        p2_mock = MagicMock()
+        p2_mock.returncode = 0
+        p2_mock.communicate.return_value = (b"", b"")
+        mock_popen.side_effect = [p1_mock, p2_mock]
+
+        r = fake_roast()
+        r["hosts"]["nautilus"] = {"checkout": "/workspace/users/u/barista"}
+        r["hosts"]["cmslpc"] = {"checkout": "/uscms_data/d3/u/barista"}
+
+        roast._sync_nautilus_to_host(CFG, r, "cmslpc", publish_mode=True)
+
+        k8s_call = mock_popen.call_args_list[0][0][0]
+        self.assertIn("-czf", k8s_call)
+        self.assertIn("--exclude", k8s_call)
+        self.assertIn("*.pt", k8s_call)
+        self.assertIn("*.root", k8s_call)
+        self.assertIn("*.parquet", k8s_call)
+
+        ssh_call = mock_popen.call_args_list[1][0][0]
+        self.assertIn("ssh", ssh_call)
+        self.assertTrue(any("tar -xzf" in arg for arg in ssh_call))
 
 
 if __name__ == "__main__":

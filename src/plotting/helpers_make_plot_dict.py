@@ -961,10 +961,19 @@ def get_plot_dict_from_config(*, cfg: Any, var: str = 'selJets.pt',
     # Get histogram configuration
     hist_config = cfg.plotConfig.get("hists", {})
     if process is not None:
-        filtered = {key: hist_config[key] for key in process if key in hist_config}
-        if not filtered and 'stack' in cfg.plotConfig:
-            stack_config = cfg.plotConfig["stack"]
-            filtered = {key: stack_config[key] for key in process if key in stack_config}
+        # Resolve each requested process in "hists", then "stack" (case-insensitive),
+        # so processes can be mixed across the two sections (e.g. ttHbb + MultiJet).
+        stack_config = cfg.plotConfig.get("stack", {})
+        filtered = {}
+        for key in process:
+            for section in (hist_config, stack_config):
+                match = next((k for k in section if k == key), None) or \
+                        next((k for k in section if k.lower() == key.lower()), None)
+                if match is not None:
+                    filtered[match] = section[match]
+                    break
+            else:
+                logger.warning(f"process '{key}' not found in plotConfig hists or stack; skipping it")
         if not filtered:
             filtered = {p: {"process": p, "tag": "fourTag", "label": p} for p in process}
         hist_config = filtered
