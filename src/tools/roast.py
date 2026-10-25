@@ -954,14 +954,20 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     )
     p_barista.stdout.close()
     if res1.returncode != 0:
-        info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
+        err = res1.stderr.decode("utf-8", errors="replace").strip() if res1.stderr else ""
+        info(f"[nautilus] warning: barista code sync returned {res1.returncode}" + (f": {err}" if err else ""))
 
-    # 3. Stream coffea4bees code at pinned sha (entire subrepo)
+    # 3. Stream coffea4bees code at pinned sha (excluding heavy non-code assets not needed for remote execution)
     if c4b_dir.is_dir() and "coffea4bees" in r:
         c4b_sha = r["coffea4bees"]["sha"]
         sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
         p_c4b = subprocess.Popen(
-            ["git", "archive", "--format=tar.gz", c4b_sha],
+            [
+                "git", "archive", "--format=tar.gz", c4b_sha, "--",
+                ":!jet_clustering",
+                ":!archive",
+                ":!metadata/weights",
+            ],
             cwd=c4b_dir,
             stdout=subprocess.PIPE,
         )
@@ -973,7 +979,8 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         )
         p_c4b.stdout.close()
         if res2.returncode != 0:
-            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
+            err = res2.stderr.decode("utf-8", errors="replace").strip() if res2.stderr else ""
+            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}" + (f": {err}" if err else ""))
 
     info(f"[nautilus] synced code to {ckpt}")
 

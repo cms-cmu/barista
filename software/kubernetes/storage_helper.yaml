@@ -13,11 +13,11 @@ spec:
     command: ["sleep", "infinity"]
     resources:
       limits:
+        cpu: "4"
+        memory: 8Gi
+      requests:
         cpu: "1"
         memory: 2Gi
-      requests:
-        cpu: 100m
-        memory: 512Mi
     volumeMounts:
     - mountPath: /workspace
       name: ceph-storage
