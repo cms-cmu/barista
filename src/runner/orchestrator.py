@@ -117,6 +117,7 @@ def setup_config_defaults(config_runner, args):
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
         'dask_retries': 3,
+        'allowed_failures': 12,
         'idle_timeout': 3600,
         'slurm_cores': 4,
         'slurm_partition': 'work',
