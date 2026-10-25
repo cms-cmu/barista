@@ -882,7 +882,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in output proxy run_container runner.py pixi.toml pixi.lock .pixi; do
+    for item in output proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
