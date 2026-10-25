@@ -99,6 +99,19 @@
           "window": "declib16_run3_2024_04afcc2-5d7ad77_DeClustered",
           "ssh": "jda102@cmslpc342.fnal.gov",
           "config_sha256": "35305b85b13e"
+        },
+        {
+          "ts": "2026-10-25 13:32:31",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D5",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "declib16_run3_2024_04afcc2-5d7ad77_DeClustered",
+          "ssh": "jda102@cmslpc342.fnal.gov",
+          "config_sha256": "35305b85b13e"
         }
       ]
     }
@@ -132,8 +145,14 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-25 13:32:31",
+      "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
     }
   ],
-  "notes": "2024 16x library declustering after the UParT regression fix (regfix non-tight FvT, mixed-data ttbar PS, tight SvB); MvD model mixeddata_all_declib16_2024",
+  "notes": "2024 16x library declustering after the UParT regression fix (regfix non-tight FvT, mixed-data ttbar PS, tight SvB); MvD model mixeddata_all_declib16_2024 HOT PATCH 2026-10-25 13:20: every D3 seed failed the picoAOD integrity check on data_2024E chunk74 [0,25000) (one jet's library lookup fell to the coarse level, changing its b/j content -> make_synthetic_event count mismatch, swallowed by the skimmer); coffea4bees 1e991a80 (retry, then keep the changed count) applied by hand in the cmslpc checkout (pinned 5d7ad774), shared daemon restarted, resumed. Identical output otherwise (checked vs old code).",
   "category": ""
 }
