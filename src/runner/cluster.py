@@ -142,6 +142,12 @@ def setup_condor_cluster(config_runner, tarball_path, proxy_path=None, site=None
     Returns (client, cluster, log_dir). 'lpc' uses lpcjobqueue (FNAL), 'lxplus' uses dask_lxplus (CERN).
     """
     site = site or detect_condor_site(config_runner)
+    # Adaptive condor clusters retire workers mid-task (on LPC ~4.7k worker jobs in 70 min), and dask's
+    # default allowed-failures=3 then turns a healthy chunk into a KilledWorker on a random file.
+    # The scheduler runs in this process, so set it before the cluster is created.
+    allowed_failures = config_runner.get('allowed_failures', 12)
+    dask.config.set({'distributed.scheduler.allowed-failures': allowed_failures})
+    logging.info(f"dask scheduler allowed-failures: {allowed_failures}")
     if site == 'lxplus':
         return setup_lxplus_condor_cluster(config_runner, tarball_path, proxy_path)
     if site == 'lpc':

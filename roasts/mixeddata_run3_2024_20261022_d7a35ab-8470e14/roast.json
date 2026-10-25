@@ -1,0 +1,412 @@
+{
+  "id": "mixeddata_run3_2024_20261022_d7a35ab-8470e14",
+  "label": "mixeddata_run3_2024",
+  "analysis": "HH4b",
+  "created": "2026-10-22 19:26:59",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "d7a35ab6c1d52e30624830337613f18be63f7124",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "8470e1460e6b22cb1853c36fcba29872656194fd",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "585b29ffdb78272684061614bdbe2681784778482af3220bfcc83bf39bff03b5"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2024_nontight_20261021_975a18e-e176976",
+        "barista": "975a18ef16cf64d1599acaaee86c7405a7e4b9f0",
+        "coffea4bees": "e17697669490d1e6dde39c2776c60c94d3268164",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261021_975a18e-e176976",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20261008_f839489-a481023",
+        "barista": "f839489ab9eb53565dcd43b6e7f9c1b8160f6248",
+        "coffea4bees": "a481023c6da813c474e6e037f65e2c2cf8b94091",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20261008_f839489-a481023",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_2024_nontight_20261021_975a18e-e176976}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2024_nontight_20261021_975a18e-e176976"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2024_nontight_20261021_975a18e-e176976}/output/Run3_2024_nontight/computeJCM/JCM_Run3_2024_nontight_v1/jetCombinatoricModel_SB_Run3_2024_nontight_v1.yml",
+        "roast": "nominal_run3_2024_nontight_20261021_975a18e-e176976"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2024_nontight_20261021_975a18e-e176976}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2024_nontight_20261021_975a18e-e176976"
+      },
+      "SvB_model": {
+        "url": "{eos_prod}/nominal_run3_20261008_f839489-a481023/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-22 19:34:46",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "44b21942ef43"
+        },
+        {
+          "ts": "2026-10-22 19:38:58",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "44b21942ef43"
+        },
+        {
+          "ts": "2026-10-22 19:59:28",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "44b21942ef43"
+        },
+        {
+          "ts": "2026-10-22 19:59:57",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "44b21942ef43"
+        },
+        {
+          "ts": "2026-10-22 22:37:03",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-22 23:24:23",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 06:20:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 08:25:29",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M3",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 08:25:42",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M3",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 08:57:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M5",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 08:58:25",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M5",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 12:27:10",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 12:28:46",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 12:49:34",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M7",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        },
+        {
+          "ts": "2026-10-23 12:50:23",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M7",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2024_d7a35ab-8470e14_MakeMixedData",
+          "ssh": "jda102@cmslpc332.fnal.gov",
+          "config_sha256": "585b29ffdb78"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_2024_20261022_d7a35ab-8470e14/barista",
+      "ssh": "jda102@cmslpc332.fnal.gov",
+      "checked_out": "2026-10-22 19:34:34"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run3_2024_20261022_d7a35ab-8470e14",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_2024_20261022_d7a35ab-8470e14/",
+    "ts": "2026-10-23 13:50:09",
+    "ok": true,
+    "pages": [
+      "output/mixeddata_run3_2024_20261022_d7a35ab-8470e14/M6/cutflow_validation.html",
+      "output/mixeddata_run3_2024_20261022_d7a35ab-8470e14/M6/plots/index.html",
+      "output/mixeddata_run3_2024_20261022_d7a35ab-8470e14/M7/plots_mixeddata/index.html",
+      "output/mixeddata_run3_2024_20261022_d7a35ab-8470e14/M7/plots_signal/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-22 19:26:59",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-22 19:34:34",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 19:34:46",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 19:38:58",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 19:59:28",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 19:59:57",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 22:37:03",
+      "event": "config-edited",
+      "sha256": "585b29ffdb78"
+    },
+    {
+      "ts": "2026-10-22 22:37:03",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 23:24:23",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 06:20:00",
+      "event": "resume",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 08:25:29",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 08:25:42",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 08:57:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 08:58:25",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 12:27:10",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 12:28:46",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 12:49:34",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 12:50:23",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 13:43:19",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-23 13:50:09",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "2024 mixed data remix after UParT regression fix; FvT+JCM from nominal_run3_2024_nontight_20261021_975a18e-e176976; full M.1 rerun",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2024_20261022_d7a35ab-8470e14",
+    "ts": "2026-10-23 13:43:19",
+    "ok": true
+  }
+}

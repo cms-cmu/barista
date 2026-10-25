@@ -456,6 +456,7 @@ def resize(
     chunk_size: int,
     dask: bool = True,
     pico_base_name: str = _PICOAOD,
+    clean_source: bool = True,
 ):
     base = EOS(base_path)
     transform = NanoAOD(regular=False, jagged=True)
@@ -467,6 +468,7 @@ def resize(
                 step=step,
                 chunk_size=chunk_size,
                 reader_options={"transform": transform},
+                clean_source=clean_source,
                 dask=dask,
             )
     return output
