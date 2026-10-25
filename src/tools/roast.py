@@ -3136,8 +3136,12 @@ def write_docs(r: dict) -> None:
         lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
         for p in pages:
             parts = p.split("/")
-            wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
-            name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
+            if len(parts) == 1:
+                wf = "root"
+                name = parts[0].removesuffix(".html")
+            else:
+                wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
+                name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
             lines.append(f"| {wf} | [{name}]({url}{p}) |")
     if r.get("notes"):
         lines += ["", "## Notes", "", r["notes"]]
