@@ -939,10 +939,10 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         clean_dirs.append(f"{ckpt}/coffea4bees")
     sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", *clean_dirs), check=False)
 
-    # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata)
+    # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata and heavy data)
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
     p_barista = subprocess.Popen(
-        ["git", "archive", "--format=tar.gz", barista_sha, ":!roasts"],
+        ["git", "archive", "--format=tar.gz", barista_sha, "--", ":!roasts", ":!src/data"],
         cwd=ROOT,
         stdout=subprocess.PIPE,
     )
@@ -967,6 +967,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
                 ":!jet_clustering",
                 ":!archive",
                 ":!metadata/weights",
+                ":!hemisphere_mixing",
             ],
             cwd=c4b_dir,
             stdout=subprocess.PIPE,

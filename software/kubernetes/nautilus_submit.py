@@ -45,7 +45,7 @@ LOG_DIR = "k8s_logs"
 # GPU products train (not evaluate) jobs may also use; NAUTILUS_TRAIN_EXTRA_GPUS (comma list) overrides
 TRAIN_EXTRA_GPU_PRODUCTS = [p for p in os.environ.get(
     "NAUTILUS_TRAIN_EXTRA_GPUS",
-    "NVIDIA-GeForce-RTX-2080-Ti,Tesla-V100-SXM2-16GB,Tesla-V100-PCIE-16GB,Tesla-T4",
+    "Tesla-V100-SXM2-16GB,Tesla-V100-PCIE-16GB,Tesla-T4",
 ).split(",") if p.strip()]
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
 STORAGE_CLAIM = os.environ.get("NAUTILUS_STORAGE_CLAIM", "cms-cmu-storage")

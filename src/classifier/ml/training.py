@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
+import fsspec
 import torch
 import torch.types as tt
 from src.classifier.config.setting import IO as cfg_IO
