@@ -880,9 +880,9 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     if sh_run.returncode != 0:
         die(f"failed to create directories on Nautilus CephFS: {sh_run.stderr.strip()}")
 
-    # 2. Hardlink reference tree on CephFS (instantaneous cp -al)
+    # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in bin coffea4bees output proxy run_container runner.py software src roasts; do
+    for item in output proxy run_container runner.py pixi.toml pixi.lock .pixi; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -950,7 +950,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
         stdin=p_barista.stdout,
         capture_output=True,
-        timeout=300,
+        timeout=900,
     )
     p_barista.stdout.close()
     if res1.returncode != 0:
@@ -969,7 +969,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
             k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
             stdin=p_c4b.stdout,
             capture_output=True,
-            timeout=300,
+            timeout=900,
         )
         p_c4b.stdout.close()
         if res2.returncode != 0:
