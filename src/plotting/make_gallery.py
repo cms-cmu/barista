@@ -67,7 +67,17 @@ def scan(root: Path, output_name: str) -> list:
             "name": p.stem,
             "kind": kind,
         })
-    return items
+    # A pdf next to an image of the same name is the same plot: fold it into the image (lightbox
+    # "pdf" link) instead of giving it its own card. Lone pdfs keep their link card.
+    imgs = {(it["group"], it["name"]): it for it in items if it["kind"] == "img"}
+    kept = []
+    for it in items:
+        twin = imgs.get((it["group"], it["name"])) if it["kind"] == "link" else None
+        if twin is not None:
+            twin["pdf"] = it["path"]
+        else:
+            kept.append(it)
+    return kept
 
 
 def load_summary_names(metadata: str | None, extra: list) -> list:
@@ -209,7 +219,7 @@ function render(){
   }
   setHash();
 }
-function openLb(i){ lbIdx = i; const it = current[i]; $('#lbimg').src = it.path; $('#lbcap').innerHTML = esc(it.group+'/'+it.name)+' &nbsp; <a href="'+it.path+'" target="_blank">open</a>'; $('#lb').classList.add('on'); }
+function openLb(i){ lbIdx = i; const it = current[i]; $('#lbimg').src = it.path; $('#lbcap').innerHTML = esc(it.group+'/'+it.name)+' &nbsp; <a href="'+it.path+'" target="_blank">open</a>'+(it.pdf ? ' &nbsp; <a href="'+it.pdf+'" target="_blank">pdf</a>' : ''); $('#lb').classList.add('on'); }
 function stepLb(d){ if(lbIdx<0) return; let i = lbIdx; for(let k=0;k<current.length;k++){ i=(i+d+current.length)%current.length; if(current[i].kind==='img'){ openLb(i); return; } } }
 function closeLb(){ $('#lb').classList.remove('on'); lbIdx=-1; }
 $('#lb .x').onclick = closeLb; $('#lb .prev').onclick = e => { e.stopPropagation(); stepLb(-1); }; $('#lb .next').onclick = e => { e.stopPropagation(); stepLb(1); };

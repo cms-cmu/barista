@@ -117,6 +117,7 @@ def setup_config_defaults(config_runner, args):
         'write_coffea_output': True,
         'uproot_xrootd_retry_delays': [5, 15, 30, 60, 120],
         'dask_retries': 3,
+        'allowed_failures': 12,
         'idle_timeout': 3600,
         'slurm_cores': 4,
         'slurm_partition': 'work',
@@ -259,7 +260,15 @@ def process_skimming_output(output, fileset, configs, config_runner, args, clien
     if (pico_base_name := setup_pico_base_name(configs)) is not None:
         kwargs["pico_base_name"] = pico_base_name
 
-    output = compute_with_client(client, resize, **kwargs)
+    # Remove the source chunks here, once the merged chunks are back on the client, not in a dask
+    # clean task: if a worker holding a merged chunk dies before the gather, dask recomputes that
+    # merge and it fails ("Unable to open file") because clean already deleted its sources.
+    sources = [chunk.path for chunks in output.values() for chunk in chunks["files"]]
+    output = compute_with_client(client, resize, clean_source=False, **kwargs)
+    merged = {str(f.path) for chunks in output.values() for f in chunks["files"]}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(16) as pool:
+        list(pool.map(lambda p: p.rm(), [p for p in sources if str(p) not in merged]))
 
     for dataset, chunks in output.items():
         chunks['files'] = [str(f.path) for f in chunks['files']]

@@ -130,7 +130,33 @@ class TrainingStage(BenchmarkStage):
         p_epoch = Progress.new(self.schedule.epoch, ("epoch", self.name))
         logging.info(f"Start {self.name}")
         start = datetime.now()
-        for epoch in range(self.schedule.epoch):
+
+        # Checkpoint path for intermediate state recovery
+        ckpt_path = None
+        if not cfg_IO.output.is_null:
+            ckpt_path = cfg_IO.output / f"checkpoint_{trainer.name}_{self.name}.pt"
+
+        start_epoch = 0
+        if ckpt_path is not None and ckpt_path.exists:
+            try:
+                logging.info(f"Loading checkpoint from {ckpt_path} to resume training...")
+                with fsspec.open(ckpt_path, "rb") as f:
+                    ckpt = torch.load(f, map_location=trainer.device, weights_only=False)
+                self.model.nn.load_state_dict(ckpt["model_state_dict"])
+                opt.load_state_dict(ckpt["opt_state_dict"])
+                if "lr_state_dict" in ckpt:
+                    lr.load_state_dict(ckpt["lr_state_dict"])
+                if scaler.is_enabled() and "scaler_state_dict" in ckpt:
+                    scaler.load_state_dict(ckpt["scaler_state_dict"])
+                start_epoch = ckpt.get("epoch", 0)
+                if benchmarks is not None and "benchmarks" in ckpt:
+                    benchmarks = ckpt["benchmarks"]
+                logging.info(f"Successfully resumed {self.name} from epoch {start_epoch}")
+            except Exception as e:
+                logging.warning(f"Could not load checkpoint from {ckpt_path}: {e}. Starting fresh.")
+                start_epoch = 0
+
+        for epoch in range(start_epoch, self.schedule.epoch):
             epoch = epoch + 1
             trainer.cleanup()
             Usage.checkpoint(self.name, f"epoch{epoch}", "optimize")
@@ -169,8 +195,34 @@ class TrainingStage(BenchmarkStage):
                     self.model.step()
             p_epoch.update(epoch)
             Usage.checkpoint(self.name, f"epoch{epoch}", "finish")
+
+            # Save intermediate training checkpoint at end of each epoch
+            if ckpt_path is not None:
+                try:
+                    ckpt_data = {
+                        "epoch": epoch,
+                        "model_state_dict": self.model.nn.state_dict(),
+                        "opt_state_dict": opt.state_dict(),
+                        "lr_state_dict": lr.state_dict(),
+                        "benchmarks": benchmarks,
+                    }
+                    if scaler.is_enabled():
+                        ckpt_data["scaler_state_dict"] = scaler.state_dict()
+                    with fsspec.open(ckpt_path, "wb") as f:
+                        torch.save(ckpt_data, f)
+                except Exception as e:
+                    logging.warning(f"Failed to save intermediate checkpoint: {e}")
+
             if self.schedule.should_stop(benchmark):
                 break
+
+        # Remove intermediate checkpoint upon successful stage completion
+        if ckpt_path is not None and ckpt_path.exists:
+            try:
+                ckpt_path.rm()
+            except Exception:
+                pass
+
         logging.info(
             f"{self.name}: run {epoch} epochs in {datetime.now() - start}"
         )
