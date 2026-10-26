@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast declib16_run3_2024_20261025_d23bf9a-616755c step DeClustered -- generated 2026-10-25 20:58:15
+# roast declib16_run3_2024_20261025_d23bf9a-616755c step DeClustered -- generated 2026-10-26 08:20:18
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -27,7 +27,7 @@ elif [ -s "$HOME/.kube/config" ]; then
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk all_D5 --configfile roasts/declib16_run3_2024_20261025_d23bf9a-616755c/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=declib16_run3_2024_20261025_d23bf9a-616755c eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk all_D6 --configfile roasts/declib16_run3_2024_20261025_d23bf9a-616755c/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=declib16_run3_2024_20261025_d23bf9a-616755c eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast declib16_run3_2024_20261025_d23bf9a-616755c step DeClustered exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
