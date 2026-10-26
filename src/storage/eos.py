@@ -24,6 +24,12 @@ from ..utils.wrapper import retry
 __all__ = ["EOS", "PathLike", "EOSError", "save", "load"]
 
 
+def _is_missing(stderr) -> bool:
+    """Whether an xrdfs error says the path is not there ([3011] / "No such file")."""
+    msg = stderr.decode(errors="replace") if isinstance(stderr, bytes) else str(stderr)
+    return "[3011]" in msg or "no such file" in msg.lower()
+
+
 class EOSError(Exception):
     def __init__(self, cmd: list[str], stderr: bytes, *args):
         self.cmd, self.stderr = cmd, stderr
@@ -143,7 +149,16 @@ class EOS:
     @_devnull(True)
     def exists(self):
         if not self.is_local:
-            return self.call("ls", self.path)[0]
+            # xrdfs answers a missing path with an error, which `call` raises; that is a
+            # definite "no". Anything else (permission, network) still raises: we cannot tell.
+            # Raising on [3011] crashed every fresh classifier training with an EOS output at
+            # its checkpoint auto-resume check (2026-10-26).
+            try:
+                return self.call("ls", self.path)[0]
+            except EOSError as e:
+                if _is_missing(e.stderr):
+                    return False
+                raise
         # `Path` here is PurePosixPath, which has no .exists(): a pure path never touches a
         # filesystem.  Every local call raised AttributeError, which went unnoticed only
         # because nothing asked a local path whether it existed until mkdir did (2026-10-15).
