@@ -5,7 +5,7 @@
   "created": "2026-10-26 08:57:18",
   "owner": "John Alison",
   "barista": {
-    "sha": "e9a4dd482a4333d888f3a278f02650fddb0e87ed",
+    "sha": "86db50023aa96accc22ef19b991335676d4a68d4",
     "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
     "web": "https://gitlab.cern.ch/cms-cmu/barista"
   },
@@ -114,7 +114,33 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-26 09:48:24",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 09:57:47",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
@@ -162,8 +188,20 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 09:48:24",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 09:57:47",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
     }
   ],
-  "notes": "",
+  "notes": "2026-10-26: barista repinned e9a4dd48 -> 86db5002 (= e9a4dd48 + EOS.exists fix only, barista MR !283): V.2 train crashed at 'Start Initialization' on every attempt -- checkpoint auto-resume (4eb52983) asked EOS.exists of a missing checkpoint_*.pt, which raised [3011]. The roast id keeps e9a4dd4. NRP sync streams git archive of the pinned sha, so hand-copied patches do not survive a resume.",
   "category": ""
 }
