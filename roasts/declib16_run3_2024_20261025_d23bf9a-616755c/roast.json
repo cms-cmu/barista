@@ -136,7 +136,20 @@
       "checked_out": "2026-10-25 20:55:12"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/declib16_run3_2024_20261025_d23bf9a-616755c",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/declib16_run3_2024_20261025_d23bf9a-616755c/",
+    "ts": "2026-10-26 09:33:59",
+    "ok": true,
+    "pages": [
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D5/cutflow_monitoring.html",
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D5/plots/index.html",
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D5/seed_study/index.html",
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D5/svb_bootstrap/index.html",
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D6/plots_declustered/index.html",
+      "output/declib16_run3_2024_20261025_d23bf9a-616755c/D6/plots_signal/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-25 20:52:03",
@@ -170,8 +183,25 @@
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 09:29:06",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-26 09:33:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_2024_20261025_d23bf9a-616755c",
+    "ts": "2026-10-26 09:29:06",
+    "ok": true
+  }
 }
