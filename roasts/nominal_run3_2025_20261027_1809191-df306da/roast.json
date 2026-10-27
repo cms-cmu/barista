@@ -162,6 +162,19 @@
           "window": "nominal_run3_2025_1809191-df306da_C4",
           "ssh": "jda102@cmslpc345.fnal.gov",
           "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 18:12:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_1809191-df306da_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
         }
       ]
     },
@@ -195,6 +208,18 @@
           "job_name": "roast-nominal-run3-2025-479549-d",
           "namespace": "cms-cmu",
           "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 18:18:03",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-479549-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "e87e14e78653"
         }
       ]
     },
@@ -213,8 +238,9 @@
       "checked_out": "2026-10-27 08:01:46"
     },
     "nautilus": {
-      "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da/barista",
-      "checked_out": "2026-10-27 11:09:19"
+      "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da_v3/barista",
+      "checked_out": "2026-10-27 18:05:53",
+      "note": "v1 checkout hung on CephFS caps (2026-10-27); v3 built fresh without cp -al"
     }
   },
   "publish": {},
@@ -295,6 +321,23 @@
     },
     {
       "ts": "2026-10-27 17:11:25",
+      "event": "submit",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 18:05:53",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 18:12:24",
+      "event": "resume",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 18:18:03",
       "event": "submit",
       "step": "D",
       "host": "nautilus"

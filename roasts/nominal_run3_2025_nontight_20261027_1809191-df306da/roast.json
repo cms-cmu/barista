@@ -135,7 +135,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 19:00:09",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_nontight_1809191-df306da_C4",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "0374aed10bd7"
+        },
+        {
+          "ts": "2026-10-27 19:00:32",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_nontight_1809191-df306da_C4",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "0374aed10bd7"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -206,6 +234,18 @@
       "event": "resume",
       "step": "C",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 19:00:09",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 19:00:32",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
     }
   ],
   "notes": "2025 non-tight JCM+FvT after the UParT regression fix (FvT_pd3_floor 0.01 built in); input to the 2025 mixed data",

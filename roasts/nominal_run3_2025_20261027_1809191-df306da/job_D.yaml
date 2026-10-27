@@ -21,7 +21,7 @@ spec:
       - name: orchestrator
         image: docker.io/snakemake/snakemake:v9.27.0
         imagePullPolicy: IfNotPresent
-        workingDir: /workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da/barista
+        workingDir: /workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da_v3/barista
         command: ["bash", "-c"]
         args:
         - |
@@ -31,11 +31,11 @@ spec:
           mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
           export X509_USER_PROXY="$PWD/proxy/x509_proxy"
           export PATH=/workspace/shared/bin:$PATH
-          export NAUTILUS_WORKDIR=/workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da/barista
+          export NAUTILUS_WORKDIR=/workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da_v3/barista
           export CLASSIFIER_CONFIG_PATHS=coffea4bees
           export ROAST_ID="nominal_run3_2025_20261027_1809191-df306da"
           export ROAST_STEP="D"
-          cd /workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da/barista
+          cd /workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da_v3/barista
           mkdir -p logs
           LOG=logs/D.log
           EXIT=logs/D.exit
