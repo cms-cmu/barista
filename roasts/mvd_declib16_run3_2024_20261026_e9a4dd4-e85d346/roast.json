@@ -132,6 +132,32 @@
           "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
           "ssh": "jda102@cmslpc342.fnal.gov",
           "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-27 03:53:38",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
+          "ssh": "jda102@cmslpc329.fnal.gov",
+          "config_sha256": "0ef102a8ed90"
+        },
+        {
+          "ts": "2026-10-27 03:57:45",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
+          "ssh": "jda102@cmslpc329.fnal.gov",
+          "config_sha256": "0ef102a8ed90"
         }
       ]
     },
@@ -265,15 +291,34 @@
   "hosts": {
     "cmslpc": {
       "checkout": "~/nobackup/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/barista",
-      "ssh": "jda102@cmslpc342.fnal.gov",
-      "checked_out": "2026-10-26 21:06:02"
+      "ssh": "jda102@cmslpc329.fnal.gov",
+      "checked_out": "2026-10-27 03:53:29"
     },
     "nautilus": {
       "checkout": "/workspace/users/johnda/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/barista",
       "checked_out": "2026-10-26 09:05:17"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/",
+    "ts": "2026-10-27 04:55:59",
+    "ok": true,
+    "pages": [
+      "output/MvD/plots/analyze/HCR/index_group_1.html",
+      "output/MvD/plots/analyze/index.html",
+      "output/MvD/plots/index.html",
+      "output/MvD/yields.html",
+      "output/SvB_MvD/plots/analyze/HCR/index_group_1.html",
+      "output/SvB_MvD/plots/analyze/index.html",
+      "output/SvB_MvD/plots/index.html",
+      "output/SvB_MvD/yields.html",
+      "output/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/V2c/cutflow_MvD_closure.html",
+      "output/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/V2c/plots_MvD_closure/index.html",
+      "output/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/V4/plots_MvD/index.html",
+      "output/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-26 08:57:18",
@@ -371,8 +416,42 @@
       "event": "submit",
       "step": "MvD_3_svb",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 03:53:29",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 03:53:38",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 03:57:45",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 04:52:56",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 04:55:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2026-10-26: barista repinned e9a4dd48 -> 86db5002 (= e9a4dd48 + EOS.exists fix only, barista MR !283): V.2 train crashed at 'Start Initialization' on every attempt -- checkpoint auto-resume (4eb52983) asked EOS.exists of a missing checkpoint_*.pt, which raised [3011]. The roast id keeps e9a4dd4. NRP sync streams git archive of the pinned sha, so hand-copied patches do not survive a resume.",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346",
+    "ts": "2026-10-27 04:52:56",
+    "ok": true
+  }
 }
