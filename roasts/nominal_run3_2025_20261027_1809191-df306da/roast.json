@@ -56,6 +56,32 @@
           "window": "nominal_run3_2025_1809191-df306da_B",
           "ssh": "jda102@cmslpc345.fnal.gov",
           "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 09:52:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_1809191-df306da_B",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 10:23:07",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_1809191-df306da_B",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
         }
       ]
     },
@@ -64,7 +90,21 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 11:33:00",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-479549-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "e87e14e78653"
+        }
+      ]
     },
     {
       "name": "C4",
@@ -93,6 +133,10 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_20261027_1809191-df306da/barista",
       "ssh": "jda102@cmslpc345.fnal.gov",
       "checked_out": "2026-10-27 08:01:46"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_20261027_1809191-df306da/barista",
+      "checked_out": "2026-10-27 11:09:19"
     }
   },
   "publish": {},
@@ -117,6 +161,29 @@
       "event": "submit",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 09:52:17",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 10:23:07",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 11:09:19",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 11:33:00",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
     }
   ],
   "notes": "2025 tight nominal after the UParT regression fix (blind F)",

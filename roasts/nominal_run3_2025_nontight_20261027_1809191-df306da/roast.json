@@ -56,6 +56,32 @@
           "window": "nominal_run3_2025_nontight_1809191-df306da_B",
           "ssh": "jda102@cmslpc358.fnal.gov",
           "config_sha256": "0374aed10bd7"
+        },
+        {
+          "ts": "2026-10-27 09:52:14",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_nontight_1809191-df306da_B",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "0374aed10bd7"
+        },
+        {
+          "ts": "2026-10-27 10:23:05",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_nontight_1809191-df306da_B",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "0374aed10bd7"
         }
       ]
     },
@@ -64,7 +90,21 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 11:25:17",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-nontight-ebf2bd-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "0374aed10bd7"
+        }
+      ]
     },
     {
       "name": "C4",
@@ -79,6 +119,10 @@
       "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_nontight_20261027_1809191-df306da/barista",
       "ssh": "jda102@cmslpc358.fnal.gov",
       "checked_out": "2026-10-27 08:00:19"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_nontight_20261027_1809191-df306da/barista",
+      "checked_out": "2026-10-27 10:54:44"
     }
   },
   "publish": {},
@@ -103,6 +147,29 @@
       "event": "submit",
       "step": "B",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 09:52:14",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 10:23:05",
+      "event": "resume",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 10:54:44",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 11:25:17",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
     }
   ],
   "notes": "2025 non-tight JCM+FvT after the UParT regression fix (FvT_pd3_floor 0.01 built in); input to the 2025 mixed data",
