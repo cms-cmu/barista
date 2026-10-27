@@ -114,6 +114,41 @@ class TestMkdirAcceptsAnExistingDirectory(unittest.TestCase):
             d.mkdir(recursive=True)
 
 
+class TestRemotePathsAnswerWhetherTheyExist(unittest.TestCase):
+    """xrdfs answers `ls` on a missing path with [3011]; `exists` must say False, not raise.
+
+    The classifier's checkpoint auto-resume asks whether `checkpoint_*.pt` is in the EOS model
+    directory before every stage; raising there crashed every fresh training (2026-10-26).
+    """
+
+    def setUp(self):
+        self.saved = eos.EOS.call
+
+    def tearDown(self):
+        eos.EOS.call = self.saved
+
+    def answer(self, ok: bool, stderr: bytes = b""):
+        def call(cls, op, *args):
+            if ok:
+                return (True, b"")
+            raise eos.EOSError(["xrdfs", op, *map(str, args)], stderr)
+        return classmethod(call)
+
+    def test_an_existing_remote_path_is_reported(self):
+        eos.EOS.call = self.answer(True)
+        self.assertTrue(eos.EOS("root://cmseos.fnal.gov//store/user/x/here.pt").exists)
+
+    def test_a_missing_remote_path_is_reported(self):
+        eos.EOS.call = self.answer(False, b"[ERROR] Server responded with an error: [3011] Unable to stat /store/user/x/nope.pt; No such file or directory")
+        self.assertFalse(eos.EOS("root://cmseos.fnal.gov//store/user/x/nope.pt").exists)
+
+    def test_an_unanswerable_remote_path_still_raises(self):
+        """Permission or network trouble is not a "no": the caller must hear about it."""
+        eos.EOS.call = self.answer(False, STDERR)
+        with self.assertRaises(eos.EOSError):
+            eos.EOS("root://cmseos.fnal.gov//store/user/x/maybe.pt").exists
+
+
 class TestLocalPathsAnswerWhetherTheyExist(unittest.TestCase):
     """`Path` in src/storage/eos.py is PurePosixPath, which never touches a filesystem.
 
