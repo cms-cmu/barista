@@ -39,6 +39,8 @@ FLAVOURS = [
 DEFAULT_CONDOR_RULES = {
     "train",
     "evaluate",
+    "evaluate_split",
+    "evaluate_combine",
     "evaluate_all",
     "evaluate_single_dataset",
     "evaluate_all_svb",
