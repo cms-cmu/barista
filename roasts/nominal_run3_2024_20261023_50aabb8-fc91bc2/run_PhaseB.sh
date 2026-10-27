@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# roast nominal_run3_2024_20261022_45202b2-297535d step B -- generated 2026-10-22 15:11:42
+# roast nominal_run3_2024_20261023_50aabb8-fc91bc2 step PhaseB -- generated 2026-10-27 09:29:40
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
-cd "$HOME/nobackup/HH4b/prod/nominal_run3_2024_20261022_45202b2-297535d/barista" || exit 97
-LOG=logs/B.log
-EXIT=logs/B.exit
+cd "$HOME/nobackup/HH4b/prod/nominal_run3_2024_20261023_50aabb8-fc91bc2/barista" || exit 97
+LOG=logs/PhaseB.log
+EXIT=logs/PhaseB.exit
 rm -f "$EXIT"
-echo "=== roast nominal_run3_2024_20261022_45202b2-297535d step B start $(date) on $(hostname) ===" | tee -a "$LOG"
+echo "=== roast nominal_run3_2024_20261023_50aabb8-fc91bc2 step PhaseB start $(date) on $(hostname) ===" | tee -a "$LOG"
 echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
 # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
 # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) or the shared copy
@@ -26,13 +26,13 @@ elif [ -s "$HOME/.kube/config" ]; then
     export KUBECONFIG="$HOME/.kube/config"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseB.smk --configfile roasts/nominal_run3_2024_20261022_45202b2-297535d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2024_20261022_45202b2-297535d eos_prod=root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/c/cguintob/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseB.smk --configfile roasts/nominal_run3_2024_20261023_50aabb8-fc91bc2/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2024_20261023_50aabb8-fc91bc2 eos_prod=root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/c/cguintob/www/HH4b/prod --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseB.smk --configfile roasts/nominal_run3_2024_20261023_50aabb8-fc91bc2/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2024_20261023_50aabb8-fc91bc2 eos_prod=root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/c/cguintob/www/HH4b/prod --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-echo "=== roast nominal_run3_2024_20261022_45202b2-297535d step B exit $RC $(date) ===" | tee -a "$LOG"
+echo "=== roast nominal_run3_2024_20261023_50aabb8-fc91bc2 step PhaseB exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
 if [ "$RC" != "0" ]; then
-    echo "step B FAILED (rc=$RC). Shell kept open for inspection; exit to close."
+    echo "step PhaseB FAILED (rc=$RC). Shell kept open for inspection; exit to close."
     exec bash
 fi
 sleep 5
