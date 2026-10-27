@@ -167,17 +167,17 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/",
-    "ts": "2026-10-22 08:50:19",
+    "ts": "2026-10-27 18:33:32",
     "ok": true,
     "pages": [
       "output/FvT_ttHbb_stitched/yields.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/computeJCM/cutflow_NoJCM.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/computeJCM/cutflow_wJCM.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/computeJCM/plots_wJCM/index.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/cutflow_analysis_ttHbb_stat_only_wrong_ttbar_up.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_up.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/plots_analysis_ttHbb_stat_only_wrong_ttbar_up/index.html",
-      "output/analysis_ttHbb_stat_only_wrong_ttbar_up/stat_analysis/summary.html"
+      "output/SvB_MA_ttHbb_stitched/yields.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/cutflow_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/plots_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/index.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/stat_analysis/summary.html",
+      "output/ttHbb_bkg_syst/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc/bkg_syst_C_FvT/models/mix_15/yields.html"
     ]
   },
   "history": [
@@ -277,13 +277,37 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:33:20",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:33:32",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:34:02",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:34:04",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
     }
   ],
   "notes": "",
   "category": "",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
-    "ts": "2026-10-22 09:47:13",
+    "ts": "2026-10-27 18:34:04",
     "ok": true
   }
 }
