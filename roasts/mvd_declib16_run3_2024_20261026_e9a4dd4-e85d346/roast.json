@@ -302,7 +302,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/",
-    "ts": "2026-10-27 04:55:59",
+    "ts": "2026-10-27 04:58:37",
     "ok": true,
     "pages": [
       "output/MvD/plots/analyze/HCR/index_group_1.html",
@@ -442,6 +442,24 @@
     },
     {
       "ts": "2026-10-27 04:55:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 04:57:22",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 04:57:39",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 04:58:37",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
