@@ -5,7 +5,7 @@
   "created": "2026-10-26 08:57:18",
   "owner": "John Alison",
   "barista": {
-    "sha": "86db50023aa96accc22ef19b991335676d4a68d4",
+    "sha": "4edb2a23d780e0f65a0abf574526ac241f2406cf",
     "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
     "web": "https://gitlab.cern.ch/cms-cmu/barista"
   },
@@ -139,6 +139,42 @@
           "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
           "namespace": "cms-cmu",
           "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 11:53:50",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 17:02:21",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 20:58:28",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
         }
       ]
     },
@@ -198,6 +234,24 @@
     {
       "ts": "2026-10-26 09:57:47",
       "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 11:53:50",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 17:02:21",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 20:58:28",
+      "event": "resume",
       "step": "MvD_2_train",
       "host": "nautilus"
     }
