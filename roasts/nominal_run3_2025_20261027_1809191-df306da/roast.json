@@ -115,6 +115,18 @@
           "job_name": "roast-nominal-run3-2025-479549-c",
           "namespace": "cms-cmu",
           "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 12:51:41",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-nominal-run3-2025-479549-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "e87e14e78653"
         }
       ]
     },
@@ -123,14 +135,68 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 16:59:58",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 17:00:19",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        }
+      ]
     },
     {
       "name": "D",
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 17:00:23",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-479549-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-27 17:11:25",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-479549-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "e87e14e78653"
+        }
+      ]
     },
     {
       "name": "F",
@@ -201,6 +267,36 @@
       "ts": "2026-10-27 12:02:25",
       "event": "submit",
       "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 12:51:41",
+      "event": "resume",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 16:59:58",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 17:00:19",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 17:00:23",
+      "event": "submit",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 17:11:25",
+      "event": "submit",
+      "step": "D",
       "host": "nautilus"
     }
   ],

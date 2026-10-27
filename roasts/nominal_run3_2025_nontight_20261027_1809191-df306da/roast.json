@@ -115,6 +115,18 @@
           "job_name": "roast-nominal-run3-2025-nontight-ebf2bd-c",
           "namespace": "cms-cmu",
           "config_sha256": "0374aed10bd7"
+        },
+        {
+          "ts": "2026-10-27 12:43:31",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-nominal-run3-2025-nontight-ebf2bd-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "0374aed10bd7"
         }
       ]
     },
@@ -186,6 +198,12 @@
     {
       "ts": "2026-10-27 11:54:42",
       "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 12:43:31",
+      "event": "resume",
       "step": "C",
       "host": "nautilus"
     }
