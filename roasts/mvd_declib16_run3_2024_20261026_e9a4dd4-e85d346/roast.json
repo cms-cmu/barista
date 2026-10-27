@@ -10,14 +10,14 @@
     "web": "https://gitlab.cern.ch/cms-cmu/barista"
   },
   "coffea4bees": {
-    "sha": "e85d346f3a696457dfa60d350b11936acf7d6577",
+    "sha": "b73382f9bcccafe5859bc6db4a185341c10b7851",
     "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
     "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
   },
   "config": {
     "source": "coffea4bees/workflows/config/mvd_run3_2024_declib16.yml",
     "captured": "config.yml",
-    "sha256": "3223123d7644056ee8c69470a386d227dfdb821c9c03482fa38e22b90892a445",
+    "sha256": "0ef102a8ed908923614f73031abfd36ac3b0c2a1c623c07a088ee4949f015ea5",
     "base": [
       {
         "source": "coffea4bees/workflows/config/mvd_run3_2024.yml",
@@ -106,6 +106,32 @@
           "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
           "ssh": "jda102@cmslpc356.fnal.gov",
           "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 21:04:04",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
+          "ssh": "jda102@cmslpc356.fnal.gov",
+          "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 21:06:14",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2024_e9a4dd4-e85d346_MvD",
+          "ssh": "jda102@cmslpc342.fnal.gov",
+          "config_sha256": "3223123d7644"
         }
       ]
     },
@@ -183,14 +209,28 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-26 22:07:49",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "3223123d7644"
+        }
+      ]
     }
   ],
   "hosts": {
     "cmslpc": {
       "checkout": "~/nobackup/HH4b/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/barista",
-      "ssh": "jda102@cmslpc356.fnal.gov",
-      "checked_out": "2026-10-26 08:59:17"
+      "ssh": "jda102@cmslpc342.fnal.gov",
+      "checked_out": "2026-10-26 21:06:02"
     },
     "nautilus": {
       "checkout": "/workspace/users/johnda/prod/mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346/barista",
@@ -253,6 +293,29 @@
       "ts": "2026-10-26 20:58:28",
       "event": "resume",
       "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 21:04:04",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 21:06:02",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 21:06:14",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 22:07:49",
+      "event": "submit",
+      "step": "MvD_3_svb",
       "host": "nautilus"
     }
   ],

@@ -116,6 +116,13 @@ svb_mvd:
     - --data-mixed-all-name mixeddata_all_declib16_2024
     --data-source:
     - --data-mixed-all-name mixeddata_all_declib16_2024
+  eval_splits:
+    detector:
+      --data-source: detector
+    declustered:
+      --data-source: mixed_all
+      --mc-processes: ''
+  eval_split_mem: 186000
 analysis:
   label: MvD
   signal_datasets:
