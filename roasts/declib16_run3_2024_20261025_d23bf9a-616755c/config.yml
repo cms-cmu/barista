@@ -14,11 +14,11 @@
 # A standalone copy, not a `base:` overlay: the layered merge is a dict merge, so the base's four
 # 2022/2023 year_eras keys would survive next to 2024. What differs from declustered_run3_library_16x.yml:
 #   * eras        2024 C, D, E, F, G, H, I2, I3 (data.yml picoAOD keys).
-#   * FvT + hists the 2024 non-tight roast nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031
-#                 (C.4 closure SR 0.994 +- 0.001; its B.1 JCM fit is poor, chi2/ndf 2390 -- the FvT
-#                 absorbs it, and D.1/D.3 use only the FvT's ttbar fraction).
-#   * ttbar PS    the 2024 mixeddata roast's M.5 sample (mixeddata_run3_2024_20261010_952524e-5ddc954).
-#   * SvB         the 2024 nominal SvB (nominal_run3_2024_20261011_852c1c2-be0604a, Phase D; no `year`
+#   * FvT + hists the 2024 non-tight roast nominal_run3_2024_nontight_20261021_975a18e-e176976
+#                 after the UParT regression fix (C.4 closure presel 0.971, m(jj) 0.991, SB 0.997,
+#                 SR 1.000; D.1/D.3 use only the FvT's ttbar fraction).
+#   * ttbar PS    the 2024 mixeddata roast's M.5 sample (mixeddata_run3_2024_20261022_d7a35ab-8470e14).
+#   * SvB         the 2024 nominal SvB (nominal_run3_2024_20261021_975a18e-e176976, Phase D; no `year`
 #                 feature) for the D.5 bootstrap and the D.6 signal check.
 #   * library     prescaled to max_rows. The full 2024 library would be one ~24M-row year (2024 is
 #                 ~7x the largest 2022/2023 year, whose library had 3.27M rows), ~1 kB per row at load:
@@ -41,18 +41,18 @@ max_workers: 200
 # Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
 # ------------------------------------------------------------------------------
 inputs:
-  upstream_roasts: [nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031, mixeddata_run3_2024_20261010_952524e-5ddc954,
-                    nominal_run3_2024_20261011_852c1c2-be0604a]
+  upstream_roasts: [nominal_run3_2024_nontight_20261021_975a18e-e176976, mixeddata_run3_2024_20261022_d7a35ab-8470e14,
+                    nominal_run3_2024_20261021_975a18e-e176976]
   # ttbar subtraction in D.1 and D.3 (4b data, FvT.d4_to_t4): the non-tight 2024 FvT, the file
   # mixeddata_run3_2024 uses. Covers every 2024 data picoAOD in data.yml.
-  FvT: "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/friend/FvT_nominal/result.json@@analysis.0.merged"
+  FvT: "{roast:nominal_run3_2024_nontight_20261021_975a18e-e176976}/friend/FvT_nominal/result.json@@analysis.0.merged"
   # Non-tight 2024 data + ttbar histograms and (next to them) their runner config analysis_config_noJCM.yml,
   # with which D.4 histograms the declustered data.
-  jcm_hists: "{roast:nominal_run3_2024_nontight_20261008_c1cd0fe-4e83031}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea"
+  jcm_hists: "{roast:nominal_run3_2024_nontight_20261021_975a18e-e176976}/output/Run3_2024_nontight/computeJCM/histAll_NoJCM.coffea"
   # 2024 ttbar pseudodata (M.5 of the 2024 mixed data), folded into synthetic_data_lib16_2024_4b
-  ttbar_psdata: "{roast:mixeddata_run3_2024_20261010_952524e-5ddc954}/handoff/ttbar_PSData.yml"
+  ttbar_psdata: "{roast:mixeddata_run3_2024_20261022_d7a35ab-8470e14}/handoff/ttbar_PSData.yml"
   # D.5 SvB bootstrap + D.6 signal check: the 2024 analysis SvB, evaluated on the fly
-  SvB_model: "{roast:nominal_run3_2024_20261011_852c1c2-be0604a}/classifier/SvB_nominal/result.json"
+  SvB_model: "{roast:nominal_run3_2024_20261021_975a18e-e176976}/classifier/SvB_nominal/result.json"
 
 # Eras as they appear in metadata/datasets/data.yml (picoAOD keys), all eight 2024 eras.
 # '2024' MUST stay quoted: unquoted it parses as an int and misses the string-keyed metadata.

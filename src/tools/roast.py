@@ -2863,7 +2863,7 @@ def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publ
     if publish_mode:
         for pat in ("*.pt", "*.root", "*.parquet", "*.coffea", "*.tar.gz", "*.bin", "*.pkl", "*/performance/*", "*/classifier_inputs/*"):
             extra_tar_args.extend(["--exclude", pat])
-    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-czf", "-", *extra_tar_args, "-C", nautilus_ck, "output"), stdout=subprocess.PIPE)
+    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-czf", "-", *extra_tar_args, "-C", nautilus_ck, "output", "logs"), stdout=subprocess.PIPE)
     p2 = subprocess.Popen(["ssh", *ssh_opts(target_ssh), target_ssh, f"tar -xzf - -C {rq(target_ck)}"], stdin=p1.stdout)
     p1.stdout.close()
     p2.communicate()
@@ -2903,7 +2903,9 @@ def cmd_publish(args) -> None:
             combined_out = res.stdout + res.stderr
             for line in combined_out.splitlines():
                 if line.startswith("PAGE:"):
-                    pages.add(line.split("PAGE:", 1)[1].strip())
+                    page = line.split("PAGE:", 1)[1].strip()
+                    if "/" in page:     # not the roast's own index.html, left in the checkout by a publish
+                        pages.add(page)
             filtered_out = "\n".join(l for l in combined_out.splitlines() if not l.startswith("PAGE:"))
             if filtered_out.strip():
                 print(filtered_out.strip())

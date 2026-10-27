@@ -227,5 +227,11 @@ docs/prod/*
 !docs/prod/using_roast.md
 !docs/prod/using_roast_nautilus.md
 
+# The published summary page for a roast, written by `roast publish` from the manifest and
+# shipped to CERNBox.  Generated, not content: it is rewritten with a fresh timestamp on every
+# republish, and publish already skips it when listing a roast's pages.  The manifest records
+# what was published and when, so the page is reproducible from it.
+roasts/*/index.html
+
 # default output dir of src/tools/repo_activity.py
 repo_activity_output/
