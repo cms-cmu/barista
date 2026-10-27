@@ -222,6 +222,42 @@
           "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-3-svb",
           "namespace": "cms-cmu",
           "config_sha256": "3223123d7644"
+        },
+        {
+          "ts": "2026-10-26 22:47:15",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "0ef102a8ed90"
+        },
+        {
+          "ts": "2026-10-26 22:54:52",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "0ef102a8ed90"
+        },
+        {
+          "ts": "2026-10-26 23:02:40",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2024-3f2b91-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "0ef102a8ed90"
         }
       ]
     }
@@ -314,6 +350,24 @@
     },
     {
       "ts": "2026-10-26 22:07:49",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 22:47:15",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 22:54:52",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-26 23:02:40",
       "event": "submit",
       "step": "MvD_3_svb",
       "host": "nautilus"
