@@ -81,6 +81,32 @@
           "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
           "ssh": "jda102@cmslpc358.fnal.gov",
           "config_sha256": "8b0753e3d53b"
+        },
+        {
+          "ts": "2026-10-27 21:00:06",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
+        },
+        {
+          "ts": "2026-10-27 21:00:19",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M2",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
         }
       ]
     }
@@ -111,6 +137,18 @@
     },
     {
       "ts": "2026-10-27 20:14:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 21:00:06",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 21:00:19",
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
