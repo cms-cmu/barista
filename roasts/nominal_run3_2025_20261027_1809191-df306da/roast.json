@@ -228,7 +228,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-28 03:33:21",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "create_analysis_config",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_F",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-28 03:33:40",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "create_analysis_config",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_F",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -341,8 +369,31 @@
       "event": "submit",
       "step": "D",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 03:33:21",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 03:33:40",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 03:40:39",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2025 tight nominal after the UParT regression fix (blind F)",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_20261027_1809191-df306da",
+    "ts": "2026-10-28 03:40:39",
+    "ok": true
+  }
 }

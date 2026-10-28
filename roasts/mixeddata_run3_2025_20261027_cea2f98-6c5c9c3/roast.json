@@ -107,6 +107,32 @@
           "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
           "ssh": "jda102@cmslpc358.fnal.gov",
           "config_sha256": "8b0753e3d53b"
+        },
+        {
+          "ts": "2026-10-28 02:46:20",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
+        },
+        {
+          "ts": "2026-10-28 02:46:33",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
         }
       ]
     }
@@ -152,8 +178,31 @@
       "event": "submit",
       "step": "MakeMixedData",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 02:46:20",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 02:46:33",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 03:42:43",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2025 mixed data after the UParT regression fix: full remix (M.1 hemilib) from nominal_run3_2025_nontight_20261027_1809191-df306da",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+    "ts": "2026-10-28 03:42:43",
+    "ok": true
+  }
 }
