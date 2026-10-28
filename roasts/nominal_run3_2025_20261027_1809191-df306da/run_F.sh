@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast nominal_run3_2025_20261027_1809191-df306da step F -- generated 2026-10-28 03:33:38
+# roast nominal_run3_2025_20261027_1809191-df306da step F -- generated 2026-10-28 08:27:11
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -26,8 +26,8 @@ elif [ -s "$HOME/.kube/config" ]; then
     export KUBECONFIG="$HOME/.kube/config"
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
-
-./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseF.smk create_analysis_config --configfile roasts/nominal_run3_2025_20261027_1809191-df306da/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2025_20261027_1809191-df306da eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseF.smk --configfile roasts/nominal_run3_2025_20261027_1809191-df306da/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2025_20261027_1809191-df306da eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --unlock || true
+./run_container snakemake -s coffea4bees/workflows/Snakefile_PhaseF.smk --configfile roasts/nominal_run3_2025_20261027_1809191-df306da/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=nominal_run3_2025_20261027_1809191-df306da eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod --rerun-incomplete 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast nominal_run3_2025_20261027_1809191-df306da step F exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

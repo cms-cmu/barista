@@ -255,6 +255,45 @@
           "window": "nominal_run3_2025_1809191-df306da_F",
           "ssh": "jda102@cmslpc345.fnal.gov",
           "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-28 07:34:12",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_F",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-28 07:34:33",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_1809191-df306da_F",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
+        },
+        {
+          "ts": "2026-10-28 08:27:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2025_1809191-df306da_F",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "e87e14e78653"
         }
       ]
     }
@@ -387,6 +426,24 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-10-28 07:34:12",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 07:34:33",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 08:27:12",
+      "event": "resume",
+      "step": "F",
+      "host": "cmslpc"
     }
   ],
   "notes": "2025 tight nominal after the UParT regression fix (blind F)",
