@@ -113,7 +113,7 @@ setup_coffea4bees:
     - export PIXI_NO_PATH_UPDATE=1
     - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
     - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
-    - pixi install --environment ci
+    - pixi install
   artifacts:
     paths:
       - coffea4bees/
@@ -234,15 +234,6 @@ setup_bbreww:
   tags:
     - k8s-cvmfs
   retry: 2
-
-
-# Override: use the ci pixi environment (snakemake from conda-forge, no GitHub deps)
-# so setup_coffea4bees can install --environment ci without needing GitHub access.
-workflow_validation_coffea4bees:
-  extends:
-    - .base_analysis_coffea4bees
-  script:
-    - python coffea4bees/workflows/scripts/ci_workflow_dryrun.py --snakemake ".pixi/envs/ci/bin/snakemake"
 
 validation:
   before_script:
