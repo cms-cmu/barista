@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# roast declib16_run3_2025_20261028_6ba11bf-b745f14 step DeClustered -- generated 2026-10-28 08:38:54
+# roast declib16_run3_2025_20261028_69809f5-6e827c1 step DeClustered -- generated 2026-10-28 10:51:50
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
-cd "$HOME/nobackup/HH4b/prod/declib16_run3_2025_20261028_6ba11bf-b745f14/barista" || exit 97
+cd "$HOME/nobackup/HH4b/prod/declib16_run3_2025_20261028_69809f5-6e827c1/barista" || exit 97
 LOG=logs/DeClustered.log
 EXIT=logs/DeClustered.exit
 rm -f "$EXIT"
-echo "=== roast declib16_run3_2025_20261028_6ba11bf-b745f14 step DeClustered start $(date) on $(hostname) ===" | tee -a "$LOG"
+echo "=== roast declib16_run3_2025_20261028_69809f5-6e827c1 step DeClustered start $(date) on $(hostname) ===" | tee -a "$LOG"
 echo "=== barista $(git rev-parse --short HEAD) coffea4bees $(cd coffea4bees && git rev-parse --short HEAD) ===" | tee -a "$LOG"
 # Grid proxy: run_container binds ./proxy/x509_proxy into the container; seed it from the
 # user's standard proxy (voms-proxy-init writes /tmp/x509up_u<uid>) or the shared copy
@@ -27,9 +27,9 @@ elif [ -s "$HOME/.kube/config" ]; then
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk all_D5 --configfile roasts/declib16_run3_2025_20261028_6ba11bf-b745f14/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=declib16_run3_2025_20261028_6ba11bf-b745f14 eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_DeClustered.smk all_D5 --configfile roasts/declib16_run3_2025_20261028_69809f5-6e827c1/config.yml --cores 4 --jobs 4 --printshellcmds --config roast_id=declib16_run3_2025_20261028_69809f5-6e827c1 eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
-echo "=== roast declib16_run3_2025_20261028_6ba11bf-b745f14 step DeClustered exit $RC $(date) ===" | tee -a "$LOG"
+echo "=== roast declib16_run3_2025_20261028_69809f5-6e827c1 step DeClustered exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"
 if [ "$RC" != "0" ]; then
     echo "step DeClustered FAILED (rc=$RC). Shell kept open for inspection; exit to close."

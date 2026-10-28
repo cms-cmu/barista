@@ -133,6 +133,30 @@
           "job_name": "roast-mvd-run3-2025-596ed1-mvd-2-trai",
           "namespace": "cms-cmu",
           "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 13:07:55",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=186000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 13:14:42",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=186000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
         }
       ]
     },
@@ -188,6 +212,18 @@
     {
       "ts": "2026-10-28 04:26:20",
       "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 13:07:55",
+      "event": "resume",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 13:14:42",
+      "event": "resume",
       "step": "MvD_2_train",
       "host": "nautilus"
     }

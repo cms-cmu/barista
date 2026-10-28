@@ -1,16 +1,16 @@
 {
-  "id": "declib16_run3_2025_20261028_6ba11bf-b745f14",
+  "id": "declib16_run3_2025_20261028_69809f5-6e827c1",
   "label": "declib16_run3_2025",
   "analysis": "HH4b",
-  "created": "2026-10-28 08:35:06",
+  "created": "2026-10-28 10:43:16",
   "owner": "John Alison",
   "barista": {
-    "sha": "6ba11bf20e8c7ca898803f366cc63650a1027fdf",
+    "sha": "69809f591d7d51ca23b041ae678d2bacce2e8468",
     "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
     "web": "https://gitlab.cern.ch/cms-cmu/barista"
   },
   "coffea4bees": {
-    "sha": "b745f14fee28e14ed26f613c74e09df74b9f8186",
+    "sha": "6e827c1632a3fd8a18751c70749127e424d227c0",
     "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
     "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
   },
@@ -75,20 +75,20 @@
       "extra": "",
       "runs": [
         {
-          "ts": "2026-10-28 08:38:11",
-          "cores": 4,
+          "ts": "2026-10-28 10:49:20",
+          "cores": 8,
           "extra": "-n",
           "user_extra": "",
           "targets": "all_D5",
           "dry_run": true,
           "test": false,
           "resume": false,
-          "window": "declib16_run3_2025_6ba11bf-b745f14_DeClustered",
+          "window": "declib16_run3_2025_69809f5-6e827c1_DeClustered",
           "ssh": "jda102@cmslpc323.fnal.gov",
           "config_sha256": "68c0ec66ea5a"
         },
         {
-          "ts": "2026-10-28 08:38:55",
+          "ts": "2026-10-28 10:51:59",
           "cores": 4,
           "extra": "",
           "user_extra": "",
@@ -96,7 +96,7 @@
           "dry_run": false,
           "test": false,
           "resume": false,
-          "window": "declib16_run3_2025_6ba11bf-b745f14_DeClustered",
+          "window": "declib16_run3_2025_69809f5-6e827c1_DeClustered",
           "ssh": "jda102@cmslpc323.fnal.gov",
           "config_sha256": "68c0ec66ea5a"
         }
@@ -105,30 +105,30 @@
   ],
   "hosts": {
     "cmslpc": {
-      "checkout": "~/nobackup/HH4b/prod/declib16_run3_2025_20261028_6ba11bf-b745f14/barista",
+      "checkout": "~/nobackup/HH4b/prod/declib16_run3_2025_20261028_69809f5-6e827c1/barista",
       "ssh": "jda102@cmslpc323.fnal.gov",
-      "checked_out": "2026-10-28 08:37:56"
+      "checked_out": "2026-10-28 10:49:11"
     }
   },
   "publish": {},
   "history": [
     {
-      "ts": "2026-10-28 08:35:06",
+      "ts": "2026-10-28 10:43:16",
       "event": "new"
     },
     {
-      "ts": "2026-10-28 08:37:56",
+      "ts": "2026-10-28 10:49:11",
       "event": "checkout",
       "host": "cmslpc"
     },
     {
-      "ts": "2026-10-28 08:38:11",
+      "ts": "2026-10-28 10:49:20",
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
     },
     {
-      "ts": "2026-10-28 08:38:55",
+      "ts": "2026-10-28 10:51:59",
       "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
