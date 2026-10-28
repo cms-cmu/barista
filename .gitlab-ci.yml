@@ -242,7 +242,7 @@ workflow_validation_coffea4bees:
   extends:
     - .base_analysis_coffea4bees
   script:
-    - python coffea4bees/workflows/scripts/ci_workflow_dryrun.py --snakemake "pixi run --environment ci snakemake"
+    - python coffea4bees/workflows/scripts/ci_workflow_dryrun.py --snakemake ".pixi/envs/ci/bin/snakemake"
 
 validation:
   before_script:
