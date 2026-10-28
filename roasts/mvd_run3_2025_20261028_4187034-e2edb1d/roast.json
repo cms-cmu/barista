@@ -108,7 +108,33 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-28 04:16:59",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 04:26:20",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
@@ -152,6 +178,18 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 04:16:59",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 04:26:20",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
     }
   ],
   "notes": "",

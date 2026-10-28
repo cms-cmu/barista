@@ -68,7 +68,35 @@
       "host": "cmslpc",
       "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-28 06:00:20",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_fvtseed1_34839d6-a56870a_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "06b78344301e"
+        },
+        {
+          "ts": "2026-10-28 06:01:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_fvtseed1_34839d6-a56870a_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "06b78344301e"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -76,6 +104,11 @@
       "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/barista",
       "checked_out": "2026-10-27 21:02:05",
       "note": "built by hand without cp -al (CephFS stuck-inode workaround, 2026-10-27)"
+    },
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/barista",
+      "ssh": "jda102@cmslpc345.fnal.gov",
+      "checked_out": "2026-10-28 06:00:18"
     }
   },
   "publish": {},
@@ -95,6 +128,23 @@
       "event": "submit",
       "step": "C",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 06:00:18",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 06:00:20",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 06:01:12",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
     }
   ],
   "notes": "DIAGNOSTIC: tight 2025 FvT retrain with --kfold-seed-offsets 1 on nominal_run3_2025_20261027_1809191-df306da B outputs",
