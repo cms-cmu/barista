@@ -246,8 +246,19 @@
       "event": "submit",
       "step": "C4",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 20:12:29",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2025 non-tight JCM+FvT after the UParT regression fix (FvT_pd3_floor 0.01 built in); input to the 2025 mixed data",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_nontight_20261027_1809191-df306da",
+    "ts": "2026-10-27 20:12:29",
+    "ok": true
+  }
 }

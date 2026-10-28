@@ -1,0 +1,121 @@
+{
+  "id": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+  "label": "mixeddata_run3_2025",
+  "analysis": "HH4b",
+  "created": "2026-10-27 20:12:39",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "cea2f984b4ad0c30b130f2afe98ca7577776a784",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "6c5c9c3bc1d928ffc7b5f3437d2246565895bec8",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mixeddata_run3_2025.yml",
+    "captured": "config.yml",
+    "sha256": "8b0753e3d53bfd0808ada3ff84c7815f917846936acdd785b24b56e19162e21b"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2025_nontight_20261027_1809191-df306da",
+        "barista": "180919122d0a8351625c13e77a75cb57d855873e",
+        "coffea4bees": "df306da384fda0f3100be2087541b4fc6684d3cd",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_nontight_20261027_1809191-df306da",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "FvT": {
+        "url": "{roast:nominal_run3_2025_nontight_20261027_1809191-df306da}/friend/FvT_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2025_nontight_20261027_1809191-df306da"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2025_nontight_20261027_1809191-df306da}/output/Run3_2025_nontight/computeJCM/JCM_Run3_2025_nontight_v1/jetCombinatoricModel_SB_Run3_2025_nontight_v1.yml",
+        "roast": "nominal_run3_2025_nontight_20261027_1809191-df306da"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2025_nontight_20261027_1809191-df306da}/output/Run3_2025_nontight/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2025_nontight_20261027_1809191-df306da"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "MakeMixedData",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MakeMixedData.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 20:13:46",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
+        },
+        {
+          "ts": "2026-10-27 20:14:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_M1",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mixeddata_run3_2025_cea2f98-6c5c9c3_MakeMixedData",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "8b0753e3d53b"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3/barista",
+      "ssh": "jda102@cmslpc358.fnal.gov",
+      "checked_out": "2026-10-27 20:13:44"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-27 20:12:39",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-27 20:13:44",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 20:13:46",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 20:14:24",
+      "event": "submit",
+      "step": "MakeMixedData",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "2025 mixed data after the UParT regression fix: full remix (M.1 hemilib) from nominal_run3_2025_nontight_20261027_1809191-df306da",
+  "category": ""
+}
