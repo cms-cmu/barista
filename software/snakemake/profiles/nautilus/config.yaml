@@ -27,7 +27,7 @@ set-resources:
     gpus: 1
     cpu: 4
   evaluate:
-    # Run 3 2024 FvT evaluation peaks at ~64 GB RSS (falcon sacct); 48000 OOMKilled every retry
-    mem_mb: 96000
+    # Run 3 2024 FvT evaluation peaks at ~64 GB RSS (falcon sacct); Run 2 / chunked evaluates need <= 32 GB
+    mem_mb: 32000
     gpus: 1
     cpu: 2
