@@ -1643,7 +1643,8 @@ def _xrd_auth(eos_url: str, *proxies: str) -> str:
 
 
 def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
-    """xrdfs has no recursive delete: remove files in parallel, then directories deepest-first.
+    """xrdfs has no recursive delete: list once, remove files in parallel,
+    then remove directories level-by-level (deepest depth layer first) in parallel.
     Only a "no such file" stat counts as absent; any other stat failure (auth) is an error, not a
     silent success."""
     return textwrap.dedent(f"""\
@@ -1654,8 +1655,16 @@ def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
             if printf '%s' "$ST" | grep -qiE "no such file|\\[3011\\]"; then echo "  (not present) $EOS/$P"; exit 0; fi
             echo "  ERROR: cannot stat $EOS/$P: $ST" >&2; exit 1
         fi
-        xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 !~ /^d/ {{ print $NF }}' | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
-        xrdfs $EOS ls -l -R "$P" 2>/dev/null | awk '$1 ~ /^d/ {{ print $NF }}' | awk '{{ print length($0), $0 }}' | sort -rn | cut -d" " -f2- | while read -r d; do xrdfs $EOS rmdir "$d" >/dev/null 2>&1; done
+        TMPLST=$(mktemp)
+        trap 'rm -f "$TMPLST"' EXIT
+        xrdfs $EOS ls -l -R "$P" 2>/dev/null > "$TMPLST"
+        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        DEPTHS=$(awk '$1 ~ /^d/ {{ path=$NF; n=split(path, arr, "/"); print n }}' "$TMPLST" | sort -urn)
+        for d in $DEPTHS; do
+            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
+        done
+        rm -f "$TMPLST"
+        trap - EXIT
         xrdfs $EOS rmdir "$P" >/dev/null 2>&1
         xrdfs $EOS stat "$P" >/dev/null 2>&1 && echo "  WARNING: $EOS/$P still exists" || echo "  removed $EOS/$P"
     """)
@@ -2002,7 +2011,7 @@ def cmd_rm(args) -> None:
                 print(f"  removed {top} on Nautilus")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
-            res = ssh_run(roast_ssh(cfg, r, host), f"rm -rf {rq(top)} && echo '  removed {top}'", check=False)
+            res = ssh_run(roast_ssh(cfg, r, host), _rm_tree_script(top), check=False)
             print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not ok:
         die("some remote deletions failed; local manifest kept so you can retry")
