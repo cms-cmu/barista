@@ -126,6 +126,19 @@
           "window": "mvd_run3_2025_4187034-e2edb1d_MvD",
           "ssh": "jda102@cmslpc358.fnal.gov",
           "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 23:18:06",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "mvd_run3_2025_4187034-e2edb1d_MvD",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "3c16ec75734f"
         }
       ]
     },
@@ -191,7 +204,33 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-28 23:21:39",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 23:25:12",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-596ed1-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "3c16ec75734f"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -264,6 +303,24 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 23:18:06",
+      "event": "resume",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 23:21:39",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 23:25:12",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
     }
   ],
   "notes": "",

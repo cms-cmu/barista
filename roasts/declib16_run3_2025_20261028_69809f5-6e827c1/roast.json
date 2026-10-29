@@ -112,6 +112,32 @@
           "window": "declib16_run3_2025_69809f5-6e827c1_DeClustered",
           "ssh": "jda102@cmslpc323.fnal.gov",
           "config_sha256": "68c0ec66ea5a"
+        },
+        {
+          "ts": "2026-10-28 23:40:29",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_D6",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2025_69809f5-6e827c1_DeClustered",
+          "ssh": "jda102@cmslpc323.fnal.gov",
+          "config_sha256": "68c0ec66ea5a"
+        },
+        {
+          "ts": "2026-10-28 23:40:43",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_D6",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "declib16_run3_2025_69809f5-6e827c1_DeClustered",
+          "ssh": "jda102@cmslpc323.fnal.gov",
+          "config_sha256": "68c0ec66ea5a"
         }
       ]
     }
@@ -149,6 +175,18 @@
     {
       "ts": "2026-10-28 19:48:29",
       "event": "resume",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 23:40:29",
+      "event": "submit",
+      "step": "DeClustered",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 23:40:43",
+      "event": "submit",
       "step": "DeClustered",
       "host": "cmslpc"
     }
