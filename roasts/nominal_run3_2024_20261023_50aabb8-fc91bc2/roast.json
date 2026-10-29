@@ -1,0 +1,191 @@
+{
+  "id": "nominal_run3_2024_20261023_50aabb8-fc91bc2",
+  "label": "nominal_run3_2024",
+  "analysis": "HH4b",
+  "created": "2026-10-23 12:31:12",
+  "owner": "cgbrody",
+  "barista": {
+    "sha": "50aabb80cbef022b43547708c823856f41d65353",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "fc91bc2226b0b77a39f3dfbb7f9617f627f03e16",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "1ff0a315e1d3a3e1ed89e1b019c3462c5685db3969f0ad68f6bb539dfa90ef59"
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/c/cguintob/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "PhaseB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-23 12:34:11",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-26 13:41:53",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-26 14:13:07",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-26 14:30:52",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-26 21:49:08",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-27 09:15:45",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        },
+        {
+          "ts": "2026-10-27 09:29:42",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "nominal_run3_2024_50aabb8-fc91bc2_PhaseB",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "1ff0a315e1d3"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2024_20261023_50aabb8-fc91bc2/barista",
+      "ssh": "cgbrody@cmslpc349.fnal.gov",
+      "checked_out": "2026-10-23 12:33:43"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-10-23 12:31:12",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-23 12:33:43",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-23 12:34:11",
+      "event": "submit",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 13:41:53",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 14:13:07",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 14:30:52",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-26 21:49:08",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 09:15:45",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-27 09:29:42",
+      "event": "resume",
+      "step": "PhaseB",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}

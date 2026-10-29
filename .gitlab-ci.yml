@@ -235,7 +235,6 @@ setup_bbreww:
     - k8s-cvmfs
   retry: 2
 
-
 validation:
   before_script:
     # The cupping notes are derived from roasts/*/roast.json and are not committed: a
