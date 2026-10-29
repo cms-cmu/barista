@@ -106,6 +106,32 @@
           "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
           "ssh": "jda102@cmslpc345.fnal.gov",
           "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 10:30:08",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 10:47:43",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "f67085396de2"
         }
       ]
     },
@@ -114,14 +140,66 @@
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-29 01:00:06",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2025-7e57d3-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 01:09:51",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2025-7e57d3-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "f67085396de2"
+        }
+      ]
     },
     {
       "name": "MvD_3_svb",
       "host": "nautilus",
       "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
       "targets": "",
-      "extra": ""
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-29 11:53:58",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2 -n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2025-7e57d3-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 11:56:58",
+          "cores": 16,
+          "extra": "--set-resources train:mem_mb=180000 train:gpus=1 train:cpu=4 evaluate:mem_mb=96000 evaluate:gpus=1 evaluate:cpu=2",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-declib16-run3-2025-7e57d3-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "f67085396de2"
+        }
+      ]
     }
   ],
   "hosts": {
@@ -129,6 +207,11 @@
       "checkout": "~/nobackup/HH4b/prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/barista",
       "ssh": "jda102@cmslpc345.fnal.gov",
       "checked_out": "2026-10-28 23:44:15"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/barista",
+      "checked_out": "2026-10-29 00:52:23",
+      "note": "built by hand without cp -al (CephFS stuck-inode workaround, 2026-10-27)"
     }
   },
   "publish": {},
@@ -153,6 +236,42 @@
       "event": "submit",
       "step": "MvD",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-29 01:00:06",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-29 01:09:51",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-29 10:30:08",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-29 10:47:43",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-29 11:53:58",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-29 11:56:58",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
     }
   ],
   "notes": "",
