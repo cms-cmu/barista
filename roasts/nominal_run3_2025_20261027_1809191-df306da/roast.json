@@ -310,7 +310,29 @@
       "note": "v1 checkout hung on CephFS caps (2026-10-27); v3 built fresh without cp -al"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_20261027_1809191-df306da",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_20261027_1809191-df306da/",
+    "ts": "2026-10-28 20:19:51",
+    "ok": true,
+    "pages": [
+      "output/Run3_2025_nominal/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2025_nominal/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2025_nominal/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2025_nominal/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/Run3_2025_nominal/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_2025_nominal/computeJCM/cutflow_wJCM.html",
+      "output/Run3_2025_nominal/computeJCM/plots_wJCM/index.html",
+      "output/Run3_2025_nominal/cutflow_Run3_2025_nominal.html",
+      "output/Run3_2025_nominal/cutflow_crosscheck_Run3_2025_nominal.html",
+      "output/Run3_2025_nominal/plots_Run3_2025_nominal/index.html",
+      "output/Run3_2025_nominal/stat_analysis/summary.html",
+      "output/SvB_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/SvB_nominal/plots/analyze/index.html",
+      "output/SvB_nominal/plots/index.html",
+      "output/SvB_nominal/yields.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-27 07:57:44",
@@ -444,13 +466,31 @@
       "event": "resume",
       "step": "F",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 20:02:25",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-28 20:14:04",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-28 20:19:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "2025 tight nominal after the UParT regression fix (blind F)",
   "category": "",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_20261027_1809191-df306da",
-    "ts": "2026-10-28 03:40:39",
+    "ts": "2026-10-28 20:02:25",
     "ok": true
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast mvd_run3_2025_20261028_4187034-e2edb1d step MvD -- generated 2026-10-28 03:47:23
+# roast mvd_run3_2025_20261028_4187034-e2edb1d step MvD -- generated 2026-10-28 19:49:00
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -27,7 +27,7 @@ elif [ -s "$HOME/.kube/config" ]; then
 fi
 command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
 
-./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD.smk all_V1 --configfile roasts/mvd_run3_2025_20261028_4187034-e2edb1d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mvd_run3_2025_20261028_4187034-e2edb1d eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
+./run_container snakemake -s coffea4bees/workflows/Snakefile_MvD.smk all_V2c --configfile roasts/mvd_run3_2025_20261028_4187034-e2edb1d/config.yml --cores 8 --jobs 8 --printshellcmds --config roast_id=mvd_run3_2025_20261028_4187034-e2edb1d eos_prod=root://cmseos.fnal.gov//store/user/jda102/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}
 echo "=== roast mvd_run3_2025_20261028_4187034-e2edb1d step MvD exit $RC $(date) ===" | tee -a "$LOG"
 echo "$RC" > "$EXIT"

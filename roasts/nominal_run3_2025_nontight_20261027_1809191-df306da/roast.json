@@ -177,7 +177,25 @@
       "checked_out": "2026-10-27 10:54:44"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_nontight_20261027_1809191-df306da",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_nontight_20261027_1809191-df306da/",
+    "ts": "2026-10-28 20:07:47",
+    "ok": true,
+    "pages": [
+      "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_nominal/plots/analyze/index.html",
+      "output/FvT_nominal/plots/index.html",
+      "output/FvT_nominal/yields.html",
+      "output/Run3_2025_nontight/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2025_nontight/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2025_nontight/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2025_nontight/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/Run3_2025_nontight/computeJCM/cutflow_NoJCM.html",
+      "output/Run3_2025_nontight/computeJCM/cutflow_wJCM.html",
+      "output/Run3_2025_nontight/computeJCM/plots_wJCM/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-27 07:57:44",
@@ -250,6 +268,12 @@
     {
       "ts": "2026-10-27 20:12:29",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-28 20:07:47",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }

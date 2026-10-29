@@ -111,7 +111,22 @@
       "checked_out": "2026-10-28 06:00:18"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/",
+    "ts": "2026-10-28 20:19:21",
+    "ok": true,
+    "pages": [
+      "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_nominal/plots/analyze/index.html",
+      "output/FvT_nominal/plots/index.html",
+      "output/FvT_nominal/yields.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/ttbar_MC_vs_d3_cutflow.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-27 21:00:46",
@@ -145,8 +160,25 @@
       "event": "submit",
       "step": "C4",
       "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 20:02:41",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-28 20:19:21",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "DIAGNOSTIC: tight 2025 FvT retrain with --kfold-seed-offsets 1 on nominal_run3_2025_20261027_1809191-df306da B outputs",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a",
+    "ts": "2026-10-28 20:02:41",
+    "ok": true
+  }
 }

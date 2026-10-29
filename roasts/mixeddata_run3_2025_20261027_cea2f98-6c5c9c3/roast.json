@@ -144,7 +144,16 @@
       "checked_out": "2026-10-27 20:13:44"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3/",
+    "ts": "2026-10-28 20:15:49",
+    "ok": true,
+    "pages": [
+      "output/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3/M6/cutflow_validation.html",
+      "output/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3/M6/plots/index.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-27 20:12:39",
@@ -194,6 +203,12 @@
     {
       "ts": "2026-10-28 03:42:43",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-28 20:15:49",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }

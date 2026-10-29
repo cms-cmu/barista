@@ -100,6 +100,32 @@
           "window": "mvd_run3_2025_4187034-e2edb1d_MvD",
           "ssh": "jda102@cmslpc358.fnal.gov",
           "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 19:48:39",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2025_4187034-e2edb1d_MvD",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "3c16ec75734f"
+        },
+        {
+          "ts": "2026-10-28 19:49:01",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2025_4187034-e2edb1d_MvD",
+          "ssh": "jda102@cmslpc358.fnal.gov",
+          "config_sha256": "3c16ec75734f"
         }
       ]
     },
@@ -226,6 +252,18 @@
       "event": "resume",
       "step": "MvD_2_train",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 19:48:39",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 19:49:01",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
     }
   ],
   "notes": "",
