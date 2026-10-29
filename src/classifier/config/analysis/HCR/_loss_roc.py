@@ -430,8 +430,8 @@ class _generate_group_diagnostics_and_gallery:
                             fpr = chosen_df["FPR"].values
                             tpr = chosen_df["TPR"].values
                             if len(fpr) > 1:
-                                _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
-                                fold_auc = float(np.abs(_trapz(tpr, fpr)))
+                                trapezoid = getattr(np, "trapezoid", None) or np.trapz  # trapz is gone in numpy 2
+                                fold_auc = float(np.abs(trapezoid(tpr, fpr)))
                                 fold_aucs.append(fold_auc)
                                 fold_dfs.append(chosen_df)
                                 if k_folds > 1 and split_name == "validation":

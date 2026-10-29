@@ -1,0 +1,313 @@
+{
+  "id": "analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
+  "label": "analysis_ttHbb_stat_only_wrong_ttbar_up",
+  "analysis": "ttHbb",
+  "created": "2026-10-21 22:19:45",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "f82849e44215a763f2a3098f1ce681ee852f81f7",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "41dd17dcf9546a6c68010e4a8b5ce64aca9afdd0",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_ttHbb_stat_only_wrong_ttbar_up.yml",
+    "captured": "config.yml",
+    "sha256": "658d3ca4aa199462458e01ce0e79cfa059353a57e120ea1a7f982fbf87d63cd5"
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "B",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-21 22:26:10",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_ttHbb_stat_only_wrong_ttbar_up_f82849e-41dd17d_B",
+          "ssh": "algomez@cmslpc312.fnal.gov",
+          "config_sha256": "658d3ca4aa19"
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "falcon",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-21 23:32:47",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_ttHbb_stat_only_wrong_ttbar_up_f82849e-41dd17d_C",
+          "ssh": "tgomezes@falcon.phys.cmu.edu",
+          "config_sha256": "658d3ca4aa19"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-22 04:16:35",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-analysis-tthbb-stat-only-wrong-ttba-126ebe-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "658d3ca4aa19"
+        },
+        {
+          "ts": "2026-10-22 06:32:19",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-analysis-tthbb-stat-only-wrong-ttba-126ebe-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "658d3ca4aa19"
+        },
+        {
+          "ts": "2026-10-22 06:35:24",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-analysis-tthbb-stat-only-wrong-ttba-126ebe-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "658d3ca4aa19"
+        },
+        {
+          "ts": "2026-10-22 06:55:22",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-analysis-tthbb-stat-only-wrong-ttba-126ebe-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "658d3ca4aa19"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-22 06:58:54",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_ttHbb_stat_only_wrong_ttbar_up_f82849e-41dd17d_F",
+          "ssh": "algomez@cmslpc312.fnal.gov",
+          "config_sha256": "658d3ca4aa19"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/HH4b/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista",
+      "ssh": "algomez@cmslpc312.fnal.gov",
+      "checked_out": "2026-10-21 22:23:12"
+    },
+    "falcon": {
+      "checkout": "/home/export/tgomezes/workingArea/roast_prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista",
+      "ssh": "tgomezes@falcon.phys.cmu.edu",
+      "checked_out": "2026-10-21 22:23:22"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista",
+      "checked_out": "2026-10-22 03:53:36"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/",
+    "ts": "2026-10-27 18:33:32",
+    "ok": true,
+    "pages": [
+      "output/FvT_ttHbb_stitched/yields.html",
+      "output/SvB_MA_ttHbb_stitched/yields.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/cutflow_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/plots_analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/index.html",
+      "output/analysis_ttHbb_stat_only_wrong_ttbar_up_nomSvB/stat_analysis/summary.html",
+      "output/ttHbb_bkg_syst/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc/bkg_syst_C_FvT/models/mix_15/yields.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-21 22:19:45",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-21 22:23:12",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-21 22:23:22",
+      "event": "checkout",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-21 22:26:10",
+      "event": "submit",
+      "step": "B",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-21 23:32:47",
+      "event": "submit",
+      "step": "C",
+      "host": "falcon"
+    },
+    {
+      "ts": "2026-10-22 03:53:36",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-22 04:16:35",
+      "event": "submit",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-22 06:32:19",
+      "event": "resume",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-22 06:35:24",
+      "event": "resume",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-22 06:55:22",
+      "event": "resume",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-22 06:58:54",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-22 07:44:23",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 07:44:40",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 08:50:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 08:50:18",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 09:47:09",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-22 09:47:13",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:33:20",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:33:32",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:34:02",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-27 18:34:04",
+      "event": "archive",
+      "host": "falcon",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
+    "ts": "2026-10-27 18:34:04",
+    "ok": true
+  }
+}
