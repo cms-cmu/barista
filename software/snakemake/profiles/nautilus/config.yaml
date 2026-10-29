@@ -22,12 +22,8 @@ set-threads:
 
 set-resources:
   train:
-    # Run 3 2024 MvD training (mixed data) was OOMKilled at the 55Gi pod limit after 1.5 h
-    mem_mb: 96000
     gpus: 1
     cpu: 4
   evaluate:
-    # Run 3 2024 FvT evaluation peaks at ~64 GB RSS (falcon sacct); Run 2 / chunked evaluates need <= 32 GB
-    mem_mb: 32000
     gpus: 1
     cpu: 2
