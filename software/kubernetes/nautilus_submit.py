@@ -42,6 +42,7 @@ DEFAULT_GPU_RULES = {
     "plot_inputs_raw",
     "plot_inputs_dataprep",
     "plot_weights",
+    "compute_svb_binning",
 }
 
 LOG_DIR = "k8s_logs"
