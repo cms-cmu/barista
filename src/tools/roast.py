@@ -519,6 +519,49 @@ def check_inputs(cfg: dict, wf: dict, analysis: str | None = None) -> dict | Non
             "refs": refs}
 
 
+def check_friend_wiring(steps: list[dict], wf: dict) -> None:
+    """Preflight check: if a roast runs training/evaluation (Phase C/D) AND the analysis processor (Phase F),
+    verify that analysis_config.config.friends overrides point to {roast_id} (or upstream {roast:...}).
+    Otherwise Phase F silently falls back to static metadata friend trees, ignoring the newly trained models."""
+    step_names = {s["name"] for s in steps}
+    if "F" not in step_names:
+        return
+    if "C" not in step_names and "D" not in step_names:
+        return
+
+    ac = wf.get("analysis_config")
+    if not isinstance(ac, dict):
+        return
+    ac_cfg = ac.get("config")
+    if not isinstance(ac_cfg, dict):
+        return
+    friends = ac_cfg.get("friends") or {}
+
+    bad = []
+    if "C" in step_names and ac_cfg.get("apply_FvT"):
+        fvt = str(friends.get("FvT") or "")
+        if not ("{roast_id}" in fvt or "{roast:" in fvt):
+            bad.append(
+                "Phase C (FvT training) is in the roast and Phase F has apply_FvT: true, "
+                "but `analysis_config.config.friends.FvT` does not reference {roast_id}.\n"
+                f"    Current FvT friend: {friends.get('FvT', '<missing (falls back to friends_*.yml)>')}\n"
+                "    Required: '{eos_prod}/{roast_id}/friend/FvT_.../result.json@@analysis.0.merged'"
+            )
+    if "D" in step_names and (ac_cfg.get("run_SvB") or ac_cfg.get("SvB_MA")):
+        svb_ma = str(friends.get("SvB_MA") or "")
+        svb = str(friends.get("SvB") or "")
+        if not ("{roast_id}" in svb_ma or "{roast:" in svb_ma or "{roast_id}" in svb or "{roast:" in svb):
+            bad.append(
+                "Phase D (SvB evaluation) is in the roast and Phase F has run_SvB/SvB_MA enabled, "
+                "but `analysis_config.config.friends.SvB_MA` does not reference {roast_id}.\n"
+                f"    Current SvB_MA friend: {friends.get('SvB_MA', '<missing (falls back to friends_*.yml)>')}\n"
+                "    Required: '{eos_prod}/{roast_id}/friend/SvB_MA_.../result.json@@analysis.0.merged'"
+            )
+    if bad:
+        die("preflight friend tree check failed:\n  " + "\n  ".join(bad) +
+            "\n  Phase F would silently use stale or external friend trees instead of this roast's outputs.")
+
+
 def capture_config(src: Path, dest: Path) -> list[dict]:
     """Write the config a roast runs from.  A plain config is copied verbatim.  One with a
     top-level `base: <path>` holds only its differences from that base: it is merged over
@@ -789,12 +832,22 @@ def cmd_new(args) -> None:
 
     # Products read from other roasts, checked before anything is written
     inputs = None
+    merged_wf = None
     if re.search(r"^(inputs|base):", config_src.read_text(), re.M):    # a base may carry the inputs
         try:
             import yaml  # noqa: F401  (only configs with `inputs:` or `base:` need it)
         except ImportError:
             die(f"{config_src} has an `inputs:` or `base:` block; reading it needs PyYAML")
-        inputs = check_inputs(cfg, _load_layered_config(config_src)[0], analysis=analysis)
+        merged_wf = _load_layered_config(config_src)[0]
+        inputs = check_inputs(cfg, merged_wf, analysis=analysis)
+    else:
+        try:
+            import yaml
+            merged_wf = yaml.safe_load(config_src.read_text()) or {}
+        except Exception:
+            merged_wf = {}
+    if isinstance(merged_wf, dict):
+        check_friend_wiring(steps, merged_wf)
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
@@ -1286,6 +1339,17 @@ def _submit(args, resume: bool) -> None:
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
+
+    if step["name"] == "F":
+        cfg_path = roast_dir(r["id"]) / "config.yml"
+        if cfg_path.exists():
+            try:
+                import yaml
+                captured_wf = yaml.safe_load(cfg_path.read_text())
+                if isinstance(captured_wf, dict):
+                    check_friend_wiring(r.get("steps", []), captured_wf)
+            except Exception as e:
+                pass
     target = roast_ssh(cfg, r, host) if host != "nautilus" else ""
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra

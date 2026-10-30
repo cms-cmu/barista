@@ -443,6 +443,9 @@ analysis_config:
     max_workers: 250
     dashboard_address: 0
   config:
+    friends:
+      FvT: "{eos_prod}/{roast_id}/friend/FvT_ttHbb_stitched/result.json@@analysis.0.merged"
+      SvB_MA: "{eos_prod}/{roast_id}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged"
     blind: true
     apply_FvT: true
     apply_JCM: true
