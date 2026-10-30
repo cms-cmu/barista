@@ -303,7 +303,7 @@ closure_rebin_candidates:
 - 16
 - 20
 - 24
-max_basis: 10
+max_basis: 5
 rebin: 12
 no_sqrt_n_priors: false
 convert_hist_to_json:
