@@ -137,6 +137,9 @@ def main():
                         help="datasets metadata (directory or files), as passed to runner.py")
     parser.add_argument("--data-tier", default="nanoAOD", help="metadata key holding the input dataset names")
     parser.add_argument("-o", "--output", help="YAML report; a .md table is written next to it")
+    parser.add_argument("--allow-errors", action="store_true",
+                        help="exit 0 when DAS lookup fails (for private productions not in DBS);"
+                             " MISMATCH (counts disagree) still exits 1")
     args = parser.parse_args()
 
     report = check(args.registries, load_metadata(args.metadata), args.data_tier)
@@ -152,7 +155,8 @@ def main():
     bad = {k: r["status"] for k, r in report.items() if r["status"] != "OK"}
     if bad:
         print(f"FAILED: {bad}", file=sys.stderr)
-        sys.exit(1)
+        if not args.allow_errors or any(r["status"] == "MISMATCH" for r in report.values()):
+            sys.exit(1)
 
 
 if __name__ == "__main__":
