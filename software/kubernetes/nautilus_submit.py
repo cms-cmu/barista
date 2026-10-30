@@ -193,6 +193,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - cph-dgx-node6.humboldt.edu
                 - cph-dgx-node7.humboldt.edu
                 - cph-dgx-node8.humboldt.edu
+                - cph-dgx-node9.humboldt.edu
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
