@@ -38,6 +38,7 @@ import getpass
 import hashlib
 import html
 import json
+import time
 import os
 import re
 import shlex
@@ -928,21 +929,20 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     ns = hc.get("namespace", "cms-cmu")
     info(f"[nautilus] syncing code to {ckpt}...")
 
-    # 1. Clean code directories in the roast checkout to prevent stale or deleted ghost files
-    clean_dirs = [
-        f"{ckpt}/software",
-        f"{ckpt}/src",
-        f"{ckpt}/bin",
-    ]
+    # Quick atomic rename of existing code directories to avoid CephFS rm -rf stalls
+    ts = int(time.time())
+    for d in [f"{ckpt}/software", f"{ckpt}/src", f"{ckpt}/bin"]:
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                   f"if [ -d '{d}' ]; then mv '{d}' '{d}.trash_{ts}' && (rm -rf '{d}.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
     c4b_dir = ROOT / "coffea4bees"
     if c4b_dir.is_dir() and "coffea4bees" in r:
-        clean_dirs.append(f"{ckpt}/coffea4bees")
-    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", *clean_dirs), check=False)
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                   f"if [ -d '{ckpt}/coffea4bees' ]; then mv '{ckpt}/coffea4bees' '{ckpt}/coffea4bees.trash_{ts}' && (rm -rf '{ckpt}/coffea4bees.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
 
     # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata and heavy data)
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
     p_barista = subprocess.Popen(
-        ["git", "archive", "--format=tar.gz", barista_sha, "--", ":!roasts", ":!src/data"],
+        ["git", "archive", "--format=tar.gz", barista_sha, "--", ":!roasts", ":!src/data", ":!docs"],
         cwd=ROOT,
         stdout=subprocess.PIPE,
     )
@@ -1243,8 +1243,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   claimName: cms-cmu-storage
     """)
 
-    # Sync code at pinned roast SHAs to CephFS checkout (clean archive stream, no ghost files)
-    _sync_nautilus_code(cfg, r, ckpt)
+    # Sync code at pinned roast SHAs to CephFS checkout if not already present
+    has_code = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-d", f"{ckpt}/coffea4bees"), check=False)
+    if has_code.returncode != 0:
+        _sync_nautilus_code(cfg, r, ckpt)
 
     manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
     manifest_path.write_text(manifest)
