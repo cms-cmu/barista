@@ -238,6 +238,14 @@ spec:
             export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
             export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
             chmod 600 {WORKDIR}/proxy/x509_proxy 2>/dev/null || true
+            if [ -d /cvmfs/grid.cern.ch/etc/grid-security/certificates ]; then
+                export X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            elif [ -d /cvmfs/cms.cern.ch/grid/etc/grid-security/certificates ]; then
+                export X509_CERT_DIR=/cvmfs/cms.cern.ch/grid/etc/grid-security/certificates
+            fi
+            if [ ! -d /etc/grid-security/certificates ] && [ -n "$X509_CERT_DIR" ]; then
+                ln -sf "$X509_CERT_DIR" /etc/grid-security/certificates 2>/dev/null || true
+            fi
             export CLASSIFIER_CONFIG_PATHS=coffea4bees
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
             cd {WORKDIR}
