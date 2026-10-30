@@ -185,6 +185,14 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - hcc-chase-shor-c4719.unl.edu
                 - hcc-nrp-shor-c5834.unl.edu
                 - nautilus-it-gpu06.fullerton.edu
+                - cph-dgx-node1.humboldt.edu
+                - cph-dgx-node2.humboldt.edu
+                - cph-dgx-node3.humboldt.edu
+                - cph-dgx-node4.humboldt.edu
+                - cph-dgx-node5.humboldt.edu
+                - cph-dgx-node6.humboldt.edu
+                - cph-dgx-node7.humboldt.edu
+                - cph-dgx-node8.humboldt.edu
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
