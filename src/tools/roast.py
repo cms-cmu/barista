@@ -215,7 +215,7 @@ HANDWRITTEN_PAGES = {"index", "using_roast"}
 # A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
 # round-robin, so the proxy you just created is usually not on the node a given roast
 # was pinned to; this copy is readable from all of them.
-SHARED_PROXY = "~/.roast/x509_proxy"
+SHARED_PROXY = "$HOME/.roast/x509_proxy"
 
 DOCS_SITE_FALLBACK = "https://barista.docs.cern.ch"
 
@@ -1629,7 +1629,12 @@ def proxy_candidates() -> list[str]:
     The roast's own copy (scripts that need it run from the checkout), then this node's /tmp,
     then the shared-home copy.  A path that does not exist costs nothing to skip.
     """
-    return ['"$PWD/proxy/x509_proxy"', '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)]
+    return [
+        '"$PWD/proxy/x509_proxy"',
+        '"$PWD/../proxy/x509_proxy"',
+        '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+        '"$HOME/.roast/x509_proxy"',
+    ]
 
 
 def _xrd_auth(eos_url: str, *proxies: str) -> str:
@@ -2795,6 +2800,8 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     size = f"-size -{int(ps['max_mb'])}M" if int(ps.get("max_mb") or 0) > 0 else ""
     extra_dirs = f"find logs roasts/{r['id']} -type f;" if with_logs else ""
     dry = "cat \"$LIST\"; echo; echo \"$(wc -l < \"$LIST\") files would be copied (dry run)\"; exit 0" if dry_run else ""
+    cern = "cern.ch" in eos_url
+    realm = "CERN\\.CH" if cern else "[A-Z.]*"
     ht = textwrap.dedent(f"""\
         # CERN EOS websites return 403 on directories without an index; enable Apache listings once at the root.
         HT=$(mktemp); printf 'Options +Indexes\\n' > "$HT"
@@ -2808,7 +2815,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         cd {rq(ckpt)} 2>/dev/null || {{ echo "no checkout at {ckpt} on $(hostname): nothing to copy. \\`{TOOL} checkout\\` rebuilds the code, but a cleaned or deleted checkout's outputs are gone" >&2; exit 4; }}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
         {_xrd_auth(eos_url, *proxy_candidates())}
-        [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
+        [ -n "$PROXY" ] || (klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$") || {{ echo "no grid proxy with time left on $(hostname) and no {realm} kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp)
