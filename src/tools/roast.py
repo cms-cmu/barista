@@ -969,6 +969,8 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
                 ":!jet_clustering",
                 ":!archive",
                 ":!metadata/weights",
+                ":!metadata/friends",
+                ":!analysis/trigger_emulator/data",
                 ":!hemisphere_mixing",
             ],
             cwd=c4b_dir,
