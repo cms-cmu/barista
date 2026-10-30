@@ -200,7 +200,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/",
-    "ts": "2026-10-30 04:34:40",
+    "ts": "2026-10-30 07:09:40",
     "ok": true,
     "pages": [
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
@@ -356,6 +356,12 @@
     },
     {
       "ts": "2026-10-30 04:34:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-30 07:09:40",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
