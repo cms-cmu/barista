@@ -132,6 +132,32 @@
           "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
           "ssh": "jda102@cmslpc345.fnal.gov",
           "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 19:26:13",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "f67085396de2"
+        },
+        {
+          "ts": "2026-10-29 19:28:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_declib16_run3_2025_c96a8ce-a4b6e04_MvD",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "f67085396de2"
         }
       ]
     },
@@ -214,7 +240,25 @@
       "note": "built by hand without cp -al (CephFS stuck-inode workaround, 2026-10-27)"
     }
   },
-  "publish": {},
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/",
+    "ts": "2026-10-29 20:03:16",
+    "ok": true,
+    "pages": [
+      "output/MvD/plots/analyze/HCR/index_group_1.html",
+      "output/MvD/plots/analyze/index.html",
+      "output/MvD/plots/index.html",
+      "output/MvD/yields.html",
+      "output/SvB_MvD/plots/analyze/HCR/index_group_1.html",
+      "output/SvB_MvD/plots/analyze/index.html",
+      "output/SvB_MvD/yields.html",
+      "output/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/V2c/cutflow_MvD_closure.html",
+      "output/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/V2c/plots_MvD_closure/index.html",
+      "output/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/V4/plots_MvD/index.html",
+      "output/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04/V4/stat_analysis/summary.html"
+    ]
+  },
   "history": [
     {
       "ts": "2026-10-28 23:41:34",
@@ -272,8 +316,49 @@
       "event": "submit",
       "step": "MvD_3_svb",
       "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-29 19:26:13",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-29 19:28:10",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-29 19:59:24",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-29 19:59:29",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-29 20:02:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-29 20:03:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04",
+    "ts": "2026-10-29 19:59:29",
+    "ok": true
+  }
 }
