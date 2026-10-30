@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: roast-tthbb-stat-only-corner-veto-7d1c50-d
+  namespace: cms-cmu
+  labels:
+    roast: "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+    step: "D"
+    app: "roast-runner"
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        roast: "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+        step: "D"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: roast-runner
+      containers:
+      - name: orchestrator
+        image: docker.io/snakemake/snakemake:v9.27.0
+        imagePullPolicy: IfNotPresent
+        workingDir: /workspace/users/algomez/prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11/barista
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "=== roast ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11 step D start $(date) on Nautilus ==="
+          pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd
+          mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
+          export X509_USER_PROXY="$PWD/proxy/x509_proxy"
+          export PATH=/workspace/shared/bin:$PATH
+          export NAUTILUS_WORKDIR=/workspace/users/algomez/prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11/barista
+          export CLASSIFIER_CONFIG_PATHS=coffea4bees
+          export ROAST_ID="ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+          export ROAST_STEP="D"
+          cd /workspace/users/algomez/prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11/barista
+          mkdir -p logs
+          LOG=logs/D.log
+          EXIT=logs/D.exit
+          rm -f "$EXIT"
+          rm -rf .snakemake/locks || true
+          snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11/config.yml --profile software/snakemake/profiles/nautilus --unlock || true
+
+          snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11/config.yml --profile software/snakemake/profiles/nautilus --jobs 16 --printshellcmds --config roast_id=ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11 eos_prod=root://cmseos.fnal.gov//store/user/algomez/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod --rerun-incomplete 2>&1 | tee "$LOG"
+          RC=${PIPESTATUS[0]}
+          echo "$RC" > "$EXIT"
+          echo "=== roast ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11 step D exit $RC $(date) ===" | tee -a "$LOG"
+          exit $RC
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - mountPath: /workspace
+          name: ceph-storage
+      volumes:
+      - name: ceph-storage
+        persistentVolumeClaim:
+          claimName: cms-cmu-storage
