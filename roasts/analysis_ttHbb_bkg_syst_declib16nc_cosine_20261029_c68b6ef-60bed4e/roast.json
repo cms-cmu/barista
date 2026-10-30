@@ -200,7 +200,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/",
-    "ts": "2026-10-30 01:55:46",
+    "ts": "2026-10-30 04:34:40",
     "ok": true,
     "pages": [
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
@@ -276,6 +276,13 @@
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure/summary_SvB_SB.html",
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure/summary_SvB_SR.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/closure_summary.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/closure_summary_SB.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/closure_summary_SR.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/summary_SvB_MA_SB.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/summary_SvB_MA_SR.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/summary_SvB_SB.html",
+      "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_2_run_two_stage_closure_16sub/summary_SvB_SR.html",
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
       "output/analysis_ttHbb_bkg_syst_declib16nc_cosine_20261029_c68b6ef-60bed4e/bkg_syst_F_3_stats/summary.html",
@@ -337,6 +344,18 @@
     },
     {
       "ts": "2026-10-30 01:55:46",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-30 04:34:15",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-10-30 04:34:40",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
