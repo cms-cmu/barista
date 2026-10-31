@@ -44,6 +44,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -861,6 +862,75 @@ def _finish_checkout_script(r: dict, ckpt: str) -> str:
     """)
 
 
+def _ensure_storage_helper(ns: str) -> None:
+    """Make sure the storage-helper pod (our only way onto CephFS) is Running.
+
+    It is a bare Pod and NRP kills it after ~6 h. Without it the code sync used to fail with only
+    a warning and the Job then ran the old code, so recreate it from the manifest and wait.
+    """
+    phase = sh(k8s_cmd("get", "pod", "storage-helper", "-n", ns, "-o", "jsonpath={.status.phase}"), check=False)
+    if phase.returncode == 0 and phase.stdout.strip() == "Running":
+        return
+    info(f"[nautilus] storage-helper is {phase.stdout.strip() or 'missing'}; recreating it")
+    sh(k8s_cmd("delete", "pod", "storage-helper", "-n", ns, "--ignore-not-found", "--wait=true"), check=False)
+    res = sh(k8s_cmd("apply", "-n", ns, "-f", str(ROOT / "software/kubernetes/storage_helper.yaml")), check=False)
+    if res.returncode != 0:
+        die(f"failed to create storage-helper: {res.stderr.strip()}")
+    res = sh(k8s_cmd("wait", "--for=condition=Ready", "pod/storage-helper", "-n", ns, "--timeout=600s"), check=False)
+    if res.returncode != 0:
+        die(f"storage-helper did not become Ready: {res.stderr.strip() or res.stdout.strip()}")
+
+
+def _proxy_hours_left(pem: bytes) -> float:
+    """Hours until the first certificate in a grid proxy expires (-1 if unreadable)."""
+    if not pem.strip():
+        return -1
+    res = subprocess.run(["openssl", "x509", "-noout", "-enddate"], input=pem, capture_output=True)
+    m = re.search(rb"notAfter=(.+)", res.stdout)
+    if res.returncode != 0 or not m:
+        return -1
+    end = dt.datetime.strptime(" ".join(m.group(1).decode().split()), "%b %d %H:%M:%S %Y %Z")
+    return (end.replace(tzinfo=dt.timezone.utc) - dt.datetime.now(dt.timezone.utc)).total_seconds() / 3600
+
+
+def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 24) -> None:
+    """Make sure the grid proxy the Job will use is valid for at least `min_hours`.
+
+    Checkouts hard-link the reference tree's proxy/, which nothing refreshes, so a proxy that
+    expires mid-step makes every pod's EOS read fail. If the one on CephFS is short, take the
+    shared LPC copy (`roast proxy` keeps ~/.roast/x509_proxy fresh) and write it to `paths`.
+    """
+    cur = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "cat", paths[0]), check=False)
+    left = _proxy_hours_left(cur.stdout.encode())
+    if left >= min_hours:
+        info(f"[nautilus] grid proxy OK ({left:.0f} h left)")
+        return
+    lpc = resolve_ssh(host_cfg(cfg, "cmslpc"))
+    new = subprocess.run(["ssh", *ssh_opts(lpc), lpc, f"cat {SHARED_PROXY}"], capture_output=True)
+    if new.returncode != 0:
+        die(f"grid proxy on Nautilus has {left:.0f} h left and reading {SHARED_PROXY} from {lpc} failed "
+            f"(kinit?): {new.stderr.decode(errors='replace').strip()}")
+    new_left = _proxy_hours_left(new.stdout)
+    if new_left < min_hours:
+        die(f"grid proxy on Nautilus has {left:.0f} h left and the LPC copy {SHARED_PROXY} {new_left:.0f} h; "
+            f"run `{TOOL} proxy` first")
+    with tempfile.NamedTemporaryFile(prefix="x509_", delete=False) as f:
+        f.write(new.stdout)
+    try:
+        os.chmod(f.name, 0o600)
+        for p in paths:
+            # rm first: the checkout's proxy is a hard link into the reference tree
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                       f"mkdir -p {shlex.quote(os.path.dirname(p))} && rm -f {shlex.quote(p)}"), check=False)
+            res = sh(k8s_cmd("cp", f.name, f"{ns}/storage-helper:{p}"), check=False)
+            if res.returncode != 0:
+                die(f"failed to copy the grid proxy to {p}: {res.stderr.strip()}")
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", p), check=False)
+    finally:
+        os.unlink(f.name)
+    info(f"[nautilus] grid proxy refreshed from LPC ({new_left:.0f} h left)")
+
+
 def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     hc = host_cfg(cfg, "nautilus")
     ns = hc.get("namespace", "cms-cmu")
@@ -873,6 +943,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     check_ns = sh(k8s_cmd("get", "ns", ns), check=False)
     if check_ns.returncode != 0:
         die(f"cannot reach Nautilus namespace '{ns}': {check_ns.stderr.strip()}")
+    _ensure_storage_helper(ns)
 
     # 1. Create directory structure on CephFS via storage-helper
     setup_cmd = f"mkdir -p {ckpt}/roasts/{r['id']} {ckpt}/logs /workspace/users/{user}/.kube"
@@ -954,7 +1025,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     )
     p_barista.stdout.close()
     if res1.returncode != 0:
-        info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
+        die(f"[nautilus] barista code sync failed ({res1.returncode}): {res1.stderr.decode(errors='replace').strip()}")
 
     # 3. Stream coffea4bees code at pinned sha (entire subrepo)
     if c4b_dir.is_dir() and "coffea4bees" in r:
@@ -973,7 +1044,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         )
         p_c4b.stdout.close()
         if res2.returncode != 0:
-            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
+            die(f"[nautilus] coffea4bees code sync failed ({res2.returncode}): {res2.stderr.decode(errors='replace').strip()}")
 
     info(f"[nautilus] synced code to {ckpt}")
 
@@ -1130,6 +1201,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     ns = hc.get("namespace", "cms-cmu")
     user = hc.get("user", getpass.getuser())
     jname = _k8s_job_name(r, step)
+    ref = hc.get("reference", f"/workspace/users/{user}/barista")
+    _ensure_storage_helper(ns)
+    _push_nautilus_proxy(cfg, ns, [f"{ckpt}/proxy/x509_proxy", f"{ref}/proxy/x509_proxy"])
 
     # 1. Guard against double-submit
     jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
@@ -1261,6 +1335,41 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     info(f"attach: {TOOL} attach {r['id']} --step {name}    |    {TOOL} status {r['id']}")
 
 
+def _krb_refresh_script(warn_hours: int = 12) -> str:
+    """Bash that points every tmux session on an LPC node at the freshest Kerberos ticket.
+
+    A tmux session keeps the KRB5CCNAME of the ssh login that created it, and LPC tickets are not
+    renewable, so a long-lived roast session (and the dask daemon in it) ends up on an expired
+    cache: condor submission then fails with SECMAN:2011 and the step stalls. Copy the newest
+    valid /tmp/krb5cc_<uid>* over each older session cache (running processes keep their path)
+    and warn when even the newest ticket expires soon.
+    """
+    return textwrap.dedent(f"""\
+        best=""
+        for c in /tmp/krb5cc_$(id -u)*; do
+            [ -f "$c" ] && [ -O "$c" ] && klist -s -c "FILE:$c" 2>/dev/null || continue
+            if [ -z "$best" ] || [ "$c" -nt "$best" ]; then best="$c"; fi
+        done
+        if [ -z "$best" ]; then
+            echo "WARNING: no valid Kerberos ticket on $(hostname); condor submission will fail -- kinit there first"
+        else
+            for s in $(tmux list-sessions -F '#S' 2>/dev/null); do
+                cur=$(tmux show-environment -t "$s" KRB5CCNAME 2>/dev/null | sed -n 's/^KRB5CCNAME=\\(FILE:\\)\\{{0,1\\}}//p')
+                if [ -z "$cur" ]; then
+                    tmux set-environment -t "$s" KRB5CCNAME "FILE:$best"
+                elif [ "$cur" != "$best" ] && {{ [ ! -e "$cur" ] || {{ [ -O "$cur" ] && [ "$best" -nt "$cur" ]; }}; }}; then
+                    cp -p "$best" "$cur" && echo "kerberos: refreshed tmux session $s cache $cur"
+                fi
+            done
+            left=$(( $(date -d "$(klist -c "FILE:$best" 2>/dev/null | awk '/krbtgt\\//{{print $3" "$4; exit}}')" +%s 2>/dev/null || echo 0) - $(date +%s) ))
+            echo "kerberos: newest ticket $best, $(( left / 3600 ))h left"
+            if [ "$left" -lt {warn_hours * 3600} ]; then
+                echo "WARNING: the Kerberos ticket on $(hostname) expires in under {warn_hours}h and is not renewable; kinit there before a long step"
+            fi
+        fi
+    """)
+
+
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
@@ -1341,6 +1450,8 @@ def _submit(args, resume: bool) -> None:
             tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)} 2>/dev/null || true
         fi
     """)
+    if host == "cmslpc":
+        guard += _krb_refresh_script()
     res = ssh_run(target, guard, check=False)
     if res.returncode == 255:
         # The node this roast was placed on is unreachable.  Its filesystem is shared, so
