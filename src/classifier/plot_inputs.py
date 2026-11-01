@@ -849,7 +849,9 @@ def _build_tensors(file_paths, input_cfg, label=None):
         except Exception as e:
             print(f"  Warning: skipping {path}: {e}")
 
-    if not j_list:
+    # Files can be read fine but hold 0 events (e.g. a sparse declustered label); dataPrep's
+    # reshape fails on an empty tensor, so treat that like no data.
+    if not j_list or sum(len(j) for j in j_list) == 0:
         return None, None, None
 
     return (
