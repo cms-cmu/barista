@@ -1322,8 +1322,9 @@ class TestNautilusCodeSync(unittest.TestCase):
     def test_sync_nautilus_code_invokes_git_archive_and_clean(self, mock_sh, mock_popen, mock_run):
         mock_popen_instance = MagicMock()
         mock_popen_instance.stdout = MagicMock()
+        mock_popen_instance.communicate.return_value = (b"", b"")
+        mock_popen_instance.returncode = 0
         mock_popen.return_value = mock_popen_instance
-        mock_run.return_value = MagicMock(returncode=0)
 
         cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
         r = {
@@ -1340,14 +1341,10 @@ class TestNautilusCodeSync(unittest.TestCase):
             with patch.object(roast, "ROOT", tmp_root_path):
                 roast._sync_nautilus_code(cfg, r, ckpt)
 
-        # 1. Verify rm -rf was called on clean_dirs (including src, software, bin, and coffea4bees)
-        rm_call = mock_sh.call_args_list[0]
-        cmd = rm_call[0][0]
-        self.assertIn("rm", cmd)
-        self.assertIn("-rf", cmd)
-        self.assertTrue(any(f"{ckpt}/src" in arg for arg in cmd))
-        self.assertTrue(any(f"{ckpt}/software" in arg for arg in cmd))
-        self.assertTrue(any(f"{ckpt}/coffea4bees" in arg for arg in cmd))
+        # 1. Verify atomic rename and rm -rf was called on clean_dirs (including src, software, bin, and coffea4bees)
+        sh_cmds = [" ".join(call[0][0]) for call in mock_sh.call_args_list]
+        for path in [f"{ckpt}/src", f"{ckpt}/software", f"{ckpt}/bin", f"{ckpt}/coffea4bees"]:
+            self.assertTrue(any(path in cmd and "rm -rf" in cmd for cmd in sh_cmds), f"{path} was not cleaned")
 
         # 2. Verify git archive was called for barista with pinned sha shipping repo (excluding roasts)
         barista_archive_call = mock_popen.call_args_list[0]
@@ -1356,19 +1353,28 @@ class TestNautilusCodeSync(unittest.TestCase):
         self.assertIn(r["barista"]["sha"], args_barista)
         self.assertIn(":!roasts", args_barista)
 
-        # 3. Verify git archive was called for all coffea4bees with pinned sha (no excluded folders)
-        c4b_archive_call = mock_popen.call_args_list[1]
+        # 3. Verify tar -xzf was run for barista via kubectl Popen
+        barista_tar_call = mock_popen.call_args_list[1]
+        args_tar1 = barista_tar_call[0][0]
+        self.assertIn("tar", args_tar1)
+        self.assertIn("-xzf", args_tar1)
+        self.assertIn(ckpt, args_tar1)
+
+        # 4. Verify git archive was called for coffea4bees with pinned sha
+        c4b_archive_call = mock_popen.call_args_list[2]
         args_c4b = c4b_archive_call[0][0]
         self.assertEqual(args_c4b[:3], ["git", "archive", "--format=tar.gz"])
         self.assertIn(r["coffea4bees"]["sha"], args_c4b)
 
-        # 4. Verify tar -xzf was run via kubectl
-        tar_calls = mock_run.call_args_list
-        self.assertEqual(len(tar_calls), 2)
-        for call in tar_calls:
-            k8s_args = call[0][0]
-            self.assertIn("tar", k8s_args)
-            self.assertIn("-xzf", k8s_args)
+        # 5. Verify tar -xzf was run for coffea4bees via kubectl Popen
+        c4b_tar_call = mock_popen.call_args_list[3]
+        args_tar2 = c4b_tar_call[0][0]
+        self.assertIn("tar", args_tar2)
+        self.assertIn("-xzf", args_tar2)
+        self.assertIn(f"{ckpt}/coffea4bees", args_tar2)
+
+        self.assertEqual(len(mock_popen.call_args_list), 4)
+        mock_run.assert_not_called()
 
     @patch.object(roast.subprocess, "run")
     @patch.object(roast.subprocess, "Popen")
@@ -1376,8 +1382,9 @@ class TestNautilusCodeSync(unittest.TestCase):
     def test_sync_nautilus_code_skips_coffea4bees_when_not_present(self, mock_sh, mock_popen, mock_run):
         mock_popen_instance = MagicMock()
         mock_popen_instance.stdout = MagicMock()
+        mock_popen_instance.communicate.return_value = (b"", b"")
+        mock_popen_instance.returncode = 0
         mock_popen.return_value = mock_popen_instance
-        mock_run.return_value = MagicMock(returncode=0)
 
         cfg = {"hosts": {"nautilus": {"namespace": "cms-cmu"}}}
         r = {
@@ -1393,9 +1400,9 @@ class TestNautilusCodeSync(unittest.TestCase):
             with patch.object(roast, "ROOT", tmp_root_path):
                 roast._sync_nautilus_code(cfg, r, ckpt)
 
-        # Barista is synced (1 call), coffea4bees is skipped
-        self.assertEqual(len(mock_popen.call_args_list), 1)
-        self.assertEqual(len(mock_run.call_args_list), 1)
+        # Barista is synced (1 git archive + 1 tar Popen = 2 calls), coffea4bees is skipped
+        self.assertEqual(len(mock_popen.call_args_list), 2)
+        mock_run.assert_not_called()
 
 
 class TestSummaryRoastIndexHtml(unittest.TestCase):
