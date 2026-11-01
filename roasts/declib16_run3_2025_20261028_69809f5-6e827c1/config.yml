@@ -1,0 +1,148 @@
+# ==============================================================================
+# 16x DECLUSTERED SAMPLE — 2025 only, library declustering, 16 seeds
+# ==============================================================================
+# declustered_run3_2024_library_16x.yml for the sixteen 2025 picoAOD keys: D.1 builds the 2025
+# splitting library, D.3 declusters the ttbar-subtracted 2025 4b data 16 times (random among the
+# k_neighbors = 20 nearest library splittings in (log pT, |eta|), no distance cap, one library per
+# worker), D.4/D.5 validate (closure on the 16-seed mean, seed study, SvB Poisson-bootstrap N_eff),
+# D.6 checks that the ggHH peak ('2025' = Summer24 ggF alias) washes out. Products (handoff/):
+#   mixeddata_all_declib16_2025.yml        all 16 seeds' multijet as ONE sample: the MvD background
+#                                          model (named mixeddata_all_* on purpose, see the 22/23 config)
+#   synthetic_data_lib16_2025_4b.yml       nSamples 16, syn_v<k> = seed k + 2025 ttbar pseudodata
+#   synthetic_data_lib16_2025_multijet.yml the same without the pseudodata (D.4 / D.5)
+#
+# A standalone copy of the 2024 config (a `base:` overlay would keep its '2024' year_eras). What differs:
+#   * eras        the 16 2025 picoAOD keys (B01 ... G11), as nominal_run3_2025.yml.
+#   * FvT + hists the 2025 regfix non-tight roast nominal_run3_2025_nontight_20261027_1809191-df306da
+#                 (C.4 closure presel 1.001, SR 0.989, SB 0.992; D.1/D.3 use only the FvT's ttbar fraction).
+#   * ttbar PS    the 2025 regfix mixeddata roast's M.5 sample (mixeddata_run3_2025_20261027_cea2f98-6c5c9c3).
+#   * SvB         the 2025 regfix tight nominal SvB (nominal_run3_2025_20261027_1809191-df306da, Phase D;
+#                 no `year` feature) for the D.5 bootstrap and the D.6 signal check. Its FvT background
+#                 does not close (C.4 SR 0.946); it is only a diagnostic here.
+#   * library     prescaled to max_rows 3.5M as 2024 (the 2025 4b data is about the size of 2024's).
+#
+#   roast new --config coffea4bees/workflows/config/declustered_run3_2025_library_16x.yml \
+#       --label declib16_run3_2025 --step cmslpc:coffea4bees/workflows/Snakefile_DeClustered.smk
+#   roast submit <id> --step DeClustered --targets all_D5 --cores 4   # D.1 library, 16 seeds D.3, D.4, D.5
+#   roast submit <id> --step DeClustered --targets all_D6 --cores 4   # the signal check, last
+#
+label: "declustered_run3_2025_library_16x"
+output_path: "output/{roast_id}/"   # the roast id already carries the label
+publish_base: "{eos_prod}/{roast_id}"
+# Cap on each runner.py condor cluster (D.1, D.3, D.4, D.6)
+max_workers: 200
+
+# ------------------------------------------------------------------------------
+# Products of other roasts (checked by `roast new`, see src/tools/roast.py:check_inputs)
+# ------------------------------------------------------------------------------
+inputs:
+  upstream_roasts: [nominal_run3_2025_nontight_20261027_1809191-df306da, mixeddata_run3_2025_20261027_cea2f98-6c5c9c3,
+                    nominal_run3_2025_20261027_1809191-df306da]
+  # ttbar subtraction in D.1 and D.3 (4b data, FvT.d4_to_t4): the non-tight 2025 FvT, the file
+  # mixeddata_run3_2025 uses. Covers every 2025 data picoAOD in data.yml.
+  FvT: "{roast:nominal_run3_2025_nontight_20261027_1809191-df306da}/friend/FvT_nominal/result.json@@analysis.0.merged"
+  # Non-tight 2025 data + ttbar histograms and (next to them) their runner config analysis_config_noJCM.yml,
+  # with which D.4 histograms the declustered data.
+  jcm_hists: "{roast:nominal_run3_2025_nontight_20261027_1809191-df306da}/output/Run3_2025_nontight/computeJCM/histAll_NoJCM.coffea"
+  # 2025 ttbar pseudodata (M.5 of the 2025 mixed data), folded into synthetic_data_lib16_2025_4b
+  ttbar_psdata: "{roast:mixeddata_run3_2025_20261027_cea2f98-6c5c9c3}/handoff/ttbar_PSData.yml"
+  # D.5 SvB bootstrap + D.6 signal check: the 2025 analysis SvB, evaluated on the fly
+  SvB_model: "{roast:nominal_run3_2025_20261027_1809191-df306da}/classifier/SvB_nominal/result.json"
+
+# Eras as they appear in metadata/datasets/data.yml (picoAOD keys), all sixteen 2025 keys.
+# '2025' MUST stay quoted: unquoted it parses as an int and misses the string-keyed metadata.
+year_eras:
+  '2025': ["B01", "B11", "C01", "C02", "C11", "C12", "D01", "D11", "E01", "E11", "F01", "F02", "F11", "F12", "G01", "G11"]
+
+# ------------------------------------------------------------------------------
+# Selection shared by every processor pass in this roast
+# ------------------------------------------------------------------------------
+# NON-tight four-tag definition (nJet_tagged >= 4), as the mixed data and the 22/23 declustering.
+# Snakefile_DeClustered.smk refuses to run if this is anything but false.
+fourTag_use_tight: false
+
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_HH4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_HH4b.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_HH4b.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    dashboard_address: 0
+  config:
+    blind: false
+    apply_trigWeight: true
+    apply_btagSF: true          # processor_HH4b skips it for 2024/2025 (no UParT shape SF yet)
+    apply_boosted_veto: false
+    top_reconstruction: fast
+    run_SvB: false
+    SvB_MA: null
+    SvB: null
+    fourTag_use_tight: false
+
+# ------------------------------------------------------------------------------
+# D.1: cluster (4b data, ttbar subtracted with inputs.FvT) -> splitting histograms + library.
+# Its runner (8GB workers, 20k chunks) starts the roast's shared dask daemon, whose worker spec every
+# later stage then gets: 8GB covers the D.3 library workers too.
+# ------------------------------------------------------------------------------
+cluster:
+  config_template: "coffea4bees/analysis/metadata/cluster_4b_Run3.yml"
+
+# No PDFs: D.3 does not read them in library mode
+pdfs: {}
+
+# ------------------------------------------------------------------------------
+# D.3: decluster -> <publish_base>/handoff/
+# ------------------------------------------------------------------------------
+declustering:
+  skimmer_template: "coffea4bees/skimmer/metadata/declustering_Run3.yml"
+  method: library
+  n_seeds: 16
+  subtract_ttbar: true
+  # fresh names (runner.py refuses a dataset name defined differently in two -m sources)
+  dataset_name: "synthetic_data_lib16_2025_4b"
+  multijet_dataset_name: "synthetic_data_lib16_2025_multijet"
+  all_dataset_name: "mixeddata_all_declib16_2025"
+  ttbar_psdata_name: "ttbar_PSData"
+  # As the 22/23 16x; the daemon's 8GB (D.1) applies in practice
+  worker_memory: 6GB
+  library:
+    # as declustered_run3_library.yml (area for the c6 classifiers)
+    carry_fields: [btagScore, jetId, btagPNetCvB, btagPNetCvL, btagPNetQvG, btagPNetTauVJet,
+                   PNetRegPtRawRes, nSVs, chHEF, neHEF, chEmEF, neEmEF, muEF, nConstituents, area]
+    min_entries: 10
+    scale_pt: true
+    boost_z: true
+    selection: random
+    k_neighbors: 20
+    max_distance: "None"       # no cap (string: a null could be dropped by a config merge)
+    cache_size: 1
+    # Prescale the 2025 library to ~3.5M splittings: the same fraction of every era's D.1 chunk files
+    # (see the header). Each library splitting then serves ~7x more jets per seed than in 2022/2023.
+    max_rows: 3500000
+
+# ------------------------------------------------------------------------------
+# D.4: validation, D.5: monitoring (16-seed mean, seed study, SvB bootstrap)
+# ------------------------------------------------------------------------------
+validation:
+  ttbar: ["TTToHadronic", "TTToSemiLeptonic", "TTTo2L2Nu"]
+  plot_template: "coffea4bees/plots/metadata/plotsDeClustered_validation.yml"
+  # nothing blessed for 2025 declustering: D4_cutflow writes D4/cutflow_declustered.yml for blessing
+  known_counts: null
+  # the SvB on the fly over all 16 seeds (~100M events)
+  svb_bootstrap_runner: {chunksize: 20000}
+  # the seed study's draw comparison reads every seed's picoAODs on the login node: 1 in 20 events
+  # (all 16 seeds x ~6.4M 2024 events were OOM-killed)
+  seed_study_subsample: 20
+
+# ------------------------------------------------------------------------------
+# D.6: signal check ('2025' = Summer24 SM ggHH, declustered with seed 0 on this library)
+# ------------------------------------------------------------------------------
+signal_check:
+  enabled: true
+  datasets: ["GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00"]
+  seed: 0
+  subsample: 10
+  declustered_data_subsample: 10
+  declustered_runner: {chunksize: 20000}
