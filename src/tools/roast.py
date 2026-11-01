@@ -1273,7 +1273,8 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
                   rm -f "$EXIT"
-                  rm -rf .snakemake/locks || true
+                  rm -rf .snakemake/locks/* 2>/dev/null || true
+                  mkdir -p .snakemake/locks
                   {unlock}
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
