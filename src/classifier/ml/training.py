@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
 import fsspec
@@ -22,10 +24,36 @@ from ..nn.schedule import Schedule
 from ..process.device import Device
 from ..task.special import interface
 from ..typetools import WithUUID, filename
+from ..utils import MemoryViewIO
 from . import BatchType, clear_cache
 
 if TYPE_CHECKING:
     from src.storage.eos import PathLike
+
+
+def _path_exists(p) -> bool:
+    if p is None:
+        return False
+    try:
+        if hasattr(p, "exists"):
+            return p.exists() if callable(p.exists) else bool(p.exists)
+        elif hasattr(p, "is_file"):
+            return p.is_file()
+    except Exception:
+        pass
+    return False
+
+
+def _path_rm(p) -> None:
+    if p is None:
+        return
+    try:
+        if hasattr(p, "unlink"):
+            p.unlink(missing_ok=True)
+        elif hasattr(p, "rm"):
+            p.rm()
+    except Exception:
+        pass
 
 
 @dataclass(kw_only=True)
@@ -132,16 +160,44 @@ class TrainingStage(BenchmarkStage):
         logging.info(f"Start {self.name}")
         start = datetime.now()
 
-        # Checkpoint path for intermediate state recovery
-        ckpt_path = None
-        if not cfg_IO.output.is_null:
+        # Checkpoint path for intermediate state recovery.
+        # Prefer local CLASSIFIER_CHECKPOINT_DIR if set, otherwise cfg_IO.output.
+        ckpt_dir = None
+        if "CLASSIFIER_CHECKPOINT_DIR" in os.environ and os.environ["CLASSIFIER_CHECKPOINT_DIR"]:
+            ckpt_dir = Path(os.environ["CLASSIFIER_CHECKPOINT_DIR"])
+            try:
+                ckpt_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
+        if ckpt_dir is not None:
+            ckpt_path = ckpt_dir / f"checkpoint_{trainer.name}_{self.name}.pt"
+        elif not cfg_IO.output.is_null:
             ckpt_path = cfg_IO.output / f"checkpoint_{trainer.name}_{self.name}.pt"
+        else:
+            ckpt_path = None
 
         start_epoch = 0
-        if ckpt_path is not None and ckpt_path.exists:
+        ckpt_to_load = None
+        candidates = []
+        if ckpt_path is not None:
+            candidates.append(ckpt_path)
+        if ckpt_dir is not None:
+            candidates.append(ckpt_dir / f"checkpoint_{trainer.name}_{self.name}.pt")
+        if not cfg_IO.output.is_null:
+            remote_ckpt = cfg_IO.output / f"checkpoint_{trainer.name}_{self.name}.pt"
+            if str(remote_ckpt) != str(ckpt_path):
+                candidates.append(remote_ckpt)
+
+        for cp in candidates:
+            if _path_exists(cp):
+                ckpt_to_load = cp
+                break
+
+        if ckpt_to_load is not None:
             try:
-                logging.info(f"Loading checkpoint from {ckpt_path} to resume training...")
-                with fsspec.open(ckpt_path, "rb") as f:
+                logging.info(f"Loading checkpoint from {ckpt_to_load} to resume training...")
+                with fsspec.open(ckpt_to_load, "rb") as f:
                     ckpt = torch.load(f, map_location=trainer.device, weights_only=False)
                 self.model.nn.load_state_dict(ckpt["model_state_dict"])
                 opt.load_state_dict(ckpt["opt_state_dict"])
@@ -154,8 +210,16 @@ class TrainingStage(BenchmarkStage):
                     benchmarks = ckpt["benchmarks"]
                 logging.info(f"Successfully resumed {self.name} from epoch {start_epoch}")
             except Exception as e:
-                logging.warning(f"Could not load checkpoint from {ckpt_path}: {e}. Starting fresh.")
+                logging.warning(f"Could not load checkpoint from {ckpt_to_load}: {e}. Starting fresh.")
                 start_epoch = 0
+
+        if start_epoch >= self.schedule.epoch:
+            logging.info(
+                f"Stage {self.name} already completed all {self.schedule.epoch} epochs. Skipping."
+            )
+            if benchmarks is not None:
+                history["training"] = benchmarks
+            return history
 
         for epoch in range(start_epoch, self.schedule.epoch):
             epoch = epoch + 1
@@ -210,19 +274,12 @@ class TrainingStage(BenchmarkStage):
                     if scaler.is_enabled():
                         ckpt_data["scaler_state_dict"] = scaler.state_dict()
                     with fsspec.open(ckpt_path, "wb") as f:
-                        torch.save(ckpt_data, f)
+                        torch.save(ckpt_data, MemoryViewIO(f))
                 except Exception as e:
                     logging.warning(f"Failed to save intermediate checkpoint: {e}")
 
             if self.schedule.should_stop(benchmark):
                 break
-
-        # Remove intermediate checkpoint upon successful stage completion
-        if ckpt_path is not None and ckpt_path.exists:
-            try:
-                ckpt_path.rm()
-            except Exception:
-                pass
 
         logging.info(
             f"{self.name}: run {epoch} epochs in {datetime.now() - start}"
@@ -302,7 +359,63 @@ class MultiStageTraining(WithUUID, ABC):
     @abstractmethod
     def stages(self) -> Iterable[Stage]: ...
 
+    def find_existing_model(self):
+        """Check if this model offset was already completely trained and saved."""
+        if os.environ.get("CLASSIFIER_FORCE_RETRAIN"):
+            return None
+        if cfg_IO.output.is_null:
+            return None
+        try:
+            if hasattr(cfg_IO.output, "ls"):
+                files = cfg_IO.output.ls()
+                for f in files:
+                    fname = getattr(f, "name", str(f)).rsplit("/", 1)[-1]
+                    if fname.startswith(f"{self.name}__") and fname.endswith(".pkl"):
+                        try:
+                            with fsspec.open(f, "rb") as fp:
+                                meta = torch.load(fp, map_location="cpu", weights_only=False)
+                                if "model" in meta and "uuid" in meta:
+                                    return f
+                        except Exception:
+                            continue
+        except Exception as e:
+            logging.debug(f"Could not check existing model for {self.name}: {e}")
+        return None
+
+    def cleanup_checkpoints(self):
+        """Remove intermediate stage checkpoints once the final model is safely saved."""
+        dirs_to_clean = []
+        if "CLASSIFIER_CHECKPOINT_DIR" in os.environ and os.environ["CLASSIFIER_CHECKPOINT_DIR"]:
+            dirs_to_clean.append(Path(os.environ["CLASSIFIER_CHECKPOINT_DIR"]))
+        if not cfg_IO.output.is_null:
+            dirs_to_clean.append(cfg_IO.output)
+
+        for d in dirs_to_clean:
+            for stage_name in ("Training", "Finetuning", "Baseline"):
+                cp = d / f"checkpoint_{self.name}_{stage_name}.pt"
+                _path_rm(cp)
+
     def train(self, device: Device, dataset: Dataset):
+        existing_model = self.find_existing_model()
+        if existing_model is not None:
+            logging.info(
+                f"Model {self.name} already completed and saved at {existing_model}. Skipping training."
+            )
+            self.cleanup_checkpoints()
+            return {
+                "uuid": str(self.uuid),
+                "name": self.name,
+                "metadata": self.metadata,
+                "history": [
+                    {
+                        "stage": "Output",
+                        "name": "Final",
+                        "path": str(existing_model),
+                        "relative": False,
+                    }
+                ],
+            }
+
         self.device = device.get(self.min_memory)
         self.dataset = dataset
         result = {
@@ -320,4 +433,5 @@ class MultiStageTraining(WithUUID, ABC):
             Usage.checkpoint("stage", stage.name, "start")
             history.append(stage.run(self))
             Usage.checkpoint("stage", stage.name, "finish")
+        self.cleanup_checkpoints()
         return result

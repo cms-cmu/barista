@@ -250,6 +250,7 @@ rule train:
         set -u && \
         HCR_YIELDS_FILE=$PWD/{params.yields} \
         CLASSIFIER_CONFIG_PATHS={params.classifier_config_paths} \
+        CLASSIFIER_CHECKPOINT_DIR=$PWD/$(dirname {output.flag}) \
         python -m src.classifier.task.main \
             template "{{{params.template_str}}}" {input.wf} \
             -from {input.common} \
