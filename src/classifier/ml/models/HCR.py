@@ -98,8 +98,9 @@ class GBNSchedule(MilestoneStep):
 
 @dataclass
 class HCRBenchmarks:
-    rocs: Iterable[ROC]
+    rocs: Iterable[ROC] = ()
     scalars: Iterable[Callable[[BatchType], dict[str, Tensor]]] = None
+    fit_quality: Iterable = ()
 
 
 def _HCRInput(batch: BatchType, device: tt.Device, selection: Tensor = None):
@@ -193,7 +194,8 @@ class HCRModel(Model):
         weight = 0.0
         scalars = defaultdict(float)
         scalar_funcs = self._benchmarks.scalars
-        rocs = [r.copy() for r in self._benchmarks.rocs]
+        rocs = [r.copy() for r in (self._benchmarks.rocs or [])]
+        fit_qualities = [f.copy() for f in (self._benchmarks.fit_quality or [])]
         for batch in batches:
             with _amp_autocast(self._device):
                 c, q = self._nn(*_HCRInput(batch, self._device))
@@ -215,9 +217,14 @@ class HCRModel(Model):
             weight += sumw
             for roc in rocs:
                 roc.update(batch)
+            for fq in fit_qualities:
+                fq.update(batch)
         for k in scalars:
             scalars[k] /= weight
-        return {"scalars": scalars, "roc": [r.to_json() for r in rocs]}
+        res = {"scalars": scalars, "roc": [r.to_json() for r in rocs]}
+        if fit_qualities:
+            res["fit_quality"] = [fq.to_json() for fq in fit_qualities]
+        return res
 
     def step(self, epoch: int = None):
         if self.ghost_batch is not None and self.ghost_batch.step(epoch):

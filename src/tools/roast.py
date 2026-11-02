@@ -816,6 +816,20 @@ def cmd_new(args) -> None:
         targets = parts[2] if len(parts) > 2 else ""
         name = Path(smk).stem.replace("Snakefile_", "")
         steps.append({"name": name, "host": host, "snakefile": smk, "targets": targets, "extra": ""})
+    if not steps and not (args.phases or args.step):
+        try:
+            import yaml
+            raw_cfg = _load_layered_config(config_src)[0] if re.search(r"^(inputs|base):", config_src.read_text(), re.M) else {}
+        except Exception:
+            raw_cfg = {}
+        if isinstance(raw_cfg, dict) and "upstream_pre_fvt" in raw_cfg:
+            for ph in ["BKG_C", "BKG_F"]:
+                host, smk = PHASES[ph]
+                if getattr(args, "bridges2", False) and host == "falcon":
+                    host = "bridges2"
+                elif getattr(args, "nautilus", False) and host == "falcon":
+                    host = "nautilus"
+                steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     if not steps:
         die("nothing to run: give --phases and/or --step")
     for s in steps:
