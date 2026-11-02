@@ -219,11 +219,7 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - NVIDIA-GeForce-RTX-4080
                 - NVIDIA-RTX-A4000
 """
-        # Training uses <= ~5 GB (HCR FvT/SvB, 3 folds on one card), so it may also take the
-        # 11-16 GB Turing/Volta cards that are often free when the >= 16 GB pool is full. Evaluate
-        # keeps the list above (large eval batches). Pascal is left out: no fast fp16.
-        if "evaluate" not in rule.lower():
-            affinity_block += "".join(f"                - {p}\n" for p in TRAIN_EXTRA_GPU_PRODUCTS)
+        affinity_block += "".join(f"                - {p}\n" for p in TRAIN_EXTRA_GPU_PRODUCTS)
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -235,6 +231,13 @@ spec:
   template:{template_labels_section}
     spec:
       restartPolicy: Never
+      tolerations:
+      - effect: PreferNoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
 {affinity_block}      containers:
       - name: worker
         image: {IMAGE}
