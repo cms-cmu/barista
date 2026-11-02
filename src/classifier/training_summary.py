@@ -110,6 +110,49 @@ def parse_yields_json(json_path: Path) -> dict:
     return data
 
 
+def parse_fit_quality_json(result_path: Path) -> dict:
+    """Parse fit quality benchmark (weights health, calibration, closure) from result.json."""
+    data = {
+        "neg_fraction": None,
+        "p99": None,
+        "max": None,
+        "ratio_pd4_pd3": None,
+        "ratio_pt4_pt3": None,
+        "chi2_ndf_pt4": None,
+        "chi2_ndf_pt1": None,
+        "composite_chi2_ndf": None,
+        "all_gates_passed": None,
+    }
+    if not result_path.exists():
+        return data
+
+    try:
+        y = json.loads(result_path.read_text(encoding="utf-8", errors="replace"))
+        models = y.get("models", [])
+        fqs = []
+        for m in models:
+            for s in m.get("history", []):
+                if "training" in s and s["training"]:
+                    last_epoch = s["training"][-1]
+                    val_fq = last_epoch.get("benchmarks", {}).get("validation", {}).get("fit_quality", [])
+                    if val_fq:
+                        fqs.append(val_fq[0])
+        if fqs:
+            data["neg_fraction"] = sum(fq["weights"]["neg_fraction"] for fq in fqs) / len(fqs)
+            data["p99"] = sum(fq["weights"]["p99"] for fq in fqs) / len(fqs)
+            data["max"] = max(fq["weights"]["max"] for fq in fqs)
+            data["ratio_pd4_pd3"] = sum(fq["calibration"]["ratio_pd4_pd3"] for fq in fqs) / len(fqs)
+            data["ratio_pt4_pt3"] = sum(fq["calibration"]["ratio_pt4_pt3"] for fq in fqs) / len(fqs)
+            data["chi2_ndf_pt4"] = sum(fq["closure"]["chi2_ndf_pt4"] for fq in fqs) / len(fqs)
+            data["chi2_ndf_pt1"] = sum(fq["closure"]["chi2_ndf_pt1"] for fq in fqs) / len(fqs)
+            data["composite_chi2_ndf"] = sum(fq["closure"]["composite_chi2_ndf"] for fq in fqs) / len(fqs)
+            data["all_gates_passed"] = all(fq["verdict"]["all_gates_passed"] for fq in fqs)
+    except Exception as e:
+        print(f"Warning: Failed to parse fit quality from {result_path}: {e}", file=sys.stderr)
+
+    return data
+
+
 def parse_analyze_log(log_path: Path) -> dict:
     """Parse convergence metrics and divergence Z from analyze.log."""
     data = {
@@ -234,6 +277,9 @@ def generate_html(models_data: list[dict], out_path: Path, title: str):
     auc_4b_stat = compute_stats(aucs_4b)
     auc_4b_data_stat = compute_stats(aucs_4b_data)
     auc_ttbar_stat = compute_stats(aucs_ttbar)
+
+    chi2_vals = [m["fit_quality"]["composite_chi2_ndf"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("composite_chi2_ndf") is not None]
+    chi2_stat = compute_stats(chi2_vals)
 
     # Compute ensemble pull for each model
     for m in models_data:
@@ -552,13 +598,19 @@ a.link-subtle:hover {{ text-decoration: underline; }}
       </div>
       <div class="sub">Max Ensemble Pull: {max_pull:.2f}σ (All models compatible)</div>
     </div>
+
+    <div class="metric-card">
+      <div class="title">Kinematic Closure ⟨χ²/ndf⟩</div>
+      <div class="val">{f_val(chi2_stat['mean'], fmt='.2f') if chi2_stat['mean'] is not None else '—'} <span style="font-size:14px; font-weight:400; color:var(--muted)">{f"± {f_val(chi2_stat['std'], fmt='.2f')}" if chi2_stat['std'] else ''}</span></div>
+      <div class="sub">{f"Min: {f_val(chi2_stat['min'], fmt='.2f')} · Max: {f_val(chi2_stat['max'], fmt='.2f')}" if chi2_stat['min'] is not None else "Target: → 1.00 (pt4 & pt1)"}</div>
+    </div>
   </div>
 
   <!-- Convergence & Loss Statistics Table -->
   <div class="table-container">
     <div class="table-header">
-      <span>Cross-Sample Convergence & Loss Statistics (16 Pseudo-Experiments)</span>
-      <span class="note">Validation loss and test AUC evaluate model consistency across statistical realizations</span>
+      <span>Cross-Sample Convergence, Fit Quality & Loss Statistics</span>
+      <span class="note">Validation loss, test AUC, and kinematic reweighting closure evaluate model quality</span>
     </div>
     <table class="report-table">
       <thead>
@@ -575,6 +627,9 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <th>AUC (4b vs 3b)</th>
           <th>AUC (4b vs 3b data)</th>
           <th>AUC (ttbar vs data)</th>
+          <th>χ²/ndf (pt4)</th>
+          <th>Score (χ²)</th>
+          <th>f(w &lt; 0)</th>
           <th>Quick Links</th>
         </tr>
       </thead>
@@ -609,6 +664,12 @@ a.link-subtle:hover {{ text-decoration: underline; }}
         auc_4b_d = f"{met['auc_4b_vs_3b_data']:.4f} ± {met['auc_4b_vs_3b_data_err']:.4f}" if met["auc_4b_vs_3b_data"] is not None and met["auc_4b_vs_3b_data_err"] is not None else f_val(met["auc_4b_vs_3b_data"], fmt=".4f")
         auc_tt = f"{met['auc_ttbar_vs_data']:.4f} ± {met['auc_ttbar_vs_data_err']:.4f}" if met["auc_ttbar_vs_data"] is not None and met["auc_ttbar_vs_data_err"] is not None else f_val(met["auc_ttbar_vs_data"], fmt=".4f")
 
+        fq = m.get("fit_quality") or {}
+        chi2_pt4_str = f_val(fq.get("chi2_ndf_pt4"), fmt=".2f")
+        score_str = f_val(fq.get("composite_chi2_ndf"), fmt=".2f")
+        neg_frac = fq.get("neg_fraction")
+        neg_str = f"{neg_frac * 100:.2f}%" if neg_frac is not None else "—"
+
         link_analyze = f"{rel_model}/plots/analyze/index.html"
         link_gallery = f"{rel_model}/plots/index.html"
         link_yields = f"{rel_model}/yields.html"
@@ -626,6 +687,9 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td>{auc_4b}</td>
           <td>{auc_4b_d}</td>
           <td>{auc_tt}</td>
+          <td>{chi2_pt4_str}</td>
+          <td><b>{score_str}</b></td>
+          <td>{neg_str}</td>
           <td>
             <a class="link-btn" href="{link_analyze}">Report</a>
             <a class="link-btn" href="{link_gallery}">Gallery</a>
@@ -640,6 +704,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     mean_auc_4b = f"{auc_4b_stat['mean']:.4f} ± {auc_4b_stat['std']:.4f}" if auc_4b_stat["mean"] is not None else "—"
     mean_auc_4b_d = f"{auc_4b_data_stat['mean']:.4f} ± {auc_4b_data_stat['std']:.4f}" if auc_4b_data_stat["mean"] is not None else "—"
     mean_auc_tt = f"{auc_ttbar_stat['mean']:.4f} ± {auc_ttbar_stat['std']:.4f}" if auc_ttbar_stat["mean"] is not None else "—"
+    mean_chi2_str = f"{chi2_stat['mean']:.2f} ± {chi2_stat['std']:.2f}" if chi2_stat["mean"] is not None else "—"
 
     lines.append(f"""        <tr class="summary-row">
           <td><b>Ensemble Mean ± Std</b></td>
@@ -654,6 +719,9 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td><b>{mean_auc_4b}</b></td>
           <td><b>{mean_auc_4b_d}</b></td>
           <td><b>{mean_auc_tt}</b></td>
+          <td>—</td>
+          <td><b>{mean_chi2_str}</b></td>
+          <td>—</td>
           <td>—</td>
         </tr>
       </tbody>
@@ -921,6 +989,7 @@ def main():
         yd = parse_yields_json(p / "yields.json")
         met_log = parse_analyze_log(p / "analyze.log")
         met_html = parse_analyze_html(p / "plots" / "analyze" / "index.html")
+        fq = parse_fit_quality_json(p / "result.json")
 
         # Merge metrics
         metrics = {}
@@ -935,6 +1004,7 @@ def main():
             "config": cfg,
             "yields": yd,
             "metrics": metrics,
+            "fit_quality": fq,
         })
 
     title = args.title or f"FvT Training Summary — {models_dir.parent.parent.name if models_dir.parent.name == 'bkg_syst_C_FvT' else models_dir.name}"

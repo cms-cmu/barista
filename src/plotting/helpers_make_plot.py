@@ -113,11 +113,27 @@ def plot_border_ttHbb_SR(h_min: float = 95.0, h_max: float = 180.0,
     ax.add_patch(rect_v)
 
     if draw_sb:
-        # Outer SB analysis box: [m_min, sb_max] x [m_min, sb_max]
-        rect_sb = mpatches.Rectangle((m_min, m_min), sb_max - m_min, sb_max - m_min,
-                                    linewidth=sb_linewidth, edgecolor=sb_color, facecolor='none',
-                                    linestyle=sb_linestyle)
-        ax.add_patch(rect_sb)
+        corner_veto = kwargs.get('corner_veto', False)
+        corner_m_lead = kwargs.get('corner_m_lead', 250.0)
+        corner_m_subl = kwargs.get('corner_m_subl', 250.0)
+        if corner_veto:
+            pts = [
+                [m_min, m_min],
+                [sb_max, m_min],
+                [sb_max, corner_m_subl],
+                [corner_m_lead, corner_m_subl],
+                [corner_m_lead, sb_max],
+                [m_min, sb_max],
+            ]
+            poly_sb = mpatches.Polygon(pts, closed=True, linewidth=sb_linewidth,
+                                       edgecolor=sb_color, facecolor='none', linestyle=sb_linestyle)
+            ax.add_patch(poly_sb)
+        else:
+            # Outer SB analysis box: [m_min, sb_max] x [m_min, sb_max]
+            rect_sb = mpatches.Rectangle((m_min, m_min), sb_max - m_min, sb_max - m_min,
+                                        linewidth=sb_linewidth, edgecolor=sb_color, facecolor='none',
+                                        linestyle=sb_linestyle)
+            ax.add_patch(rect_sb)
 
     if add_labels:
         ax.text(110, 110, "SR", color=sr_color, fontsize=16, weight='bold', ha='center', va='center')

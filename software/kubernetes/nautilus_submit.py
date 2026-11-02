@@ -42,14 +42,85 @@ DEFAULT_GPU_RULES = {
     "plot_inputs_raw",
     "plot_inputs_dataprep",
     "plot_weights",
+    "compute_svb_binning",
 }
 
 LOG_DIR = "k8s_logs"
-# GPU products train (not evaluate) jobs may also use; NAUTILUS_TRAIN_EXTRA_GPUS (comma list) overrides
+# Default extra GPU products used for training jobs on Nautilus
+DEFAULT_TRAIN_EXTRA_GPUS = [
+    "Tesla-V100-SXM2-16GB",
+    "Tesla-V100-PCIE-16GB",
+    "Tesla-T4",
+]
 TRAIN_EXTRA_GPU_PRODUCTS = [p for p in os.environ.get(
     "NAUTILUS_TRAIN_EXTRA_GPUS",
-    "NVIDIA-GeForce-RTX-2080-Ti,Tesla-V100-SXM2-16GB,Tesla-V100-PCIE-16GB,Tesla-T4",
+    ",".join(DEFAULT_TRAIN_EXTRA_GPUS),
 ).split(",") if p.strip()]
+
+DEFAULT_PREFERRED_GPUS = [
+    "NVIDIA-GeForce-RTX-3090",
+    "NVIDIA-GeForce-RTX-4090",
+    "NVIDIA-RTX-A5000",
+    "NVIDIA-RTX-A6000",
+    "NVIDIA-A40",
+    "NVIDIA-L40S",
+    "NVIDIA-L40",
+    "NVIDIA-RTX-6000-Ada-Generation",
+    "NVIDIA-RTX-5000-Ada-Generation",
+    "Quadro-RTX-8000",
+    "Quadro-RTX-6000",
+    "NVIDIA-TITAN-RTX",
+    "TITAN-RTX",
+    "Tesla-V100-SXM2-32GB",
+    "Tesla-V100-SXM2-16GB",
+    "Tesla-V100-PCIE-16GB",
+    "NVIDIA-A10",
+    "NVIDIA-L4",
+]
+
+DEFAULT_REQUIRED_GPUS = [
+    "NVIDIA-A40",
+    "NVIDIA-L40S",
+    "NVIDIA-L40",
+    "NVIDIA-RTX-6000-Ada-Generation",
+    "NVIDIA-RTX-5000-Ada-Generation",
+    "NVIDIA-RTX-A6000",
+    "Quadro-RTX-8000",
+    "Tesla-V100-SXM2-32GB",
+    "Tesla-V100-SXM2-16GB",
+    "Tesla-V100-PCIE-16GB",
+    "NVIDIA-A10",
+    "NVIDIA-L4",
+    "NVIDIA-GeForce-RTX-3090",
+    "NVIDIA-GeForce-RTX-4090",
+    "NVIDIA-RTX-A5000",
+    "Quadro-RTX-6000",
+    "NVIDIA-TITAN-RTX",
+    "TITAN-RTX",
+    "NVIDIA-GeForce-RTX-3080",
+    "NVIDIA-GeForce-RTX-3080-Ti",
+    "NVIDIA-GeForce-RTX-4080",
+    "NVIDIA-RTX-A4000",
+]
+
+
+def _parse_list(val):
+    if not val:
+        return []
+    if isinstance(val, (list, tuple)):
+        return [str(x).strip() for x in val if str(x).strip()]
+    if isinstance(val, str):
+        return [x.strip() for x in val.split(",") if x.strip()]
+    return [str(val).strip()]
+
+
+def _matches_any(product: str, patterns: list[str]) -> bool:
+    prod_lower = product.lower().replace("-", " ").replace("_", " ")
+    for pat in patterns:
+        pat_tokens = pat.lower().replace("-", " ").replace("_", " ").split()
+        if pat_tokens and all(tok in prod_lower for tok in pat_tokens):
+            return True
+    return False
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
 STORAGE_CLAIM = os.environ.get("NAUTILUS_STORAGE_CLAIM", "cms-cmu-storage")
 IMAGE = os.environ.get(
@@ -93,8 +164,10 @@ def should_submit(rule, resources, config):
     return rule in rules
 
 
-def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, labels=None, rule=""):
+def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, labels=None, rule="", config=None, resources=None):
     """Generate the Kubernetes Job manifest."""
+    config = config or {}
+    resources = resources or {}
     import base64
     b64_script = base64.b64encode(jobscript_content.encode("utf-8")).decode("utf-8")
 
@@ -113,8 +186,9 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
     if "evaluate" in rule.lower():
         req_cpu = 2
         lim_cpu = req_cpu
-        # the profile's evaluate mem_mb, at least 16 Gi (Run 3 HH4b FvT evaluation needs more than 16)
-        req_mem = f"{max(int(mem_gb), 16)}Gi"
+        # the profile's evaluate mem_mb, capped at 32 Gi for fast scheduling unless overridden
+        eval_gb = int(os.environ.get("NAUTILUS_EVAL_MEM_GB", 32))
+        req_mem = f"{min(max(int(mem_gb), 16), eval_gb)}Gi"
         lim_mem = req_mem
     else:
         req_cpu = max(int(cpus), 1)
@@ -134,7 +208,55 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
 
     affinity_block = ""
     if gpus > 0:
-        affinity_block = """      affinity:
+        whitelist = _parse_list(
+            config.get("gpu_whitelist")
+            or config.get("nautilus_gpu_whitelist")
+            or resources.get("gpu_whitelist")
+            or os.environ.get("NAUTILUS_GPU_WHITELIST")
+        )
+        blacklist = _parse_list(
+            config.get("gpu_blacklist")
+            or config.get("nautilus_gpu_blacklist")
+            or resources.get("gpu_blacklist")
+            or os.environ.get("NAUTILUS_GPU_BLACKLIST")
+        )
+
+        preferred_gpus = list(DEFAULT_PREFERRED_GPUS)
+        required_gpus = list(DEFAULT_REQUIRED_GPUS)
+        for p in TRAIN_EXTRA_GPU_PRODUCTS:
+            if p not in required_gpus:
+                required_gpus.append(p)
+
+        if whitelist:
+            preferred_gpus = [g for g in preferred_gpus if _matches_any(g, whitelist)]
+            for w in whitelist:
+                if not any(_matches_any(g, [w]) for g in required_gpus):
+                    required_gpus.append(w)
+            required_gpus = [g for g in required_gpus if _matches_any(g, whitelist)]
+
+        if blacklist:
+            preferred_gpus = [g for g in preferred_gpus if not _matches_any(g, blacklist)]
+            required_gpus = [g for g in required_gpus if not _matches_any(g, blacklist)]
+
+        preferred_lines = "".join(f"                - {g}\n" for g in preferred_gpus)
+        required_lines = "".join(f"                - {g}\n" for g in required_gpus)
+
+        blacklist_section = ""
+        if blacklist:
+            not_in_vals = set()
+            all_known = DEFAULT_PREFERRED_GPUS + DEFAULT_REQUIRED_GPUS + TRAIN_EXTRA_GPU_PRODUCTS
+            for g in all_known:
+                if _matches_any(g, blacklist):
+                    not_in_vals.add(g)
+            for b in blacklist:
+                not_in_vals.add(b)
+            not_in_lines = "".join(f"                - {v}\n" for v in sorted(not_in_vals))
+            blacklist_section = f"""              - key: nvidia.com/gpu.product
+                operator: NotIn
+                values:
+{not_in_lines}"""
+
+        affinity_block = f"""      affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
@@ -143,29 +265,14 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
-                - NVIDIA-GeForce-RTX-3090
-                - NVIDIA-GeForce-RTX-4090
-                - NVIDIA-RTX-A5000
-                - NVIDIA-RTX-A6000
-                - NVIDIA-A40
-                - NVIDIA-L40S
-                - NVIDIA-L40
-                - NVIDIA-RTX-6000-Ada-Generation
-                - NVIDIA-RTX-5000-Ada-Generation
-                - Quadro-RTX-8000
-                - Quadro-RTX-6000
-                - NVIDIA-TITAN-RTX
-                - TITAN-RTX
-                - Tesla-V100-SXM2-32GB
-                - NVIDIA-A10
-                - NVIDIA-L4
-          requiredDuringSchedulingIgnoredDuringExecution:
+{preferred_lines}          requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
               - key: kubernetes.io/hostname
                 operator: NotIn
                 values:
                 - gpn-fiona-mizzou-8.rnet.missouri.edu
+                - gpn-fiona-mizzou-7.rnet.missouri.edu
                 - nautilus-ext-gpu01.fullerton.edu
                 - nautilus-it-gpu05.fullerton.edu
                 - nautilus-it-gpu06.fullerton.edu
@@ -181,36 +288,21 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 - hcc-chase-shor-c4705.unl.edu
                 - hcc-chase-shor-c4715.unl.edu
                 - hcc-chase-shor-c4719.unl.edu
+                - hcc-nrp-shor-c5834.unl.edu
                 - nautilus-it-gpu06.fullerton.edu
-              - key: nvidia.com/gpu.product
+                - cph-dgx-node1.humboldt.edu
+                - cph-dgx-node2.humboldt.edu
+                - cph-dgx-node3.humboldt.edu
+                - cph-dgx-node4.humboldt.edu
+                - cph-dgx-node5.humboldt.edu
+                - cph-dgx-node6.humboldt.edu
+                - cph-dgx-node7.humboldt.edu
+                - cph-dgx-node8.humboldt.edu
+                - cph-dgx-node9.humboldt.edu
+{blacklist_section}              - key: nvidia.com/gpu.product
                 operator: In
                 values:
-                - NVIDIA-A40
-                - NVIDIA-L40S
-                - NVIDIA-L40
-                - NVIDIA-RTX-6000-Ada-Generation
-                - NVIDIA-RTX-5000-Ada-Generation
-                - NVIDIA-RTX-A6000
-                - Quadro-RTX-8000
-                - Tesla-V100-SXM2-32GB
-                - NVIDIA-A10
-                - NVIDIA-L4
-                - NVIDIA-GeForce-RTX-3090
-                - NVIDIA-GeForce-RTX-4090
-                - NVIDIA-RTX-A5000
-                - Quadro-RTX-6000
-                - NVIDIA-TITAN-RTX
-                - TITAN-RTX
-                - NVIDIA-GeForce-RTX-3080
-                - NVIDIA-GeForce-RTX-3080-Ti
-                - NVIDIA-GeForce-RTX-4080
-                - NVIDIA-RTX-A4000
-"""
-        # Training uses <= ~5 GB (HCR FvT/SvB, 3 folds on one card), so it may also take the
-        # 11-16 GB Turing/Volta cards that are often free when the >= 16 GB pool is full. Evaluate
-        # keeps the list above (large eval batches). Pascal is left out: no fast fp16.
-        if "evaluate" not in rule.lower():
-            affinity_block += "".join(f"                - {p}\n" for p in TRAIN_EXTRA_GPU_PRODUCTS)
+{required_lines}"""
 
     manifest = f"""apiVersion: batch/v1
 kind: Job
@@ -222,6 +314,13 @@ spec:
   template:{template_labels_section}
     spec:
       restartPolicy: Never
+      tolerations:
+      - effect: PreferNoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
 {affinity_block}      containers:
       - name: worker
         image: {IMAGE}
@@ -235,6 +334,14 @@ spec:
             export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
             export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
             chmod 600 {WORKDIR}/proxy/x509_proxy 2>/dev/null || true
+            if [ -d /cvmfs/cms.cern.ch/grid/etc/grid-security/certificates ]; then
+                export X509_CERT_DIR=/cvmfs/cms.cern.ch/grid/etc/grid-security/certificates
+            elif [ -d /cvmfs/grid.cern.ch/etc/grid-security/certificates ]; then
+                export X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            fi
+            if [ ! -d /etc/grid-security/certificates ] && [ -n "$X509_CERT_DIR" ]; then
+                ln -sf "$X509_CERT_DIR" /etc/grid-security/certificates 2>/dev/null || true
+            fi
             export CLASSIFIER_CONFIG_PATHS=coffea4bees
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
             cd {WORKDIR}
@@ -337,7 +444,8 @@ def main():
     labels["app"] = "roast-worker"
 
     manifest_yaml = build_k8s_job_yaml(
-        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels, rule=clean_rule
+        job_name, jobscript_content, gpus=gpus, cpus=cpus, mem_gb=mem_gb, labels=labels, rule=clean_rule,
+        config=config, resources=resources,
     )
     manifest_path = os.path.join(LOG_DIR, f"{job_name}.yaml")
 
