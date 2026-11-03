@@ -120,7 +120,8 @@ class _collect_loss_roc:
                         int64.add(k)
             _phases = pd.DataFrame(_phases)
             for k in int64:
-                _phases[k] = _phases[k].astype(pd.Int64Dtype())
+                if k in _phases.columns:
+                    _phases[k] = _phases[k].astype(pd.Int64Dtype())
             group = None
             for target_group in groups:
                 if target_group.phase.equals(_phases):

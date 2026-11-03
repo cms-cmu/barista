@@ -18,6 +18,14 @@ def parse_args():
     return p.parse_args()
 
 
+def _stats(arr):
+    if not arr:
+        return 0.0, 0.0
+    mean = sum(arr) / len(arr)
+    std = (sum((x - mean) ** 2 for x in arr) / len(arr)) ** 0.5 if len(arr) > 1 else 0.0
+    return mean, std
+
+
 def extract_benchmark(result_path: str) -> dict:
     with open(result_path) as f:
         data = json.load(f)
@@ -27,67 +35,101 @@ def extract_benchmark(result_path: str) -> dict:
         return {}
 
     summary = {
-        "models": [],
+        "n_models": len(models),
         "avg_val_loss": 0.0,
+        "val_loss_std": 0.0,
+        "avg_tr_loss": 0.0,
+        "tr_loss_std": 0.0,
+        "loss_gap": 0.0,
         "avg_auc_4b_3b": 0.0,
+        "val_auc_4b_3b_std": 0.0,
+        "avg_tr_auc_4b_3b": 0.0,
+        "tr_auc_4b_3b_std": 0.0,
         "avg_auc_ttbar": 0.0,
+        "val_auc_ttbar_std": 0.0,
+        "avg_tr_auc_ttbar": 0.0,
+        "tr_auc_ttbar_std": 0.0,
         "fit_quality": {},
     }
 
-    losses = []
-    aucs_4b = []
-    aucs_tt = []
+    val_losses = []
+    tr_losses = []
+    val_aucs_4b = []
+    tr_aucs_4b = []
+    val_aucs_tt = []
+    tr_aucs_tt = []
     fit_qualities = []
 
     for m in models:
-        m_info = {"name": m.get("name")}
         for stage in m.get("history", []):
-            if stage.get("name") in ["Training", "Finetuning"] and "training" in stage:
+            if stage.get("name") in ["Training", "Finetuning"] and "training" in stage and stage["training"]:
                 last_epoch = stage["training"][-1]
                 benchmarks = last_epoch.get("benchmarks", {})
+                
+                # Validation
                 val_sc = benchmarks.get("validation", {}).get("scalars", {})
                 val_rocs = benchmarks.get("validation", {}).get("roc", [])
                 val_fq = benchmarks.get("validation", {}).get("fit_quality", [])
 
                 if "loss" in val_sc:
-                    losses.append(val_sc["loss"])
+                    val_losses.append(val_sc["loss"])
                 for r in val_rocs:
                     if r.get("name") in ["4b vs 3b data", "4b vs 3b"]:
                         if r.get("AUC") is not None:
-                            aucs_4b.append(r["AUC"])
+                            val_aucs_4b.append(r["AUC"])
                     elif r.get("name") == "ttbar vs data":
                         if r.get("AUC") is not None:
-                            aucs_tt.append(r["AUC"])
+                            val_aucs_tt.append(r["AUC"])
                 if val_fq:
                     fit_qualities.append(val_fq[0])
 
-    if losses:
-        summary["avg_val_loss"] = sum(losses) / len(losses)
-    if aucs_4b:
-        summary["avg_auc_4b_3b"] = sum(aucs_4b) / len(aucs_4b)
-    if aucs_tt:
-        summary["avg_auc_ttbar"] = sum(aucs_tt) / len(aucs_tt)
+                # Training
+                tr_sc = benchmarks.get("training", {}).get("scalars", {})
+                tr_rocs = benchmarks.get("training", {}).get("roc", [])
+                if "loss" in tr_sc:
+                    tr_losses.append(tr_sc["loss"])
+                for r in tr_rocs:
+                    if r.get("name") in ["4b vs 3b data", "4b vs 3b"]:
+                        if r.get("AUC") is not None:
+                            tr_aucs_4b.append(r["AUC"])
+                    elif r.get("name") == "ttbar vs data":
+                        if r.get("AUC") is not None:
+                            tr_aucs_tt.append(r["AUC"])
+
+    summary["avg_val_loss"], summary["val_loss_std"] = _stats(val_losses)
+    summary["avg_tr_loss"], summary["tr_loss_std"] = _stats(tr_losses)
+    if val_losses and tr_losses:
+        summary["loss_gap"] = summary["avg_val_loss"] - summary["avg_tr_loss"]
+
+    summary["avg_auc_4b_3b"], summary["val_auc_4b_3b_std"] = _stats(val_aucs_4b)
+    summary["avg_tr_auc_4b_3b"], summary["tr_auc_4b_3b_std"] = _stats(tr_aucs_4b)
+
+    summary["avg_auc_ttbar"], summary["val_auc_ttbar_std"] = _stats(val_aucs_tt)
+    summary["avg_tr_auc_ttbar"], summary["tr_auc_ttbar_std"] = _stats(tr_aucs_tt)
 
     if fit_qualities:
         # Average fit qualities across folds
         avg_fq = {
             "weights": {
-                "neg_fraction": sum(fq["weights"]["neg_fraction"] for fq in fit_qualities) / len(fit_qualities),
-                "p99": sum(fq["weights"]["p99"] for fq in fit_qualities) / len(fit_qualities),
-                "max": max(fq["weights"]["max"] for fq in fit_qualities),
+                "neg_fraction": sum(fq.get("weights", {}).get("neg_fraction", 0.0) for fq in fit_qualities) / len(fit_qualities),
+                "p99": sum(fq.get("weights", {}).get("p99", 0.0) for fq in fit_qualities) / len(fit_qualities),
+                "max": max(fq.get("weights", {}).get("max", 0.0) for fq in fit_qualities),
             },
             "ttbar_mc_comparison": {},
             "data_calibration": {},
-            "closure": {
-                "chi2_ndf_pt4": sum(fq["closure"]["chi2_ndf_pt4"] for fq in fit_qualities) / len(fit_qualities),
-                "chi2_ndf_pt1": sum(fq["closure"]["chi2_ndf_pt1"] for fq in fit_qualities) / len(fit_qualities),
-                "composite_chi2_ndf": sum(fq["closure"]["composite_chi2_ndf"] for fq in fit_qualities) / len(fit_qualities),
-            },
+            "closure": {},
             "verdict": {
-                "all_gates_passed": all(fq["verdict"]["all_gates_passed"] for fq in fit_qualities),
-                "primary_score": sum(fq["verdict"]["primary_score"] for fq in fit_qualities) / len(fit_qualities),
+                "all_gates_passed": all(fq.get("verdict", {}).get("all_gates_passed", False) for fq in fit_qualities),
+                "primary_score": sum(fq.get("verdict", {}).get("primary_score", 0.0) for fq in fit_qualities) / len(fit_qualities) if any("primary_score" in fq.get("verdict", {}) for fq in fit_qualities) else 0.0,
             },
         }
+
+        # Closure metrics
+        for cl_key in ["chi2_ndf_pt4", "chi2_ndf_pt1", "chi2_ndf_fvt", "norm_closure_sb", "composite_chi2_ndf"]:
+            vals = [fq.get("closure", {}).get(cl_key) for fq in fit_qualities if fq.get("closure", {}).get(cl_key) is not None]
+            if vals:
+                avg_fq["closure"][cl_key] = sum(vals) / len(vals)
+
         if "ttbar_mc_comparison" in fit_qualities[0]:
             for k in fit_qualities[0]["ttbar_mc_comparison"]:
                 avg_fq["ttbar_mc_comparison"][k] = sum(fq["ttbar_mc_comparison"][k] for fq in fit_qualities) / len(fit_qualities)
@@ -149,12 +191,23 @@ def print_table(summary: dict, ref_summary: dict = None):
     print("\n[ TIER 2: PRIMARY OPTIMIZATION (CLOSURE) ]")
     row("  chi2/ndf: pt4 (4th jet pt)", closure.get("chi2_ndf_pt4", "-"), ref_closure.get("chi2_ndf_pt4", "-"))
     row("  chi2/ndf: pt1 (Lead jet pt)", closure.get("chi2_ndf_pt1", "-"), ref_closure.get("chi2_ndf_pt1", "-"))
+    if "chi2_ndf_fvt" in closure or "chi2_ndf_fvt" in ref_closure:
+        row("  chi2/ndf: FvT (Sideband)", closure.get("chi2_ndf_fvt", "-"), ref_closure.get("chi2_ndf_fvt", "-"))
+    if "norm_closure_sb" in closure or "norm_closure_sb" in ref_closure:
+        row("  Sideband Norm (3b*w/4b)", closure.get("norm_closure_sb", "-"), ref_closure.get("norm_closure_sb", "-"))
     row("  Composite chi2/ndf (Score)", closure.get("composite_chi2_ndf", "-"), ref_closure.get("composite_chi2_ndf", "-"))
 
-    print("\n[ TIER 3: DISCRIMINATION & LOSS ]")
+    print("\n[ TIER 3: DISCRIMINATION & LOSS (TRAIN vs VAL) ]")
     row("  Validation Loss", summary.get("avg_val_loss", 0.0), ref_summary.get("avg_val_loss") if ref_summary else None, ".4f")
-    row("  AUC (4b vs 3b data)", summary.get("avg_auc_4b_3b", 0.0), ref_summary.get("avg_auc_4b_3b") if ref_summary else None, ".4f")
-    row("  AUC (ttbar vs data)", summary.get("avg_auc_ttbar", 0.0), ref_summary.get("avg_auc_ttbar") if ref_summary else None, ".4f")
+    row("  Training Loss", summary.get("avg_tr_loss", 0.0), ref_summary.get("avg_tr_loss") if ref_summary else None, ".4f")
+    row("  Loss Gap (Val - Tr)", summary.get("loss_gap", 0.0), ref_summary.get("loss_gap") if ref_summary else None, "+.4f")
+    if summary.get("val_loss_std", 0.0) > 0 or (ref_summary and ref_summary.get("val_loss_std", 0.0) > 0):
+        row("  Val Loss Fold Spread (σ)", summary.get("val_loss_std", 0.0), ref_summary.get("val_loss_std") if ref_summary else None, ".4f")
+        row("  Tr Loss Fold Spread (σ)", summary.get("tr_loss_std", 0.0), ref_summary.get("tr_loss_std") if ref_summary else None, ".4f")
+    row("  Validation AUC (4b vs 3b)", summary.get("avg_auc_4b_3b", 0.0), ref_summary.get("avg_auc_4b_3b") if ref_summary else None, ".4f")
+    row("  Training AUC (4b vs 3b)", summary.get("avg_tr_auc_4b_3b", 0.0), ref_summary.get("avg_tr_auc_4b_3b") if ref_summary else None, ".4f")
+    row("  Validation AUC (ttbar vs data)", summary.get("avg_auc_ttbar", 0.0), ref_summary.get("avg_auc_ttbar") if ref_summary else None, ".4f")
+    row("  Training AUC (ttbar vs data)", summary.get("avg_tr_auc_ttbar", 0.0), ref_summary.get("avg_tr_auc_ttbar") if ref_summary else None, ".4f")
 
     if ttbar_mc:
         print("\n[ TTBAR MC PRESERVATION & CALIBRATION ]")
