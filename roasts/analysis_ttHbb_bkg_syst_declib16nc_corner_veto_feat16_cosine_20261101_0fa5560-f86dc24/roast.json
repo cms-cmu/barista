@@ -367,8 +367,25 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-03 06:11:15",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-03 06:11:26",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_bkg_syst_declib16nc_corner_veto_feat16_cosine_20261101_0fa5560-f86dc24",
+    "ts": "2026-11-03 06:11:26",
+    "ok": true
+  }
 }
