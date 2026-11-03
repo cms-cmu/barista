@@ -221,6 +221,27 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
             or os.environ.get("NAUTILUS_GPU_BLACKLIST")
         )
 
+        # Fallback: inspect running snakemake process commandline if not set via job properties or env
+        if not whitelist or not blacklist:
+            try:
+                for proc_pid in os.listdir("/proc"):
+                    if not proc_pid.isdigit():
+                        continue
+                    try:
+                        with open(f"/proc/{proc_pid}/cmdline", "rb") as f:
+                            raw = f.read()
+                        if b"snakemake" in raw:
+                            tokens = raw.decode("utf-8", errors="ignore").split("\0")
+                            for tok in tokens:
+                                if not blacklist and (tok.startswith("gpu_blacklist=") or tok.startswith("nautilus_gpu_blacklist=")):
+                                    blacklist = _parse_list(tok.split("=", 1)[1])
+                                if not whitelist and (tok.startswith("gpu_whitelist=") or tok.startswith("nautilus_gpu_whitelist=")):
+                                    whitelist = _parse_list(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         preferred_gpus = list(DEFAULT_PREFERRED_GPUS)
         required_gpus = list(DEFAULT_REQUIRED_GPUS)
         for p in TRAIN_EXTRA_GPU_PRODUCTS:

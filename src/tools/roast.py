@@ -1308,7 +1308,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     if step.get("extra"):
         base += f" {step['extra']}"
     if args.extra:
-        base += f" {args.extra}"
+        extra_str = args.extra.strip()
+        if "--config " in base and extra_str.startswith("--config "):
+            extra_str = extra_str[len("--config "):]
+        base += f" {extra_str}"
     if resume:
         base += " --rerun-incomplete"
 
@@ -1338,6 +1341,15 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
             spec:
               restartPolicy: Never
               serviceAccountName: roast-runner
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                        - tu.gp-engine.greatplains.net
               containers:
               - name: orchestrator
                 image: docker.io/snakemake/snakemake:v9.27.0
