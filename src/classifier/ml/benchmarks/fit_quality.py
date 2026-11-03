@@ -15,6 +15,7 @@ class FvTFitQuality:
         self.name = name
         self.bins_pt4 = np.linspace(20, 150, 27)  # 5 GeV bins
         self.bins_pt1 = np.linspace(40, 300, 27)  # 10 GeV bins
+        self.bins_fvt = np.linspace(0, 5, 26)     # 0.2 width bins
         self.reset()
 
     def reset(self):
@@ -39,9 +40,13 @@ class FvTFitQuality:
         self.hist_model_pt4 = np.zeros(len(self.bins_pt4) - 1, dtype=np.float64)
         self.hist_target_pt1 = np.zeros(len(self.bins_pt1) - 1, dtype=np.float64)
         self.hist_model_pt1 = np.zeros(len(self.bins_pt1) - 1, dtype=np.float64)
+        self.hist_target_fvt = np.zeros(len(self.bins_fvt) - 1, dtype=np.float64)
+        self.hist_model_fvt = np.zeros(len(self.bins_fvt) - 1, dtype=np.float64)
 
         self.total_target_sb = 0
         self.total_model_sb = 0
+        self.sum_w_target_sb = 0.0
+        self.sum_w_model_sb = 0.0
 
     def copy(self) -> FvTFitQuality:
         return copy.deepcopy(self)
@@ -105,7 +110,7 @@ class FvTFitQuality:
                 if len(self._sampled_weights) < 50000:
                     self._sampled_weights.extend(w_d3[: min(1000, len(w_d3))])
 
-        # Kinematic closure (Target d4 vs Model d3 with w_fvt)
+        # Kinematic and FvT variable closure (Target d4 vs Model d3 with w_fvt)
         # In the training dataset, all d4 events are Sideband events (SR is blinded).
         if Input.CanJet in batch and d4_idx is not None and d3_idx is not None:
             can_jets = batch[Input.CanJet].detach().cpu().numpy()
@@ -116,24 +121,36 @@ class FvTFitQuality:
             is_model = (labels == d3_idx).numpy()
 
             if np.any(is_target):
-                pt4_t = can_jets[is_target, 0, 3]
-                pt1_t = can_jets[is_target, 0, 0]
+                pt4_t = can_jets[is_target, 3, 0]  # Jet index 3 (4th jet), feature 0 (pt)
+                pt1_t = can_jets[is_target, 0, 0]  # Jet index 0 (lead jet), feature 0 (pt)
                 w_t = weights[is_target].numpy()
                 h_t4, _ = np.histogram(pt4_t, bins=self.bins_pt4, weights=w_t)
                 h_t1, _ = np.histogram(pt1_t, bins=self.bins_pt1, weights=w_t)
                 self.hist_target_pt4 += h_t4
                 self.hist_target_pt1 += h_t1
                 self.total_target_sb += len(pt4_t)
+                self.sum_w_target_sb += float(np.sum(w_t))
+
+                # FvT variable evaluated on target 4b events
+                w_fvt_t = w_fvt[is_target].numpy()
+                h_tfvt, _ = np.histogram(w_fvt_t, bins=self.bins_fvt, weights=w_t)
+                self.hist_target_fvt += h_tfvt
 
             if np.any(is_model):
-                pt4_m = can_jets[is_model, 0, 3]
-                pt1_m = can_jets[is_model, 0, 0]
-                w_m = weights[is_model].numpy() * np.maximum(w_fvt[is_model].numpy(), 0.0)
+                pt4_m = can_jets[is_model, 3, 0]  # Jet index 3 (4th jet), feature 0 (pt)
+                pt1_m = can_jets[is_model, 0, 0]  # Jet index 0 (lead jet), feature 0 (pt)
+                w_fvt_m = w_fvt[is_model].numpy()
+                w_m = weights[is_model].numpy() * np.maximum(w_fvt_m, 0.0)
                 h_m4, _ = np.histogram(pt4_m, bins=self.bins_pt4, weights=w_m)
                 h_m1, _ = np.histogram(pt1_m, bins=self.bins_pt1, weights=w_m)
                 self.hist_model_pt4 += h_m4
                 self.hist_model_pt1 += h_m1
                 self.total_model_sb += len(pt4_m)
+                self.sum_w_model_sb += float(np.sum(w_m))
+
+                # FvT variable evaluated on 3b events, reweighted by w_fvt
+                h_mfvt, _ = np.histogram(w_fvt_m, bins=self.bins_fvt, weights=w_m)
+                self.hist_model_fvt += h_mfvt
 
     def to_json(self) -> dict:
         w_arr = np.array(self._sampled_weights) if self._sampled_weights else np.array([1.0])
@@ -172,7 +189,9 @@ class FvTFitQuality:
 
         chi2_pt4 = _compute_chi2_ndf(self.hist_target_pt4, self.hist_model_pt4)
         chi2_pt1 = _compute_chi2_ndf(self.hist_target_pt1, self.hist_model_pt1)
-        composite_chi2 = (chi2_pt4 + chi2_pt1) / 2.0
+        chi2_fvt = _compute_chi2_ndf(self.hist_target_fvt, self.hist_model_fvt)
+        composite_chi2 = (chi2_pt4 + chi2_pt1 + chi2_fvt) / 3.0
+        norm_closure_sb = (self.sum_w_model_sb / self.sum_w_target_sb) if self.sum_w_target_sb > 0 else 1.0
 
         # Hard Gates
         gate_neg = bool(neg_frac < 0.005)
@@ -206,6 +225,8 @@ class FvTFitQuality:
             "closure": {
                 "chi2_ndf_pt4": round(chi2_pt4, 3),
                 "chi2_ndf_pt1": round(chi2_pt1, 3),
+                "chi2_ndf_fvt": round(chi2_fvt, 3),
+                "norm_closure_sb": round(norm_closure_sb, 4),
                 "composite_chi2_ndf": round(composite_chi2, 3),
             },
             "verdict": {

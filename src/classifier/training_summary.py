@@ -120,6 +120,8 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "ratio_pt4_pt3": None,
         "chi2_ndf_pt4": None,
         "chi2_ndf_pt1": None,
+        "chi2_ndf_fvt": None,
+        "norm_closure_sb": None,
         "composite_chi2_ndf": None,
         "all_gates_passed": None,
     }
@@ -138,15 +140,34 @@ def parse_fit_quality_json(result_path: Path) -> dict:
                     if val_fq:
                         fqs.append(val_fq[0])
         if fqs:
-            data["neg_fraction"] = sum(fq["weights"]["neg_fraction"] for fq in fqs) / len(fqs)
-            data["p99"] = sum(fq["weights"]["p99"] for fq in fqs) / len(fqs)
-            data["max"] = max(fq["weights"]["max"] for fq in fqs)
-            data["ratio_pd4_pd3"] = sum(fq["calibration"]["ratio_pd4_pd3"] for fq in fqs) / len(fqs)
-            data["ratio_pt4_pt3"] = sum(fq["calibration"]["ratio_pt4_pt3"] for fq in fqs) / len(fqs)
-            data["chi2_ndf_pt4"] = sum(fq["closure"]["chi2_ndf_pt4"] for fq in fqs) / len(fqs)
-            data["chi2_ndf_pt1"] = sum(fq["closure"]["chi2_ndf_pt1"] for fq in fqs) / len(fqs)
-            data["composite_chi2_ndf"] = sum(fq["closure"]["composite_chi2_ndf"] for fq in fqs) / len(fqs)
-            data["all_gates_passed"] = all(fq["verdict"]["all_gates_passed"] for fq in fqs)
+            data["neg_fraction"] = sum(fq.get("weights", {}).get("neg_fraction", 0.0) for fq in fqs) / len(fqs)
+            data["p99"] = sum(fq.get("weights", {}).get("p99", 0.0) for fq in fqs) / len(fqs)
+            data["max"] = max(fq.get("weights", {}).get("max", 0.0) for fq in fqs)
+            
+            # Calibration & Transfer (support both new and legacy keys)
+            pd4_vals = [fq.get("data_calibration", {}).get("calib_d4_prob_to_data") or fq.get("calibration", {}).get("ratio_pd4_pd3") for fq in fqs if (fq.get("data_calibration", {}).get("calib_d4_prob_to_data") or fq.get("calibration", {}).get("ratio_pd4_pd3")) is not None]
+            data["ratio_pd4_pd3"] = (sum(pd4_vals) / len(pd4_vals)) if pd4_vals else None
+
+            pt4_vals = [fq.get("ttbar_mc_comparison", {}).get("pred_ratio_t4_t3") or fq.get("calibration", {}).get("ratio_pt4_pt3") for fq in fqs if (fq.get("ttbar_mc_comparison", {}).get("pred_ratio_t4_t3") or fq.get("calibration", {}).get("ratio_pt4_pt3")) is not None]
+            data["ratio_pt4_pt3"] = (sum(pt4_vals) / len(pt4_vals)) if pt4_vals else None
+
+            # Closure
+            chi2_pt4_vals = [fq.get("closure", {}).get("chi2_ndf_pt4") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_pt4") is not None]
+            data["chi2_ndf_pt4"] = (sum(chi2_pt4_vals) / len(chi2_pt4_vals)) if chi2_pt4_vals else None
+
+            chi2_pt1_vals = [fq.get("closure", {}).get("chi2_ndf_pt1") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_pt1") is not None]
+            data["chi2_ndf_pt1"] = (sum(chi2_pt1_vals) / len(chi2_pt1_vals)) if chi2_pt1_vals else None
+
+            chi2_fvt_vals = [fq.get("closure", {}).get("chi2_ndf_fvt") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_fvt") is not None]
+            data["chi2_ndf_fvt"] = (sum(chi2_fvt_vals) / len(chi2_fvt_vals)) if chi2_fvt_vals else None
+
+            norm_sb_vals = [fq.get("closure", {}).get("norm_closure_sb") for fq in fqs if fq.get("closure", {}).get("norm_closure_sb") is not None]
+            data["norm_closure_sb"] = (sum(norm_sb_vals) / len(norm_sb_vals)) if norm_sb_vals else None
+
+            comp_vals = [fq.get("closure", {}).get("composite_chi2_ndf") for fq in fqs if fq.get("closure", {}).get("composite_chi2_ndf") is not None]
+            data["composite_chi2_ndf"] = (sum(comp_vals) / len(comp_vals)) if comp_vals else None
+
+            data["all_gates_passed"] = all(fq.get("verdict", {}).get("all_gates_passed", False) for fq in fqs)
     except Exception as e:
         print(f"Warning: Failed to parse fit quality from {result_path}: {e}", file=sys.stderr)
 
