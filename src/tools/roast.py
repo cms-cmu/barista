@@ -3464,6 +3464,11 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     if pages is None:
         pages = r.get("publish", {}).get("pages", [])
 
+    featured_cards = []
+    models_dict = {}
+    stage_f_items = []
+    stage_b_items = []
+    stage_a_items = []
     galleries = []
     cutflows = []
     others = []
@@ -3471,16 +3476,106 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     for p in pages:
         p_esc = html.escape(p)
         parts = p.split("/")
+        filename = parts[-1]
+        lower_p = p.lower()
+
+        # Check for 16 models in Stage C: .../models/mix_(\d+)/...
+        m_mix = re.search(r"/models/mix_(\d+)/", p)
+        if m_mix:
+            idx = int(m_mix.group(1))
+            if idx not in models_dict:
+                models_dict[idx] = {}
+            if filename == "yields.html":
+                models_dict[idx]["yields"] = p
+            elif "plots/analyze/HCR" in p:
+                if "hcr" not in models_dict[idx]:
+                    models_dict[idx]["hcr"] = p
+            elif "plots/analyze" in p:
+                models_dict[idx]["analyze"] = p
+            elif "plots/index.html" in p or "plots/gallery.html" in p or p.endswith("/plots/"):
+                models_dict[idx]["plots"] = p
+            continue
+
+        # Check for featured key dashboards
+        is_featured = False
+        if filename == "training_summary.html" and "bkg_syst_C_FvT" in p:
+            featured_cards.append({
+                "tag": "Stage C",
+                "title": "FvT Training Summary (16 Models)",
+                "desc": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics",
+                "url": p_esc,
+            })
+            is_featured = True
+        elif filename == "closure_summary.html":
+            featured_cards.append({
+                "tag": "Stage F.2",
+                "title": "Two-Stage Closure Summary",
+                "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+                "url": p_esc,
+            })
+            is_featured = True
+        elif filename == "summary.html" and ("bkg_syst_F_3_stats" in p or "bkg_syst_F_4_stats_mixeddata" in p):
+            if "unblinded_mixeddata" in p:
+                featured_cards.append({
+                    "tag": "Stage F.4",
+                    "title": "MixedData Unblinded Stats Summary",
+                    "desc": "Statistical inference & limits on unblinded mixed data",
+                    "url": p_esc,
+                })
+                is_featured = True
+            elif "bkg_syst_F_3_stats" in p and "rebin" not in p:
+                featured_cards.append({
+                    "tag": "Stage F.3",
+                    "title": "Standard Stats Summary (Master)",
+                    "desc": "Master multi-rebin statistical inference on standard dataset",
+                    "url": p_esc,
+                })
+                is_featured = True
+
+        if is_featured:
+            continue
+
+        # Check Stage F
+        if "bkg_syst_f" in lower_p or ("closure_summary" in lower_p) or ("summary_svb" in lower_p):
+            title = filename.removesuffix(".html")
+            if "closure_summary_sb" in lower_p:
+                title = "Closure Summary (SB)"
+            elif "closure_summary_sr" in lower_p:
+                title = "Closure Summary (SR)"
+            elif "summary_svb_ma_sb" in lower_p:
+                title = "SvB_MA Summary (SB)"
+            elif "summary_svb_ma_sr" in lower_p:
+                title = "SvB_MA Summary (SR)"
+            elif "summary_svb_sb" in lower_p:
+                title = "SvB Summary (SB)"
+            elif "summary_svb_sr" in lower_p:
+                title = "SvB Summary (SR)"
+            stage_f_items.append((title, p_esc, p))
+            continue
+
+        # Check Stage B
+        if "bkg_syst_b" in lower_p or "computejcm" in lower_p or "test_v0_closure" in lower_p:
+            title = "JCM Closure Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
+            stage_b_items.append((title, p_esc, p))
+            continue
+
+        # Check Stage A
+        if "bkg_syst_a" in lower_p or "process_subsamples" in lower_p:
+            title = "Subsamples Validation Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
+            stage_a_items.append((title, p_esc, p))
+            continue
+
+        # Default categorization
         if p.endswith("index.html"):
             wf = parts[2] if len(parts) > 3 else parts[-2] if len(parts) > 1 else "root"
             sub = parts[-2] if len(parts) > 2 and parts[-2] != wf else ""
             title = f"{wf} ({sub}) gallery" if sub else f"{wf} gallery"
             galleries.append((title, p_esc, p))
-        elif "cutflow" in p.lower():
-            name = parts[-1].removesuffix(".html")
+        elif "cutflow" in lower_p:
+            name = filename.removesuffix(".html")
             cutflows.append((name, p_esc, p))
         else:
-            name = parts[-1].removesuffix(".html")
+            name = filename.removesuffix(".html")
             others.append((name, p_esc, p))
 
     def make_page_items(items):
@@ -3491,12 +3586,124 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             html_items.append(f"""
             <div class="page-item" data-search="{html.escape(p_raw.lower())}">
                 <a href="{p_esc}" class="page-link" target="_blank">
-                    <span class="page-icon">↗</span>
                     <span class="page-title">{html.escape(title)}</span>
+                    <span class="page-icon">↗</span>
                 </a>
                 <span class="page-path">{p_esc}</span>
             </div>""")
         return "\n".join(html_items)
+
+    featured_html = ""
+    if featured_cards:
+        cards_html = []
+        for fc in featured_cards:
+            cards_html.append(f"""
+            <a href="{fc['url']}" class="featured-box" target="_blank">
+                <div>
+                    <div class="featured-tag">{html.escape(fc['tag'])}</div>
+                    <div class="featured-title">{html.escape(fc['title'])}</div>
+                    <div class="featured-desc">{html.escape(fc['desc'])}</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>""")
+        featured_html = f"""
+        <div class="card">
+            <div class="card-header">
+                <h2>🌟 Primary Analysis Results & Master Dashboards</h2>
+                <span class="chip chip-neutral">Key Syntheses</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    {"".join(cards_html)}
+                </div>
+            </div>
+        </div>"""
+
+    models_html = ""
+    if models_dict:
+        m_rows = []
+        for idx in sorted(models_dict.keys()):
+            m = models_dict[idx]
+            y_link = f'<a href="{html.escape(m["yields"])}" class="pill-link" target="_blank">Yields ↗</a>' if "yields" in m else '<span class="pill-disabled">—</span>'
+            p_link = f'<a href="{html.escape(m["plots"])}" class="pill-link" target="_blank">Plots ↗</a>' if "plots" in m else '<span class="pill-disabled">—</span>'
+            a_link = f'<a href="{html.escape(m["analyze"])}" class="pill-link" target="_blank">Loss & ROC ↗</a>' if "analyze" in m else '<span class="pill-disabled">—</span>'
+            h_link = f'<a href="{html.escape(m["hcr"])}" class="pill-link" target="_blank">HCR Group ↗</a>' if "hcr" in m else '<span class="pill-disabled">—</span>'
+            m_rows.append(f"""
+            <tr>
+                <td><strong><code>mix_{idx}</code></strong></td>
+                <td>{y_link}</td>
+                <td>{p_link}</td>
+                <td>{a_link}</td>
+                <td>{h_link}</td>
+            </tr>""")
+        models_html = f"""
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>🤖 Stage C — FvT Subsample Models ({len(models_dict)} Models)</h2>
+                <span class="chip chip-neutral">{len(models_dict)} Models Matrix</span>
+            </summary>
+            <div class="card-body" style="padding: 0; overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Subsample</th>
+                            <th>Yields Report</th>
+                            <th>Training Plots</th>
+                            <th>Loss & ROC Analysis</th>
+                            <th>Group Breakdown</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {"".join(m_rows)}
+                    </tbody>
+                </table>
+            </div>
+        </details>"""
+
+    stage_f_html = ""
+    if stage_f_items:
+        stage_f_html = f"""
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>📊 Stage F — Statistical Inference & Closure</h2>
+                <span class="chip chip-accent">{len(stage_f_items)} items</span>
+            </div>
+            <div class="card-body">
+                <div class="page-list">
+                    {make_page_items(stage_f_items)}
+                </div>
+            </div>
+        </div>"""
+
+    stage_b_html = ""
+    if stage_b_items:
+        stage_b_html = f"""
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📈 Stage B — JCM Computation & Validation</h2>
+                <span class="chip chip-neutral">{len(stage_b_items)} items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    {make_page_items(stage_b_items)}
+                </div>
+            </div>
+        </details>"""
+
+    stage_a_html = ""
+    if stage_a_items:
+        stage_a_html = f"""
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📁 Stage A — Subsamples & PicoAOD Validation</h2>
+                <span class="chip chip-neutral">{len(stage_a_items)} items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    {make_page_items(stage_a_items)}
+                </div>
+            </div>
+        </details>"""
 
     galleries_html = make_page_items(galleries)
     cutflows_html = make_page_items(cutflows)
@@ -3516,7 +3723,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     if r.get("notes"):
         notes_esc = html.escape(str(r["notes"]))
         notes_html = f"""
-        <div class="card">
+        <div class="card" style="margin-top: 1rem;">
             <div class="card-header">
                 <h2>Notes</h2>
             </div>
@@ -3533,149 +3740,183 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     <title>Roast {rid} — Summary</title>
     <style>
         :root {{
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #38bdf8;
-            --accent-hover: #7dd3fc;
-            --border: #334155;
-            --success: #22c55e;
-            --success-bg: rgba(34, 197, 94, 0.15);
-            --danger: #ef4444;
-            --danger-bg: rgba(239, 68, 68, 0.15);
-            --warning: #f59e0b;
-            --warning-bg: rgba(245, 158, 11, 0.15);
-            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --bg: #f8fafc;
+            --fg: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --line: #e2e8f0;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --pass-bg: #dcfce7;
+            --pass-fg: #15803d;
+            --pass-border: #bbf7d0;
+            --danger-bg: #fee2e2;
+            --danger-fg: #b91c1c;
+            --danger-border: #fecaca;
+            --warn-bg: #fef3c7;
+            --warn-fg: #b45309;
+            --warn-border: #fde68a;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }}
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
             background: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--fg);
+            font-family: var(--sans);
             font-size: 14px;
             line-height: 1.5;
-            padding: 2rem 1.5rem;
+            padding: 24px 32px 64px;
         }}
-        .container {{ max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }}
+        .container {{ max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }}
         header {{
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px 24px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             flex-wrap: wrap;
-            gap: 1rem;
-            padding-bottom: 1.25rem;
-            border-bottom: 1px solid var(--border);
+            gap: 12px;
         }}
         .header-main h1 {{
-            font-size: 1.75rem;
+            font-size: 1.4rem;
             font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            font-family: var(--font-mono);
+            gap: 10px;
+            font-family: var(--mono);
         }}
-        .header-sub {{ color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; }}
-        .header-actions {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
+        .header-sub {{ color: var(--muted); margin-top: 4px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; }}
+        .header-actions {{ display: flex; gap: 8px; flex-wrap: wrap; }}
         .btn {{
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.45rem 0.85rem;
+            gap: 6px;
+            padding: 6px 12px;
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 13px;
             font-weight: 500;
             text-decoration: none;
-            color: var(--text);
-            background: var(--card-bg);
-            border: 1px solid var(--border);
+            color: var(--fg);
+            background: var(--card);
+            border: 1px solid var(--line);
             transition: all 0.15s ease;
         }}
         .btn:hover {{
-            background: #273549;
+            background: var(--accent-soft);
             border-color: var(--accent);
             color: var(--accent);
         }}
         .card {{
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+            background: var(--card);
+            border: 1px solid var(--line);
             border-radius: 8px;
             overflow: hidden;
         }}
         .card-header {{
-            padding: 0.85rem 1.25rem;
-            border-bottom: 1px solid var(--border);
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--line);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255, 255, 255, 0.02);
+            background: #fafbfc;
         }}
-        .card-header h2 {{ font-size: 1.05rem; font-weight: 600; }}
-        .card-body {{ padding: 1.25rem; }}
-        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }}
+        .card-header h2 {{ font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }}
+        .card-body {{ padding: 18px; }}
+        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }}
+        .grid-featured {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }}
+        .featured-box {{
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+            background: #ffffff;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.15s ease;
+        }}
+        .featured-box:hover {{
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+            transform: translateY(-2px);
+        }}
+        .featured-tag {{ font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }}
+        .featured-title {{ font-size: 14.5px; font-weight: 600; color: var(--fg); margin-bottom: 6px; }}
+        .featured-desc {{ font-size: 12.5px; color: var(--muted); margin-bottom: 12px; flex-grow: 1; }}
+        .featured-action {{ font-size: 12px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; }}
+        .chip {{ display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }}
+        .chip-pass {{ background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }}
+        .chip-neutral {{ background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); }}
+        .chip-accent {{ background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; }}
+        .pill-link {{ display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; text-decoration: none; color: var(--accent); background: var(--accent-soft); border: 1px solid #bfdbfe; }}
+        .pill-link:hover {{ background: var(--accent); color: #fff; }}
+        .pill-disabled {{ color: #cbd5e1; font-size: 12px; }}
         .meta-table {{ width: 100%; border-collapse: collapse; }}
-        .meta-table td {{ padding: 0.45rem 0.6rem; vertical-align: top; }}
-        .meta-label {{ color: var(--text-muted); width: 120px; font-weight: 500; }}
+        .meta-table td {{ padding: 6px 8px; vertical-align: top; }}
+        .meta-label {{ color: var(--muted); width: 120px; font-weight: 500; }}
         .badge {{
             display: inline-block;
-            padding: 0.15rem 0.55rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.03em;
         }}
-        .badge-success {{ background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }}
-        .badge-danger {{ background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }}
-        .badge-warning {{ background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }}
-        .badge-host {{ background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); font-family: var(--font-mono); text-transform: none; }}
-        .badge-analysis {{ background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); text-transform: none; font-family: var(--font-mono); }}
-        .badge-secondary {{ background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); text-transform: none; }}
-        code {{ font-family: var(--font-mono); font-size: 0.85em; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 4px; }}
-        a.code-link {{ font-family: var(--font-mono); color: var(--accent); text-decoration: none; }}
+        .badge-success {{ background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }}
+        .badge-danger {{ background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border); }}
+        .badge-warning {{ background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }}
+        .badge-host {{ background: #f1f5f9; color: var(--fg); border: 1px solid var(--line); font-family: var(--mono); text-transform: none; }}
+        .badge-analysis {{ background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; text-transform: none; font-family: var(--mono); }}
+        .badge-secondary {{ background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); text-transform: none; }}
+        code {{ font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }}
+        a.code-link {{ font-family: var(--mono); color: var(--accent); text-decoration: none; font-weight: 600; }}
         a.code-link:hover {{ text-decoration: underline; }}
         a.file-link {{ color: var(--accent); text-decoration: none; }}
         a.file-link:hover {{ text-decoration: underline; }}
-        table.data-table {{ width: 100%; border-collapse: collapse; text-align: left; }}
-        table.data-table th, table.data-table td {{ padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); }}
-        table.data-table th {{ color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 600; }}
-        table.data-table tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        table.data-table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }}
+        table.data-table th, table.data-table td {{ padding: 8px 12px; border-bottom: 1px solid var(--line); }}
+        table.data-table th {{ background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }}
+        table.data-table tr:hover td {{ background: #f8fafc; }}
         .search-box {{
             width: 100%;
-            padding: 0.55rem 0.85rem;
-            background: #0b1120;
-            border: 1px solid var(--border);
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
             border-radius: 6px;
-            color: var(--text);
-            font-size: 0.9rem;
+            color: var(--fg);
+            font-size: 13px;
             outline: none;
-            margin-bottom: 1rem;
+            margin-bottom: 14px;
         }}
-        .search-box:focus {{ border-color: var(--accent); }}
-        .section-title {{ font-size: 0.9rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 1rem 0 0.5rem 0; letter-spacing: 0.05em; }}
-        .page-list {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+        .search-box:focus {{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }}
+        .section-title {{ font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin: 16px 0 8px 0; letter-spacing: 0.04em; }}
+        .page-list {{ display: flex; flex-direction: column; gap: 6px; }}
         .page-item {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 0.75rem;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border);
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
             border-radius: 6px;
-            transition: background 0.15s ease;
+            transition: all 0.15s ease;
         }}
-        .page-item:hover {{ background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3); }}
-        .page-link {{ color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; }}
-        .page-icon {{ font-size: 0.85rem; opacity: 0.7; }}
-        .page-path {{ font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }}
-        .empty-state {{ color: var(--text-muted); font-style: italic; padding: 0.5rem 0; font-size: 0.85rem; }}
-        .muted {{ color: var(--text-muted); }}
-        .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; }}
-        details summary {{ cursor: pointer; color: var(--text-muted); font-weight: 500; padding: 0.5rem 0; user-select: none; }}
-        details summary:hover {{ color: var(--text); }}
-        .history-list {{ list-style: none; padding-left: 0.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }}
-        footer {{ text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem 0; border-top: 1px solid var(--border); }}
+        .page-item:hover {{ background: var(--accent-soft); border-color: #bfdbfe; }}
+        .page-link {{ color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px; }}
+        .page-icon {{ font-size: 12px; opacity: 0.8; }}
+        .page-path {{ font-family: var(--mono); font-size: 12px; color: var(--muted); }}
+        .empty-state {{ color: var(--muted); font-style: italic; padding: 6px 0; font-size: 13px; }}
+        .muted {{ color: var(--muted); }}
+        .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 13px; }}
+        details summary {{ cursor: pointer; color: var(--fg); font-weight: 600; user-select: none; }}
+        .history-list {{ list-style: none; padding-left: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }}
+        footer {{ text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0 12px; border-top: 1px solid var(--line); }}
     </style>
 </head>
 <body>
@@ -3686,8 +3927,9 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 <h1>{rid}</h1>
                 {status_badge}
                 <div class="header-sub">
-                    <strong>{label}</strong> • Roasted by {owner} on {created}
-                    {f" • Published {pub_ts}" if pub_ts else ""}
+                    <span><strong>{label}</strong></span> &bull;
+                    <span>Roasted by {owner} on {created}</span>
+                    {f" &bull; <span>Published {pub_ts}</span>" if pub_ts else ""}
                 </div>
             </div>
             <div class="header-actions">
@@ -3747,7 +3989,17 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             </div>
         </div>
 
-        <div class="card">
+        {featured_html}
+
+        {models_html}
+
+        {stage_f_html}
+
+        {stage_b_html}
+
+        {stage_a_html}
+
+        <div class="card" style="margin-top: 1rem;">
             <div class="card-header">
                 <h2>Interactive Results & Galleries</h2>
                 <span class="muted">{total_pages} pages available</span>
@@ -3774,19 +4026,19 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         {notes_html}
 
-        <details>
-            <summary>Execution History & Timeline ({len(history)} events)</summary>
-            <div class="card" style="margin-top: 0.5rem;">
-                <div class="card-body">
-                    <ul class="history-list">
-                        {history_html}
-                    </ul>
-                </div>
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header">
+                <h2>Execution History & Timeline ({len(history)} events)</h2>
+            </summary>
+            <div class="card-body">
+                <ul class="history-list">
+                    {history_html}
+                </ul>
             </div>
         </details>
 
         <footer>
-            Roast published with barista • CERNBox Web Distribution
+            Roast published with barista &bull; CERNBox Web Distribution
         </footer>
     </div>
 

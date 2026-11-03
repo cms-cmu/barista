@@ -359,33 +359,85 @@ def short_proc(p: str) -> str:
 
 
 CSS = """
-body{font-family:system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:1.5rem;color:#222;background:#fff;max-width:1400px}
-h1{font-size:1.4rem;margin:0 0 .3rem} h2{font-size:1.15rem;margin:1.6rem 0 .4rem;border-bottom:1px solid #ddd;padding-bottom:.2rem}
-h3{font-size:1rem;margin:1rem 0 .3rem}
-.meta{color:#555;font-size:.9rem;margin-bottom:.8rem} code{background:#f3f3f3;padding:0 .25em;font-size:.9em}
-table{border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums;margin:.3rem 0}
-th,td{border:1px solid #ddd;padding:.25rem .55rem;text-align:right} th{background:#f5f5f5}
-td:first-child,th:first-child{text-align:left} td.l,th.l{text-align:left}
-.badge{display:inline-block;padding:.1rem .5rem;border-radius:.3rem;font-size:.8rem;font-weight:600;color:#fff}
-.blind{background:#ef6c00} .warn{background:#c62828} .ok{background:#2e7d32}
-.figs{display:flex;flex-wrap:wrap;gap:.8rem;margin:.5rem 0} .figs figure{margin:0;width:320px}
-.figs img{width:100%;border:1px solid #ddd;background:#fff} .figs figcaption{font-size:.8rem;color:#555;text-align:center}
-.links a{margin-right:.9rem;font-size:.88rem;white-space:nowrap} .small{font-size:.85rem;color:#555}
-.sig td:first-child{font-weight:600}
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --card: #ffffff;
+  --line: #e2e8f0;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --pass-bg: #dcfce7;
+  --pass-fg: #15803d;
+  --pass-border: #bbf7d0;
+  --warn-bg: #fef3c7;
+  --warn-fg: #b45309;
+  --warn-border: #fde68a;
+  --danger-bg: #fee2e2;
+  --danger-fg: #b91c1c;
+  --danger-border: #fecaca;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+  font-size: 14px;
+  padding: 24px 32px 64px;
+}
+.container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 24px;
+}
+h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 6px; }
+h2 { font-size: 1.1rem; font-weight: 600; margin: 18px 0 10px 0; border-bottom: 1px solid var(--line); padding-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+h3 { font-size: 0.95rem; font-weight: 600; margin: 14px 0 6px 0; color: var(--fg); }
+.meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+code { font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.wrap-table { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin: 8px 0 12px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--line); padding: 8px 12px; text-align: right; }
+th { background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }
+td:first-child, th:first-child { text-align: left; }
+td.l, th.l { text-align: left; }
+tr:hover td { background: #f8fafc; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.blind { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
+.ok { background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }
+.figs { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
+.figs figure { margin: 0; width: 340px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); overflow: hidden; padding: 6px; }
+.figs img { width: 100%; border-radius: 6px; display: block; }
+.figs figcaption { font-size: 12px; color: var(--muted); text-align: center; padding: 6px 4px 2px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.links a { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 500; text-decoration: none; color: var(--accent); background: var(--card); border: 1px solid var(--line); transition: all 0.15s ease; }
+.links a:hover { background: var(--accent-soft); border-color: #bfdbfe; }
+.small { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.sig td:first-child { font-weight: 600; }
 """
 
 
 def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: str | None) -> str:
     e = html.escape
-    h = [f"<!doctype html><html><head><meta charset='utf-8'><title>{e(title)}</title><style>{CSS}</style></head><body>",
-         f"<h1>{e(title)}</h1>",
+    h = [f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>{e(title)}</title><style>{CSS}</style></head><body>",
+         f"<div class='container'>",
+         f"<header><h1>{e(title)}</h1>",
          f"<div class='meta'>{e(label) + ' &middot; ' if label else ''}<code>{e(stat_dir)}</code> &middot; "
          + (f"<span class='badge blind'>blinded</span> data_obs = sum of backgrounds (Asimov); \"observed\" numbers are not data"
-            if blind else "unblinded") + "</div>"]
+            if blind else "<span class='badge ok'>unblinded</span>") + "</div></header>",
+         f"<div class='card'>"]
 
     # ---- overview
     h.append("<h2>Overview</h2>")
-    h.append("<table><tr><th class='l'>channel</th><th class='l'>signal</th><th class='l'>variable</th>"
+    h.append("<div class='wrap-table'><table><tr><th class='l'>channel</th><th class='l'>signal</th><th class='l'>variable</th>"
              "<th>exp. significance</th>" + ("" if blind else "<th>obs. significance</th>") +
              "<th>exp. 95% CL limit (median)</th><th>&plusmn;1&sigma;</th><th>&plusmn;2&sigma;</th>" + ("" if blind else "<th>obs. limit</th>") +
              "<th>bkg yield</th><th>signal yield</th><th>S/&radic;B</th><th>likelihood scan (68% CL)</th><th>nuisances</th></tr>")
@@ -400,25 +452,26 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
                  f"<td>{fsig(sig.get('expected'))}</td>" + ("" if blind else f"<td>{fsig(sig.get('observed'))}</td>") +
                  f"<td><b>{med}</b></td><td>{one}</td><td>{two}</td>" + ("" if blind else f"<td>{fnum((c['limits'] or {}).get('obs'), 2)}</td>") +
                  f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><b>{e(fscan(sc))}</b></td><td>{c['nuisances']}</td></tr>")
-    h.append("</table>")
+    h.append("</table></div>")
     h.append("<p class='small'>Limits: AsymptoticLimits on the signal strength r of the listed signal, other signals fixed to 0. "
              "Significance: <code>-M Significance</code>, expected from the Asimov dataset with r = 1. Yields: datacard rates summed over years "
              "(the fit variable's histogram in the SR). Likelihood scan: best-fit r with 68% CL (&plusmn;1&sigma;) interval.</p>")
+    h.append("</div>")  # close overview card
 
     # ---- per channel
     for c in chans:
-        h.append(f"<h2>{e(c['channel'])} &mdash; <code>{e(c['signal'])}</code></h2>")
+        h.append(f"<div class='card'><h2>{e(c['channel'])} &mdash; <code>{e(c['signal'])}</code></h2>")
         if c["years"]:
-            h.append("<h3>Datacard yields per year</h3><table><tr><th class='l'>year</th><th>observation</th>"
+            h.append("<h3>Datacard yields per year</h3><div class='wrap-table'><table><tr><th class='l'>year</th><th>observation</th>"
                      + "".join(f"<th>{e(short_proc(p))}</th>" for p in c["processes"]) + "</tr>")
             for year, card in c["years"].items():
                 h.append(f"<tr><td>{e(year)}</td><td>{fnum(card['observation'])}</td>"
                          + "".join(f"<td>{fnum(card['rates'].get(p), 2)}</td>" for p in c["processes"]) + "</tr>")
             h.append(f"<tr><th class='l'>all</th><th>{fnum(c['observation'])}</th>"
-                     + "".join(f"<th>{fnum(c['totals'].get(p), 2)}</th>" for p in c["processes"]) + "</tr></table>")
+                     + "".join(f"<th>{fnum(c['totals'].get(p), 2)}</th>" for p in c["processes"]) + "</tr></table></div>")
         if c["limits"]:
             lim = c["limits"]
-            h.append("<h3>Limits and significance</h3><table><tr><th class='l'>quantity</th><th>value</th></tr>")
+            h.append("<h3>Limits and significance</h3><div class='wrap-table'><table><tr><th class='l'>quantity</th><th>value</th></tr>")
             for k, lab in (("exp-2", "expected −2σ"), ("exp-1", "expected −1σ"), ("exp0", "expected median"),
                            ("exp+1", "expected +1σ"), ("exp+2", "expected +2σ"), ("obs", "observed" + (" (Asimov)" if blind else ""))):
                 if k in lim:
@@ -429,21 +482,22 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
             if c["scan"]:
                 sc = c["scan"]
                 h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(sc))}</b></td></tr>")
-            h.append("</table>")
+            h.append("</table></div>")
         if c.get("impacts"):
             top_imps = c["impacts"][:15]
-            h.append("<h3>Top systematic impacts on &Delta;r</h3><table><tr><th class='l'>nuisance parameter</th><th>impact on r</th><th>type</th></tr>")
+            h.append("<h3>Top systematic impacts on &Delta;r</h3><div class='wrap-table'><table><tr><th class='l'>nuisance parameter</th><th>impact on r</th><th>type</th></tr>")
             for imp in top_imps:
                 h.append(f"<tr><td><code>{e(imp['name'])}</code></td><td><b>{imp['impact']:+.4f}</b></td><td>{e(imp['type'])}</td></tr>")
-            h.append("</table>")
+            h.append("</table></div>")
         if c["figures"]:
             h.append("<div class='figs'>")
             for cap, src in c["figures"].items():
                 h.append(f"<figure><a href='{e(src)}'><img src='{e(src)}' alt='{e(cap)}' loading='lazy'></a><figcaption>{e(cap)}</figcaption></figure>")
             h.append("</div>")
         if c["links"]:
-            h.append("<div class='links'>" + " ".join(f"<a href='{e(p)}'>{e(lab)}</a>" for lab, p in c["links"].items()) + "</div>")
-    h.append("</body></html>")
+            h.append("<div class='links'>" + " ".join(f"<a href='{e(p)}'>{e(lab)} ↗</a>" for lab, p in c["links"].items()) + "</div>")
+        h.append("</div>")  # close channel card
+    h.append("</div></body></html>")
     return "\n".join(h)
 
 
