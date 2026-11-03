@@ -322,13 +322,28 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-03 05:16:02",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "nautilus"
+      ]
     }
   ],
   "notes": "",
-  "category": "",
+  "category": "ttHbb_bkg_syst",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_bkg_syst_declib16nc_corner_veto_20261030_ebd4079-bb4af77",
     "ts": "2026-11-01 07:14:44",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-11-03 05:16:02",
+    "hosts": [
+      "cmslpc",
+      "nautilus"
+    ]
   }
 }

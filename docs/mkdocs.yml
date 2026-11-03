@@ -94,41 +94,48 @@ extra_javascript:
 nav:
     - Home: index.md
     - Source Code:
-        - index: src/index.md
-        - tools: src/tools.md
+        - Index: src/index.md
+        - Tools: src/tools.md
     - Software:
-        - index: software/index.md
+        - Index: software/index.md
     - Classifier:
-        - uackend: classifier/backend.md
-        - hcr: classifier/hcr.md
-        - index: classifier/index.md
-        - monitor: classifier/monitor.md
-        - task: classifier/task.md
+        - Backend: classifier/backend.md
+        - Hcr: classifier/hcr.md
+        - Index: classifier/index.md
+        - Monitor: classifier/monitor.md
+        - Task: classifier/task.md
     - HH4b Analysis:
-        - analysis-tests: bbbb/analysis-tests.md
-        - analysis-tools-hists: bbbb/analysis-tools-hists.md
-        - analysis-tools-ikappa: bbbb/analysis-tools-ikappa.md
-        - analysis-tools: bbbb/analysis-tools.md
-        - analysis-weights-pytorch models: bbbb/analysis-weights-pytorch_models.md
-        - analysis: bbbb/analysis.md
-        - index: bbbb/index.md
-        - jet clustering: bbbb/jet_clustering.md
-        - metadata: bbbb/metadata.md
-        - plots: bbbb/plots.md
-        - reana suumission: bbbb/reana_submission.md
-        - skimmer: bbbb/skimmer.md
-        - stats analysis: bbbb/stats_analysis.md
-        - workflows: bbbb/workflows.md
+        - Analysis: bbbb/analysis.md
+        - Analysis-Tests: bbbb/analysis-tests.md
+        - Analysis-Tools-Hists: bbbb/analysis-tools-hists.md
+        - Analysis-Tools-Ikappa: bbbb/analysis-tools-ikappa.md
+        - Analysis-Tools: bbbb/analysis-tools.md
+        - Analysis-Weights-Pytorch Models: bbbb/analysis-weights-pytorch_models.md
+        - Index: bbbb/index.md
+        - Jet Clustering: bbbb/jet_clustering.md
+        - Metadata: bbbb/metadata.md
+        - Plots: bbbb/plots.md
+        - Reana Submission: bbbb/reana_submission.md
+        - Skimmer: bbbb/skimmer.md
+        - Stats Analysis: bbbb/stats_analysis.md
+        - Workflows: bbbb/workflows.md
     - bbWW Analysis:
-        - index: bbWW/index.md
+        - Index: bbWW/index.md
     - Cupping Notes:
         - Using roast: prod/using_roast.md
-        - Using roast on Nautilus: prod/using_roast_nautilus.md
         - All families: prod/index.md
+        - declib16: prod/declib16.md
+        - declib16nc: prod/declib16nc.md
         - declustered: prod/declustered.md
+        - HH4b: prod/hh4b.md
+        - lowpt: prod/lowpt.md
         - mixeddata: prod/mixeddata.md
+        - mixsvbboot: prod/mixsvbboot.md
         - mvd: prod/mvd.md
         - nominal: prod/nominal.md
+        - skims: prod/skims.md
         - svbfeynnet: prod/svbfeynnet.md
+        - trigweights: prod/trigweights.md
+        - ttHbb_bkg_syst: prod/tthbb_bkg_syst.md
         - ttHbb: prod/tthbb.md
     - Documentation: readme.md
