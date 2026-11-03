@@ -94,7 +94,8 @@ for channel, ch_config in config.get("channels", {}).items():
             f"{base_prefix}/impacts/datacard_impacts_split__{signallabel}"
         ])
 
-if targets:
+is_standalone = os.path.basename(workflow.main_snakefile) == "combine.smk"
+if targets and is_standalone:
     rule all:
         input: targets
 
@@ -1386,7 +1387,9 @@ rule split_impacts:
         if compgen -G "${{IMPACTS_BASE}}_page*.png" > /dev/null; then
             echo "Found tight direct-rendered PNG pages from plot_impacts.py"
             for f in ${{IMPACTS_BASE}}_page*.png; do
-                page_num=$(basename "$f" | sed -e 's/.*_page//' -e 's/\.png//')
+                page_name=$(basename "$f")
+                page_num="${{page_name##*_page}}"
+                page_num="${{page_num%.png}}"
                 cp "$f" "{output.dir}/page_${{page_num}}.png"
             done
         else
