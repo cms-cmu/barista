@@ -40,6 +40,8 @@ def make_unique(seq):
     return [x for x in seq if not (x in seen or seen.add(x))]
 
 def multi_match(string, patterns, mode=any):
+    if string is None:
+        return False
     import fnmatch
     patterns = make_list(patterns)
     return mode(fnmatch.fnmatch(string, p) for p in patterns)

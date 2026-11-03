@@ -78,7 +78,12 @@ for channel, ch_config in config.get("channels", {}).items():
         f"{base_prefix}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
         f"{base_prefix}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
         f"{base_prefix}/postfit/datacard_diffNuisances_bonly__{signallabel}.root",
-        f"{base_prefix}/postfit/datacard_diffNuisances_sb__{signallabel}.root"
+        f"{base_prefix}/postfit/datacard_diffNuisances_sb__{signallabel}.root",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.json",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.pdf",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.png",
+        f"{base_prefix}/postfit/datacard_s_over_b__{signallabel}.pdf",
+        f"{base_prefix}/postfit/datacard_s_over_b__{signallabel}.png"
     ])
     if not stat_only:
         targets.extend([
@@ -187,7 +192,7 @@ def get_poi_maps_dynamic(wildcards):
 
 
 ruleorder: likelihood_scan_snapshot > likelihood_scan_chunk > impacts_initial_fit > gof_data > gof_toys_chunk > fit_diagnostics_bonly > fit_diagnostics_sb > workspace
-ruleorder: plot_limits > pdf_to_png
+ruleorder: plot_limits > correlation_matrix > plot_s_over_b > pdf_to_png
 
 localrules: pdf_to_png, split_impacts, impacts_collect
 
@@ -1307,6 +1312,45 @@ rule postfit:
             -m $METADATA_FILE && \
             (cp $OUT_DIR/plots/postfitplots__{params.signallabel}__{params.fit_type}.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_s.pdf $OUT_FILE || cp $OUT_DIR/plots/postfitplots__{params.signallabel}__fit_b.pdf $OUT_FILE)
         ) 2>&1 | tee {log}
+        """
+
+rule correlation_matrix:
+    input:
+        root = "{path}/postfit/datacard_fitDiagnostics_{fit_type}__{signallabel}.root",
+        extract_script = "src/stat_analysis/tools/extract_fit_result.py",
+        plot_script = "src/stat_analysis/plots/plot_correlation.py"
+    output:
+        json = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.json",
+        pdf = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.pdf",
+        png = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.png"
+    container: config.get("combine_container", COMBINE_IMAGE)
+    params:
+        signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
+        threshold = lambda wildcards: config.get("correlation_threshold", 0.3)
+    log: f"{log_dir}/correlation_{{path}}__{{fit_type}}__{{signallabel}}.log"
+    shell:
+        """
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.extract_script} {input.root} fit_s -o {output.json} > {log} 2>&1 && \
+        python3 {input.plot_script} -i {output.json} -o {output.pdf} --threshold {params.threshold} >> {log} 2>&1
+        """
+
+rule plot_s_over_b:
+    input:
+        root = "{path}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
+        plot_script = "src/stat_analysis/plots/plot_s_over_b.py"
+    output:
+        pdf = "{path}/postfit/datacard_s_over_b__{signallabel}.pdf",
+        png = "{path}/postfit/datacard_s_over_b__{signallabel}.png"
+    container: config.get("combine_container", COMBINE_IMAGE)
+    params:
+        signallabel = "{signallabel}"
+    log: f"{log_dir}/s_over_b_{{path}}__{{signallabel}}.log"
+    shell:
+        """
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.plot_script} -i {input.root} -o {output.pdf} --poi r{params.signallabel} > {log} 2>&1
         """
 
 rule pdf_to_png:
