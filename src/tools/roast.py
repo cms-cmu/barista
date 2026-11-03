@@ -211,7 +211,7 @@ DOCS_PROD = ROOT / "docs" / "prod"
 # Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
 # write_index() must leave them alone.  "index" is generated but always wanted; the rest are
 # prose that lives next to the catalogue because colleagues reach it from the same nav.
-HANDWRITTEN_PAGES = {"index", "using_roast", "using_roast_nautilus"}
+HANDWRITTEN_PAGES = {"index", "using_roast"}
 
 # A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
 # round-robin, so the proxy you just created is usually not on the node a given roast
