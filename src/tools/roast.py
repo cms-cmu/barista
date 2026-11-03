@@ -211,7 +211,7 @@ DOCS_PROD = ROOT / "docs" / "prod"
 # Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
 # write_index() must leave them alone.  "index" is generated but always wanted; the rest are
 # prose that lives next to the catalogue because colleagues reach it from the same nav.
-HANDWRITTEN_PAGES = {"index", "using_roast"}
+HANDWRITTEN_PAGES = {"index", "using_roast", "using_roast_nautilus"}
 
 # A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
 # round-robin, so the proxy you just created is usually not on the node a given roast
@@ -886,7 +886,7 @@ def cmd_new(args) -> None:
         "publish": {},
         "history": [],
         "notes": args.notes or "",
-        "category": args.category or "",
+        "category": (args.category or (merged_wf.get("category") if isinstance(merged_wf, dict) else "") or "").strip(),
     }
     log_event(r, "new")
     save_roast(r)
@@ -1750,7 +1750,7 @@ def cmd_proxy(args) -> None:
     if args.check:
         res = ssh_run(target, f"echo -n 'node '; hostname -s; "
                               f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
-                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {rq(SHARED_PROXY)} 2>/dev/null || echo none",
+                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {SHARED_PROXY} 2>/dev/null || echo none",
                       check=False)
         where = {}
         for line in res.stdout.split("\n"):
@@ -3111,6 +3111,8 @@ def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     _refuse_if_cleaned(r, "publish", allow=args.docs_only)
+    if getattr(args, "category", None):
+        r["category"] = args.category.strip()
     analysis = getattr(args, "analysis", None) or r.get("analysis") or detect_analysis(r)
     eos_base, url_base = cernbox_paths(cfg, r, analysis)
     eos_dir = f"{eos_base.rstrip('/')}/{r['id']}"
@@ -3808,13 +3810,22 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 def roast_category(r: dict) -> str:
     """Which production family a roast belongs to, for the catalogue's sub-pages.
 
-    Taken from the label: everything before the run period, so nominal_run3_30x and
-    nominal_run2 share a page.  `roast new --category` overrides it when the label does not
-    say what the roast really is (libA_run3 is a DeClustered library build, not its own kind).
+    Taken from explicit category (in roast.json, CLI override, or config.yml),
+    falling back to everything before the run period in the label.
     """
     explicit = (r.get("category") or "").strip()
     if explicit:
         return explicit
+    rid = r.get("id")
+    if rid:
+        cfg_file = roast_dir(rid) / (r.get("config", {}).get("captured") or "config.yml")
+        if cfg_file.exists():
+            try:
+                m = re.search(r"^category:\s*['\"]?([A-Za-z0-9_.-]+)['\"]?", cfg_file.read_text(), re.M)
+                if m:
+                    return m.group(1).strip()
+            except Exception:
+                pass
     label = r.get("label") or r["id"]
     head = re.split(r"_run[23]\b", label)[0] or label
     return head.split("_")[0] or "other"          # display case kept; the file name is slugged
@@ -3995,6 +4006,7 @@ def main(argv=None) -> None:
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
     s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
+    s.add_argument("--category", help="override or set the catalogue family for this roast")
     s.set_defaults(func=cmd_publish)
 
     s = sub.add_parser("archive", help="copy heavy products (.coffea/.root/yml/json) to FNAL EOS under eos.path/<id>/")

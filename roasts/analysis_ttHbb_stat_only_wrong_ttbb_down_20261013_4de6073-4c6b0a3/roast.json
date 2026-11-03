@@ -449,7 +449,7 @@
     }
   ],
   "notes": "",
-  "category": "",
+  "category": "ttHbb_bkg_syst",
   "user_paths": {
     "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
     "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"

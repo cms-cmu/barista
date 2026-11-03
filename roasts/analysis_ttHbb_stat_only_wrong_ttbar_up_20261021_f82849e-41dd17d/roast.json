@@ -301,13 +301,30 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-11-03 05:20:28",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "falcon",
+        "nautilus"
+      ]
     }
   ],
   "notes": "",
-  "category": "",
+  "category": "ttHbb_bkg_syst",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d",
     "ts": "2026-10-27 18:34:04",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-11-03 05:20:28",
+    "hosts": [
+      "cmslpc",
+      "falcon",
+      "nautilus"
+    ]
   }
 }

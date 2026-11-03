@@ -368,5 +368,9 @@
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "ttHbb_bkg_syst",
+  "cleaned": {
+    "ts": "2026-11-03T19:50:18.383119+00:00",
+    "note": "removed host checkouts by user request"
+  }
 }
