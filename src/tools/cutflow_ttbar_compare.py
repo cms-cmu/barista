@@ -159,28 +159,68 @@ PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
-body{margin:0;padding:16px 20px 60px;background:#f7f7f8;color:#1b1b1f;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-h1{font-size:18px;margin:0 0 4px} .sub{color:#6b6b76;margin-bottom:14px}
-label{color:#6b6b76;margin-right:16px} h2{font-size:15px;margin:22px 0 8px}
-.wrap{overflow-x:auto;background:#fff;border:1px solid #e2e2e8;border-radius:8px}
-table{border-collapse:collapse;white-space:nowrap;min-width:100%}
-th,td{padding:6px 10px;text-align:right;border-bottom:1px solid #eee} th:first-child,td:first-child{text-align:left;font-weight:500}
-thead th{background:#f0f0f4;position:sticky;top:0;font-weight:600}
-tbody tr:hover{background:#fafaff}
-.det{display:none;color:#555} body.detailed .det{display:table-cell}
-span.raw{display:none;color:#8a8a94;font-size:12px;margin-left:4px} body.showraw span.raw{display:inline}
-th.grp{background:#e8eef9} td.ratio{font-weight:600}
-td.ok{background:#e6f6ea} td.warn{background:#fff3d6} td.bad{background:#fde2e2}
-.note{color:#6b6b76;font-size:12px;margin-top:10px}
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --card: #ffffff;
+  --line: #e2e8f0;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --pass-bg: #dcfce7;
+  --pass-fg: #15803d;
+  --pass-border: #bbf7d0;
+  --warn-bg: #fef3c7;
+  --warn-fg: #b45309;
+  --warn-border: #fde68a;
+  --danger-bg: #fee2e2;
+  --danger-fg: #b91c1c;
+  --danger-border: #fecaca;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { margin: 0; padding: 24px 32px 64px; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px 24px; }
+h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 6px; }
+.sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+label { color: var(--fg); font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+h2 { font-size: 1.1rem; font-weight: 600; margin: 18px 0 8px; }
+.wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+table { border-collapse: collapse; white-space: nowrap; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; font-weight: 500; }
+thead th { background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; position: sticky; top: 0; }
+tbody tr:hover { background: #f8fafc; }
+.det { display: none; color: var(--muted); }
+body.detailed .det { display: table-cell; }
+span.raw { display: none; color: var(--muted); font-size: 11.5px; margin-left: 4px; font-family: var(--mono); }
+body.showraw span.raw { display: inline; }
+th.grp { background: var(--accent-soft); color: var(--accent); }
+td.ratio { font-weight: 600; }
+td.ok { background: var(--pass-bg); color: var(--pass-fg); }
+td.warn { background: var(--warn-bg); color: var(--warn-fg); }
+td.bad { background: var(--danger-bg); color: var(--danger-fg); }
+.note { color: var(--muted); font-size: 12.5px; margin-top: 12px; line-height: 1.5; }
+code { font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 </style></head><body>
-<h1>__TITLE__</h1><div class="sub">__SUB__</div>
+<div class="container">
+<header>
+<h1>__TITLE__</h1>
+<div class="sub">__SUB__</div>
+<div class="controls">
 <label><input type="checkbox" id="det" onchange="document.body.classList.toggle('detailed',this.checked)"> show MC components and the 3b comparison</label>
 <label><input type="checkbox" id="rawbox" onchange="document.body.classList.toggle('showraw',this.checked)"> show unweighted entry counts in parentheses</label>
+</div>
+</header>
 __TABLES__
 <div class="note">MC counts are weighted (xsec &times; lumi &times; SFs); the estimate is 3b data weighted by JCM &times; the FvT
 d3_to_t4 (4b) / d3_to_t3 (3b) probabilities. The optional parentheses are raw entry counts (unit weight): for the estimate, the number of
 3b data events. est / MC error from the raw counts of both sides only (weight spread ignored).
 Ratio cell shading: |est/MC &minus; 1| &lt; 5% green, &lt; 20% amber, else red.</div>
+</div>
 </body></html>
 """
 
