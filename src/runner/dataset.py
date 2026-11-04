@@ -20,6 +20,12 @@ def _get_xrootd_sites_map():
     coffea (2025.12.0) indexes ``site["rse"]`` directly, so a single storage.json entry
     without an ``rse`` key (T3_CN_Nanjing's, since May 2026) raises KeyError and breaks
     every rucio dataset lookup. Same logic and cache file, using .get().
+
+    Additionally:
+    - Matches 'xrootd' case-insensitively (e.g. FNAL storage.json uses lowercase 'xrootd'
+      for its global-ro site redirector).
+    - Prioritizes 'global-ro' access over 'global-rw' to avoid overwriting readable site
+      redirectors with internal direct-write storage nodes (e.g. cmsdcadisk.fnal.gov).
     """
     import json
     import time
@@ -28,6 +34,7 @@ def _get_xrootd_sites_map():
     cache = ".sites_map.json"
     if not os.path.exists(cache) or os.path.getmtime(cache) < time.time() - 600:
         sites_xrootd_access = defaultdict(dict)
+        sites_access_level = {}
         for site_name in os.listdir("/cvmfs/cms.cern.ch/SITECONF/"):
             conf = f"/cvmfs/cms.cern.ch/SITECONF/{site_name}/storage.json"
             if not site_name.startswith("T") or not os.path.exists(conf):
@@ -41,13 +48,22 @@ def _get_xrootd_sites_map():
                 if site.get("type") != "DISK" or rse is None:
                     continue
                 for proc in site.get("protocols", []):
-                    if proc.get("protocol") != "XRootD" or proc.get("access") not in ["global-ro", "global-rw"]:
+                    proto = proc.get("protocol", "").lower()
+                    access = proc.get("access")
+                    if proto != "xrootd" or access not in ["global-ro", "global-rw"]:
+                        continue
+                    if rse in sites_xrootd_access and sites_access_level.get(rse) == "global-ro" and access == "global-rw":
                         continue
                     if "prefix" in proc:
                         sites_xrootd_access[rse] = proc["prefix"]
+                        sites_access_level[rse] = access
                     else:
+                        rule_dict = {}
                         for rule in proc.get("rules", []):
-                            sites_xrootd_access[rse][rule["lfn"]] = rule["pfn"]
+                            rule_dict[rule["lfn"]] = rule["pfn"]
+                        if rule_dict:
+                            sites_xrootd_access[rse] = rule_dict
+                            sites_access_level[rse] = access
         json.dump(sites_xrootd_access, open(cache, "w"))
     return json.load(open(cache))
 
