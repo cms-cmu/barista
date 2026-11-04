@@ -13,9 +13,10 @@ class FvTFitQuality:
 
     def __init__(self, name: str = "FvT_fit_quality"):
         self.name = name
-        self.bins_pt4 = np.linspace(20, 150, 27)  # 5 GeV bins
-        self.bins_pt1 = np.linspace(40, 300, 27)  # 10 GeV bins
-        self.bins_fvt = np.linspace(0, 5, 26)     # 0.2 width bins
+        self.bins_pt4 = np.linspace(20, 150, 27)    # 5 GeV bins
+        self.bins_pt1 = np.linspace(40, 300, 27)    # 10 GeV bins
+        self.bins_fvt = np.linspace(-1.0, 8.0, 46)  # 0.2 width bins from -1 to 8 (45 bins)
+        self.bins_prob = np.linspace(0, 1, 21)      # 0.05 probability bins
         self.reset()
 
     def reset(self):
@@ -32,6 +33,11 @@ class FvTFitQuality:
         self.sum_w_d3_to_t4 = 0.0
         self.sum_w_d3_to_t3 = 0.0
 
+        self.sum_loss_sb = 0.0
+        self.sum_w_loss_sb = 0.0
+        self.sum_loss_sr = 0.0
+        self.sum_w_loss_sr = 0.0
+
         self.n_w_neg = 0
         self.n_w_total = 0
         self._sampled_weights = []
@@ -42,6 +48,16 @@ class FvTFitQuality:
         self.hist_model_pt1 = np.zeros(len(self.bins_pt1) - 1, dtype=np.float64)
         self.hist_target_fvt = np.zeros(len(self.bins_fvt) - 1, dtype=np.float64)
         self.hist_model_fvt = np.zeros(len(self.bins_fvt) - 1, dtype=np.float64)
+
+        self.hist_t3_true_sb = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t3_pred_sb = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t3_true_sr = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t3_pred_sr = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+
+        self.hist_t4_true_sb = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t4_pred_sb = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t4_true_sr = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
+        self.hist_t4_pred_sr = np.zeros(len(self.bins_prob) - 1, dtype=np.float64)
 
         self.total_target_sb = 0
         self.total_model_sb = 0
@@ -110,6 +126,81 @@ class FvTFitQuality:
                 if len(self._sampled_weights) < 50000:
                     self._sampled_weights.extend(w_d3[: min(1000, len(w_d3))])
 
+        # Regional Loss calculation (SB and SR)
+        from src.classifier.config.setting.HCR import MassRegion
+        import torch.nn.functional as F
+
+        has_region = Input.region in batch
+        is_sr = ((batch[Input.region].cpu() & MassRegion.SR) != 0) if has_region else torch.zeros(len(labels), dtype=torch.bool)
+        is_sb = ((batch[Input.region].cpu() & MassRegion.SB) != 0) if has_region else torch.ones(len(labels), dtype=torch.bool)
+
+        if Output.class_raw in batch:
+            c_score = batch[Output.class_raw].detach().cpu()
+            if torch.any(is_sb):
+                w_sb = weights[is_sb]
+                ce_sb = F.cross_entropy(c_score[is_sb], labels[is_sb], reduction="none")
+                self.sum_loss_sb += float((ce_sb * w_sb).sum())
+                self.sum_w_loss_sb += float(w_sb.sum())
+            if torch.any(is_sr):
+                w_sr = weights[is_sr]
+                if d4_idx is not None:
+                    no_d4_idx = [*range(len(MultiClass.trainable_labels))]
+                    no_d4_idx = no_d4_idx[:d4_idx] + no_d4_idx[d4_idx + 1 :]
+                    no_d4_y = labels[is_sr]
+                    no_d4_y = torch.where(no_d4_y > d4_idx, no_d4_y - 1, no_d4_y)
+                    ce_sr = F.cross_entropy(c_score[is_sr][:, no_d4_idx], no_d4_y, reduction="none")
+                else:
+                    ce_sr = F.cross_entropy(c_score[is_sr], labels[is_sr], reduction="none")
+                self.sum_loss_sr += float((ce_sr * w_sr).sum())
+                self.sum_w_loss_sr += float(w_sr.sum())
+
+        # Component transfer histograms for chi2 (t3 -> d3 and t4 -> d3 in SB and SR)
+        is_d3_mask = (labels == d3_idx) if d3_idx is not None else torch.zeros(len(labels), dtype=torch.bool)
+        is_t3_mask = (labels == t3_idx) if t3_idx is not None else torch.zeros(len(labels), dtype=torch.bool)
+        is_t4_mask = (labels == t4_idx) if t4_idx is not None else torch.zeros(len(labels), dtype=torch.bool)
+
+        if d3_idx is not None and t3_idx is not None:
+            m_t3_sb = (is_t3_mask & is_sb).numpy()
+            m_d3_sb = (is_d3_mask & is_sb).numpy()
+            if np.any(m_t3_sb):
+                h, _ = np.histogram(pt3[m_t3_sb].numpy(), bins=self.bins_prob, weights=weights[m_t3_sb].numpy())
+                self.hist_t3_true_sb += h
+            if np.any(m_d3_sb):
+                w_pred = weights[m_d3_sb].numpy() * (pt3[m_d3_sb].numpy() / denom[m_d3_sb].numpy())
+                h, _ = np.histogram(pt3[m_d3_sb].numpy(), bins=self.bins_prob, weights=w_pred)
+                self.hist_t3_pred_sb += h
+
+            m_t3_sr = (is_t3_mask & is_sr).numpy()
+            m_d3_sr = (is_d3_mask & is_sr).numpy()
+            if np.any(m_t3_sr):
+                h, _ = np.histogram(pt3[m_t3_sr].numpy(), bins=self.bins_prob, weights=weights[m_t3_sr].numpy())
+                self.hist_t3_true_sr += h
+            if np.any(m_d3_sr):
+                w_pred = weights[m_d3_sr].numpy() * (pt3[m_d3_sr].numpy() / denom[m_d3_sr].numpy())
+                h, _ = np.histogram(pt3[m_d3_sr].numpy(), bins=self.bins_prob, weights=w_pred)
+                self.hist_t3_pred_sr += h
+
+        if d3_idx is not None and t4_idx is not None:
+            m_t4_sb = (is_t4_mask & is_sb).numpy()
+            m_d3_sb = (is_d3_mask & is_sb).numpy()
+            if np.any(m_t4_sb):
+                h, _ = np.histogram(pt4[m_t4_sb].numpy(), bins=self.bins_prob, weights=weights[m_t4_sb].numpy())
+                self.hist_t4_true_sb += h
+            if np.any(m_d3_sb):
+                w_pred = weights[m_d3_sb].numpy() * (pt4[m_d3_sb].numpy() / denom[m_d3_sb].numpy())
+                h, _ = np.histogram(pt4[m_d3_sb].numpy(), bins=self.bins_prob, weights=w_pred)
+                self.hist_t4_pred_sb += h
+
+            m_t4_sr = (is_t4_mask & is_sr).numpy()
+            m_d3_sr = (is_d3_mask & is_sr).numpy()
+            if np.any(m_t4_sr):
+                h, _ = np.histogram(pt4[m_t4_sr].numpy(), bins=self.bins_prob, weights=weights[m_t4_sr].numpy())
+                self.hist_t4_true_sr += h
+            if np.any(m_d3_sr):
+                w_pred = weights[m_d3_sr].numpy() * (pt4[m_d3_sr].numpy() / denom[m_d3_sr].numpy())
+                h, _ = np.histogram(pt4[m_d3_sr].numpy(), bins=self.bins_prob, weights=w_pred)
+                self.hist_t4_pred_sr += h
+
         # Kinematic and FvT variable closure (Target d4 vs Model d3 with w_fvt)
         # In the training dataset, all d4 events are Sideband events (SR is blinded).
         if Input.CanJet in batch and d4_idx is not None and d3_idx is not None:
@@ -148,8 +239,9 @@ class FvTFitQuality:
                 self.total_model_sb += len(pt4_m)
                 self.sum_w_model_sb += float(np.sum(w_m))
 
-                # FvT variable evaluated on 3b events, reweighted by w_fvt
-                h_mfvt, _ = np.histogram(w_fvt_m, bins=self.bins_fvt, weights=w_m)
+                # FvT variable evaluated on 3b events, reweighted by w_fvt (raw weights to capture negatives)
+                w_m_raw = weights[is_model].numpy() * w_fvt_m
+                h_mfvt, _ = np.histogram(w_fvt_m, bins=self.bins_fvt, weights=w_m_raw)
                 self.hist_model_fvt += h_mfvt
 
     def to_json(self) -> dict:
@@ -193,6 +285,30 @@ class FvTFitQuality:
         composite_chi2 = (chi2_pt4 + chi2_pt1 + chi2_fvt) / 3.0
         norm_closure_sb = (self.sum_w_model_sb / self.sum_w_target_sb) if self.sum_w_target_sb > 0 else 1.0
 
+        # Standard error-propagated chi2 for FvT proxies
+        def _compute_chi2_ndf_robust(h_target, h_model):
+            sum_t = np.sum(h_target)
+            sum_m = np.sum(h_model)
+            if sum_t <= 0 or sum_m <= 0:
+                return 1.0
+            h_model_norm = h_model * (sum_t / sum_m)
+            var = h_target + np.abs(h_model_norm) * (sum_t / sum_m)
+            mask = (var > 0) & (h_target > 0)
+            if np.sum(mask) <= 1:
+                return 1.0
+            chi2_val = float(np.sum((h_target[mask] - h_model_norm[mask]) ** 2 / var[mask]))
+            ndf_val = max(1, int(np.sum(mask) - 1))
+            return chi2_val / ndf_val
+
+        chi2_fvt_sb = _compute_chi2_ndf_robust(self.hist_target_fvt, self.hist_model_fvt)
+        chi2_t3_sb = _compute_chi2_ndf_robust(self.hist_t3_true_sb, self.hist_t3_pred_sb)
+        chi2_t4_sb = _compute_chi2_ndf_robust(self.hist_t4_true_sb, self.hist_t4_pred_sb)
+        chi2_t3_sr = _compute_chi2_ndf_robust(self.hist_t3_true_sr, self.hist_t3_pred_sr)
+        chi2_t4_sr = _compute_chi2_ndf_robust(self.hist_t4_true_sr, self.hist_t4_pred_sr)
+
+        loss_sb = (self.sum_loss_sb / self.sum_w_loss_sb) if self.sum_w_loss_sb > 0 else 0.0
+        loss_sr = (self.sum_loss_sr / self.sum_w_loss_sr) if self.sum_w_loss_sr > 0 else 0.0
+
         # Hard Gates
         gate_neg = bool(neg_frac < 0.005)
         gate_explosion = bool(w_p99 < 5.0 and w_max < 20.0)
@@ -201,6 +317,52 @@ class FvTFitQuality:
 
         return {
             "name": self.name,
+            "proxies": {
+                "loss_sb": round(loss_sb, 5),
+                "loss_sr": round(loss_sr, 5),
+                "chi2_fvt_sb": round(chi2_fvt_sb, 3),
+                "chi2_t3_sb": round(chi2_t3_sb, 3),
+                "chi2_t4_sb": round(chi2_t4_sb, 3),
+                "chi2_t3_sr": round(chi2_t3_sr, 3),
+                "chi2_t4_sr": round(chi2_t4_sr, 3),
+            },
+            "histograms": {
+                "fvt_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_fvt],
+                    "target": [round(float(x), 4) for x in self.hist_target_fvt],
+                    "model": [round(float(x), 4) for x in self.hist_model_fvt],
+                },
+                "t3_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t3_true_sb],
+                    "model": [round(float(x), 4) for x in self.hist_t3_pred_sb],
+                },
+                "t4_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t4_true_sb],
+                    "model": [round(float(x), 4) for x in self.hist_t4_pred_sb],
+                },
+                "t3_sr": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t3_true_sr],
+                    "model": [round(float(x), 4) for x in self.hist_t3_pred_sr],
+                },
+                "t4_sr": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t4_true_sr],
+                    "model": [round(float(x), 4) for x in self.hist_t4_pred_sr],
+                },
+                "pt4_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_pt4],
+                    "target": [round(float(x), 4) for x in self.hist_target_pt4],
+                    "model": [round(float(x), 4) for x in self.hist_model_pt4],
+                },
+                "pt1_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_pt1],
+                    "target": [round(float(x), 4) for x in self.hist_target_pt1],
+                    "model": [round(float(x), 4) for x in self.hist_model_pt1],
+                },
+            },
             "weights": {
                 "neg_fraction": round(neg_frac, 5),
                 "p99": round(w_p99, 3),
