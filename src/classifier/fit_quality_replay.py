@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import os
 import re
 import shlex
@@ -54,6 +55,14 @@ def parse_args(argv=None):
                    help="roast barista checkout whose files the training read: relative 'coffea4bees/...' "
                         "paths in the dataset options are pointed there (pinned metadata), while the code "
                         "runs from the current checkout (which has the fit-quality benchmark)")
+    p.add_argument("--reference", default=None,
+                   help="the original training's result.json: compare its final-epoch per-fold loss/AUCs "
+                        "with the replayed Baseline ones (consistency.json)")
+    p.add_argument("--archived-wf", default=None,
+                   help="the train.yml archived by the original run, to compare with --train-wf "
+                        "(e.g. when --train-wf was regenerated from the captured config)")
+    p.add_argument("--tolerance", type=float, default=2e-3,
+                   help="max |replay - original| per fold for loss and AUCs to call the replay faithful")
     p.add_argument("--run", action="store_true", help="run the replay and the summary, not just write the workflow")
     return p.parse_args(argv)
 
@@ -135,6 +144,65 @@ def stage_models(pretrained: str, dest: str) -> str:
     return dest
 
 
+def _read_text(path: str) -> str:
+    if "://" in path:
+        import fsspec
+
+        with fsspec.open(path, "rt") as f:
+            return f.read()
+    with open(path) as f:
+        return f.read()
+
+
+def _exists(path: str) -> bool:
+    if "://" in path:
+        import fsspec
+
+        fs, p = fsspec.core.url_to_fs(path)
+        return fs.exists(p)
+    return os.path.exists(path)
+
+
+def _per_fold(result: dict, stage: str) -> dict:
+    """{offset: {"loss": x, "AUC: <name>": y, ...}} from the validation benchmarks of `stage`."""
+    from src.classifier.fvt_benchmark import _select_benchmarks
+
+    folds = {}
+    for m in result.get("models", []):
+        offset = (m.get("metadata") or {}).get("offset")
+        for bm in _select_benchmarks([m], stage):
+            val = bm.get("validation", {})
+            row = {}
+            if "loss" in val.get("scalars", {}):
+                row["loss"] = val["scalars"]["loss"]
+            for r in val.get("roc", []):
+                if r.get("AUC") is not None:
+                    row[f"AUC: {r['name']}"] = r["AUC"]
+            folds[offset] = row
+    return folds
+
+
+def consistency(reference: dict, replay: dict, tolerance: float) -> dict:
+    """Per-fold original final-epoch vs replayed Baseline validation loss/AUCs."""
+    ref, rep = _per_fold(reference, "final"), _per_fold(replay, "baseline")
+    rows, worst = [], 0.0
+    for offset in sorted(set(ref) | set(rep), key=str):
+        a, b = ref.get(offset, {}), rep.get(offset, {})
+        for k in sorted(set(a) & set(b)):
+            d = b[k] - a[k]
+            worst = max(worst, abs(d))
+            rows.append({"offset": offset, "metric": k, "original": a[k], "replay": b[k], "diff": d})
+    missing = sorted(str(o) for o in set(ref) ^ set(rep))
+    return {
+        "tolerance": tolerance,
+        "max_abs_diff": worst,
+        "n_compared": len(rows),
+        "missing_folds": missing,
+        "faithful": bool(rows) and not missing and worst <= tolerance,
+        "rows": rows,
+    }
+
+
 def _check_common(path: str | None):
     if not path:
         return
@@ -156,15 +224,32 @@ def main(argv=None):
     ):
         raise SystemExit(f"{out} already holds a result/checkpoint; use a fresh directory "
                          "(a stale checkpoint would be resumed instead of the saved model)")
-    _check_common(args.common)
-
     os.makedirs(out, exist_ok=True)
+    # local copies of the inputs, so -from and the record never depend on a remote read
+    train_wf_text = _read_text(args.train_wf)
+    with open(os.path.join(out, "input_train.yml"), "w") as f:
+        f.write(train_wf_text)
+    common = None
+    if args.common:
+        common = os.path.join(out, "input_common.yml")
+        with open(common, "w") as f:
+            f.write(_read_text(args.common))
+    _check_common(common)
+    if args.archived_wf:
+        record = {"train_wf": args.train_wf, "archived_wf": args.archived_wf}
+        if _exists(args.archived_wf):
+            record["identical"] = yaml.safe_load(_read_text(args.archived_wf)) == yaml.safe_load(train_wf_text)
+        else:
+            record["identical"] = None  # nothing archived to compare with
+        with open(os.path.join(out, "train_wf_check.json"), "w") as f:
+            json.dump(record, f, indent=2)
+        print(f"train workflow vs archived: {record['identical']}")
+
     pretrained = args.pretrained
     if "://" in pretrained:
         pretrained = stage_models(pretrained, os.path.join(os.path.abspath(out), "pretrained"))
 
-    with open(args.train_wf) as f:
-        wf = yaml.safe_load(f)
+    wf = yaml.safe_load(train_wf_text)
     replay = build_replay(wf, pretrained, args.floor, args.inputs_from)
 
     replay_path = os.path.join(out, "replay_train.yml")
@@ -174,8 +259,8 @@ def main(argv=None):
 
     template = f"model: {out}" + (f", {args.template}" if args.template else "")
     cmd = ["python", "-m", "src.classifier.task.main", "template", "{" + template + "}", replay_path]
-    if args.common:
-        cmd += ["-from", args.common]
+    if common:
+        cmd += ["-from", common]
     cmd += ["-flag", "debug"]
     summary = [sys.executable, "-m", "src.classifier.fvt_benchmark",
                "--result", os.path.join(out, "result.json"), "--stage", "baseline", "--json"]
@@ -203,6 +288,15 @@ def main(argv=None):
     with open(os.path.join(out, "fit_quality.json"), "w") as f:
         subprocess.check_call(summary, stdout=f)
     subprocess.check_call(summary[:-1])  # human-readable table
+    if args.reference:
+        reference = json.loads(_read_text(args.reference))
+        with open(os.path.join(out, "result.json")) as f:
+            replayed = json.load(f)
+        cons = consistency(reference, replayed, args.tolerance)
+        with open(os.path.join(out, "consistency.json"), "w") as f:
+            json.dump(cons, f, indent=2)
+        print(f"replay vs original: max |diff| {cons['max_abs_diff']:.2e} over {cons['n_compared']} "
+              f"fold metrics -> {'FAITHFUL' if cons['faithful'] else 'NOT FAITHFUL'}")
 
 
 if __name__ == "__main__":
