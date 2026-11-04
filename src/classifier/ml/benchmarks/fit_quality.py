@@ -13,10 +13,10 @@ class FvTFitQuality:
 
     def __init__(self, name: str = "FvT_fit_quality"):
         self.name = name
-        self.bins_pt4 = np.linspace(20, 150, 27)  # 5 GeV bins
-        self.bins_pt1 = np.linspace(40, 300, 27)  # 10 GeV bins
-        self.bins_fvt = np.linspace(0, 5, 26)     # 0.2 width bins
-        self.bins_prob = np.linspace(0, 1, 21)    # 0.05 probability bins
+        self.bins_pt4 = np.linspace(20, 150, 27)    # 5 GeV bins
+        self.bins_pt1 = np.linspace(40, 300, 27)    # 10 GeV bins
+        self.bins_fvt = np.linspace(-1.0, 8.0, 46)  # 0.2 width bins from -1 to 8 (45 bins)
+        self.bins_prob = np.linspace(0, 1, 21)      # 0.05 probability bins
         self.reset()
 
     def reset(self):
@@ -239,8 +239,9 @@ class FvTFitQuality:
                 self.total_model_sb += len(pt4_m)
                 self.sum_w_model_sb += float(np.sum(w_m))
 
-                # FvT variable evaluated on 3b events, reweighted by w_fvt
-                h_mfvt, _ = np.histogram(w_fvt_m, bins=self.bins_fvt, weights=w_m)
+                # FvT variable evaluated on 3b events, reweighted by w_fvt (raw weights to capture negatives)
+                w_m_raw = weights[is_model].numpy() * w_fvt_m
+                h_mfvt, _ = np.histogram(w_fvt_m, bins=self.bins_fvt, weights=w_m_raw)
                 self.hist_model_fvt += h_mfvt
 
     def to_json(self) -> dict:
@@ -291,8 +292,8 @@ class FvTFitQuality:
             if sum_t <= 0 or sum_m <= 0:
                 return 1.0
             h_model_norm = h_model * (sum_t / sum_m)
-            var = h_target + h_model_norm * (sum_t / sum_m)
-            mask = var > 0
+            var = h_target + np.abs(h_model_norm) * (sum_t / sum_m)
+            mask = (var > 0) & (h_target > 0)
             if np.sum(mask) <= 1:
                 return 1.0
             chi2_val = float(np.sum((h_target[mask] - h_model_norm[mask]) ** 2 / var[mask]))
@@ -324,6 +325,43 @@ class FvTFitQuality:
                 "chi2_t4_sb": round(chi2_t4_sb, 3),
                 "chi2_t3_sr": round(chi2_t3_sr, 3),
                 "chi2_t4_sr": round(chi2_t4_sr, 3),
+            },
+            "histograms": {
+                "fvt_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_fvt],
+                    "target": [round(float(x), 4) for x in self.hist_target_fvt],
+                    "model": [round(float(x), 4) for x in self.hist_model_fvt],
+                },
+                "t3_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t3_true_sb],
+                    "model": [round(float(x), 4) for x in self.hist_t3_pred_sb],
+                },
+                "t4_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t4_true_sb],
+                    "model": [round(float(x), 4) for x in self.hist_t4_pred_sb],
+                },
+                "t3_sr": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t3_true_sr],
+                    "model": [round(float(x), 4) for x in self.hist_t3_pred_sr],
+                },
+                "t4_sr": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_prob],
+                    "target": [round(float(x), 4) for x in self.hist_t4_true_sr],
+                    "model": [round(float(x), 4) for x in self.hist_t4_pred_sr],
+                },
+                "pt4_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_pt4],
+                    "target": [round(float(x), 4) for x in self.hist_target_pt4],
+                    "model": [round(float(x), 4) for x in self.hist_model_pt4],
+                },
+                "pt1_sb": {
+                    "bin_edges": [round(float(x), 4) for x in self.bins_pt1],
+                    "target": [round(float(x), 4) for x in self.hist_target_pt1],
+                    "model": [round(float(x), 4) for x in self.hist_model_pt1],
+                },
             },
             "weights": {
                 "neg_fraction": round(neg_frac, 5),
