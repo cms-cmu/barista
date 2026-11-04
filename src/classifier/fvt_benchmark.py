@@ -15,6 +15,13 @@ def parse_args():
     p.add_argument("--result", required=True, help="Path to result.json from FvT training")
     p.add_argument("--reference", default=None, help="Optional path to nominal reference result.json")
     p.add_argument("--json", action="store_true", help="Print summary as JSON")
+    p.add_argument(
+        "--stage",
+        choices=["final", "baseline", "all"],
+        default="final",
+        help="which benchmark to summarize: final epoch of the last training stage (default), "
+             "the pre-training Baseline (fit-quality replay of an existing model), or every stage",
+    )
     return p.parse_args()
 
 
@@ -33,7 +40,33 @@ def _variance(arr):
     return sum((x - mean) ** 2 for x in arr) / (len(arr) - 1)
 
 
-def extract_benchmark(result_path: str) -> dict:
+def _select_benchmarks(models: list, stage: str = "final"):
+    """Yield one ``{"training": ..., "validation": ...}`` benchmark dict per selected stage.
+
+    final:    last epoch of each model's last Training/Finetuning stage (one entry per fold)
+    baseline: the pre-training "Baseline" benchmark (one per fold); with --pretrained-weights
+              and zero epochs this is the fit quality of an existing model (fit_quality_replay)
+    all:      last epoch of every Training/Finetuning stage (pre-Nov 2026 behaviour: pools
+              Training and Finetuning, so a 3-fold training gives 6 entries)
+    """
+    for m in models:
+        history = m.get("history", [])
+        if stage == "baseline":
+            for st in history:
+                if st.get("name") == "Baseline" and st.get("benchmarks"):
+                    yield st["benchmarks"]
+            continue
+        trained = [
+            st for st in history
+            if st.get("name") in ["Training", "Finetuning"] and st.get("training")
+        ]
+        if stage == "final":
+            trained = trained[-1:]
+        for st in trained:
+            yield st["training"][-1].get("benchmarks", {})
+
+
+def extract_benchmark(result_path: str, stage: str = "final") -> dict:
     with open(result_path) as f:
         data = json.load(f)
 
@@ -86,73 +119,69 @@ def extract_benchmark(result_path: str) -> dict:
 
     fit_qualities = []
 
-    for m in models:
-        for stage in m.get("history", []):
-            if stage.get("name") in ["Training", "Finetuning"] and "training" in stage and stage["training"]:
-                last_epoch = stage["training"][-1]
-                benchmarks = last_epoch.get("benchmarks", {})
-                
-                # Validation
-                val_sc = benchmarks.get("validation", {}).get("scalars", {})
-                val_rocs = benchmarks.get("validation", {}).get("roc", [])
-                val_fq = benchmarks.get("validation", {}).get("fit_quality", [])
+    for benchmarks in _select_benchmarks(models, stage):
 
-                if "loss" in val_sc:
-                    val_losses.append(val_sc["loss"])
-                for r in val_rocs:
-                    rname = r.get("name")
-                    rauc = r.get("AUC")
-                    if rauc is None:
-                        continue
-                    if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
-                        val_aucs_4b_sb.append(rauc)
-                    elif rname in ["4b vs 3b data", "4b vs 3b"]:
-                        val_aucs_4b.append(rauc)
-                    elif rname == "ttbar vs data SB":
-                        val_aucs_tt_sb.append(rauc)
-                    elif rname == "ttbar vs data SR":
-                        val_aucs_tt_sr.append(rauc)
-                    elif rname == "ttbar vs data":
-                        val_aucs_tt.append(rauc)
+        # Validation
+        val_sc = benchmarks.get("validation", {}).get("scalars", {})
+        val_rocs = benchmarks.get("validation", {}).get("roc", [])
+        val_fq = benchmarks.get("validation", {}).get("fit_quality", [])
 
-                if val_fq:
-                    v_prox = val_fq[0].get("proxies", {})
-                    if "loss_sb" in v_prox: val_loss_sb.append(v_prox["loss_sb"])
-                    if "loss_sr" in v_prox: val_loss_sr.append(v_prox["loss_sr"])
-                    if "chi2_fvt_sb" in v_prox: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
-                    if "chi2_t3_sb" in v_prox: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
-                    if "chi2_t4_sb" in v_prox: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
-                    if "chi2_t3_sr" in v_prox: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
-                    if "chi2_t4_sr" in v_prox: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
-                    fit_qualities.append(val_fq[0])
+        if "loss" in val_sc:
+            val_losses.append(val_sc["loss"])
+        for r in val_rocs:
+            rname = r.get("name")
+            rauc = r.get("AUC")
+            if rauc is None:
+                continue
+            if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
+                val_aucs_4b_sb.append(rauc)
+            elif rname in ["4b vs 3b data", "4b vs 3b"]:
+                val_aucs_4b.append(rauc)
+            elif rname == "ttbar vs data SB":
+                val_aucs_tt_sb.append(rauc)
+            elif rname == "ttbar vs data SR":
+                val_aucs_tt_sr.append(rauc)
+            elif rname == "ttbar vs data":
+                val_aucs_tt.append(rauc)
 
-                # Training
-                tr_sc = benchmarks.get("training", {}).get("scalars", {})
-                tr_rocs = benchmarks.get("training", {}).get("roc", [])
-                if "loss" in tr_sc:
-                    tr_losses.append(tr_sc["loss"])
-                for r in tr_rocs:
-                    rname = r.get("name")
-                    rauc = r.get("AUC")
-                    if rauc is None:
-                        continue
-                    if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
-                        tr_aucs_4b_sb.append(rauc)
-                    elif rname in ["4b vs 3b data", "4b vs 3b"]:
-                        tr_aucs_4b.append(rauc)
-                    elif rname == "ttbar vs data SB":
-                        tr_aucs_tt_sb.append(rauc)
-                    elif rname == "ttbar vs data SR":
-                        tr_aucs_tt_sr.append(rauc)
-                    elif rname == "ttbar vs data":
-                        tr_aucs_tt.append(rauc)
+        if val_fq:
+            v_prox = val_fq[0].get("proxies", {})
+            if "loss_sb" in v_prox: val_loss_sb.append(v_prox["loss_sb"])
+            if "loss_sr" in v_prox: val_loss_sr.append(v_prox["loss_sr"])
+            if "chi2_fvt_sb" in v_prox: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
+            if "chi2_t3_sb" in v_prox: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
+            if "chi2_t4_sb" in v_prox: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
+            if "chi2_t3_sr" in v_prox: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
+            if "chi2_t4_sr" in v_prox: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
+            fit_qualities.append(val_fq[0])
 
-                tr_fq = benchmarks.get("training", {}).get("fit_quality", [])
-                if tr_fq:
-                    t_prox = tr_fq[0].get("proxies", {})
-                    if "loss_sb" in t_prox: tr_loss_sb.append(t_prox["loss_sb"])
-                    if "loss_sr" in t_prox: tr_loss_sr.append(t_prox["loss_sr"])
-                    if "chi2_fvt_sb" in t_prox: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
+        # Training
+        tr_sc = benchmarks.get("training", {}).get("scalars", {})
+        tr_rocs = benchmarks.get("training", {}).get("roc", [])
+        if "loss" in tr_sc:
+            tr_losses.append(tr_sc["loss"])
+        for r in tr_rocs:
+            rname = r.get("name")
+            rauc = r.get("AUC")
+            if rauc is None:
+                continue
+            if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
+                tr_aucs_4b_sb.append(rauc)
+            elif rname in ["4b vs 3b data", "4b vs 3b"]:
+                tr_aucs_4b.append(rauc)
+            elif rname == "ttbar vs data SB":
+                tr_aucs_tt_sb.append(rauc)
+            elif rname == "ttbar vs data SR":
+                tr_aucs_tt_sr.append(rauc)
+            elif rname == "ttbar vs data":
+                tr_aucs_tt.append(rauc)
+
+        tr_fq = benchmarks.get("training", {}).get("fit_quality", [])
+        if tr_fq:
+            t_prox = tr_fq[0].get("proxies", {})
+            if "loss_sb" in t_prox: tr_loss_sb.append(t_prox["loss_sb"])
+            if "loss_sr" in t_prox: tr_loss_sr.append(t_prox["loss_sr"])
+            if "chi2_fvt_sb" in t_prox: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
 
     summary["avg_val_loss"], summary["val_loss_std"] = _stats(val_losses)
     summary["avg_tr_loss"], summary["tr_loss_std"] = _stats(tr_losses)
@@ -396,8 +425,8 @@ def print_table(summary: dict, ref_summary: dict = None):
 
 def main():
     args = parse_args()
-    summary = extract_benchmark(args.result)
-    ref_summary = extract_benchmark(args.reference) if args.reference else None
+    summary = extract_benchmark(args.result, args.stage)
+    ref_summary = extract_benchmark(args.reference, args.stage) if args.reference else None
 
     if args.json:
         out = {"current": summary}

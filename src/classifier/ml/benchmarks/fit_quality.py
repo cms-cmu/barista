@@ -9,10 +9,22 @@ if TYPE_CHECKING:
 
 
 class FvTFitQuality:
-    """Benchmark evaluated during validation to verify FvT reweighting health and closure."""
+    """Benchmark evaluated during validation to verify FvT reweighting health and closure.
 
-    def __init__(self, name: str = "FvT_fit_quality"):
+    The reweighted ("source") class defaults to 3b data (``d3``, FvT). For the MvD the
+    source is the mixed data (``source="mix4"``): the transfer weight is then
+    (p_d4 - p_t4) / p_mix4 and the t3 terms drop out (no t3 class). The output keys keep
+    the FvT names (d3, chi2_t4_sb, ...) so one reader handles both.
+
+    ``source_floor`` lower-bounds the source probability in the weight denominator; set it
+    to the analysis floor (e.g. FvT_pd3_floor / mvd_pmix4_floor = 0.01) to benchmark the
+    weights the analysis actually applies.
+    """
+
+    def __init__(self, name: str = "FvT_fit_quality", source: str = "d3", source_floor: float = 1e-6):
         self.name = name
+        self.source = source
+        self.source_floor = source_floor
         self.bins_pt4 = np.linspace(20, 150, 27)    # 5 GeV bins
         self.bins_pt1 = np.linspace(40, 300, 27)    # 10 GeV bins
         self.bins_fvt = np.linspace(-1.0, 8.0, 46)  # 0.2 width bins from -1 to 8 (45 bins)
@@ -77,7 +89,8 @@ class FvTFitQuality:
         weights = batch[Input.weight].detach().cpu() if Input.weight in batch else torch.ones(len(probs))
 
         d4_idx = MultiClass.index("d4") if "d4" in MultiClass.labels else None
-        d3_idx = MultiClass.index("d3") if "d3" in MultiClass.labels else None
+        # "d3" below is the reweighted source class: 3b data (FvT) or mixed data (MvD)
+        d3_idx = MultiClass.index(self.source) if self.source in MultiClass.labels else None
         t4_idx = MultiClass.index("t4") if "t4" in MultiClass.labels else None
         t3_idx = MultiClass.index("t3") if "t3" in MultiClass.labels else None
 
@@ -103,7 +116,7 @@ class FvTFitQuality:
         self.sum_w_d3_pred += float((weights * pd3).sum())
 
         # FvT transfer weight for 3b: (pd4 - pt4) / pd3
-        denom = torch.clamp(pd3, min=1e-6)
+        denom = torch.clamp(pd3, min=self.source_floor)
         num = pd4 - pt4 if t4_idx is not None else pd4
         w_fvt = num / denom
 
@@ -317,6 +330,8 @@ class FvTFitQuality:
 
         return {
             "name": self.name,
+            "source": self.source,
+            "source_floor": self.source_floor,
             "proxies": {
                 "loss_sb": round(loss_sb, 5),
                 "loss_sr": round(loss_sr, 5),
