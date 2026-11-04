@@ -267,8 +267,14 @@ class HCRTraining(MultiStageTraining):
             else:
                 import glob as _glob
                 offset = self.metadata.get("offset", 0)
-                pattern = f"{self._pretrained_weights}/*_offset{offset}_*.pkl"
-                matches = _glob.glob(pattern)
+                # saved models are named model_<...>__offset_{N}__<...>.pkl (filename(metadata));
+                # also accept the compact _offset{N}_ form
+                patterns = [
+                    f"{self._pretrained_weights}/*__offset_{offset}__*.pkl",
+                    f"{self._pretrained_weights}/*_offset{offset}_*.pkl",
+                ]
+                pattern = " | ".join(patterns)
+                matches = sorted({m for p in patterns for m in _glob.glob(p)})
                 if not matches:
                     raise FileNotFoundError(
                         f"No pretrained weights found for offset {offset} in "
