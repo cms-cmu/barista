@@ -124,6 +124,13 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "norm_closure_sb": None,
         "composite_chi2_ndf": None,
         "all_gates_passed": None,
+        "loss_sb": None,
+        "loss_sr": None,
+        "chi2_fvt_sb": None,
+        "chi2_t3_sb": None,
+        "chi2_t4_sb": None,
+        "chi2_t3_sr": None,
+        "chi2_t4_sr": None,
     }
     if not result_path.exists():
         return data
@@ -166,6 +173,11 @@ def parse_fit_quality_json(result_path: Path) -> dict:
 
             comp_vals = [fq.get("closure", {}).get("composite_chi2_ndf") for fq in fqs if fq.get("closure", {}).get("composite_chi2_ndf") is not None]
             data["composite_chi2_ndf"] = (sum(comp_vals) / len(comp_vals)) if comp_vals else None
+
+            # Online Proxies
+            for prx_key in ["loss_sb", "loss_sr", "chi2_fvt_sb", "chi2_t3_sb", "chi2_t4_sb", "chi2_t3_sr", "chi2_t4_sr"]:
+                prx_vals = [fq.get("proxies", {}).get(prx_key) for fq in fqs if fq.get("proxies", {}).get(prx_key) is not None]
+                data[prx_key] = (sum(prx_vals) / len(prx_vals)) if prx_vals else None
 
             data["all_gates_passed"] = all(fq.get("verdict", {}).get("all_gates_passed", False) for fq in fqs)
     except Exception as e:
