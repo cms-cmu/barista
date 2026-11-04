@@ -1125,7 +1125,9 @@ run_snakemake_container() {
     [[ -z "$1" ]] && { error "No arguments supplied."; show_help; exit 1; }
     [[ "$*" != *"--snakefile"* && "$*" != *"-s"* ]] && { error "--snakefile (-s) argument required."; exit 1; }
 
-    APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec -B "$PWD":/srv --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
+    local binds="-B $PWD:/srv"
+    [[ -d "/uscms_data" ]] && binds="$binds -B /uscms_data:/uscms_data -B /uscms/home/${USER}:/uscms/home/${USER}"
+    APPTAINER_SHELL=$(which bash) "${APPTAINER_CMD:-apptainer}" exec $binds --pwd /srv/ "$SNAKEMAKE_IMAGE" /bin/bash -c "snakemake $*"
 }
 
 # --- Pixi / Snakemake Local ---

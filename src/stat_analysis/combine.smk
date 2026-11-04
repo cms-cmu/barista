@@ -34,15 +34,41 @@ def is_stat_only_mode():
 
 stat_only = is_stat_only_mode()
 
+if isinstance(config.get("channels"), str):
+    import json
+    try:
+        config["channels"] = json.loads(config["channels"])
+    except Exception:
+        config["channels"] = {}
+
+if isinstance(config.get("channels"), dict):
+    nested_channels = {}
+    for k, v in config["channels"].items():
+        if ":" in k:
+            parts = k.split(":")
+            ch = parts[0]
+            if ch not in nested_channels:
+                nested_channels[ch] = {}
+            if len(parts) >= 3:
+                nested_channels[ch][parts[1]] = parts[2]
+            elif len(parts) == 2:
+                nested_channels[ch][parts[1]] = v
+        else:
+            nested_channels[k] = v
+    if nested_channels:
+        config["channels"] = nested_channels
+
 targets = []
 for channel, ch_config in config.get("channels", {}).items():
-    signallabel = ch_config.get("signallabel")
+    signallabel = ch_config.get("signallabel") if isinstance(ch_config, dict) else None
     if not signallabel:
         continue
     # If run directly, the default path prefix is the channel out_base
     base_prefix = out_base
     targets.extend([
         f"{base_prefix}/limits/datacard_limits__{signallabel}.json",
+        f"{base_prefix}/limits/datacard_limits__{signallabel}.pdf",
+        f"{base_prefix}/limits/datacard_limits__{signallabel}.png",
         f"{base_prefix}/significance/datacard_significance__{signallabel}.log",
         f"{base_prefix}/significance/datacard_significance__{signallabel}.json",
         f"{base_prefix}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf",
@@ -52,7 +78,12 @@ for channel, ch_config in config.get("channels", {}).items():
         f"{base_prefix}/postfit/datacard_fitDiagnostics_bonly__{signallabel}.root",
         f"{base_prefix}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
         f"{base_prefix}/postfit/datacard_diffNuisances_bonly__{signallabel}.root",
-        f"{base_prefix}/postfit/datacard_diffNuisances_sb__{signallabel}.root"
+        f"{base_prefix}/postfit/datacard_diffNuisances_sb__{signallabel}.root",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.json",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.pdf",
+        f"{base_prefix}/postfit/datacard_correlation_sb__{signallabel}.png",
+        f"{base_prefix}/postfit/datacard_s_over_b__{signallabel}.pdf",
+        f"{base_prefix}/postfit/datacard_s_over_b__{signallabel}.png"
     ])
     if not stat_only:
         targets.extend([
@@ -162,6 +193,7 @@ def get_poi_maps_dynamic(wildcards):
 
 
 ruleorder: likelihood_scan_snapshot > likelihood_scan_chunk > impacts_initial_fit > gof_data > gof_toys_chunk > fit_diagnostics_bonly > fit_diagnostics_sb > workspace
+ruleorder: plot_limits > correlation_matrix > plot_s_over_b > pdf_to_png
 
 localrules: pdf_to_png, split_impacts, impacts_collect
 
@@ -293,6 +325,23 @@ rule limits:
             mv temp_limits.txt $OUT_TXT && \
             mv temp_limits.json $OUT_JSON
         ) 2>&1 | tee {log}
+        """
+
+rule plot_limits:
+    input:
+        json = "{path}/limits/datacard_limits__{signallabel}.json",
+        plot_script = "src/stat_analysis/plots/plot_limits.py"
+    output:
+        pdf = "{path}/limits/datacard_limits__{signallabel}.pdf",
+        png = "{path}/limits/datacard_limits__{signallabel}.png"
+    container: config.get("combine_container", COMBINE_IMAGE)
+    params:
+        signallabel = "{signallabel}"
+    log: f"{log_dir}/plot_limits_{{path}}__{{signallabel}}.log"
+    shell:
+        """
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.plot_script} -i {input.json} -o {output.pdf} --poi r{params.signallabel} > {log} 2>&1
         """
 
 rule significance:
@@ -567,14 +616,14 @@ rule likelihood_scan_chunk:
 rule likelihood_scan:
     input:
         chunks = lambda wildcards: get_likelihood_scan_chunks(wildcards, config),
-        sanitize_script = "src/stat_analysis/sanitize_scan_roots.py"
+        plot_script = "src/stat_analysis/plots/plot_scan.py"
     output: "{path}/likelihood_scan/datacard_likelihood_scan__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
         signallabel = "{signallabel}",
         mass = lambda wildcards: config.get("mass", "120"),
         y_cut = lambda wildcards: config.get("likelihood_scan_y_cut", "100"),
-        y_max = lambda wildcards: config.get("likelihood_scan_y_max", "100")
+        y_max = lambda wildcards: config.get("likelihood_scan_y_max", "15")
     log: f"{log_dir}/likelihood_scan_{{path}}__{{signallabel}}.log"
     shell:
         """
@@ -586,7 +635,7 @@ rule likelihood_scan:
         LOG=$(pwd)/{log}
         OUT_FILE=$(realpath {output})
         DATACARD_DIR=$(dirname $OUT_FILE)
-        SANITIZE_SCRIPT=$(realpath {input.sanitize_script})
+        PLOT_SCRIPT=$(realpath {input.plot_script})
         EXP_FILES=""
         OBS_FILES=""
         for f in {input.chunks}; do
@@ -594,8 +643,7 @@ rule likelihood_scan:
             # The snapshot fit is only the chunks' input: its `limit` tree carries the
             # inactive-POI branches (rggHH_kl_0/2p45/5, ...) that the -P scans drop, and
             # hadd of trees with different branch sets silently keeps just the first
-            # file's entries -> plot1DScan "TGraph with zero or one point". Every chunk
-            # already stores the best-fit (quantileExpected = -1) point, so skip it.
+            # file's entries. Every chunk already stores the best-fit point, so skip snapshot.
             if [[ "$f" == *"_snapshot_"* ]]; then
                 continue
             elif [[ "$f" == *"_exp_"* ]]; then
@@ -613,36 +661,24 @@ rule likelihood_scan:
         if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
             hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
             hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            python3 $SANITIZE_SCRIPT \
-                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
-                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
-            (plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
-                --main-label "Observed" \
-                --others $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root:"Expected":2 \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot || \
-             plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
-                --main-label "Expected" \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot) && \
-            mv scan_plot.pdf $OUT_FILE
+            python3 $PLOT_SCRIPT \
+                --obs $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
+                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
         elif [ -n "$EXP_FILES" ]; then
             hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            python3 $SANITIZE_SCRIPT \
-                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root && \
-            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
-                --main-label "Expected" \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
-            mv scan_plot.pdf $OUT_FILE
+            python3 $PLOT_SCRIPT \
+                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
+                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
         else
             INPUT_FILES=""
             for f in {input.chunks}; do
                 INPUT_FILES="$INPUT_FILES $(realpath $f)"
             done
             hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
-            python3 $SANITIZE_SCRIPT \
-                $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root && \
-            plot1DScan.py $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-                --POI r{params.signallabel} --y-cut {params.y_cut} --y-max {params.y_max} -o scan_plot && \
-            mv scan_plot.pdf $OUT_FILE
+            python3 $PLOT_SCRIPT \
+                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
+                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
         fi
         ) 2>&1 | tee {log}
         """
@@ -798,7 +834,8 @@ rule impacts_do_fits:
 rule impacts_collect:
     input:
         workspace = "{path}/workspace/datacard__{signallabel}.root",
-        fits_done = "{path}/impacts/datacard_impacts_fits__{signallabel}"
+        fits_done = "{path}/impacts/datacard_impacts_fits__{signallabel}",
+        plot_script = "src/stat_analysis/plots/plot_impacts.py"
     output:
         pdf = "{path}/impacts/datacard_impacts__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
@@ -852,11 +889,11 @@ rule impacts_collect:
 
         echo "[$(date)] Running creating pdf"
         cd $(dirname $OUT_FILE) && \
-            plotImpacts.py -i impacts_combine_$(basename {input.workspace} .root)_exp.json \
-            -o impacts_plot \
-            --POI r{params.signallabel} \
-            --per-page {params.per_page} --left-margin 0.3 --height 400 --label-size 0.04 && \
-            mv impacts_plot.pdf $OUT_FILE
+            python3 $(realpath {input.plot_script}) \
+            -i impacts_combine_$(basename {input.workspace} .root)_exp.json \
+            -o $OUT_FILE \
+            --poi r{params.signallabel} \
+            --per-page {params.per_page}
         ) 2>&1 | tee "$LOG"
         """
 
@@ -977,7 +1014,8 @@ rule gof_toys_chunk:
 rule gof:
     input:
         data = "{path}/gof/datacard_gof_data__{signallabel}.root",
-        toys = lambda wildcards: [f"{wildcards.path}/gof/datacard_gof_toys_{i}__{wildcards.signallabel}.root" for i in range(int(config.get("num_toy_jobs", 10)))]
+        toys = lambda wildcards: [f"{wildcards.path}/gof/datacard_gof_toys_{i}__{wildcards.signallabel}.root" for i in range(int(config.get("num_toy_jobs", 10)))],
+        plot_script = "src/stat_analysis/plots/plot_gof.py"
     output: "{path}/gof/datacard_gof__{signallabel}.pdf"
     container: config.get("combine_container", COMBINE_IMAGE)
     params:
@@ -1011,10 +1049,11 @@ rule gof:
             combineTool.py -M CollectGoodnessOfFit \
             --input $(basename {input.data}) $(for f in {input.toys}; do basename $f; done) \
             -o gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json && \
-            plotGof.py gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json \
-            --statistic {params.gof_algo} --mass {params.mass}.0 \
-            --output gof_plot && \
-            mv gof_plot.pdf $OUT_FILE
+            python3 $(realpath {input.plot_script}) \
+            -i gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json \
+            -o $OUT_FILE \
+            --algo {params.gof_algo} \
+            --mass {params.mass}.0
         ) 2>&1 | tee {log}
         """
 
@@ -1276,6 +1315,45 @@ rule postfit:
         ) 2>&1 | tee {log}
         """
 
+rule correlation_matrix:
+    input:
+        root = "{path}/postfit/datacard_fitDiagnostics_{fit_type}__{signallabel}.root",
+        extract_script = "src/stat_analysis/tools/extract_fit_result.py",
+        plot_script = "src/stat_analysis/plots/plot_correlation.py"
+    output:
+        json = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.json",
+        pdf = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.pdf",
+        png = "{path}/postfit/datacard_correlation_{fit_type}__{signallabel}.png"
+    container: config.get("combine_container", COMBINE_IMAGE)
+    params:
+        signallabel = "{signallabel}",
+        fit_type = "{fit_type}",
+        threshold = lambda wildcards: config.get("correlation_threshold", 0.3)
+    log: f"{log_dir}/correlation_{{path}}__{{fit_type}}__{{signallabel}}.log"
+    shell:
+        """
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.extract_script} {input.root} fit_s -o {output.json} > {log} 2>&1 && \
+        python3 {input.plot_script} -i {output.json} -o {output.pdf} --threshold {params.threshold} >> {log} 2>&1
+        """
+
+rule plot_s_over_b:
+    input:
+        root = "{path}/postfit/datacard_fitDiagnostics_sb__{signallabel}.root",
+        plot_script = "src/stat_analysis/plots/plot_s_over_b.py"
+    output:
+        pdf = "{path}/postfit/datacard_s_over_b__{signallabel}.pdf",
+        png = "{path}/postfit/datacard_s_over_b__{signallabel}.png"
+    container: config.get("combine_container", COMBINE_IMAGE)
+    params:
+        signallabel = "{signallabel}"
+    log: f"{log_dir}/s_over_b_{{path}}__{{signallabel}}.log"
+    shell:
+        """
+        . software/combine/apptainer_env.sh 2>/dev/null || . /srv/apptainer_env.sh 2>/dev/null || true
+        python3 {input.plot_script} -i {input.root} -o {output.pdf} --poi r{params.signallabel} > {log} 2>&1
+        """
+
 rule pdf_to_png:
     input:
         pdf = "{path}.pdf",
@@ -1303,10 +1381,24 @@ rule split_impacts:
         echo "[$(date)] Starting split_impacts rule"
         rm -rf {output.dir}
         mkdir -p {output.dir}
-        pdfseparate {input.pdf} {output.dir}/page_%d.pdf
-        for f in {output.dir}/*.pdf; do
-            pdftocairo -singlefile -cropbox -png "$f" "${{f%.pdf}}"
-        done
+        IMPACTS_BASE="{input.pdf}"
+        IMPACTS_BASE="${{IMPACTS_BASE%.pdf}}"
+        # If plot_impacts generated tight per-page PNGs, use them directly
+        if compgen -G "${{IMPACTS_BASE}}_page*.png" > /dev/null; then
+            echo "Found tight direct-rendered PNG pages from plot_impacts.py"
+            for f in ${{IMPACTS_BASE}}_page*.png; do
+                page_name=$(basename "$f")
+                page_num="${{page_name##*_page}}"
+                page_num="${{page_num%.png}}"
+                cp "$f" "{output.dir}/page_${{page_num}}.png"
+            done
+        else
+            echo "Falling back to pdfseparate + pdftocairo"
+            pdfseparate {input.pdf} {output.dir}/page_%d.pdf
+            for f in {output.dir}/*.pdf; do
+                pdftocairo -singlefile -cropbox -png "$f" "${{f%.pdf}}"
+            done
+        fi
         ) > $LOG 2>&1
         """
 

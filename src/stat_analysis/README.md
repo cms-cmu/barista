@@ -91,6 +91,32 @@ To optimize CPU utilization, the fits have been parallelized to run concurrently
 
 ---
 
+## Standalone Plotters & Analysis Tools
+
+All plotting routines and datacard inspection utilities run standalone within the Combine container with zero external dependencies on `law`:
+
+### Publication Plotters (`src/stat_analysis/plots/`)
+- `plot_impacts.py`: Nuisance impacts and pulls with tight zero-margin PNG rendering.
+- `plot_scan.py`: 1D profile likelihood scans with cubic spline interpolation and $1\sigma, 2\sigma, 3\sigma, 5\sigma$ crossing intervals.
+- `plot_scan_2d.py`: 2D likelihood contour scans ($68\%$ and $95\%$ CL contours, SM and best-fit markers).
+- `plot_limits.py`: Brazil band upper limit plots directly from Combine limit JSON.
+- `plot_limit_points.py`: Summary limit comparison points across channels, eras, or categories.
+- `plot_gof.py`: Goodness-of-fit toy distributions with empirical $p$-value calculation.
+- `plot_s_over_b.py`: Aggregated post-fit $S/\sqrt{B}$ (or $S/B$) summary distribution.
+- `plot_correlation.py`: Post-fit nuisance correlation matrix heatmap.
+
+### Datacard Manipulation Tools (`src/stat_analysis/tools/`)
+- `prettify_datacard.py`: Aligns datacards into clean, human-readable columnar format.
+- `yield_table.py`: Generates Markdown, ASCII, or LaTeX yield tables from datacards and shapes.
+- `bundle_datacard.py`: Copies a datacard and its referenced ROOT shapes into a self-contained folder.
+- `remove_empty_processes.py`: Prunes empty/negligible processes from datacards to stabilize fits.
+- `rename_parameters.py`: Renames nuisance parameters across datacard text and shape files.
+- `extract_fit_result.py`: Dumps fit values, errors, and covariance/correlation matrices to JSON.
+- `web/view_cov_json.html`: Interactive browser viewer for post-fit correlation matrices.
+- `web/view_datacard.html`: Interactive browser viewer for exploring datacards.
+
+---
+
 ## Rule Graph
 
 Below is the dependency graph of the workflow rules:
