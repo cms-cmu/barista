@@ -146,13 +146,13 @@ def extract_benchmark(result_path: str, stage: str = "final") -> dict:
 
         if val_fq:
             v_prox = val_fq[0].get("proxies", {})
-            if "loss_sb" in v_prox: val_loss_sb.append(v_prox["loss_sb"])
-            if "loss_sr" in v_prox: val_loss_sr.append(v_prox["loss_sr"])
-            if "chi2_fvt_sb" in v_prox: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
-            if "chi2_t3_sb" in v_prox: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
-            if "chi2_t4_sb" in v_prox: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
-            if "chi2_t3_sr" in v_prox: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
-            if "chi2_t4_sr" in v_prox: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
+            if v_prox.get("loss_sb") is not None: val_loss_sb.append(v_prox["loss_sb"])
+            if v_prox.get("loss_sr") is not None: val_loss_sr.append(v_prox["loss_sr"])
+            if v_prox.get("chi2_fvt_sb") is not None: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
+            if v_prox.get("chi2_t3_sb") is not None: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
+            if v_prox.get("chi2_t4_sb") is not None: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
+            if v_prox.get("chi2_t3_sr") is not None: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
+            if v_prox.get("chi2_t4_sr") is not None: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
             fit_qualities.append(val_fq[0])
 
         # Training
@@ -179,9 +179,9 @@ def extract_benchmark(result_path: str, stage: str = "final") -> dict:
         tr_fq = benchmarks.get("training", {}).get("fit_quality", [])
         if tr_fq:
             t_prox = tr_fq[0].get("proxies", {})
-            if "loss_sb" in t_prox: tr_loss_sb.append(t_prox["loss_sb"])
-            if "loss_sr" in t_prox: tr_loss_sr.append(t_prox["loss_sr"])
-            if "chi2_fvt_sb" in t_prox: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
+            if t_prox.get("loss_sb") is not None: tr_loss_sb.append(t_prox["loss_sb"])
+            if t_prox.get("loss_sr") is not None: tr_loss_sr.append(t_prox["loss_sr"])
+            if t_prox.get("chi2_fvt_sb") is not None: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
 
     summary["avg_val_loss"], summary["val_loss_std"] = _stats(val_losses)
     summary["avg_tr_loss"], summary["tr_loss_std"] = _stats(tr_losses)
@@ -207,7 +207,7 @@ def extract_benchmark(result_path: str, stage: str = "final") -> dict:
             "closure": {},
             "verdict": {
                 "all_gates_passed": all(fq.get("verdict", {}).get("all_gates_passed", False) for fq in fit_qualities),
-                "primary_score": sum(fq.get("verdict", {}).get("primary_score", 0.0) for fq in fit_qualities) / len(fit_qualities) if any("primary_score" in fq.get("verdict", {}) for fq in fit_qualities) else 0.0,
+                "primary_score": (lambda v: sum(v) / len(v) if v else None)([fq.get("verdict", {}).get("primary_score") for fq in fit_qualities if fq.get("verdict", {}).get("primary_score") is not None]),
             },
         }
 
