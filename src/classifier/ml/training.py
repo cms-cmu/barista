@@ -22,6 +22,7 @@ from ..nn.schedule import Schedule
 from ..process.device import Device
 from ..task.special import interface
 from ..typetools import WithUUID, filename
+from ..utils import MemoryViewIO
 from . import BatchType, clear_cache
 
 if TYPE_CHECKING:
@@ -210,7 +211,7 @@ class TrainingStage(BenchmarkStage):
                     if scaler.is_enabled():
                         ckpt_data["scaler_state_dict"] = scaler.state_dict()
                     with fsspec.open(ckpt_path, "wb") as f:
-                        torch.save(ckpt_data, f)
+                        torch.save(ckpt_data, MemoryViewIO(f))
                 except Exception as e:
                     logging.warning(f"Failed to save intermediate checkpoint: {e}")
 

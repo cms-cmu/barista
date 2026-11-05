@@ -322,6 +322,7 @@ EVAL_SHELL = """
         fi && \
         set -u && \
         TMP_BASE="${{SLURM_TMPDIR:-${{LOCAL:-${{_CONDOR_SCRATCH_DIR:-${{TMPDIR:-/tmp}}}}}}}}" && \
+        if [ ! -d "$TMP_BASE" ] || [ ! -w "$TMP_BASE" ]; then TMP_BASE="${{TMPDIR:-/tmp}}"; fi && \
         SCRATCH_DIR=$(mktemp -d -p "$TMP_BASE" eval_scratch_XXXXXX) && \
         trap 'rm -rf "$SCRATCH_DIR"' EXIT && \
         EVAL_SCRATCH="$SCRATCH_DIR" \
