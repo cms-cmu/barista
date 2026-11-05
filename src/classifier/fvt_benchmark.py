@@ -66,6 +66,91 @@ def _select_benchmarks(models: list, stage: str = "final"):
             yield st["training"][-1].get("benchmarks", {})
 
 
+CLOSURE_HISTS = ("fvt_sb", "pt4_sb", "pt1_sb")
+
+
+def hist_chi2_ndf(h: dict):
+    """Shape chi2/ndf of one stored closure histogram, as FvTFitQuality._chi2_ndf computes it: model
+    normalised to the target, errors from both sides' sum w^2, bins without target entries skipped.
+    Returns (chi2/ndf, ndf, sum of target weights); (None, 0, sum) when empty."""
+    t, m = h.get("target") or [], h.get("model") or []
+    t2, m2 = h.get("target_sumw2"), h.get("model_sumw2")
+    st, sm = sum(t), sum(m)
+    if not t or st <= 0 or sm <= 0 or t2 is None or m2 is None:
+        return None, 0, st
+    k = st / sm
+    chi2, n = 0.0, 0
+    for ti, mi, t2i, m2i in zip(t, m, t2, m2):
+        var = t2i + k * k * m2i
+        if ti > 0 and var > 0:
+            chi2 += (ti - k * mi) ** 2 / var
+            n += 1
+    return ((chi2 / (n - 1), n - 1, st) if n > 1 else (None, 0, st))
+
+
+def _sum_hist(hs: list):
+    """Add histograms (sum w and sum w^2 add); None if they don't share a binning."""
+    hs = [h for h in hs if h and h.get("target")]
+    if not hs or any(len(h["target"]) != len(hs[0]["target"]) for h in hs):
+        return None
+    keys = ("target", "target_sumw2", "model", "model_sumw2")
+    return {k: [sum(v) for v in zip(*(h.get(k) or [0.0] * len(h["target"]) for h in hs))] for k in keys}
+
+
+def closure_train_val(models: list, stage: str = "final", hists=CLOSURE_HISTS) -> dict:
+    """SB closure chi2/ndf on the training vs the validation split, per fold and folds summed.
+
+    For each closure histogram and split: the per-fold chi2/ndf, their mean and fold-to-fold std
+    (ddof=1), the chi2/ndf of the folds summed, and the excess per 100k target events,
+    (chi2/ndf - 1) / (N_target / 1e5). A fixed mis-modelling (bias) grows chi2/ndf - 1 in proportion
+    to the events, so the training split (K-1 times the validation events) shows a larger chi2/ndf
+    with the same excess per event; overtraining shows as a training excess per event BELOW the
+    validation one (the model closes better on the events it was fit to).
+    """
+    out = {}
+    for hname in hists:
+        res = {}
+        for split in ("training", "validation"):
+            per_fold, n_t, excess, raw = [], [], [], []
+            for bm in _select_benchmarks(models, stage):
+                fq = (bm.get(split, {}).get("fit_quality") or [{}])[0]
+                h = (fq.get("histograms") or {}).get(hname)
+                if not h:
+                    continue
+                c, ndf, st = hist_chi2_ndf(h)
+                if c is None:
+                    continue
+                raw.append(h)
+                per_fold.append(c)
+                n_t.append(st)
+                excess.append((c - 1.0) / (st / 1e5) if st > 0 else None)
+            if not per_fold:
+                continue
+            mean, std = _stats(per_fold)[0], _variance(per_fold) ** 0.5
+            ex = [x for x in excess if x is not None]
+            ex_mean, ex_std = (_stats(ex)[0], _variance(ex) ** 0.5) if ex else (None, None)
+            summed = _sum_hist(raw)
+            s_c, s_ndf, s_n = hist_chi2_ndf(summed) if summed else (None, 0, None)
+            res[split] = {
+                "chi2_ndf_per_fold": per_fold,
+                "chi2_ndf_mean": mean,
+                "chi2_ndf_std": std if len(per_fold) > 1 else None,
+                "chi2_ndf_summed": s_c,
+                "ndf": s_ndf,
+                "n_target_per_fold": n_t,
+                "excess_per_100k_per_fold": excess,
+                "excess_per_100k_mean": ex_mean,
+                "excess_per_100k_std": ex_std if len(ex) > 1 else None,
+            }
+        if res:
+            tr, va = res.get("training"), res.get("validation")
+            if tr and va and va["excess_per_100k_mean"]:
+                # < 1: closes better on training events than on held-out ones (overtraining)
+                res["excess_ratio_train_over_val"] = tr["excess_per_100k_mean"] / va["excess_per_100k_mean"]
+            out[hname] = res
+    return out
+
+
 def extract_benchmark(result_path: str, stage: str = "final") -> dict:
     with open(result_path) as f:
         data = json.load(f)
@@ -193,6 +278,8 @@ def extract_benchmark(result_path: str, stage: str = "final") -> dict:
 
     summary["avg_auc_ttbar"], summary["val_auc_ttbar_std"] = _stats(val_aucs_tt)
     summary["avg_tr_auc_ttbar"], summary["tr_auc_ttbar_std"] = _stats(tr_aucs_tt)
+
+    summary["closure_train_val"] = closure_train_val(models, stage)
 
     if fit_qualities:
         # Average fit qualities across folds
@@ -353,6 +440,35 @@ def print_table(summary: dict, ref_summary: dict = None):
     if "norm_closure_sb" in closure or "norm_closure_sb" in ref_closure:
         row("  Sideband Norm (3b*w/4b)", closure.get("norm_closure_sb", "-"), ref_closure.get("norm_closure_sb", "-"))
     row("  Composite chi2/ndf (Score)", closure.get("composite_chi2_ndf", "-"), ref_closure.get("composite_chi2_ndf", "-"))
+
+    ctv = summary.get("closure_train_val") or {}
+    ref_ctv = (ref_summary or {}).get("closure_train_val") or {}
+    if ctv:
+        print("\n[ CLOSURE: TRAIN vs VAL (SB chi2/ndf, fold mean ± std; excess = (chi2/ndf-1) per 100k events) ]")
+
+        def pm(d, key):
+            if not d or d.get(f"{key}_mean") is None:
+                return "-"
+            s = d.get(f"{key}_std")
+            fmt = ".2f"
+            return f"{d[f'{key}_mean']:{fmt}}" + (f" ± {s:{fmt}}" if s is not None else "")
+
+        for hname in CLOSURE_HISTS:
+            if hname not in ctv and hname not in ref_ctv:
+                continue
+            c, r = ctv.get(hname, {}), ref_ctv.get(hname, {})
+            for split, lab in (("training", "train"), ("validation", "val")):
+                row(f"  {hname} chi2/ndf ({lab})", pm(c.get(split), "chi2_ndf"), pm(r.get(split), "chi2_ndf"))
+            for split, lab in (("training", "train"), ("validation", "val")):
+                sc, sr = (c.get(split) or {}).get("chi2_ndf_summed"), (r.get(split) or {}).get("chi2_ndf_summed")
+                row(f"  {hname} chi2/ndf ({lab}, folds summed)", sc if sc is not None else "-",
+                    sr if sr is not None else "-", ".2f" if sc is not None else "")
+            for split, lab in (("training", "train"), ("validation", "val")):
+                row(f"  {hname} excess/100k evt ({lab})", pm(c.get(split), "excess_per_100k"),
+                    pm(r.get(split), "excess_per_100k"))
+            er, rer = c.get("excess_ratio_train_over_val"), r.get("excess_ratio_train_over_val")
+            row(f"  {hname} excess train/val (<1: overtrain)", er if er is not None else "-",
+                rer if rer is not None else "-", ".2f" if er is not None else "")
 
     print("\n[ TIER 3: DISCRIMINATION & LOSS (TRAIN vs VAL) ]")
     row("  Validation Loss", summary.get("avg_val_loss", 0.0), ref_summary.get("avg_val_loss") if ref_summary else None, ".4f")

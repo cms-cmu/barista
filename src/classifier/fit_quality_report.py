@@ -165,6 +165,8 @@ def _plot(hname: str, h: dict, source: str, path: str):
 
 
 def make_entry(args):
+    from src.classifier.fvt_benchmark import closure_train_val
+
     with open(args.result) as f:
         result = json.load(f)
     folds = _fold_rows(result, args.stage)
@@ -237,6 +239,7 @@ def make_entry(args):
         "max_abs_diff": cons.get("max_abs_diff") if cons else None,
         "train_wf_identical": wfc.get("identical") if wfc else None,
         "generalization": gen, "tables": tables, "hists": hist_summary,
+        "closure_train_val": closure_train_val(result.get("models", []), args.stage),
         "per_fold": [{"offset": r["offset"], **{f"val {k}": v for k, v in r["validation"]["metrics"].items()}}
                      for r in folds],
     }
@@ -316,6 +319,36 @@ def make_summary(args):
                     [[html.escape(e["title"]), _f((e["hists"].get("pt1_sb") or {}).get("norm_model_over_target"))] +
                      [(_f(e["hists"][h]["chi2_ndf"], "{:.2f}") + f" ({e['hists'][h]['ndf']})") if h in e["hists"] else "–"
                       for h in hn] for e in entries]))
+
+    S.append("<h2>Sideband closure: training vs validation split</h2>")
+    S.append("<p class='note'>χ²/ndf of each fold's closure histogram on its training and on its validation events "
+             "(mean ± std over the folds, ddof=1), and of the folds summed. A fixed mis-modelling grows χ²/ndf − 1 in "
+             "proportion to the number of events, and the training split holds K−1 times the validation events, so the "
+             "two splits are compared through the excess per 100k 4b SB events, (χ²/ndf − 1)/(N/10⁵): equal excess = "
+             "the same bias on seen and unseen events (under-/mis-fit); training excess well below validation = "
+             "overtraining (train/val ratio &lt; 1).</p>")
+    ctv_rows = []
+    for e in entries:
+        for hname, c in (e.get("closure_train_val") or {}).items():
+            tr, va = c.get("training") or {}, c.get("validation") or {}
+
+            def pmk(d, key):
+                return _pm((d.get(f"{key}_mean"), d.get(f"{key}_std")), "{:.2f}")
+
+            ratio = c.get("excess_ratio_train_over_val")
+            ctv_rows.append([html.escape(e["title"]), hname, pmk(tr, "chi2_ndf"), pmk(va, "chi2_ndf"),
+                             _f(tr.get("chi2_ndf_summed"), "{:.2f}"), _f(va.get("chi2_ndf_summed"), "{:.2f}"),
+                             pmk(tr, "excess_per_100k"), pmk(va, "excess_per_100k"),
+                             (f'<span class="bad">{ratio:.2f}</span>' if ratio is not None and ratio < 0.5
+                              else _f(ratio, "{:.2f}")),
+                             ", ".join(f"{x:.2f}" for x in tr.get("chi2_ndf_per_fold", [])),
+                             ", ".join(f"{x:.2f}" for x in va.get("chi2_ndf_per_fold", []))])
+    if ctv_rows:
+        S.append(_table(["run", "hist", "χ²/ndf train", "χ²/ndf val", "train Σfolds", "val Σfolds",
+                         "excess/100k train", "excess/100k val", "excess train/val",
+                         "per-fold train", "per-fold val"], ctv_rows))
+    else:
+        S.append("<p class='note'>(entries predate this table; rerun <code>fit_quality_report entry</code>)</p>")
 
     S.append("<h2>Transfer weights</h2>")
     wk = ["neg_fraction", "p99", "max", "mean", "std"]
