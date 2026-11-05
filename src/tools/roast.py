@@ -961,7 +961,7 @@ def _proxy_hours_left(pem: bytes) -> float:
     return (end.replace(tzinfo=dt.timezone.utc) - dt.datetime.now(dt.timezone.utc)).total_seconds() / 3600
 
 
-def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 12) -> None:
+def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 2) -> None:
     """Make sure the grid proxy the Job will use is valid for at least `min_hours`.
 
     Checkouts hard-link the reference tree's proxy/, which nothing refreshes, so a proxy that
