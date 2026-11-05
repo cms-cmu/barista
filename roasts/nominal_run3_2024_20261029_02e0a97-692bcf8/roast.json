@@ -175,8 +175,8 @@
   },
   "publish": {
     "eos": "/eos/user/c/cguintob/www/HH4b/prod/nominal_run3_2024_20261029_02e0a97-692bcf8",
-    "url": "https://cguintob.web.cern.ch/cguintob/HH4b/prod/nominal_run3_2024_20261029_02e0a97-692bcf8/",
-    "ts": "2026-11-05 14:59:40",
+    "url": "https://cguintob.web.cern.ch/HH4b/prod/nominal_run3_2024_20261029_02e0a97-692bcf8/",
+    "ts": "2026-11-05 15:39:23",
     "ok": true,
     "pages": [
       "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
@@ -429,6 +429,18 @@
     },
     {
       "ts": "2026-11-05 14:59:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 15:32:58",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 15:39:23",
       "event": "publish",
       "host": "cmslpc",
       "ok": true

@@ -3102,6 +3102,40 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
             f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
 
 
+def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
+    """Regenerate the analysis-level index.html on CERNBox listing all published roasts."""
+    res = sh(["xrdfs", "eosuser.cern.ch", "ls", eos_base], check=False)
+    if res.returncode != 0:
+        info("warning: could not list CERNBox analysis directory for index refresh")
+        return
+    roasts = sorted(
+        [ln.strip() for ln in res.stdout.splitlines() if ln.strip() and "/." not in ln],
+        reverse=True,
+    )
+    url_base = url_base.rstrip("/")
+    rows = "\n".join(
+        f'  <li><a href="{url_base}/{ln.rstrip("/").rsplit("/", 1)[-1]}/index.html">'
+        f'{ln.rstrip("/").rsplit("/", 1)[-1]}</a></li>'
+        for ln in roasts
+    )
+    title = url_base.rsplit("/", 1)[-1]
+    html = (
+        f"<!DOCTYPE html><html><head><title>{title}</title></head>"
+        f"<body><h2>{title}</h2><ul>\n{rows}\n</ul></body></html>\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+        f.write(html)
+        tmp = f.name
+    try:
+        res = sh(["xrdcp", "-f", "-s", tmp, f"root://eosuser.cern.ch/{eos_base}/index.html"], check=False)
+        if res.returncode == 0:
+            info(f"analysis index updated: {url_base}/index.html")
+        else:
+            info("warning: could not update analysis index on CERNBox")
+    finally:
+        os.unlink(tmp)
+
+
 def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publish_mode: bool = False) -> None:
     if "nautilus" not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
         return
@@ -3223,6 +3257,7 @@ def cmd_publish(args) -> None:
                 info(f"[{pub_host}] warning: failed to upload summary index.html: {err_msg}")
             else:
                 info(f"summary roast index: {url}index.html")
+        _refresh_cernbox_analysis_index(eos_base, url_base)
 
     info(f"results: {url}")
     info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; run `{TOOL} commit {r['id']}` to commit the roast manifest")
