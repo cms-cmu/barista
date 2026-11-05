@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     import numpy as np
     import pandas as pd
 
+# SB closure histograms of the fit-quality benchmark plotted vs epoch (as in fvt_benchmark)
+CLOSURE_HISTS = ("fvt_sb", "pt4_sb", "pt1_sb")
+
 
 class LossROC(Analysis):
     argparser = ArgParser()
@@ -112,8 +115,17 @@ class _collect_loss_roc:
                     # scalars
                     scalars = v["scalars"]
                     plot.update(scalars)
+                    # SB closure chi2/ndf of the fit-quality benchmark (FvT/MvD), with the number of
+                    # target events so the training split can be scaled to the validation size
+                    closure = {}
+                    for fq in (v.get("fit_quality") or [])[:1]:
+                        for hname in CLOSURE_HISTS:
+                            h = (fq.get("histograms") or {}).get(hname) or {}
+                            if h.get("chi2_ndf") is not None and h.get("target"):
+                                closure[f"chi2/ndf: {hname}"] = h["chi2_ndf"]
+                                closure[f"N: {hname}"] = float(sum(h["target"]))
                     # update data
-                    _data[k].append(scalars | aucs)
+                    _data[k].append(scalars | aucs | closure)
                 _phases.append(hyperparameter)
                 for k, v in hyperparameter.items():
                     if isinstance(v, int):
@@ -409,6 +421,69 @@ class _generate_group_diagnostics_and_gallery:
 
             safe_name = auc_name.replace(" ", "_").replace("/", "_").lower()
             _save_fig(fig, f"auc-evolution-{safe_name}-{self._group}.png", f"AUC: {auc_name}", "2. AUC Evolution")
+
+        # -------------------------------------------------------------
+        # Plot 3b: SB closure chi2/ndf vs epoch (fit-quality benchmark, FvT/MvD)
+        # -------------------------------------------------------------
+        # A fixed mis-modelling grows chi2/ndf - 1 with the number of events and the training split
+        # holds K-1 times the validation events, so the training curve is also shown scaled to the
+        # fold's validation size, 1 + (chi2/ndf_tr - 1) * N_val / N_tr: on top of the validation
+        # curve = the same bias on seen and unseen events; below it = overtraining.
+        for hname in CLOSURE_HISTS:
+            col, ncol = f"chi2/ndf: {hname}", f"N: {hname}"
+            v_rows, t_rows, tn_rows = [], [], []
+            for c in self._classifiers:
+                v_df = self._plot_data.get((c, "validation"))
+                t_df = self._plot_data.get((c, "training"))
+                if v_df is None or t_df is None or col not in v_df or col not in t_df:
+                    continue
+                v = np.asarray(v_df.loc[mask, col].values, dtype=float)
+                t = np.asarray(t_df.loc[mask, col].values, dtype=float)
+                nv = np.asarray(v_df.loc[mask, ncol].values, dtype=float)
+                nt = np.asarray(t_df.loc[mask, ncol].values, dtype=float)
+                if len(v) != len(epochs) or len(t) != len(epochs):
+                    continue
+                v_rows.append(v)
+                t_rows.append(t)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    tn_rows.append(np.where(nt > 0, 1.0 + (t - 1.0) * nv / nt, np.nan))
+            if not v_rows:
+                continue
+            v_mat, t_mat, tn_mat = np.array(v_rows), np.array(t_rows), np.array(tn_rows)
+            m_v, m_t, m_tn = np.nanmean(v_mat, axis=0), np.nanmean(t_mat, axis=0), np.nanmean(tn_mat, axis=0)
+            nf = len(v_rows)
+            s_v = np.nanstd(v_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_v)
+            s_tn = np.nanstd(tn_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_tn)
+            chi_best = int(np.nanargmin(m_v))
+
+            fig, ax = plt.subplots(figsize=(9, 5))
+            for i in range(nf):
+                ax.plot(epochs, v_mat[i], color="gray", linestyle=":", alpha=0.45,
+                        label="Individual Folds (Val)" if i == 0 else None)
+            ax.plot(epochs, m_v, color="#1f77b4", marker="o", markersize=4, linewidth=2,
+                    label=f"Val ({m_v[best_idx]:.2f} ± {s_v[best_idx]:.2f} @ ep {best_ep})")
+            if nf > 1:
+                ax.fill_between(epochs, m_v - s_v, m_v + s_v, color="#1f77b4", alpha=0.18,
+                                label=r"Fold Spread ($\pm 1\sigma$)")
+            ax.plot(epochs, m_tn, color="#ff7f0e", marker="s", markersize=3.5, linewidth=1.8,
+                    label=f"Train, val-size ({m_tn[best_idx]:.2f} ± {s_tn[best_idx]:.2f})")
+            ax.plot(epochs, m_t, color="#ff7f0e", linestyle="--", linewidth=1.2, alpha=0.6,
+                    label=f"Train, raw ({m_t[best_idx]:.2f})")
+            ax.axhline(1.0, color="black", linewidth=0.8, alpha=0.6)
+            ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best-loss Epoch ({best_ep})")
+            if int(epochs[chi_best]) != best_ep:
+                ax.axvline(int(epochs[chi_best]), color="#2ca02c", linestyle=":", alpha=0.9,
+                           label=f"Min Val χ²/ndf Epoch ({int(epochs[chi_best])})")
+            ax.set_xlabel("Epoch", fontsize=12)
+            ax.set_ylabel(f"SB closure χ²/ndf ({hname})", fontsize=12)
+            ax.set_title(f"Closure Evolution: {hname}", fontsize=13, fontweight="bold")
+            if np.nanmax(m_t) > 20 * max(np.nanmin(m_v), 1e-3):
+                ax.set_yscale("log")
+            ax.grid(True, linestyle="--", alpha=0.5)
+            ax.legend(loc="upper right", fontsize=9, framealpha=0.95)
+            plt.tight_layout()
+            _save_fig(fig, f"closure-evolution-{hname}-{self._group}.png", f"χ²/ndf: {hname}",
+                      "2b. Closure Evolution")
 
         # -------------------------------------------------------------
         # Plot 4+: ROC Curves (Linear and Semi-Log Rejection at Best Epoch)

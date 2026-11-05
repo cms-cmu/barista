@@ -15,6 +15,13 @@ def parse_args():
     p.add_argument("--result", required=True, help="Path to result.json from FvT training")
     p.add_argument("--reference", default=None, help="Optional path to nominal reference result.json")
     p.add_argument("--json", action="store_true", help="Print summary as JSON")
+    p.add_argument(
+        "--stage",
+        choices=["final", "baseline", "all"],
+        default="final",
+        help="which benchmark to summarize: final epoch of the last training stage (default), "
+             "the pre-training Baseline (fit-quality replay of an existing model), or every stage",
+    )
     return p.parse_args()
 
 
@@ -33,7 +40,131 @@ def _variance(arr):
     return sum((x - mean) ** 2 for x in arr) / (len(arr) - 1)
 
 
-def extract_benchmark(result_path: str) -> dict:
+def _select_benchmarks(models: list, stage: str = "final"):
+    """Yield one ``{"training": ..., "validation": ...}`` benchmark dict per selected stage.
+
+    final:    last epoch of each model's last Training/Finetuning stage (one entry per fold)
+    baseline: the pre-training "Baseline" benchmark (one per fold); with --pretrained-weights
+              and zero epochs this is the fit quality of an existing model (fit_quality_replay)
+    all:      last epoch of every Training/Finetuning stage (pre-Nov 2026 behaviour: pools
+              Training and Finetuning, so a 3-fold training gives 6 entries)
+    """
+    for m in models:
+        history = m.get("history", [])
+        if stage == "baseline":
+            for st in history:
+                if st.get("name") == "Baseline" and st.get("benchmarks"):
+                    yield st["benchmarks"]
+            continue
+        trained = [
+            st for st in history
+            if st.get("name") in ["Training", "Finetuning"] and st.get("training")
+        ]
+        if stage == "final":
+            trained = trained[-1:]
+        for st in trained:
+            yield st["training"][-1].get("benchmarks", {})
+
+
+CLOSURE_HISTS = ("fvt_sb", "pt4_sb", "pt1_sb")
+
+
+def hist_chi2_ndf(h: dict):
+    """Shape chi2/ndf of one stored closure histogram, as FvTFitQuality._chi2_ndf computes it: model
+    normalised to the target, errors from both sides' sum w^2, bins without target entries skipped.
+    Returns (chi2/ndf, ndf, sum of target weights); (None, 0, sum) when empty."""
+    t, m = h.get("target") or [], h.get("model") or []
+    t2, m2 = h.get("target_sumw2"), h.get("model_sumw2")
+    st, sm = sum(t), sum(m)
+    if not t or st <= 0 or sm <= 0 or t2 is None or m2 is None:
+        return None, 0, st
+    k = st / sm
+    chi2, n = 0.0, 0
+    for ti, mi, t2i, m2i in zip(t, m, t2, m2):
+        var = t2i + k * k * m2i
+        if ti > 0 and var > 0:
+            chi2 += (ti - k * mi) ** 2 / var
+            n += 1
+    return ((chi2 / (n - 1), n - 1, st) if n > 1 else (None, 0, st))
+
+
+def _sum_hist(hs: list):
+    """Add histograms (sum w and sum w^2 add); None if they don't share a binning."""
+    hs = [h for h in hs if h and h.get("target")]
+    if not hs or any(len(h["target"]) != len(hs[0]["target"]) for h in hs):
+        return None
+    keys = ("target", "target_sumw2", "model", "model_sumw2")
+    return {k: [sum(v) for v in zip(*(h.get(k) or [0.0] * len(h["target"]) for h in hs))] for k in keys}
+
+
+def closure_train_val(models: list, stage: str = "final", hists=CLOSURE_HISTS) -> dict:
+    """SB closure chi2/ndf on the training vs the validation split, per fold and folds summed.
+
+    For each closure histogram and split: the per-fold chi2/ndf, their mean and fold-to-fold std
+    (ddof=1), the chi2/ndf of the folds summed, and the excess per 100k target events,
+    (chi2/ndf - 1) / (N_target / 1e5). A fixed mis-modelling (bias) grows chi2/ndf - 1 in proportion
+    to the events, so the training split (K-1 times the validation events) shows a larger chi2/ndf
+    with the same excess per event; overtraining shows as a training excess per event BELOW the
+    validation one (the model closes better on the events it was fit to).
+    """
+    out = {}
+    for hname in hists:
+        res = {}
+        by_fold = {}   # split -> {fold index: (chi2/ndf, N_target)}, to pair a fold's two splits
+        for split in ("training", "validation"):
+            per_fold, n_t, excess, raw = [], [], [], []
+            by_fold[split] = {}
+            for i, bm in enumerate(_select_benchmarks(models, stage)):
+                fq = (bm.get(split, {}).get("fit_quality") or [{}])[0]
+                h = (fq.get("histograms") or {}).get(hname)
+                if not h:
+                    continue
+                c, ndf, st = hist_chi2_ndf(h)
+                if c is None:
+                    continue
+                by_fold[split][i] = (c, st)
+                raw.append(h)
+                per_fold.append(c)
+                n_t.append(st)
+                excess.append((c - 1.0) / (st / 1e5) if st > 0 else None)
+            if not per_fold:
+                continue
+            mean, std = _stats(per_fold)[0], _variance(per_fold) ** 0.5
+            ex = [x for x in excess if x is not None]
+            ex_mean, ex_std = (_stats(ex)[0], _variance(ex) ** 0.5) if ex else (None, None)
+            summed = _sum_hist(raw)
+            s_c, s_ndf, s_n = hist_chi2_ndf(summed) if summed else (None, 0, None)
+            res[split] = {
+                "chi2_ndf_per_fold": per_fold,
+                "chi2_ndf_mean": mean,
+                "chi2_ndf_std": std if len(per_fold) > 1 else None,
+                "chi2_ndf_summed": s_c,
+                "ndf": s_ndf,
+                "n_target_per_fold": n_t,
+                "excess_per_100k_per_fold": excess,
+                "excess_per_100k_mean": ex_mean,
+                "excess_per_100k_std": ex_std if len(ex) > 1 else None,
+            }
+        if res:
+            tr, va = res.get("training"), res.get("validation")
+            # training chi2/ndf rescaled to the fold's validation size: 1 + (chi2/ndf - 1) * N_val / N_train.
+            # Directly comparable with the validation chi2/ndf (equal = same bias per event; lower =
+            # overtraining).
+            norm = [1.0 + (c - 1.0) * by_fold["validation"][i][1] / n
+                    for i, (c, n) in sorted(by_fold["training"].items())
+                    if i in by_fold["validation"] and n > 0]
+            if tr and norm:
+                tr["chi2_ndf_valsize_per_fold"] = norm
+                tr["chi2_ndf_valsize_mean"] = _stats(norm)[0]
+                tr["chi2_ndf_valsize_std"] = _variance(norm) ** 0.5 if len(norm) > 1 else None
+            if tr and va and va["excess_per_100k_mean"]:
+                # < 1: closes better on training events than on held-out ones (overtraining)
+                res["excess_ratio_train_over_val"] = tr["excess_per_100k_mean"] / va["excess_per_100k_mean"]
+            out[hname] = res
+    return out
+
+
+def extract_benchmark(result_path: str, stage: str = "final") -> dict:
     with open(result_path) as f:
         data = json.load(f)
 
@@ -86,73 +217,69 @@ def extract_benchmark(result_path: str) -> dict:
 
     fit_qualities = []
 
-    for m in models:
-        for stage in m.get("history", []):
-            if stage.get("name") in ["Training", "Finetuning"] and "training" in stage and stage["training"]:
-                last_epoch = stage["training"][-1]
-                benchmarks = last_epoch.get("benchmarks", {})
-                
-                # Validation
-                val_sc = benchmarks.get("validation", {}).get("scalars", {})
-                val_rocs = benchmarks.get("validation", {}).get("roc", [])
-                val_fq = benchmarks.get("validation", {}).get("fit_quality", [])
+    for benchmarks in _select_benchmarks(models, stage):
 
-                if "loss" in val_sc:
-                    val_losses.append(val_sc["loss"])
-                for r in val_rocs:
-                    rname = r.get("name")
-                    rauc = r.get("AUC")
-                    if rauc is None:
-                        continue
-                    if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
-                        val_aucs_4b_sb.append(rauc)
-                    elif rname in ["4b vs 3b data", "4b vs 3b"]:
-                        val_aucs_4b.append(rauc)
-                    elif rname == "ttbar vs data SB":
-                        val_aucs_tt_sb.append(rauc)
-                    elif rname == "ttbar vs data SR":
-                        val_aucs_tt_sr.append(rauc)
-                    elif rname == "ttbar vs data":
-                        val_aucs_tt.append(rauc)
+        # Validation
+        val_sc = benchmarks.get("validation", {}).get("scalars", {})
+        val_rocs = benchmarks.get("validation", {}).get("roc", [])
+        val_fq = benchmarks.get("validation", {}).get("fit_quality", [])
 
-                if val_fq:
-                    v_prox = val_fq[0].get("proxies", {})
-                    if "loss_sb" in v_prox: val_loss_sb.append(v_prox["loss_sb"])
-                    if "loss_sr" in v_prox: val_loss_sr.append(v_prox["loss_sr"])
-                    if "chi2_fvt_sb" in v_prox: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
-                    if "chi2_t3_sb" in v_prox: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
-                    if "chi2_t4_sb" in v_prox: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
-                    if "chi2_t3_sr" in v_prox: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
-                    if "chi2_t4_sr" in v_prox: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
-                    fit_qualities.append(val_fq[0])
+        if "loss" in val_sc:
+            val_losses.append(val_sc["loss"])
+        for r in val_rocs:
+            rname = r.get("name")
+            rauc = r.get("AUC")
+            if rauc is None:
+                continue
+            if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
+                val_aucs_4b_sb.append(rauc)
+            elif rname in ["4b vs 3b data", "4b vs 3b"]:
+                val_aucs_4b.append(rauc)
+            elif rname == "ttbar vs data SB":
+                val_aucs_tt_sb.append(rauc)
+            elif rname == "ttbar vs data SR":
+                val_aucs_tt_sr.append(rauc)
+            elif rname == "ttbar vs data":
+                val_aucs_tt.append(rauc)
 
-                # Training
-                tr_sc = benchmarks.get("training", {}).get("scalars", {})
-                tr_rocs = benchmarks.get("training", {}).get("roc", [])
-                if "loss" in tr_sc:
-                    tr_losses.append(tr_sc["loss"])
-                for r in tr_rocs:
-                    rname = r.get("name")
-                    rauc = r.get("AUC")
-                    if rauc is None:
-                        continue
-                    if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
-                        tr_aucs_4b_sb.append(rauc)
-                    elif rname in ["4b vs 3b data", "4b vs 3b"]:
-                        tr_aucs_4b.append(rauc)
-                    elif rname == "ttbar vs data SB":
-                        tr_aucs_tt_sb.append(rauc)
-                    elif rname == "ttbar vs data SR":
-                        tr_aucs_tt_sr.append(rauc)
-                    elif rname == "ttbar vs data":
-                        tr_aucs_tt.append(rauc)
+        if val_fq:
+            v_prox = val_fq[0].get("proxies", {})
+            if v_prox.get("loss_sb") is not None: val_loss_sb.append(v_prox["loss_sb"])
+            if v_prox.get("loss_sr") is not None: val_loss_sr.append(v_prox["loss_sr"])
+            if v_prox.get("chi2_fvt_sb") is not None: val_chi2_fvt_sb.append(v_prox["chi2_fvt_sb"])
+            if v_prox.get("chi2_t3_sb") is not None: val_chi2_t3_sb.append(v_prox["chi2_t3_sb"])
+            if v_prox.get("chi2_t4_sb") is not None: val_chi2_t4_sb.append(v_prox["chi2_t4_sb"])
+            if v_prox.get("chi2_t3_sr") is not None: val_chi2_t3_sr.append(v_prox["chi2_t3_sr"])
+            if v_prox.get("chi2_t4_sr") is not None: val_chi2_t4_sr.append(v_prox["chi2_t4_sr"])
+            fit_qualities.append(val_fq[0])
 
-                tr_fq = benchmarks.get("training", {}).get("fit_quality", [])
-                if tr_fq:
-                    t_prox = tr_fq[0].get("proxies", {})
-                    if "loss_sb" in t_prox: tr_loss_sb.append(t_prox["loss_sb"])
-                    if "loss_sr" in t_prox: tr_loss_sr.append(t_prox["loss_sr"])
-                    if "chi2_fvt_sb" in t_prox: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
+        # Training
+        tr_sc = benchmarks.get("training", {}).get("scalars", {})
+        tr_rocs = benchmarks.get("training", {}).get("roc", [])
+        if "loss" in tr_sc:
+            tr_losses.append(tr_sc["loss"])
+        for r in tr_rocs:
+            rname = r.get("name")
+            rauc = r.get("AUC")
+            if rauc is None:
+                continue
+            if rname in ["4b vs 3b data SB", "4b vs 3b SB"]:
+                tr_aucs_4b_sb.append(rauc)
+            elif rname in ["4b vs 3b data", "4b vs 3b"]:
+                tr_aucs_4b.append(rauc)
+            elif rname == "ttbar vs data SB":
+                tr_aucs_tt_sb.append(rauc)
+            elif rname == "ttbar vs data SR":
+                tr_aucs_tt_sr.append(rauc)
+            elif rname == "ttbar vs data":
+                tr_aucs_tt.append(rauc)
+
+        tr_fq = benchmarks.get("training", {}).get("fit_quality", [])
+        if tr_fq:
+            t_prox = tr_fq[0].get("proxies", {})
+            if t_prox.get("loss_sb") is not None: tr_loss_sb.append(t_prox["loss_sb"])
+            if t_prox.get("loss_sr") is not None: tr_loss_sr.append(t_prox["loss_sr"])
+            if t_prox.get("chi2_fvt_sb") is not None: tr_chi2_fvt_sb.append(t_prox["chi2_fvt_sb"])
 
     summary["avg_val_loss"], summary["val_loss_std"] = _stats(val_losses)
     summary["avg_tr_loss"], summary["tr_loss_std"] = _stats(tr_losses)
@@ -164,6 +291,8 @@ def extract_benchmark(result_path: str) -> dict:
 
     summary["avg_auc_ttbar"], summary["val_auc_ttbar_std"] = _stats(val_aucs_tt)
     summary["avg_tr_auc_ttbar"], summary["tr_auc_ttbar_std"] = _stats(tr_aucs_tt)
+
+    summary["closure_train_val"] = closure_train_val(models, stage)
 
     if fit_qualities:
         # Average fit qualities across folds
@@ -178,7 +307,7 @@ def extract_benchmark(result_path: str) -> dict:
             "closure": {},
             "verdict": {
                 "all_gates_passed": all(fq.get("verdict", {}).get("all_gates_passed", False) for fq in fit_qualities),
-                "primary_score": sum(fq.get("verdict", {}).get("primary_score", 0.0) for fq in fit_qualities) / len(fit_qualities) if any("primary_score" in fq.get("verdict", {}) for fq in fit_qualities) else 0.0,
+                "primary_score": (lambda v: sum(v) / len(v) if v else None)([fq.get("verdict", {}).get("primary_score") for fq in fit_qualities if fq.get("verdict", {}).get("primary_score") is not None]),
             },
         }
 
@@ -325,6 +454,37 @@ def print_table(summary: dict, ref_summary: dict = None):
         row("  Sideband Norm (3b*w/4b)", closure.get("norm_closure_sb", "-"), ref_closure.get("norm_closure_sb", "-"))
     row("  Composite chi2/ndf (Score)", closure.get("composite_chi2_ndf", "-"), ref_closure.get("composite_chi2_ndf", "-"))
 
+    ctv = summary.get("closure_train_val") or {}
+    ref_ctv = (ref_summary or {}).get("closure_train_val") or {}
+    if ctv:
+        print("\n[ CLOSURE: TRAIN vs VAL (SB chi2/ndf, fold mean ± std; excess = (chi2/ndf-1) per 100k events) ]")
+
+        def pm(d, key):
+            if not d or d.get(f"{key}_mean") is None:
+                return "-"
+            s = d.get(f"{key}_std")
+            fmt = ".2f"
+            return f"{d[f'{key}_mean']:{fmt}}" + (f" ± {s:{fmt}}" if s is not None else "")
+
+        for hname in CLOSURE_HISTS:
+            if hname not in ctv and hname not in ref_ctv:
+                continue
+            c, r = ctv.get(hname, {}), ref_ctv.get(hname, {})
+            for split, lab in (("training", "train"), ("validation", "val")):
+                row(f"  {hname} chi2/ndf ({lab})", pm(c.get(split), "chi2_ndf"), pm(r.get(split), "chi2_ndf"))
+            row(f"  {hname} chi2/ndf (train, val-size)", pm(c.get("training"), "chi2_ndf_valsize"),
+                pm(r.get("training"), "chi2_ndf_valsize"))
+            for split, lab in (("training", "train"), ("validation", "val")):
+                sc, sr = (c.get(split) or {}).get("chi2_ndf_summed"), (r.get(split) or {}).get("chi2_ndf_summed")
+                row(f"  {hname} chi2/ndf ({lab}, folds summed)", sc if sc is not None else "-",
+                    sr if sr is not None else "-", ".2f" if sc is not None else "")
+            for split, lab in (("training", "train"), ("validation", "val")):
+                row(f"  {hname} excess/100k evt ({lab})", pm(c.get(split), "excess_per_100k"),
+                    pm(r.get(split), "excess_per_100k"))
+            er, rer = c.get("excess_ratio_train_over_val"), r.get("excess_ratio_train_over_val")
+            row(f"  {hname} excess train/val (<1: overtrain)", er if er is not None else "-",
+                rer if rer is not None else "-", ".2f" if er is not None else "")
+
     print("\n[ TIER 3: DISCRIMINATION & LOSS (TRAIN vs VAL) ]")
     row("  Validation Loss", summary.get("avg_val_loss", 0.0), ref_summary.get("avg_val_loss") if ref_summary else None, ".4f")
     row("  Training Loss", summary.get("avg_tr_loss", 0.0), ref_summary.get("avg_tr_loss") if ref_summary else None, ".4f")
@@ -396,8 +556,8 @@ def print_table(summary: dict, ref_summary: dict = None):
 
 def main():
     args = parse_args()
-    summary = extract_benchmark(args.result)
-    ref_summary = extract_benchmark(args.reference) if args.reference else None
+    summary = extract_benchmark(args.result, args.stage)
+    ref_summary = extract_benchmark(args.reference, args.stage) if args.reference else None
 
     if args.json:
         out = {"current": summary}

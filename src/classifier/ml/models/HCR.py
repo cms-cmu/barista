@@ -197,8 +197,13 @@ class HCRModel(Model):
         rocs = [r.copy() for r in (self._benchmarks.rocs or [])]
         fit_qualities = [f.copy() for f in (self._benchmarks.fit_quality or [])]
         for batch in batches:
+            inputs = _HCRInput(batch, self._device)
+            if fit_qualities:
+                # HCR.dataPrep rewrites the jet tensors in place (log(1+pt), eta sign); the
+                # fit-quality benchmark reads the original kinematics from the batch
+                inputs = [i.clone() for i in inputs]
             with _amp_autocast(self._device):
-                c, q = self._nn(*_HCRInput(batch, self._device))
+                c, q = self._nn(*inputs)
             c, q = c.float(), q.float()
             batch |= {
                 Output.quadjet_raw: q,
@@ -267,8 +272,14 @@ class HCRTraining(MultiStageTraining):
             else:
                 import glob as _glob
                 offset = self.metadata.get("offset", 0)
-                pattern = f"{self._pretrained_weights}/*_offset{offset}_*.pkl"
-                matches = _glob.glob(pattern)
+                # saved models are named model_<...>__offset_{N}__<...>.pkl (filename(metadata));
+                # also accept the compact _offset{N}_ form
+                patterns = [
+                    f"{self._pretrained_weights}/*__offset_{offset}__*.pkl",
+                    f"{self._pretrained_weights}/*_offset{offset}_*.pkl",
+                ]
+                pattern = " | ".join(patterns)
+                matches = sorted({m for p in patterns for m in _glob.glob(p)})
                 if not matches:
                     raise FileNotFoundError(
                         f"No pretrained weights found for offset {offset} in "
