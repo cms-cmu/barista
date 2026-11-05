@@ -110,9 +110,11 @@ def closure_train_val(models: list, stage: str = "final", hists=CLOSURE_HISTS) -
     out = {}
     for hname in hists:
         res = {}
+        by_fold = {}   # split -> {fold index: (chi2/ndf, N_target)}, to pair a fold's two splits
         for split in ("training", "validation"):
             per_fold, n_t, excess, raw = [], [], [], []
-            for bm in _select_benchmarks(models, stage):
+            by_fold[split] = {}
+            for i, bm in enumerate(_select_benchmarks(models, stage)):
                 fq = (bm.get(split, {}).get("fit_quality") or [{}])[0]
                 h = (fq.get("histograms") or {}).get(hname)
                 if not h:
@@ -120,6 +122,7 @@ def closure_train_val(models: list, stage: str = "final", hists=CLOSURE_HISTS) -
                 c, ndf, st = hist_chi2_ndf(h)
                 if c is None:
                     continue
+                by_fold[split][i] = (c, st)
                 raw.append(h)
                 per_fold.append(c)
                 n_t.append(st)
@@ -144,6 +147,16 @@ def closure_train_val(models: list, stage: str = "final", hists=CLOSURE_HISTS) -
             }
         if res:
             tr, va = res.get("training"), res.get("validation")
+            # training chi2/ndf rescaled to the fold's validation size: 1 + (chi2/ndf - 1) * N_val / N_train.
+            # Directly comparable with the validation chi2/ndf (equal = same bias per event; lower =
+            # overtraining).
+            norm = [1.0 + (c - 1.0) * by_fold["validation"][i][1] / n
+                    for i, (c, n) in sorted(by_fold["training"].items())
+                    if i in by_fold["validation"] and n > 0]
+            if tr and norm:
+                tr["chi2_ndf_valsize_per_fold"] = norm
+                tr["chi2_ndf_valsize_mean"] = _stats(norm)[0]
+                tr["chi2_ndf_valsize_std"] = _variance(norm) ** 0.5 if len(norm) > 1 else None
             if tr and va and va["excess_per_100k_mean"]:
                 # < 1: closes better on training events than on held-out ones (overtraining)
                 res["excess_ratio_train_over_val"] = tr["excess_per_100k_mean"] / va["excess_per_100k_mean"]
@@ -459,6 +472,8 @@ def print_table(summary: dict, ref_summary: dict = None):
             c, r = ctv.get(hname, {}), ref_ctv.get(hname, {})
             for split, lab in (("training", "train"), ("validation", "val")):
                 row(f"  {hname} chi2/ndf ({lab})", pm(c.get(split), "chi2_ndf"), pm(r.get(split), "chi2_ndf"))
+            row(f"  {hname} chi2/ndf (train, val-size)", pm(c.get("training"), "chi2_ndf_valsize"),
+                pm(r.get("training"), "chi2_ndf_valsize"))
             for split, lab in (("training", "train"), ("validation", "val")):
                 sc, sr = (c.get(split) or {}).get("chi2_ndf_summed"), (r.get(split) or {}).get("chi2_ndf_summed")
                 row(f"  {hname} chi2/ndf ({lab}, folds summed)", sc if sc is not None else "-",

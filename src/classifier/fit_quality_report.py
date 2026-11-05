@@ -324,7 +324,9 @@ def make_summary(args):
     S.append("<p class='note'>χ²/ndf of each fold's closure histogram on its training and on its validation events "
              "(mean ± std over the folds, ddof=1), and of the folds summed. A fixed mis-modelling grows χ²/ndf − 1 in "
              "proportion to the number of events, and the training split holds K−1 times the validation events, so the "
-             "two splits are compared through the excess per 100k 4b SB events, (χ²/ndf − 1)/(N/10⁵): equal excess = "
+             "two splits are compared through the training χ²/ndf normalized to the fold's validation size, "
+             "1 + (χ²/ndf<sub>train</sub> − 1)·N<sub>val</sub>/N<sub>train</sub> (compare with χ²/ndf val), and "
+             "the excess per 100k 4b SB events, (χ²/ndf − 1)/(N/10⁵): equal excess = "
              "the same bias on seen and unseen events (under-/mis-fit); training excess well below validation = "
              "overtraining (train/val ratio &lt; 1).</p>")
     ctv_rows = []
@@ -336,7 +338,8 @@ def make_summary(args):
                 return _pm((d.get(f"{key}_mean"), d.get(f"{key}_std")), "{:.2f}")
 
             ratio = c.get("excess_ratio_train_over_val")
-            ctv_rows.append([html.escape(e["title"]), hname, pmk(tr, "chi2_ndf"), pmk(va, "chi2_ndf"),
+            ctv_rows.append([html.escape(e["title"]), hname, pmk(tr, "chi2_ndf"), pmk(tr, "chi2_ndf_valsize"),
+                             pmk(va, "chi2_ndf"),
                              _f(tr.get("chi2_ndf_summed"), "{:.2f}"), _f(va.get("chi2_ndf_summed"), "{:.2f}"),
                              pmk(tr, "excess_per_100k"), pmk(va, "excess_per_100k"),
                              (f'<span class="bad">{ratio:.2f}</span>' if ratio is not None and ratio < 0.5
@@ -344,7 +347,8 @@ def make_summary(args):
                              ", ".join(f"{x:.2f}" for x in tr.get("chi2_ndf_per_fold", [])),
                              ", ".join(f"{x:.2f}" for x in va.get("chi2_ndf_per_fold", []))])
     if ctv_rows:
-        S.append(_table(["run", "hist", "χ²/ndf train", "χ²/ndf val", "train Σfolds", "val Σfolds",
+        S.append(_table(["run", "hist", "χ²/ndf train", "χ²/ndf train (normalized to val size)", "χ²/ndf val",
+                         "train Σfolds", "val Σfolds",
                          "excess/100k train", "excess/100k val", "excess train/val",
                          "per-fold train", "per-fold val"], ctv_rows))
     else:
