@@ -176,13 +176,15 @@
   "publish": {
     "eos": "/eos/user/c/cguintob/www/HH4b/prod/nominal_run3_2024_20261029_02e0a97-692bcf8",
     "url": "https://cguintob.web.cern.ch/cguintob/HH4b/prod/nominal_run3_2024_20261029_02e0a97-692bcf8/",
-    "ts": "2026-11-05 13:28:54",
-    "ok": false,
+    "ts": "2026-11-05 14:59:40",
+    "ok": true,
     "pages": [
       "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
       "output/FvT_nominal/plots/analyze/index.html",
       "output/FvT_nominal/plots/index.html",
-      "output/FvT_nominal/yields.html"
+      "output/FvT_nominal/yields.html",
+      "output/Run3_2024_nominal/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2024_nominal/FvT_closure/plots_ttbar_MC_vs_d3/index.html"
     ]
   },
   "history": [
@@ -310,6 +312,126 @@
       "event": "publish",
       "host": "falcon",
       "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:29:38",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:30:25",
+      "event": "publish",
+      "host": "falcon",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:31:55",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:32:53",
+      "event": "publish",
+      "host": "falcon",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:33:57",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:34:04",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 13:36:39",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:36:43",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 13:37:41",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:37:45",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 13:39:08",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:42:25",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:43:57",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:45:55",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 13:46:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 14:05:24",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 14:08:55",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 14:55:10",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-05 14:57:23",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-05 14:59:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",

@@ -43,6 +43,7 @@ import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -318,6 +319,23 @@ def roast_ssh(cfg: dict, r: dict, host: str) -> str:
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
     """Run a bash script on a remote host via stdin (no quoting games)."""
     return sh(["ssh", *ssh_opts(target), target, "bash -s"], check=check, capture=capture, input=script)
+
+
+def _is_local(target: str) -> bool:
+    """True when the SSH target is this node — avoids the SSH round-trip and its auth requirements."""
+    host = target.split("@")[-1]
+    try:
+        local = socket.getfqdn()
+        return host == local or host.split(".")[0] == local.split(".")[0]
+    except Exception:
+        return False
+
+
+def _run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
+    """Run a bash script locally if target is this node, otherwise via SSH."""
+    if _is_local(target):
+        return sh(["bash", "-s"], check=check, capture=capture, input=script)
+    return ssh_run(target, script, check=check, capture=capture)
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
@@ -3133,9 +3151,9 @@ def cmd_publish(args) -> None:
                 continue
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
-            res = ssh_run(roast_ssh(cfg, r, host),
-                          _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
-                                       dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
+            res = _run(roast_ssh(cfg, r, host),
+                       _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
+                                    dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
             combined_out = res.stdout + res.stderr
             for line in combined_out.splitlines():
                 if line.startswith("PAGE:"):
@@ -3188,11 +3206,18 @@ def cmd_publish(args) -> None:
                 xrdcp -f -s index.html "root://eosuser.cern.ch/{eos_dir}/index.html"
             """)
             target_ssh = roast_ssh(cfg, r, pub_host)
-            up_res = subprocess.run(
-                ["ssh", *ssh_opts(target_ssh), target_ssh, f"bash -l -c {rq(upload_script)}"],
-                input=summary_html.encode("utf-8"),
-                capture_output=True,
-            )
+            if _is_local(target_ssh):
+                up_res = subprocess.run(
+                    ["bash", "-c", upload_script],
+                    input=summary_html.encode("utf-8"),
+                    capture_output=True,
+                )
+            else:
+                up_res = subprocess.run(
+                    ["ssh", *ssh_opts(target_ssh), target_ssh, f"bash -l -c {rq(upload_script)}"],
+                    input=summary_html.encode("utf-8"),
+                    capture_output=True,
+                )
             if up_res.returncode != 0:
                 err_msg = up_res.stderr.decode("utf-8", errors="replace").strip()
                 info(f"[{pub_host}] warning: failed to upload summary index.html: {err_msg}")
@@ -3225,9 +3250,9 @@ def cmd_archive(args) -> None:
             continue
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
-        res = ssh_run(roast_ssh(cfg, r, host),
-                      _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
-                                   dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
+        res = _run(roast_ssh(cfg, r, host),
+                   _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
+                                dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
         print((res.stdout + res.stderr).strip())
         if args.dry_run:
             continue
