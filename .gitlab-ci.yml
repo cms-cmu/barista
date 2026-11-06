@@ -67,6 +67,7 @@ include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
+  - local: 'src/workflows/gitlab-CI/stages_classifier.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
   - project: 'cms-cmu/bbreww'

@@ -303,6 +303,8 @@ class HCRTraining(MultiStageTraining):
             model=skim,
             schedule=SkimStep(),
             training=self.dataset,
+            # the skim accumulates the input mean/std (not in any state dict): never resume it
+            checkpoint=False,
         )
         self._HCR.nn.initMeanStd()
         validation_sets = self._splitter.get()

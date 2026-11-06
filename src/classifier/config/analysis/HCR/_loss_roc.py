@@ -199,14 +199,28 @@ class _generate_group_diagnostics_and_gallery:
         report_dir = IO.report / "HCR"
         report_dir.mkdir(recursive=True)
 
-        # 1. Filter training stage
+        # 1. Training stage, plus the Finetuning epoch(s) appended as the last point(s): the finetune
+        # makes the final model, so every vs-epoch plot shows it. The best epoch (and the ROC curves
+        # taken at it) is still chosen among the Training epochs only.
+        n_ft = 0
         if "stage" in self._phase and (self._phase["stage"] == "Training").any():
-            mask = self._phase["stage"] == "Training"
+            mask_train = self._phase["stage"] == "Training"
+            mask_ft = self._phase["stage"] == "Finetuning"
+            n_ft = int(mask_ft.sum())
+            mask = mask_train | mask_ft
         else:
-            mask = slice(None)
+            mask_train = mask = slice(None)
 
         if "epoch" in self._phase:
-            epochs = np.asarray(self._phase.loc[mask, "epoch"].values, dtype=int)
+            if n_ft:
+                ph = self._phase.loc[mask]
+                n_tr_ep = int(self._phase.loc[mask_train, "epoch"].max())
+                epochs = np.asarray(
+                    [int(e) if s == "Training" else n_tr_ep + int(e) for s, e in zip(ph["stage"], ph["epoch"])],
+                    dtype=int,
+                )
+            else:
+                epochs = np.asarray(self._phase.loc[mask, "epoch"].values, dtype=int)
         else:
             epochs = None
 
@@ -237,7 +251,30 @@ class _generate_group_diagnostics_and_gallery:
         gap = mean_val - mean_tr
         z_pull = np.where(std_val > 1e-7, gap / std_val, 0.0) if k_folds > 1 else np.zeros_like(mean_val)
 
-        best_idx = int(np.argmin(mean_val))
+        n_tr = n_epochs - n_ft            # points [0, n_tr) are Training, [n_tr, n_epochs) Finetuning
+
+        def _mark_finetune(ax, label=True):
+            """Shade the finetuning point(s) (ticked "FT"); no-op without a Finetuning stage."""
+            if not n_ft:
+                return
+            lo = 0.5 * (float(epochs[n_tr - 1]) + float(epochs[n_tr])) if n_tr > 0 else float(epochs[0]) - 0.5
+            ax.axvspan(lo, float(epochs[-1]) + 0.5, color="#c0561d", alpha=0.10, lw=0,
+                       label="Finetuning" if label else None)
+
+        def _epoch_ticks(ax):
+            """Integer epoch ticks, the finetuning point(s) labelled FT."""
+            ticks = [int(e) for e in epochs]
+            labels = [str(e) for e in ticks[:n_tr]] + (["FT"] if n_ft == 1 else [f"FT{i + 1}" for i in range(n_ft)])
+            if len(ticks) > 12:     # epoch 1, every 5th training epoch and the FT point(s)
+                # with a finetune point, skip the training ticks right next to it (they would overlap "FT")
+                last = ticks[n_tr - 1] if (n_ft and n_tr > 0) else None
+                keep = [i for i in range(len(ticks)) if i >= n_tr or ticks[i] == 1 or
+                        (ticks[i] % 5 == 0 and (last is None or ticks[i] < last))]
+                ticks, labels = [ticks[i] for i in keep], [labels[i] for i in keep]
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(labels)
+
+        best_idx = int(np.argmin(mean_val[:n_tr])) if n_tr > 0 else int(np.argmin(mean_val))
         best_ep = int(epochs[best_idx])
         best_val = float(mean_val[best_idx])
         best_tr = float(mean_tr[best_idx])
@@ -294,6 +331,7 @@ class _generate_group_diagnostics_and_gallery:
         ax1.plot(epochs, mean_tr, color="#ff7f0e", marker="s", markersize=4, linewidth=1.8,
                  linestyle="--", label=f"Mean Train Loss ({best_tr:.5f} @ ep {best_ep})")
         ax1.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+        _mark_finetune(ax1)
         ax1.set_ylabel(r"Loss $\mathcal{L}$", fontsize=13)
         ax1.set_title(f"Cross-Validation Loss & Statistical Divergence (K={k_folds})", fontsize=14, fontweight="bold")
         ax1.grid(True, linestyle="--", alpha=0.5)
@@ -315,9 +353,10 @@ class _generate_group_diagnostics_and_gallery:
             ax2.plot(epochs, gap, color="purple", marker="o", linewidth=2, label=r"Generalization Gap $\Delta L$")
             ax2.set_ylabel(r"Gap $\Delta L$", fontsize=11)
 
+        _mark_finetune(ax2, label=False)
         ax2.set_xlabel("Epoch", fontsize=12)
-        ax2.set_xlim(float(epochs[0]) - 0.2, float(epochs[-1]) + 0.2)
-        ax2.set_xticks(epochs)
+        ax2.set_xlim(float(epochs[0]) - 0.2, float(epochs[-1]) + 0.5)
+        _epoch_ticks(ax2)
         ax2.grid(True, linestyle="--", alpha=0.5)
         ax2.legend(loc="upper left", fontsize=9, framealpha=0.95)
         plt.tight_layout()
@@ -331,6 +370,8 @@ class _generate_group_diagnostics_and_gallery:
             fig, ax = plt.subplots(figsize=(9, 4.5))
             ax.plot(epochs, mean_lr, color="#9467bd", marker="o", linewidth=2, label="Learning Rate")
             ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel("Learning Rate", fontsize=12)
             ax.set_title("Learning Rate Evolution vs Epoch", fontsize=13, fontweight="bold")
@@ -345,7 +386,7 @@ class _generate_group_diagnostics_and_gallery:
         if k_folds > 1:
             fig, (ax_bar1, ax_bar2) = plt.subplots(1, 2, figsize=(10, 4))
             fold_min_vals = [float(np.min(val_mat[i])) for i in range(k_folds)]
-            fold_best_eps = [int(epochs[np.argmin(val_mat[i])]) for i in range(k_folds)]
+            fold_best_eps = [int(epochs[np.argmin(val_mat[i][:n_tr])]) for i in range(k_folds)]
             fold_labels = [f"Fold {i}" for i in range(k_folds)]
 
             ax_bar1.bar(fold_labels, fold_min_vals, color="#1f77b4", alpha=0.85, edgecolor="#0f4c81")
@@ -412,6 +453,8 @@ class _generate_group_diagnostics_and_gallery:
                         linestyle="--", label=f"Train AUC ({best_tr_auc:.4f} @ ep {best_ep})")
 
             ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel(f"AUC ({auc_name})", fontsize=12)
             ax.set_title(f"AUC Evolution: {auc_name}", fontsize=13, fontweight="bold")
@@ -460,8 +503,9 @@ class _generate_group_diagnostics_and_gallery:
             for i in range(nf):
                 ax.plot(epochs, v_mat[i], color="gray", linestyle=":", alpha=0.45,
                         label="Individual Folds (Val)" if i == 0 else None)
+            final = f"; final, after finetune: {m_v[-1]:.2f} ± {s_v[-1]:.2f}" if n_ft else ""
             ax.plot(epochs, m_v, color="#1f77b4", marker="o", markersize=4, linewidth=2,
-                    label=f"Val ({m_v[best_idx]:.2f} ± {s_v[best_idx]:.2f} @ ep {best_ep})")
+                    label=f"Val ({m_v[best_idx]:.2f} ± {s_v[best_idx]:.2f} @ ep {best_ep}{final})")
             if nf > 1:
                 ax.fill_between(epochs, m_v - s_v, m_v + s_v, color="#1f77b4", alpha=0.18,
                                 label=r"Fold Spread ($\pm 1\sigma$)")
@@ -474,6 +518,8 @@ class _generate_group_diagnostics_and_gallery:
             if int(epochs[chi_best]) != best_ep:
                 ax.axvline(int(epochs[chi_best]), color="#2ca02c", linestyle=":", alpha=0.9,
                            label=f"Min Val χ²/ndf Epoch ({int(epochs[chi_best])})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel(f"SB closure χ²/ndf ({hname})", fontsize=12)
             ax.set_title(f"Closure Evolution: {hname}", fontsize=13, fontweight="bold")
@@ -498,7 +544,7 @@ class _generate_group_diagnostics_and_gallery:
                 for c in self._classifiers:
                     series = roc_splits.get((c, split_name), [])
                     # Filter for training stage
-                    tr_series = [df for df, is_tr in zip(series, mask) if is_tr]
+                    tr_series = [df for df, is_tr in zip(series, mask_train) if is_tr]
                     if tr_series:
                         # Extract curve at best epoch index
                         chosen_df = tr_series[best_idx] if best_idx < len(tr_series) else tr_series[-1]

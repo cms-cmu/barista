@@ -4,7 +4,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import fsspec
 from src.classifier.task import ArgParser, Model, converter, parse
@@ -17,6 +17,36 @@ if TYPE_CHECKING:
     from src.classifier.ml.evaluation import Evaluation
     from src.classifier.ml.skimmer import Splitter
     from src.classifier.ml.training import MultiStageTraining
+
+
+def _derive_squares_seeds(base_seed: int | None, model_name: str, offset: int, kfold_seed: Any = None):
+    """Derive orthogonal seeds for (1) fold splitting, (2) weights, and (3) batches using Squares CBRNG."""
+    if base_seed is None:
+        return kfold_seed, None, None
+    import numpy as np
+    from src.math_tools.random import Squares
+
+    sq_root = Squares(base_seed, model_name)
+    stream_seeds = sq_root.uint(np.array([0, 1, 2], dtype=np.uint64), bits=32)
+    seed_fold_root = int(stream_seeds[0])
+    seed_weights_root = int(stream_seeds[1])
+    seed_batches_root = int(stream_seeds[2])
+
+    fold_seed = (
+        (seed_fold_root, *kfold_seed)
+        if isinstance(kfold_seed, (tuple, list))
+        else (seed_fold_root, kfold_seed)
+        if kfold_seed is not None
+        else seed_fold_root
+    )
+
+    sq_weights = Squares(seed_weights_root)
+    weight_seed = int(sq_weights.uint(np.array([offset], dtype=np.uint64), bits=32)[0])
+
+    sq_batches = Squares(seed_batches_root)
+    batch_seed = int(sq_batches.uint(np.array([offset], dtype=np.uint64), bits=32)[0])
+
+    return fold_seed, weight_seed, batch_seed
 
 
 class KFoldTrain(ABC, Model):
@@ -53,6 +83,12 @@ class KFoldTrain(ABC, Model):
         default=[],
         help="the offsets to generate new seeds, e.g. [yellow]--kfold-seed-offsets 0-3 5[/yellow]. If not given, the dataset will not be shuffled.",
     )
+    argparser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="the random seed for model weight initialization and training (default: from setting.ml.Training)",
+    )
 
     def _get_offsets(self, name: str, max: int = None) -> list[int]:
         offsets = getattr(self.opts, name)
@@ -83,30 +119,67 @@ class KFoldTrain(ABC, Model):
     def initializer(self, splitter: Splitter, **kwargs) -> MultiStageTraining: ...
 
     def train(self):
+        from src.classifier.config.setting import ml as cfg_ml
         from src.classifier.ml.skimmer import KFold, RandomKFold
 
+        base_seed = self.opts.seed if self.opts.seed is not None else cfg_ml.Training.seed
+        model_name = getattr(self, "model", "model")
+
+        try:
+            from src.classifier.test.config.setting.test import Randomness
+            is_test_randomness = Randomness.seed is not ... and Randomness.seed is not None
+        except Exception:
+            is_test_randomness = False
+
+        if is_test_randomness:
+            base_seed = None
+
         if self.kfolds == 1:
-            return [self.initializer(KFold(kfolds=1, offset=1)).train]
+            fold_seed, weight_seed, batch_seed = _derive_squares_seeds(base_seed, model_name, 0)
+            kwargs = {}
+            if weight_seed is not None:
+                kwargs["seed_weights"] = weight_seed
+            if batch_seed is not None:
+                kwargs["seed_batches"] = batch_seed
+            return [self.initializer(KFold(kfolds=1, offset=1), **kwargs).train]
         elif not self.seeds:
-            return [
-                self.initializer(
-                    KFold(self.kfolds, offset),
-                    kfolds=self.kfolds,
-                    offset=offset,
-                ).train
-                for offset in self.offsets
-            ]
+            trainers = []
+            for offset in self.offsets:
+                fold_seed, weight_seed, batch_seed = _derive_squares_seeds(base_seed, model_name, offset)
+                kwargs = {}
+                if weight_seed is not None:
+                    kwargs["seed_weights"] = weight_seed
+                if batch_seed is not None:
+                    kwargs["seed_batches"] = batch_seed
+                trainers.append(
+                    self.initializer(
+                        KFold(self.kfolds, offset),
+                        kfolds=self.kfolds,
+                        offset=offset,
+                        **kwargs,
+                    ).train
+                )
+            return trainers
         else:
-            return [
-                self.initializer(
-                    RandomKFold(seed=seed, kfolds=self.kfolds, offset=offset),
-                    kfolds=self.kfolds,
-                    offset=offset,
-                    seed=seed,
-                ).train
-                for seed in self.seeds
-                for offset in self.offsets
-            ]
+            trainers = []
+            for seed in self.seeds:
+                for offset in self.offsets:
+                    fold_seed, weight_seed, batch_seed = _derive_squares_seeds(base_seed, model_name, offset, seed)
+                    kwargs = {}
+                    if weight_seed is not None:
+                        kwargs["seed_weights"] = weight_seed
+                    if batch_seed is not None:
+                        kwargs["seed_batches"] = batch_seed
+                    trainers.append(
+                        self.initializer(
+                            RandomKFold(seed=fold_seed, kfolds=self.kfolds, offset=offset),
+                            kfolds=self.kfolds,
+                            offset=offset,
+                            seed=fold_seed,
+                            **kwargs,
+                        ).train
+                    )
+            return trainers
 
 
 class KFoldEval(ABC, Model):
