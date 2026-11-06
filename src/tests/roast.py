@@ -1429,8 +1429,9 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
 
 
 class TestSyncNautilusPublishMode(unittest.TestCase):
+    @patch.object(roast, "_ensure_storage_helper")
     @patch.object(roast.subprocess, "Popen")
-    def test_sync_nautilus_excludes_heavy_data_in_publish_mode(self, mock_popen):
+    def test_sync_nautilus_excludes_heavy_data_in_publish_mode(self, mock_popen, mock_ensure_helper):
         p1_mock = MagicMock()
         p1_mock.stdout = MagicMock()
         p2_mock = MagicMock()
