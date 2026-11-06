@@ -4,7 +4,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import fsspec
 from src.classifier.task import ArgParser, Model, converter, parse
@@ -17,6 +17,15 @@ if TYPE_CHECKING:
     from src.classifier.ml.evaluation import Evaluation
     from src.classifier.ml.skimmer import Splitter
     from src.classifier.ml.training import MultiStageTraining
+
+
+def _derive_train_seed(base_seed: int | None, *tags: Any) -> int | None:
+    if base_seed is None:
+        return None
+    import hashlib
+    tag_str = "_".join(str(t) for t in tags)
+    h = hashlib.sha256(f"{base_seed}_{tag_str}".encode()).digest()
+    return int.from_bytes(h[:4], "big") % (2**31 - 1)
 
 
 class KFoldTrain(ABC, Model):
@@ -53,6 +62,12 @@ class KFoldTrain(ABC, Model):
         default=[],
         help="the offsets to generate new seeds, e.g. [yellow]--kfold-seed-offsets 0-3 5[/yellow]. If not given, the dataset will not be shuffled.",
     )
+    argparser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="the random seed for model weight initialization and training (default: from setting.ml.Training)",
+    )
 
     def _get_offsets(self, name: str, max: int = None) -> list[int]:
         offsets = getattr(self.opts, name)
@@ -83,16 +98,32 @@ class KFoldTrain(ABC, Model):
     def initializer(self, splitter: Splitter, **kwargs) -> MultiStageTraining: ...
 
     def train(self):
+        from src.classifier.config.setting import ml as cfg_ml
         from src.classifier.ml.skimmer import KFold, RandomKFold
 
+        base_seed = self.opts.seed if self.opts.seed is not None else cfg_ml.Training.seed
+        model_name = getattr(self, "model", "model")
+
+        try:
+            from src.classifier.test.config.setting.test import Randomness
+            is_test_randomness = Randomness.seed is not ... and Randomness.seed is not None
+        except Exception:
+            is_test_randomness = False
+
+        if is_test_randomness:
+            base_seed = None
+
         if self.kfolds == 1:
-            return [self.initializer(KFold(kfolds=1, offset=1)).train]
+            seed_train = _derive_train_seed(base_seed, model_name, 0)
+            kwargs = {"seed_train": seed_train} if seed_train is not None else {}
+            return [self.initializer(KFold(kfolds=1, offset=1), **kwargs).train]
         elif not self.seeds:
             return [
                 self.initializer(
                     KFold(self.kfolds, offset),
                     kfolds=self.kfolds,
                     offset=offset,
+                    **({"seed_train": _derive_train_seed(base_seed, model_name, offset)} if base_seed is not None else {}),
                 ).train
                 for offset in self.offsets
             ]
@@ -103,6 +134,7 @@ class KFoldTrain(ABC, Model):
                     kfolds=self.kfolds,
                     offset=offset,
                     seed=seed,
+                    **({"seed_train": _derive_train_seed(base_seed, model_name, offset, seed)} if base_seed is not None else {}),
                 ).train
                 for seed in self.seeds
                 for offset in self.offsets

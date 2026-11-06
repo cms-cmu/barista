@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
@@ -21,6 +22,16 @@ def simple_loader(
     if isinstance(dataset, SliceableDataset) and cfg.optimize_sliceable_dataset:
         loader = SliceLoaderWithProgress(dataset, **kwargs)
     else:
+        loader_kwargs = dict(kwargs)
+        seed = loader_kwargs.pop("seed", None)
+        if seed is not None and "generator" not in loader_kwargs:
+            import hashlib
+            if isinstance(seed, (int, np.integer)):
+                g_seed = int(seed) % (2**32 - 1)
+            else:
+                h = hashlib.sha256(str(seed).encode()).digest()
+                g_seed = int.from_bytes(h[:4], "big") % (2**32 - 1)
+            loader_kwargs["generator"] = torch.Generator().manual_seed(g_seed)
         loader = DataLoaderWithProgress(
             dataset,
             **(
@@ -29,7 +40,7 @@ def simple_loader(
                     persistent_workers=cfg.persistent_workers,
                     pin_memory=cfg.pin_memory,
                 )
-                | kwargs
+                | loader_kwargs
             ),
         )
         if loader.num_workers != 0:
