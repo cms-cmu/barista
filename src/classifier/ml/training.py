@@ -243,10 +243,13 @@ class TrainingStage(BenchmarkStage):
         # disabled). When disabled, the loop below takes the exact original fp32 path.
         scaler = torch.amp.GradScaler("cuda", enabled=cfg.Training.precision == "fp16")
         lr = self.schedule.lr_scheduler(opt)
+        bs_kwargs = {"shuffle": True, "drop_last": True}
+        seed_batches = trainer.metadata.get("seed_batches", trainer.metadata.get("seed_train"))
+        if seed_batches is not None:
+            bs_kwargs.setdefault("seed", seed_batches)
         bs = self.schedule.bs_scheduler(
             self.training,
-            shuffle=True,
-            drop_last=True,
+            **bs_kwargs,
         )
         if not self._skip_benchmark:
             benchmarks = []
@@ -530,6 +533,22 @@ class MultiStageTraining(WithUUID, ABC):
                 cp = d / f"checkpoint_{self.name}_{stage_name}.pt"
                 _path_rm(cp)
 
+    def _set_deterministic_seed(self):
+        seed = self.metadata.get("seed_weights", self.metadata.get("seed_train", None))
+        if seed is not None:
+            import random
+            import numpy as np
+            import torch
+
+            random.seed(seed)
+            np.random.seed(seed % (2**32 - 1))
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+            logging.info(f"Initialized deterministic weights seed {seed} for {self.name}")
+
     def train(self, device: Device, dataset: Dataset):
         existing_model = self.find_existing_model()
         if existing_model is not None:
@@ -551,6 +570,7 @@ class MultiStageTraining(WithUUID, ABC):
                 ],
             }
 
+        self._set_deterministic_seed()
         self.device = device.get(self.min_memory)
         self.dataset = dataset
         result = {
