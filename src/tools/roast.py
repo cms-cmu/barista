@@ -91,6 +91,7 @@ PHASES = {
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
     "BKG_AB": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk"),
     "BKG_C":  ("falcon", "coffea4bees/workflows/Snakefile_bkg_syst_C.smk"),
+    "BKG_C4": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk"),
     "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
 
