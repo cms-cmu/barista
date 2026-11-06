@@ -386,6 +386,25 @@ header {{
   align-items: center;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }}
+.roast-back-btn {{
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--primary);
+  background: #eff6ff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}}
+.roast-back-btn:hover {{
+  background: #dbeafe;
+  color: #1d4ed8;
+}}
 header h1 {{
   font-size: 18px;
   margin: 0;
@@ -597,7 +616,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 <body>
 
 <header>
-  <h1>{html.escape(doc_title)} <span class="badge">{n_total} Subsamples</span></h1>
+  <a href="#" onclick="goBackToRoastIndex(); return false;" class="roast-back-btn">← Roast Index</a>
+  <h1>{html.escape(doc_title)} <span class="badge">{n_total} {"Subsamples" if n_total > 1 else "Model"}</span></h1>
   <span class="meta">{no_sr_str} · Prescale {prescale_str} · {kfolds_str} · {epochs_str}</span>
 </header>
 
@@ -605,50 +625,50 @@ a.link-subtle:hover {{ text-decoration: underline; }}
   <!-- Scorecards -->
   <div class="scorecards">
     <div class="metric-card">
-      <div class="title">Ensemble Validation Loss</div>
-      <div class="val">{f_val(val_stat['mean'])} <span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(val_stat['std'])}</span></div>
-      <div class="sub">Min: {f_val(val_stat['min'])} · Max: {f_val(val_stat['max'])}</div>
+      <div class="title">{"Ensemble " if n_total > 1 else ""}Validation Loss</div>
+      <div class="val">{f_val(val_stat['mean'])} {f'<span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(val_stat["std"])}</span>' if n_total > 1 else ''}</div>
+      <div class="sub">{f"Min: {f_val(val_stat['min'])} · Max: {f_val(val_stat['max'])}" if n_total > 1 else "K-Fold Mean Loss"}</div>
     </div>
     
     <div class="metric-card">
       <div class="title">Generalization Gap ⟨ΔL⟩</div>
-      <div class="val">{f_val(gap_stat['mean'], prefix='+')} <span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(gap_stat['std'])}</span></div>
-      <div class="sub">⟨L_val⟩ - ⟨L_train⟩ across 16 models</div>
+      <div class="val">{f_val(gap_stat['mean'], prefix='+')} {f'<span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(gap_stat["std"])}</span>' if n_total > 1 else ''}</div>
+      <div class="sub">{"⟨L_val⟩ - ⟨L_train⟩ across " + str(n_total) + " models" if n_total > 1 else "L_val - L_train"}</div>
     </div>
     
     <div class="metric-card">
-      <div class="title">Ensemble AUC (4b vs 3b)</div>
-      <div class="val">{f_val(auc_4b_stat['mean'], fmt='.4f')} <span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(auc_4b_stat['std'], fmt='.4f')}</span></div>
-      <div class="sub">Min: {f_val(auc_4b_stat['min'], fmt='.4f')} · Max: {f_val(auc_4b_stat['max'], fmt='.4f')}</div>
+      <div class="title">{"Ensemble " if n_total > 1 else ""}AUC (4b vs 3b)</div>
+      <div class="val">{f_val(auc_4b_stat['mean'], fmt='.4f')} {f'<span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(auc_4b_stat["std"], fmt=".4f")}</span>' if n_total > 1 else ''}</div>
+      <div class="sub">{f"Min: {f_val(auc_4b_stat['min'], fmt='.4f')} · Max: {f_val(auc_4b_stat['max'], fmt='.4f')}" if n_total > 1 else "Cross-validation AUC"}</div>
     </div>
 
     <div class="metric-card">
-      <div class="title">Ensemble Compatibility</div>
+      <div class="title">{"Ensemble Compatibility" if n_total > 1 else "Model Status"}</div>
       <div class="val">
         <span class="status-pill status-optimal">{n_optimal} Optimal</span>
-        <span class="status-pill status-mild">{n_mild} Mild</span>
+        {f'<span class="status-pill status-mild">{n_mild} Mild</span>' if (n_mild or n_total > 1) else ''}
         {f'<span class="status-pill status-overtrained">{n_over} Overtrained</span>' if n_over else ''}
       </div>
-      <div class="sub">Max Ensemble Pull: {max_pull:.2f}σ (All models compatible)</div>
+      <div class="sub">{f"Max Ensemble Pull: {max_pull:.2f}σ (All models compatible)" if n_total > 1 else "Overfitting Diagnostics"}</div>
     </div>
 
     <div class="metric-card">
       <div class="title">Kinematic Closure ⟨χ²/ndf⟩</div>
-      <div class="val">{f_val(chi2_stat['mean'], fmt='.2f') if chi2_stat['mean'] is not None else '—'} <span style="font-size:14px; font-weight:400; color:var(--muted)">{f"± {f_val(chi2_stat['std'], fmt='.2f')}" if chi2_stat['std'] else ''}</span></div>
-      <div class="sub">{f"Min: {f_val(chi2_stat['min'], fmt='.2f')} · Max: {f_val(chi2_stat['max'], fmt='.2f')}" if chi2_stat['min'] is not None else "Target: → 1.00 (pt4 & pt1)"}</div>
+      <div class="val">{f_val(chi2_stat['mean'], fmt='.2f') if chi2_stat['mean'] is not None else '—'} <span style="font-size:14px; font-weight:400; color:var(--muted)">{f"± {f_val(chi2_stat['std'], fmt='.2f')}" if (chi2_stat['std'] and n_total > 1) else ''}</span></div>
+      <div class="sub">{f"Min: {f_val(chi2_stat['min'], fmt='.2f')} · Max: {f_val(chi2_stat['max'], fmt='.2f')}" if (chi2_stat['min'] is not None and n_total > 1) else "Target: → 1.00 (pt4 & pt1)"}</div>
     </div>
   </div>
 
   <!-- Convergence & Loss Statistics Table -->
   <div class="table-container">
     <div class="table-header">
-      <span>Cross-Sample Convergence, Fit Quality & Loss Statistics</span>
+      <span>{"Cross-Sample Convergence, Fit Quality & Loss Statistics" if n_total > 1 else "Model Convergence, Fit Quality & Loss Statistics"}</span>
       <span class="note">Validation loss, test AUC, and kinematic reweighting closure evaluate model quality</span>
     </div>
     <table class="report-table">
       <thead>
         <tr>
-          <th>Subsample</th>
+          <th>{"Subsample" if n_total > 1 else "Model"}</th>
           <th>Best Ep</th>
           <th>Val Loss ⟨L_val⟩</th>
           <th>Train Loss ⟨L_tr⟩</th>
@@ -672,7 +692,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     for m in models_data:
         m_name = m["name"]
         met = m["metrics"]
-        rel_model = m["rel_dir"]
+        rel_model = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
 
         ep = met["best_epoch"] if met["best_epoch"] is not None else "—"
         vl = f_val(met["val_loss"])
@@ -703,9 +723,9 @@ a.link-subtle:hover {{ text-decoration: underline; }}
         neg_frac = fq.get("neg_fraction")
         neg_str = f"{neg_frac * 100:.2f}%" if neg_frac is not None else "—"
 
-        link_analyze = f"{rel_model}/plots/analyze/index.html"
-        link_gallery = f"{rel_model}/plots/index.html"
-        link_yields = f"{rel_model}/yields.html"
+        link_analyze = f"{rel_model}plots/analyze/index.html"
+        link_gallery = f"{rel_model}plots/index.html"
+        link_yields = f"{rel_model}yields.html"
 
         lines.append(f"""        <tr>
           <td><a class="link-subtle" href="{link_analyze}">{m_name}</a></td>
@@ -846,8 +866,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
     for m in models_data:
         m_name = m["name"]
-        rel = m["rel_dir"]
-        img_path = f"{rel}/plots/analyze/HCR/kfold-loss-divergence-1.png"
+        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+        img_path = f"{rel}plots/analyze/HCR/kfold-loss-divergence-1.png"
         lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — Loss Divergence')">
       <img src="{img_path}" alt="{m_name} Loss Divergence" loading="lazy">
       <div class="cap">
@@ -864,8 +884,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
     for m in models_data:
         m_name = m["name"]
-        rel = m["rel_dir"]
-        img_path = f"{rel}/plots/analyze/HCR/roc-4b_vs_3b-1.png"
+        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+        img_path = f"{rel}plots/analyze/HCR/roc-4b_vs_3b-1.png"
         auc_str = f"{m['metrics']['auc_4b_vs_3b']:.4f}" if m['metrics']['auc_4b_vs_3b'] is not None else "—"
         lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — ROC Curve 4b vs 3b')">
       <img src="{img_path}" alt="{m_name} ROC Curve" loading="lazy">
@@ -883,8 +903,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
     for m in models_data:
         m_name = m["name"]
-        rel = m["rel_dir"]
-        img_path = f"{rel}/plots/analyze/HCR/auc-evolution-4b_vs_3b-1.png"
+        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+        img_path = f"{rel}plots/analyze/HCR/auc-evolution-4b_vs_3b-1.png"
         lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — AUC Evolution')">
       <img src="{img_path}" alt="{m_name} AUC Evolution" loading="lazy">
       <div class="cap">
@@ -901,8 +921,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
     for m in models_data:
         m_name = m["name"]
-        rel = m["rel_dir"]
-        img_path = f"{rel}/plots/analyze/HCR/fold-consistency-1.png"
+        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+        img_path = f"{rel}plots/analyze/HCR/fold-consistency-1.png"
         lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — K-Fold Consistency')">
       <img src="{img_path}" alt="{m_name} Fold Consistency" loading="lazy">
       <div class="cap">
@@ -974,6 +994,24 @@ function nextLightbox(e) {
   showLightbox();
 }
 
+function goBackToRoastIndex() {
+  if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
+    window.location.href = document.referrer;
+    return;
+  }
+  const href = window.location.href.split('?')[0].split('#')[0];
+  if (href.includes('/output/')) {
+    window.location.href = href.split('/output/')[0] + '/index.html';
+    return;
+  }
+  const m = href.match(new RegExp('(.*\\/[^\\/]+_\\d{8}_[0-9a-f]{7}-[0-9a-f]{7})\\/'));
+  if (m) {
+    window.location.href = m[1] + '/index.html';
+    return;
+  }
+  window.location.href = '../index.html';
+}
+
 document.addEventListener('keydown', e => {
   if (!document.getElementById('lb').classList.contains('on')) return;
   if (e.key === 'Escape') closeLightbox();
@@ -1008,8 +1046,18 @@ def main():
 
     mix_dirs.sort(key=lambda x: x[0])
     if not mix_dirs:
-        print(f"Error: No mix_* directories found in {models_dir}", file=sys.stderr)
-        sys.exit(1)
+        # Check if models_dir itself is a single model directory (e.g. stat-only Phase C)
+        if (
+            (models_dir / "analyze.log").exists()
+            or (models_dir / "wfs" / "train.yml").exists()
+            or (models_dir / "train.done").exists()
+            or (models_dir / "yields.html").exists()
+            or (models_dir / "models").is_dir()
+        ):
+            mix_dirs = [(0, models_dir)]
+        else:
+            print(f"Error: No mix_* directories or model artifacts found in {models_dir}", file=sys.stderr)
+            sys.exit(1)
 
     models_data = []
     base_dir = out_path.parent
@@ -1022,7 +1070,11 @@ def main():
         yd = parse_yields_json(p / "yields.json")
         met_log = parse_analyze_log(p / "analyze.log")
         met_html = parse_analyze_html(p / "plots" / "analyze" / "index.html")
-        fq = parse_fit_quality_json(p / "result.json")
+
+        res_file = p / "result.json"
+        if not res_file.exists() and (p / "models" / "result.json").exists():
+            res_file = p / "models" / "result.json"
+        fq = parse_fit_quality_json(res_file)
 
         # Merge metrics
         metrics = {}

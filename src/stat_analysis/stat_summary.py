@@ -420,6 +420,8 @@ tr:hover td { background: #f8fafc; }
 .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .links a { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 500; text-decoration: none; color: var(--accent); background: var(--card); border: 1px solid var(--line); transition: all 0.15s ease; }
 .links a:hover { background: var(--accent-soft); border-color: #bfdbfe; }
+.roast-back-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--accent); background: #eff6ff; padding: 5px 12px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 13px; cursor: pointer; margin-right: 12px; }
+.roast-back-btn:hover { background: #dbeafe; }
 .small { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .sig td:first-child { font-weight: 600; }
 """
@@ -429,7 +431,7 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
     e = html.escape
     h = [f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>{e(title)}</title><style>{CSS}</style></head><body>",
          f"<div class='container'>",
-         f"<header><h1>{e(title)}</h1>",
+         f"<header><div style='display:flex;align-items:center;gap:12px;'><a href='#' onclick='goBackToRoastIndex(); return false;' class='roast-back-btn'>&larr; Roast Index</a><h1>{e(title)}</h1></div>",
          f"<div class='meta'>{e(label) + ' &middot; ' if label else ''}<code>{e(stat_dir)}</code> &middot; "
          + (f"<span class='badge blind'>blinded</span> data_obs = sum of backgrounds (Asimov); \"observed\" numbers are not data"
             if blind else "<span class='badge ok'>unblinded</span>") + "</div></header>",
@@ -497,7 +499,27 @@ def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: 
         if c["links"]:
             h.append("<div class='links'>" + " ".join(f"<a href='{e(p)}'>{e(lab)} ↗</a>" for lab, p in c["links"].items()) + "</div>")
         h.append("</div>")  # close channel card
-    h.append("</div></body></html>")
+    h.append("""
+<script>
+function goBackToRoastIndex() {
+  if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
+    window.location.href = document.referrer;
+    return;
+  }
+  const href = window.location.href.split('?')[0].split('#')[0];
+  if (href.includes('/output/')) {
+    window.location.href = href.split('/output/')[0] + '/index.html';
+    return;
+  }
+  const m = href.match(new RegExp('(.*\\/[^\\/]+_\\d{8}_[0-9a-f]{7}-[0-9a-f]{7})\\/'));
+  if (m) {
+    window.location.href = m[1] + '/index.html';
+    return;
+  }
+  window.location.href = '../index.html';
+}
+</script>
+</div></body></html>""")
     return "\n".join(h)
 
 
