@@ -122,6 +122,8 @@ PAGE = r"""<!doctype html>
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
 header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+.roast-back-btn { text-decoration:none; display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--accent); background:#eff6ff; padding:5px 12px; border-radius:6px; border:1px solid #bfdbfe; font-size:13px; cursor:pointer; }
+.roast-back-btn:hover { background:#dbeafe; }
 header h1 { font-size:16px; margin:0 8px 0 0; font-weight:600; }
 header .meta { color:var(--muted); }
 header input[type=search] { flex:1 1 260px; min-width:180px; padding:6px 10px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
@@ -159,6 +161,7 @@ section.summary > h2 { color:var(--accent); }
 </head>
 <body>
 <header>
+  <a href="#" onclick="goBackToRoastIndex(); return false;" class="roast-back-btn">← Roast Index</a>
   <h1>__TITLE__</h1>
   <span class="meta" id="count"></span>
   <input type="search" id="q" placeholder="filter: e.g.  canJet SB   or   m4j" autocomplete="off">
@@ -230,6 +233,24 @@ $('#vGroups').onclick = () => { view='groups'; $('#vGroups').classList.add('on')
 $('#vVars').onclick = () => { view='vars'; $('#vVars').classList.add('on'); $('#vGroups').classList.remove('on'); render(); };
 $('#size').oninput = e => document.documentElement.style.setProperty('--w', e.target.value+'px');
 $('#expandAll').onchange = render;
+function goBackToRoastIndex() {
+  if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
+    window.location.href = document.referrer;
+    return;
+  }
+  const href = window.location.href.split('?')[0].split('#')[0];
+  if (href.includes('/output/')) {
+    window.location.href = href.split('/output/')[0] + '/index.html';
+    return;
+  }
+  const m = href.match(/(.*\/[^\/]+_\d{8}_[0-9a-f]{7}-[0-9a-f]{7})\//);
+  if (m) {
+    window.location.href = m[1] + '/index.html';
+    return;
+  }
+  window.location.href = '../index.html';
+}
+
 parseHash(); if(view==='vars'){ $('#vVars').classList.add('on'); $('#vGroups').classList.remove('on'); }
 render();
 </script>

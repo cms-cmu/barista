@@ -3468,6 +3468,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     featured_cards = []
     models_dict = {}
     stage_f_items = []
+    stage_c_items = []
     stage_b_items = []
     stage_a_items = []
     galleries = []
@@ -3499,11 +3500,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         # Check for featured key dashboards
         is_featured = False
-        if filename == "training_summary.html" and "bkg_syst_C_FvT" in p:
+        if filename == "training_summary.html":
+            is_bkg = "bkg_syst" in p.lower()
             featured_cards.append({
-                "tag": "Stage C",
-                "title": "FvT Training Summary (16 Models)",
-                "desc": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics",
+                "tag": "Stage C" if is_bkg else "Phase C",
+                "title": "FvT Training Summary (16 Models)" if is_bkg else "FvT Training Summary",
+                "desc": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics" if is_bkg else "Model AUCs, loss curves, and training evaluation metrics",
                 "url": p_esc,
             })
             is_featured = True
@@ -3532,12 +3534,20 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                     "url": p_esc,
                 })
                 is_featured = True
+        elif filename == "summary.html" and ("stat_analysis" in p or "phasef_2_stats" in lower_p or "phasef" in lower_p):
+            featured_cards.append({
+                "tag": "Phase F.2",
+                "title": "Statistical Analysis Summary",
+                "desc": "Expected limits, significance, and likelihood scan overview",
+                "url": p_esc,
+            })
+            is_featured = True
 
         if is_featured:
             continue
 
         # Check Stage F
-        if "bkg_syst_f" in lower_p or ("closure_summary" in lower_p) or ("summary_svb" in lower_p):
+        if "bkg_syst_f" in lower_p or "phasef" in lower_p or ("closure_summary" in lower_p) or ("summary_svb" in lower_p) or ("stat_analysis" in lower_p):
             title = filename.removesuffix(".html")
             if "closure_summary_sb" in lower_p:
                 title = "Closure Summary (SB)"
@@ -3551,17 +3561,34 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 title = "SvB Summary (SB)"
             elif "summary_svb_sr" in lower_p:
                 title = "SvB Summary (SR)"
+            elif filename == "summary.html":
+                title = "Stats Summary"
+            elif filename.endswith("index.html"):
+                title = f"{parts[-2]} gallery" if len(parts) > 1 else "Analysis Plots"
             stage_f_items.append((title, p_esc, p))
             continue
 
+        # Check Stage C (FvT Classifier & Closure)
+        if "bkg_syst_c" in lower_p or "phasec" in lower_p or "fvt_closure" in lower_p or "fvt" in lower_p:
+            title = filename.removesuffix(".html")
+            if "closure" in lower_p:
+                if filename == "cutflow_FvT_closure.html":
+                    title = "FvT Closure Table"
+                elif filename == "ttbar_MC_vs_d3_cutflow.html":
+                    title = "ttbar MC vs d3 Cutflow"
+                elif filename.endswith("index.html"):
+                    title = f"FvT Closure ({parts[-2]})" if len(parts) > 1 else "FvT Closure Gallery"
+            stage_c_items.append((title, p_esc, p))
+            continue
+
         # Check Stage B
-        if "bkg_syst_b" in lower_p or "computejcm" in lower_p or "test_v0_closure" in lower_p:
+        if "bkg_syst_b" in lower_p or "phaseb" in lower_p or "computejcm" in lower_p or "test_v0_closure" in lower_p:
             title = "JCM Closure Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
             stage_b_items.append((title, p_esc, p))
             continue
 
         # Check Stage A
-        if "bkg_syst_a" in lower_p or "process_subsamples" in lower_p:
+        if "bkg_syst_a" in lower_p or "phasea" in lower_p or "process_subsamples" in lower_p or "skimmer" in lower_p:
             title = "Subsamples Validation Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
             stage_a_items.append((title, p_esc, p))
             continue
@@ -3586,7 +3613,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         for title, p_esc, p_raw in items:
             html_items.append(f"""
             <div class="page-item" data-search="{html.escape(p_raw.lower())}">
-                <a href="{p_esc}" class="page-link" target="_blank">
+                <a href="{p_esc}" class="page-link">
                     <span class="page-title">{html.escape(title)}</span>
                     <span class="page-icon">↗</span>
                 </a>
@@ -3599,7 +3626,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         cards_html = []
         for fc in featured_cards:
             cards_html.append(f"""
-            <a href="{fc['url']}" class="featured-box" target="_blank">
+            <a href="{fc['url']}" class="featured-box">
                 <div>
                     <div class="featured-tag">{html.escape(fc['tag'])}</div>
                     <div class="featured-title">{html.escape(fc['title'])}</div>
@@ -3625,10 +3652,10 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         m_rows = []
         for idx in sorted(models_dict.keys()):
             m = models_dict[idx]
-            y_link = f'<a href="{html.escape(m["yields"])}" class="pill-link" target="_blank">Yields ↗</a>' if "yields" in m else '<span class="pill-disabled">—</span>'
-            p_link = f'<a href="{html.escape(m["plots"])}" class="pill-link" target="_blank">Plots ↗</a>' if "plots" in m else '<span class="pill-disabled">—</span>'
-            a_link = f'<a href="{html.escape(m["analyze"])}" class="pill-link" target="_blank">Loss & ROC ↗</a>' if "analyze" in m else '<span class="pill-disabled">—</span>'
-            h_link = f'<a href="{html.escape(m["hcr"])}" class="pill-link" target="_blank">HCR Group ↗</a>' if "hcr" in m else '<span class="pill-disabled">—</span>'
+            y_link = f'<a href="{html.escape(m["yields"])}" class="pill-link">Yields ↗</a>' if "yields" in m else '<span class="pill-disabled">—</span>'
+            p_link = f'<a href="{html.escape(m["plots"])}" class="pill-link">Plots ↗</a>' if "plots" in m else '<span class="pill-disabled">—</span>'
+            a_link = f'<a href="{html.escape(m["analyze"])}" class="pill-link">Loss & ROC ↗</a>' if "analyze" in m else '<span class="pill-disabled">—</span>'
+            h_link = f'<a href="{html.escape(m["hcr"])}" class="pill-link">HCR Group ↗</a>' if "hcr" in m else '<span class="pill-disabled">—</span>'
             m_rows.append(f"""
             <tr>
                 <td><strong><code>mix_{idx}</code></strong></td>
@@ -3675,6 +3702,21 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 </div>
             </div>
         </div>"""
+
+    stage_c_html = ""
+    if stage_c_items:
+        stage_c_html = f"""
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>🎯 Stage C — FvT Classifier & Closure</h2>
+                <span class="chip chip-neutral">{len(stage_c_items)} items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    {make_page_items(stage_c_items)}
+                </div>
+            </div>
+        </details>"""
 
     stage_b_html = ""
     if stage_b_items:
@@ -3995,6 +4037,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         {models_html}
 
         {stage_f_html}
+
+        {stage_c_html}
 
         {stage_b_html}
 

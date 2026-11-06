@@ -365,10 +365,12 @@ td.warn { background: var(--warn-bg); color: var(--warn-fg); }
 td.bad { background: var(--danger-bg); color: var(--danger-fg); }
 .note { color: var(--muted); font-size: 12.5px; margin-top: 12px; line-height: 1.5; }
 code { font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+.roast-back-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--accent); background: #eff6ff; padding: 5px 12px; border-radius: 6px; border: 1px solid #bfdbfe; font-size: 13px; cursor: pointer; margin-right: 12px; }
+.roast-back-btn:hover { background: #dbeafe; }
 </style></head><body>
 <div class="container">
 <header>
-<h1>__TITLE__</h1>
+<div style="display:flex;align-items:center;gap:12px;"><a href="#" onclick="goBackToRoastIndex(); return false;" class="roast-back-btn">&larr; Roast Index</a><h1>__TITLE__</h1></div>
 <div class="sub">__SUB__</div>
 <div class="controls">
 <label><input type="checkbox" id="det" onchange="document.body.classList.toggle('detailed',this.checked)"> show ttbar components and tt 3b / data 3b</label>
@@ -379,6 +381,25 @@ __TABLES__
 <div class="note">Counts are weighted (xsec &times; lumi &times; SFs, and JCM/FvT on 3b where applied); the optional parentheses are raw entry counts (unit weight).
 __MULTIJET__; Bkg = Multijet + tt 4b; data / Bkg error from the raw 4b data count only.
 Ratio cell shading: |data/Bkg &minus; 1| &lt; 5% green, &lt; 20% amber, else red.</div>
+<script>
+function goBackToRoastIndex() {
+  if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
+    window.location.href = document.referrer;
+    return;
+  }
+  const href = window.location.href.split('?')[0].split('#')[0];
+  if (href.includes('/output/')) {
+    window.location.href = href.split('/output/')[0] + '/index.html';
+    return;
+  }
+  const m = href.match(new RegExp('(.*\\/[^\\/]+_\\d{8}_[0-9a-f]{7}-[0-9a-f]{7})\\/'));
+  if (m) {
+    window.location.href = m[1] + '/index.html';
+    return;
+  }
+  window.location.href = '../index.html';
+}
+</script>
 </div>
 </body></html>
 """

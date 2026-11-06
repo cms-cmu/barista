@@ -37,6 +37,24 @@ header {
   align-items: center;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
+.roast-back-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--primary);
+  background: #eff6ff;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.roast-back-btn:hover {
+  background: #dbeafe;
+}
 header h1 {
   font-size: 18px;
   margin: 0;
@@ -213,6 +231,7 @@ section.group.closed .grid { display: none; }
 <body>
 
 <header>
+  <a href="#" onclick="goBackToRoastIndex(); return false;" class="roast-back-btn">← Roast Index</a>
   <h1>{{ title }} <span class="badge">Model Report</span></h1>
   <span class="meta" id="count"></span>
   <input type="search" id="q" placeholder="Filter plots (e.g. loss, ROC, pull)..." autocomplete="off">
@@ -371,6 +390,24 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowRight') stepLb(1);
   else if (e.key === 'ArrowLeft') stepLb(-1);
 });
+
+function goBackToRoastIndex() {
+  if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
+    window.location.href = document.referrer;
+    return;
+  }
+  const href = window.location.href.split('?')[0].split('#')[0];
+  if (href.includes('/output/')) {
+    window.location.href = href.split('/output/')[0] + '/index.html';
+    return;
+  }
+  const m = href.match(/(.*\/[^\/]+_\d{8}_[0-9a-f]{7}-[0-9a-f]{7})\//);
+  if (m) {
+    window.location.href = m[1] + '/index.html';
+    return;
+  }
+  window.location.href = '../index.html';
+}
 
 q.oninput = render;
 $('#size').oninput = e => document.documentElement.style.setProperty('--w', e.target.value + 'px');
