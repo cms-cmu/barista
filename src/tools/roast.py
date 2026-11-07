@@ -96,6 +96,13 @@ PHASES = {
     "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
 
+# Phase expansions: composite phases that decompose into multiple coordinated steps across hosts.
+# Phase C is not only GPU training/evaluation; it includes the FvT data closure execution on cmslpc (C4).
+PHASE_EXPANSIONS = {
+    "C": ["C", "C4"],
+    "BKG_C": ["BKG_C", "BKG_C4"],
+}
+
 # What `publish` ships to CERNBox: small, human-readable artefacts.  Override any key under
 # "publish" in ~/.config/roast/config.json, or per roast under "publish" in roast.json.
 # include: filename globs (find -name); exclude: path globs (find -path, relative to the checkout).
@@ -822,8 +829,16 @@ def cmd_new(args) -> None:
         info("WARNING: working tree has uncommitted tracked changes; the roast records HEAD, not your edits")
 
     steps = []
-    for ph in (args.phases.replace(" ", "").split(",") if args.phases else []):
+    raw_phases = (args.phases.replace(" ", "").split(",") if args.phases else [])
+    expanded_phases = []
+    for ph in raw_phases:
         ph = ph.upper()
+        if ph in PHASE_EXPANSIONS:
+            expanded_phases.extend(PHASE_EXPANSIONS[ph])
+        else:
+            expanded_phases.append(ph)
+
+    for ph in expanded_phases:
         if ph not in PHASES:
             die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
         host, smk = PHASES[ph]
@@ -1494,7 +1509,43 @@ def _krb_refresh_script(warn_hours: int = 12) -> str:
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
-    step = find_step(r, args.step)
+    target_step = args.step
+
+    # If user requests step C or BKG_C, check if GPU training is already exit 0 and C4 needs to run
+    if target_step in ("C", "BKG_C"):
+        c_step = next((s for s in r.get("steps", []) if s["name"] == target_step), None)
+        c4_name = "C4" if target_step == "C" else "BKG_C4"
+        c4_step = next((s for s in r.get("steps", []) if s["name"] == c4_name), None)
+        if c_step and c4_step:
+            c_host = c_step.get("host", "")
+            c_done = False
+            if c_host == "nautilus":
+                hc_n = host_cfg(cfg, "nautilus")
+                ns = hc_n.get("namespace", "cms-cmu")
+                jname = _k8s_job_name(r, c_step)
+                res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                if res.returncode == 0 and res.stdout.strip() == "1":
+                    c_done = True
+            elif c_host in r.get("hosts", {}):
+                ckpt_c = r["hosts"][c_host]["checkout"]
+                res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
+                         f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
+                if res.returncode == 0 and res.stdout.strip() == "0":
+                    c_done = True
+
+            if c_done:
+                c4_done = False
+                if "cmslpc" in r.get("hosts", {}):
+                    ckpt_c4 = r["hosts"]["cmslpc"]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"]["cmslpc"].get("ssh") or "cmslpc",
+                             f"test -f {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit && cat {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c4_done = True
+                if not c4_done:
+                    info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
+                    target_step = c4_name
+
+    step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
     if host not in r["hosts"]:
