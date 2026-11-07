@@ -1061,7 +1061,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in output proxy run_container runner.py pixi.toml pixi.lock; do
+    for item in proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -3603,8 +3603,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         lower_p = p.lower()
 
         # Check for 16 models in Stage C: .../models/mix_(\d+)/...
+        # Only populate models_dict if this roast is actually a background systematics roast
+        is_bkg_roast = ("bkg_syst" in r.get("analysis", "").lower()
+                        or "bkg_syst" in r.get("id", "").lower()
+                        or any("bkg" in s.get("name", "").lower() for s in r.get("steps", [])))
         m_mix = re.search(r"/models/mix_(\d+)/", p)
-        if m_mix:
+        if m_mix and is_bkg_roast:
             idx = int(m_mix.group(1))
             if idx not in models_dict:
                 models_dict[idx] = {}
