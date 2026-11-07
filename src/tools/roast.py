@@ -1519,19 +1519,21 @@ def _submit(args, resume: bool) -> None:
         if c_step and c4_step:
             c_host = c_step.get("host", "")
             c_done = False
-            if c_host == "nautilus":
-                hc_n = host_cfg(cfg, "nautilus")
-                ns = hc_n.get("namespace", "cms-cmu")
-                jname = _k8s_job_name(r, c_step)
-                res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
-                if res.returncode == 0 and res.stdout.strip() == "1":
-                    c_done = True
-            elif c_host in r.get("hosts", {}):
-                ckpt_c = r["hosts"][c_host]["checkout"]
-                res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
-                         f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
-                if res.returncode == 0 and res.stdout.strip() == "0":
-                    c_done = True
+            c_runs = [run for run in c_step.get("runs", []) if not run.get("dry_run")]
+            if c_runs:
+                if c_host == "nautilus":
+                    hc_n = host_cfg(cfg, "nautilus")
+                    ns = hc_n.get("namespace", "cms-cmu")
+                    jname = c_runs[-1].get("job_name") or _k8s_job_name(r, c_step)
+                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "1":
+                        c_done = True
+                elif c_host in r.get("hosts", {}):
+                    ckpt_c = r["hosts"][c_host]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
+                             f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c_done = True
 
             if c_done:
                 c4_done = False
