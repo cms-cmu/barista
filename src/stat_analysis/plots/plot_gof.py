@@ -57,7 +57,9 @@ def main():
     parser.add_argument("-o", "--output", required=True, help="Output plot file (.pdf or .png)")
     parser.add_argument("--campaign", default="Run2", help="LPC/CMS campaign label key (default: 'Run2')")
     parser.add_argument("--cms-postfix", default="Preliminary", help="CMS header postfix (default: 'Preliminary')")
-    args = parser.parse_args()
+    parser.add_argument("--algo", default="saturated", help="GoF algorithm (default: 'saturated')")
+    parser.add_argument("--mass", default="120.0", help="Higgs mass hypothesis (default: '120.0')")
+    args, _ = parser.parse_known_args()
 
     obs, toys = load_gof_data(args.input)
     if args.data:
