@@ -474,8 +474,25 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-07 17:02:54",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-07 17:03:18",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": "ttHbb_bkg_syst"
+  "category": "ttHbb_bkg_syst",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_cosine_20261107_3d31b54-a52c0a1",
+    "ts": "2026-11-07 17:03:18",
+    "ok": true
+  }
 }
