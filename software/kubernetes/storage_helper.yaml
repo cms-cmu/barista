@@ -7,6 +7,25 @@ metadata:
     app: storage-helper
 spec:
   restartPolicy: Always
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: NotIn
+            values:
+            - hcc-nrp-sec-c1109.unl.edu
+            - hcc-chase-shor-c4705.unl.edu
+            - hcc-chase-shor-c4715.unl.edu
+            - hcc-chase-shor-c4719.unl.edu
+            - hcc-nrp-shor-c5834.unl.edu
+            - k8s-haosu-03.sdsc.optiputer.net
+            - k8s-haosu-15.sdsc.optiputer.net
+            - gpn-fiona-mizzou-9.rnet.missouri.edu
+            - gpn-fiona-mizzou-8.rnet.missouri.edu
+            - gpn-fiona-mizzou-7.rnet.missouri.edu
+            - fiona.offn.oscer.ou.edu
   containers:
   - name: helper
     image: almalinux:9

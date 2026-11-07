@@ -653,6 +653,12 @@ def find_step(r: dict, name: str) -> dict:
     for s in r["steps"]:
         if s["name"] == name:
             return s
+    if name in PHASES:
+        host, smk = PHASES[name]
+        s = {"name": name, "host": host, "snakefile": smk, "targets": "", "extra": ""}
+        r["steps"].append(s)
+        save_roast(r)
+        return s
     die(f"no step '{name}' in roast {r['id']}; steps: " + ", ".join(s["name"] for s in r["steps"]))
 
 
@@ -3105,6 +3111,9 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
 
 def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
     """Regenerate the analysis-level index.html on CERNBox listing all published roasts."""
+    if not shutil.which("xrdfs"):
+        info("notice: xrdfs not on local PATH, skipping analysis-level index refresh")
+        return
     res = sh(["xrdfs", "eosuser.cern.ch", "ls", eos_base], check=False)
     if res.returncode != 0:
         info("warning: could not list CERNBox analysis directory for index refresh")
