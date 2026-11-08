@@ -186,9 +186,9 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
     if "evaluate" in rule.lower():
         req_cpu = 2
         lim_cpu = req_cpu
-        # the profile's evaluate mem_mb, capped at 32 Gi for fast scheduling unless overridden
-        eval_gb = int(os.environ.get("NAUTILUS_EVAL_MEM_GB", 32))
-        req_mem = f"{min(max(int(mem_gb), 16), eval_gb)}Gi"
+        # the profile's evaluate mem_mb, defaulted to 48 Gi to prevent full-dataset friend tree OOM
+        eval_gb = int(os.environ.get("NAUTILUS_EVAL_MEM_GB", 48))
+        req_mem = f"{max(int(mem_gb), eval_gb)}Gi"
         lim_mem = req_mem
     else:
         req_cpu = max(int(cpus), 1)
