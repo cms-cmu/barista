@@ -270,16 +270,20 @@ class HCRTraining(MultiStageTraining):
             if self._pretrained_weights.endswith(".pkl"):
                 path = self._pretrained_weights
             else:
-                import glob as _glob
                 offset = self.metadata.get("offset", 0)
                 # saved models are named model_<...>__offset_{N}__<...>.pkl (filename(metadata));
-                # also accept the compact _offset{N}_ form
-                patterns = [
-                    f"{self._pretrained_weights}/*__offset_{offset}__*.pkl",
-                    f"{self._pretrained_weights}/*_offset{offset}_*.pkl",
-                ]
-                pattern = " | ".join(patterns)
-                matches = sorted({m for p in patterns for m in _glob.glob(p)})
+                # also accept the compact _offset{N}_ form. Resolved through fsspec, so the
+                # directory can be remote (root://, e.g. an earlier roast's classifier/<label>)
+                # as well as local; matches (files directly in the directory) are returned as
+                # URLs under the given directory, whatever path form the filesystem's glob uses.
+                url = self._pretrained_weights.rstrip("/")
+                fs, root = fsspec.core.url_to_fs(url)
+                root = root.rstrip("/")
+                names = [f"*__offset_{offset}__*.pkl", f"*_offset{offset}_*.pkl"]
+                pattern = " | ".join(f"{url}/{n}" for n in names)
+                matches = sorted(
+                    {f"{url}/{m.rstrip('/').rsplit('/', 1)[-1]}" for n in names for m in fs.glob(f"{root}/{n}")}
+                )
                 if not matches:
                     raise FileNotFoundError(
                         f"No pretrained weights found for offset {offset} in "
