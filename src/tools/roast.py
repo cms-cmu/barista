@@ -318,7 +318,7 @@ ROASTS = ROOT / "roasts"
 DOCS_PROD = ROOT / "docs" / "prod"
 
 
-def _read_yaml_file(path: Path) -> dict:
+def _read_yaml_file(path: Path, required: bool = True) -> dict:
     try:
         import yaml
         with open(path, "r", encoding="utf-8") as f:
@@ -328,9 +328,13 @@ def _read_yaml_file(path: Path) -> dict:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            die(f"PyYAML is required to parse {path}. Please install pyyaml or run in the project environment.")
+            if required:
+                die(f"PyYAML is required to parse {path}. Please install pyyaml or run in the project environment.")
+            return {}
     except Exception as e:
-        die(f"failed to read workflow definition from {path}: {e}")
+        if required:
+            die(f"failed to read workflow definition from {path}: {e}")
+        return {}
 
 
 def _parse_workflow_dict(
@@ -474,7 +478,8 @@ def load_workflow_registry(
 
     if found_file:
         parsed = _parse_workflow_dict(
-            _read_yaml_file(found_file), base_dir=found_file.parent
+            _read_yaml_file(found_file, required=bool(workflow_file)),
+            base_dir=found_file.parent,
         )
         if parsed.get("phases"):
             all_phases = parsed["phases"]
@@ -4740,6 +4745,44 @@ def cmd_show(args) -> None:
     print(json.dumps(load_roast(args.id), indent=2))
 
 
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config_file, validate_all_configs, format_report
+    except ImportError:
+        try:
+            from validate_config import validate_config_file, validate_all_configs, format_report
+        except ImportError:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "validate_config", Path(__file__).resolve().parent / "validate_config.py"
+            )
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                validate_config_file = mod.validate_config_file
+                validate_all_configs = mod.validate_all_configs
+                format_report = mod.format_report
+            else:
+                die("Failed to import validate_config module.")
+
+    if args.all:
+        target_dir = Path(args.config) if args.config else None
+        code = validate_all_configs(
+            target_dir=target_dir,
+            strict=args.strict,
+            color=not args.no_color,
+            quiet=args.quiet,
+        )
+        sys.exit(code)
+    else:
+        if not args.config:
+            die("Either a config file path or --all must be specified.")
+        cfg_path = Path(args.config)
+        res = validate_config_file(cfg_path)
+        print(format_report(res, color=not args.no_color))
+        sys.exit(0 if res.is_valid(strict=args.strict) else 1)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -4878,6 +4921,14 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("index", help="regenerate docs/prod from all manifests")
     s.set_defaults(func=cmd_index)
+
+    s = sub.add_parser("validate", help="validate workflow configuration files for duplicate definitions, divergence, and reference integrity")
+    s.add_argument("config", nargs="?", help="path to workflow YAML config file (or directory if --all)")
+    s.add_argument("--all", action="store_true", help="scan all workflow configs in coffea4bees/workflows/config/")
+    s.add_argument("--strict", action="store_true", help="treat warnings as validation failures (exit non-zero)")
+    s.add_argument("-q", "--quiet", action="store_true", help="only print summaries for configs with errors or warnings")
+    s.add_argument("--no-color", action="store_true", help="disable ANSI terminal colors")
+    s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("ls", help="list roasts")
     s.set_defaults(func=cmd_ls)
