@@ -214,7 +214,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_cosine_nofinetune_20261108_7f2ed1c-d39f402",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_cosine_nofinetune_20261108_7f2ed1c-d39f402/",
-    "ts": "2026-11-09 00:54:56",
+    "ts": "2026-11-09 06:07:54",
     "ok": true,
     "pages": [
       "output/ttHbb_bkg_syst_cosine_nofinetune_20261108_7f2ed1c-d39f402/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
@@ -351,6 +351,12 @@
     },
     {
       "ts": "2026-11-09 00:54:56",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-09 06:07:54",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
