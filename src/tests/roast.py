@@ -101,6 +101,63 @@ class TestPhaseTable(unittest.TestCase):
         for phase in "CD":
             self.assertEqual(roast.PHASES[phase][0], "falcon")
 
+    def test_workflow_registry_file_exists(self):
+        wf_path = REPO / roast.DEFAULT_WORKFLOW_REGISTRY
+        self.assertTrue(wf_path.is_file(), f"{wf_path} missing")
+
+    def test_workflow_presets_loaded(self):
+        self.assertIn("nominal", roast.WORKFLOWS)
+        self.assertIn("bkg_syst", roast.WORKFLOWS)
+        self.assertEqual(roast.WORKFLOWS["nominal"], ["B", "C", "D", "F"])
+        self.assertEqual(roast.WORKFLOWS["bkg_syst"], ["BKG_C", "BKG_F"])
+
+    def test_phase_expansions(self):
+        self.assertEqual(roast.PHASE_EXPANSIONS["C"], ["C", "C4"])
+        self.assertEqual(roast.PHASE_EXPANSIONS["BKG_C"], ["BKG_C", "BKG_C4"])
+
+    def test_custom_workflow_file_override(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as f:
+            f.write("""
+phases:
+  CUSTOM_STEP:
+    host: cmslpc
+    snakefile: coffea4bees/workflows/Snakefile_PhaseB.smk
+workflows:
+  my_wf:
+    phases: [CUSTOM_STEP]
+""")
+            tmp_path = Path(f.name)
+        try:
+            phs, exp, wfs = roast.load_workflow_registry(workflow_file=tmp_path)
+            self.assertIn("CUSTOM_STEP", phs)
+            self.assertEqual(phs["CUSTOM_STEP"], ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseB.smk"))
+            self.assertIn("my_wf", wfs)
+            self.assertEqual(wfs["my_wf"], ["CUSTOM_STEP"])
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_config_inline_workflow_override(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as f:
+            f.write("""
+workflow: custom_analysis
+phases:
+  SPECIAL:
+    host: falcon
+    snakefile: coffea4bees/workflows/Snakefile_PhaseC.smk
+workflows:
+  custom_analysis:
+    phases: [SPECIAL]
+""")
+            tmp_path = Path(f.name)
+        try:
+            phs, exp, wfs = roast.load_workflow_registry(config_src=tmp_path)
+            self.assertIn("SPECIAL", phs)
+            self.assertEqual(phs["SPECIAL"], ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"))
+            self.assertIn("custom_analysis", wfs)
+            self.assertEqual(wfs["custom_analysis"], ["SPECIAL"])
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
 
 @unittest.skipIf(BASH is None, "bash not available")
 class TestGeneratedBashParses(unittest.TestCase):
@@ -321,14 +378,16 @@ class TestUserPaths(unittest.TestCase):
     def test_derived_from_the_roast_config(self):
         paths = roast.user_paths(CFG)
         self.assertEqual(paths["eos_prod"], "root://cmseos.fnal.gov//store/user/u/HH4b_prod")
-        # with nothing pointing at an analysis, roast defaults to ttHbb
-        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
+        # with nothing pointing at an analysis, roast defaults to HH4b
+        self.assertEqual(paths["web_prod"], "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
 
     def test_web_prod_follows_the_analysis(self):
         self.assertEqual(roast.user_paths(CFG, analysis="HH4b")["web_prod"],
                          "root://eosuser.cern.ch//eos/user/u/user/www/HH4b/prod")
         self.assertEqual(roast.user_paths(CFG, analysis="ttHbb")["web_prod"],
                          "root://eosuser.cern.ch//eos/user/u/user/www/ttHbb/prod")
+        self.assertEqual(roast.user_paths(CFG, analysis="HH4b_lowpt")["web_prod"],
+                         "root://eosuser.cern.ch//eos/user/u/user/www/HH4b_lowpt/prod")
 
     def test_xrootd_keeps_its_doubled_slash(self):
         # root://host/abs/path silently means something else than root://host//abs/path
@@ -1414,6 +1473,11 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
             "output/nominal_run3/PhaseB/plots/index.html",
             "output/nominal_run3/PhaseB/cutflow_Run3_2024.html",
             "output/nominal_run3/PhaseC/summary.html",
+            "output/nominal_run3/PhaseC_4_FvT_closure/plots_FvT_closure/index.html",
+            "output/nominal_run3/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+            "output/nominal_run3/PhaseF_1_analysis/plots_SvB_MA/index.html",
+            "output/nominal_run3/PhaseF_1_analysis/hist_crosscheck_ttHbb.html",
+            "output/nominal_run3/PhaseF_1_analysis/cutflow_crosscheck_ttHbb.html",
         ]
         html_out = roast.generate_roast_index_html(r, pages)
         self.assertIn(r["id"], html_out)
@@ -1422,6 +1486,16 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
         self.assertIn("summary.html", html_out)
         self.assertIn("barista", html_out)
         self.assertIn("coffea4bees", html_out)
+        # Galleries section & cards
+        self.assertIn("Key Visual Plot Galleries", html_out)
+        self.assertIn("FvT Closure Gallery", html_out)
+        self.assertIn("ttbar MC vs d3 (4b) Gallery", html_out)
+        self.assertIn("Analysis &amp; SvB Gallery", html_out)
+        # Featured cross-checks
+        self.assertIn("Histogram Cross-Check (F vs C.4)", html_out)
+        self.assertIn("Cutflow Cross-Check (F vs C.4)", html_out)
+        # Open by default details
+        self.assertIn('<details class="card" open style="margin-top: 1rem;">', html_out)
         self.assertIn("roast.json", html_out)
         self.assertIn("config.yml", html_out)
         self.assertIn("badge-success", html_out)
@@ -1455,6 +1529,55 @@ class TestSyncNautilusPublishMode(unittest.TestCase):
         ssh_call = mock_popen.call_args_list[1][0][0]
         self.assertIn("ssh", ssh_call)
         self.assertTrue(any("tar -xzf" in arg for arg in ssh_call))
+
+
+class TestDetectAnalysisAndChannels(unittest.TestCase):
+    def test_default_is_hh4b(self):
+        self.assertEqual(roast.detect_analysis(), "HH4b")
+        self.assertEqual(roast.detect_analysis(r={}), "HH4b")
+
+    def test_explicit_analysis_in_roast(self):
+        self.assertEqual(roast.detect_analysis(r={"analysis": "ttHbb"}), "ttHbb")
+        self.assertEqual(roast.detect_analysis(r={"analysis": "HH4b_lowpt"}), "HH4b_lowpt")
+
+    def test_channel_in_roast_config_dict(self):
+        self.assertEqual(roast.detect_analysis(r={"config": {"channel": "HH4b_lowpt"}}), "HH4b_lowpt")
+        self.assertEqual(roast.detect_analysis(r={"config": {"analysis": "ttHbb"}}), "ttHbb")
+
+    def test_heuristics_from_label_or_id(self):
+        self.assertEqual(roast.detect_analysis(label="run3_lowpt_nominal"), "HH4b_lowpt")
+        self.assertEqual(roast.detect_analysis(r={"id": "roast_tthbb_20260101_aaaa-bbbb"}), "ttHbb")
+        self.assertEqual(roast.detect_analysis(r={"label": "nominal_hh4b"}), "HH4b")
+
+    def test_cernbox_paths_templated_and_channels(self):
+        eos, url = roast.cernbox_paths(CFG, analysis="HH4b_lowpt")
+        self.assertIn("HH4b_lowpt", eos)
+        self.assertIn("HH4b_lowpt", url)
+
+    def test_checkout_path_templated(self):
+        r = fake_roast()
+        r["analysis"] = "HH4b_lowpt"
+        ckpt = roast.checkout_path(CFG, r, "cmslpc")
+        self.assertIn("nobackup/HH4b_lowpt/prod", ckpt)
+
+
+class TestAutoDiscoveryDashboardSafetyNet(unittest.TestCase):
+    def test_unregistered_summary_dashboard_is_featured(self):
+        r = fake_roast()
+        pages = [
+            "output/nominal_run3/PhaseC/custom_fvt_divergence_summary.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn("Custom Fvt Divergence Summary", html_out)
+        self.assertIn("Auto-discovered", html_out)
+
+
+class TestRegistryCopySettings(unittest.TestCase):
+    def test_publish_settings_incorporate_registry_extras(self):
+        r = fake_roast()
+        ps = roast.copy_settings("publish", CFG, r)
+        # Should include classifier_inputs exclude from workflows.yml
+        self.assertTrue(any("classifier_inputs" in ex for ex in ps["exclude"]))
 
 
 if __name__ == "__main__":
