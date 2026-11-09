@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import datetime as dt
+import fnmatch
 import getpass
 import hashlib
 import html
@@ -82,12 +83,12 @@ def ssh_opts(target: str = "") -> list[str]:
 
 SSH_OPTS = ssh_opts()
 
-# Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
-PHASES = {
+# Fallback phase catalog: used when no workflow YAML registry is found.
+FALLBACK_PHASES: dict[str, tuple[str, str]] = {
     "A": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseA.smk"),
     "B": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseB.smk"),
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
-    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
+    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
     "BKG_AB": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk"),
@@ -95,6 +96,110 @@ PHASES = {
     "BKG_C4": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk"),
     "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
+FALLBACK_PHASE_EXPANSIONS: dict[str, list[str]] = {
+    "C": ["C", "C4"],
+    "BKG_C": ["BKG_C", "BKG_C4"],
+}
+FALLBACK_WORKFLOWS: dict[str, list[str]] = {
+    "nominal": ["B", "C", "D", "F"],
+    "full": ["A", "B", "C", "D", "F"],
+    "bkg_syst": ["BKG_C", "BKG_F"],
+    "bkg_syst_full": ["BKG_AB", "BKG_C", "BKG_F"],
+}
+
+FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
+    {
+        "match": "training_summary.html",
+        "tag": "Phase C",
+        "tag_bkg": "Stage C",
+        "title": "FvT Training Summary",
+        "title_bkg": "FvT Training Summary (16 Models)",
+        "desc": "Model AUCs, loss curves, and training evaluation metrics",
+        "desc_bkg": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics",
+    },
+    {
+        "match": "closure_summary.html",
+        "tag": "Stage F.2",
+        "title": "Two-Stage Closure Summary",
+        "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": "bkg_syst_F_4_stats_mixeddata",
+        "tag": "Stage F.4",
+        "title": "MixedData Unblinded Stats Summary",
+        "desc": "Statistical inference & limits on unblinded mixed data",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": "bkg_syst_F_3_stats",
+        "path_excludes": "rebin",
+        "tag": "Stage F.3",
+        "title": "Standard Stats Summary (Master)",
+        "desc": "Master multi-rebin statistical inference on standard dataset",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": ["stat_analysis", "phasef"],
+        "tag": "Phase F.2",
+        "title": "Statistical Analysis Summary",
+        "desc": "Expected limits, significance, and likelihood scan overview",
+    },
+    {
+        "match": "hist_crosscheck*.html",
+        "tag": "Phase F.1",
+        "tag_bkg": "Stage F.1",
+        "title": "Histogram Cross-Check (F vs C.4)",
+        "desc": "Direct validation that selJets.n and m4j (v4j.mass) match Phase C.4",
+    },
+    {
+        "match": "cutflow_crosscheck*.html",
+        "tag": "Phase F.1",
+        "tag_bkg": "Stage F.1",
+        "title": "Cutflow Cross-Check (F vs C.4)",
+        "desc": "Cut-by-cut event yield cross-check against Phase C.4",
+    },
+]
+
+FALLBACK_STAGES: list[dict[str, Any]] = [
+    {
+        "id": "stage_f",
+        "title": "📊 Stage F — Statistical Inference & Closure",
+        "patterns": ["bkg_syst_f", "phasef", "closure_summary", "summary_svb", "stat_analysis"],
+        "badge_cls": "chip-accent",
+    },
+    {
+        "id": "stage_c",
+        "title": "🎯 Stage C — FvT Classifier & Closure",
+        "patterns": ["bkg_syst_c", "phasec", "fvt_closure", "fvt"],
+        "badge_cls": "chip-neutral",
+    },
+    {
+        "id": "stage_b",
+        "title": "📈 Stage B — JCM Computation & Validation",
+        "patterns": ["bkg_syst_b", "phaseb", "computejcm", "test_v0_closure"],
+        "badge_cls": "chip-neutral",
+    },
+    {
+        "id": "stage_a",
+        "title": "📁 Stage A — Subsamples & PicoAOD Validation",
+        "patterns": ["bkg_syst_a", "phasea", "process_subsamples", "skimmer"],
+        "badge_cls": "chip-neutral",
+    },
+]
+
+DEFAULT_WORKFLOW_REGISTRY = "coffea4bees/workflows/workflows.yml"
+
+# Module-level registries; updated after ROOT resolution below.
+PHASES: dict[str, tuple[str, str]] = dict(FALLBACK_PHASES)
+PHASE_EXPANSIONS: dict[str, list[str]] = dict(FALLBACK_PHASE_EXPANSIONS)
+WORKFLOWS: dict[str, list[str]] = dict(FALLBACK_WORKFLOWS)
+DASHBOARDS: list[dict[str, Any]] = list(FALLBACK_DASHBOARDS)
+STAGES: list[dict[str, Any]] = list(FALLBACK_STAGES)
+PUBLISH_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
+ARCHIVE_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
+FALLBACK_PUBLISH_EXTRA = dict(PUBLISH_EXTRA)
+FALLBACK_ARCHIVE_EXTRA = dict(ARCHIVE_EXTRA)
 
 # What `publish` ships to CERNBox: small, human-readable artefacts.  Override any key under
 # "publish" in ~/.config/roast/config.json, or per roast under "publish" in roast.json.
@@ -103,17 +208,15 @@ PUBLISH_DEFAULTS = {
     "include": ["*.pdf", "*.png", "*.svg", "*.html", "*.yml", "*.yaml", "*.json", "*.txt", "*.log", "*.md", "*.csv", "*.tex"],
     # per-job logs under output/ stay on the host; the step log logs/<step>.log always ships
     "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
-                "*/classifier_inputs/classifier_inputs_dataset_*",
                 "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*"],
     "max_mb": 50,
 }
 # What `archive` ships to FNAL EOS (heavy, machine-readable products).  Same override mechanism ("archive" key).
 ARCHIVE_DEFAULTS = {
     "include": ["*.coffea", "*.root", "*.yml", "*.yaml", "*.json", "*.pkl"],
-    # merged products only: no per-dataset singlefiles, no per-dataset classifier-input manifests
-    # (classifier_inputs_friends.json contains every path they do)
+    # merged products only: no per-dataset singlefiles
     "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
-                "*/singlefiles", "*/singlefiles/*", "*/classifier_inputs/classifier_inputs_dataset_*",
+                "*/singlefiles", "*/singlefiles/*",
                 "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*"],
     "max_mb": 0,   # 0 = no limit
 }
@@ -122,8 +225,8 @@ DEFAULT_CONFIG = {
     "hosts": {
         "cmslpc": {
             "ssh": "<user>@cmslpc-el9.fnal.gov",
-            "prod_root": "~/nobackup/HH4b/prod",
-            "reference": "~/nobackup/HH4b/Run3/barista",
+            "prod_root": "~/nobackup/{analysis}/prod",
+            "reference": "~/nobackup/{analysis}/Run3/barista",
             "cores": 8,
         },
         "falcon": {
@@ -134,8 +237,8 @@ DEFAULT_CONFIG = {
         },
         "bridges2": {
             "ssh": "<user>@bridges2.psc.edu",
-            "prod_root": "/ocean/projects/phy260026p/<user>/HH4b/prod",
-            "reference": "/ocean/projects/phy260026p/<user>/HH4b/barista",
+            "prod_root": "/ocean/projects/phy260026p/<user>/{analysis}/prod",
+            "reference": "/ocean/projects/phy260026p/<user>/{analysis}/barista",
             "cores": 16,
         },
         "nautilus": {
@@ -147,21 +250,25 @@ DEFAULT_CONFIG = {
         },
     },
     "cernbox": {
-        "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
-        "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+        "eos_path": "/eos/user/<x>/<user>/www/{analysis}/prod",
+        "url": "https://<user>.web.cern.ch/<user>/{analysis}/prod",
         "analyses": {
-            "ttHbb": {
-                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
-                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
-            },
             "HH4b": {
                 "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
                 "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
             },
+            "ttHbb": {
+                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+            },
+            "HH4b_lowpt": {
+                "eos_path": "/eos/user/<x>/<user>/www/HH4b_lowpt/prod",
+                "url": "https://<user>.web.cern.ch/<user>/HH4b_lowpt/prod",
+            },
         },
     },
     "owner": "<your name>",
-    "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/HH4b_prod"},
+    "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/{analysis}_prod"},
     "publish": PUBLISH_DEFAULTS,
     "archive": ARCHIVE_DEFAULTS,
 }
@@ -209,6 +316,217 @@ def repo_root() -> Path:
 ROOT = repo_root()
 ROASTS = ROOT / "roasts"
 DOCS_PROD = ROOT / "docs" / "prod"
+
+
+def _read_yaml_file(path: Path, required: bool = True) -> dict:
+    try:
+        import yaml
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except ImportError:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            if required:
+                die(f"PyYAML is required to parse {path}. Please install pyyaml or run in the project environment.")
+            return {}
+    except Exception as e:
+        if required:
+            die(f"failed to read workflow definition from {path}: {e}")
+        return {}
+
+
+def _parse_workflow_dict(
+    raw: dict, base_dir: Path | None = None
+) -> dict[str, Any]:
+    """Parse a workflow registry dictionary into phases, expansions, workflows, dashboards, stages."""
+    phases: dict[str, tuple[str, str]] = {}
+    expansions: dict[str, list[str]] = {}
+    workflows: dict[str, list[str]] = {}
+    dashboards: list[dict[str, Any]] = []
+    stages: list[dict[str, Any]] = []
+    publish_extra: dict[str, list[str]] = {"exclude": [], "include": []}
+    archive_extra: dict[str, list[str]] = {"exclude": [], "include": []}
+
+    # 1. Parse phases
+    raw_phases = raw.get("phases", {})
+    if isinstance(raw_phases, dict):
+        for name, spec in raw_phases.items():
+            name_str = str(name)
+            if isinstance(spec, (list, tuple)) and len(spec) >= 2:
+                host, smk = str(spec[0]), str(spec[1])
+            elif isinstance(spec, dict):
+                host = str(spec.get("host", "cmslpc"))
+                smk = str(spec.get("snakefile", ""))
+                if "expands" in spec:
+                    exp = spec["expands"]
+                    expansions[name_str] = [str(x) for x in exp] if isinstance(exp, list) else [str(exp)]
+            else:
+                continue
+
+            # Resolve snakefile path relative to base_dir or ROOT if needed
+            if smk and not (ROOT / smk).exists() and base_dir:
+                cand = base_dir / smk
+                if (ROOT / cand).exists():
+                    smk = str(cand)
+                elif cand.exists():
+                    try:
+                        smk = str(cand.relative_to(ROOT))
+                    except ValueError:
+                        smk = str(cand)
+
+            phases[name_str] = (host, smk)
+
+    # 2. Parse top-level expansions (if any)
+    raw_exp = raw.get("expansions", {})
+    if isinstance(raw_exp, dict):
+        for k, v in raw_exp.items():
+            expansions[str(k)] = [str(x) for x in v] if isinstance(v, list) else [str(v)]
+
+    # 3. Parse workflows
+    raw_wfs = raw.get("workflows", {})
+    if isinstance(raw_wfs, dict):
+        for w_name, w_spec in raw_wfs.items():
+            if isinstance(w_spec, dict) and "phases" in w_spec:
+                phs = w_spec["phases"]
+                workflows[str(w_name)] = [str(x) for x in phs] if isinstance(phs, list) else [str(phs)]
+            elif isinstance(w_spec, list):
+                workflows[str(w_name)] = [str(x) for x in w_spec]
+
+    # 4. Parse dashboards
+    if "dashboards" in raw and isinstance(raw["dashboards"], list):
+        dashboards = [d for d in raw["dashboards"] if isinstance(d, dict)]
+
+    # 5. Parse stages
+    if "stages" in raw and isinstance(raw["stages"], list):
+        stages = [s for s in raw["stages"] if isinstance(s, dict)]
+
+    # 6. Parse publish / archive extra rules
+    if "publish" in raw and isinstance(raw["publish"], dict):
+        publish_extra["exclude"] = list(raw["publish"].get("exclude") or [])
+        publish_extra["include"] = list(raw["publish"].get("include") or [])
+    if "archive" in raw and isinstance(raw["archive"], dict):
+        archive_extra["exclude"] = list(raw["archive"].get("exclude") or [])
+        archive_extra["include"] = list(raw["archive"].get("include") or [])
+
+    return {
+        "phases": phases,
+        "expansions": expansions,
+        "workflows": workflows,
+        "dashboards": dashboards,
+        "stages": stages,
+        "publish": publish_extra,
+        "archive": archive_extra,
+    }
+
+
+def load_workflow_registry(
+    config_src: Path | str | None = None,
+    workflow_file: Path | str | None = None,
+) -> tuple[dict[str, tuple[str, str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Load workflow phases, expansions, dashboards, and stages from YAML.
+
+    Priority:
+    1. workflow_file argument (if provided)
+    2. 'workflow_file' key in config_src (if present)
+    3. Standard repository workflow files (e.g. coffea4bees/workflows/workflows.yml)
+    4. Inline 'phases:' or 'workflows:' blocks in config_src
+    5. Fallback built-in dictionary
+    """
+    global DASHBOARDS, STAGES, PUBLISH_EXTRA, ARCHIVE_EXTRA
+
+    all_phases = dict(FALLBACK_PHASES)
+    all_expansions = dict(FALLBACK_PHASE_EXPANSIONS)
+    all_workflows = dict(FALLBACK_WORKFLOWS)
+    all_dashboards = list(FALLBACK_DASHBOARDS)
+    all_stages = list(FALLBACK_STAGES)
+    all_publish_extra = {"exclude": list(FALLBACK_PUBLISH_EXTRA.get("exclude", [])), "include": list(FALLBACK_PUBLISH_EXTRA.get("include", []))}
+    all_archive_extra = {"exclude": list(FALLBACK_ARCHIVE_EXTRA.get("exclude", [])), "include": list(FALLBACK_ARCHIVE_EXTRA.get("include", []))}
+
+    candidates: list[Path] = []
+    if workflow_file:
+        candidates.append(Path(workflow_file).expanduser())
+
+    raw_cfg = {}
+    if config_src:
+        cpath = Path(config_src)
+        if cpath.exists():
+            try:
+                import yaml
+                raw_cfg = yaml.safe_load(cpath.read_text()) or {}
+                if isinstance(raw_cfg, dict) and "workflow_file" in raw_cfg:
+                    candidates.append(Path(raw_cfg["workflow_file"]).expanduser())
+            except Exception:
+                pass
+
+    candidates.extend([
+        ROOT / DEFAULT_WORKFLOW_REGISTRY,
+        ROOT / "coffea4bees/workflows/workflows.yaml",
+        ROOT / "workflows/workflows.yml",
+        ROOT / "workflows/workflows.yaml",
+    ])
+
+    found_file = None
+    for cand in candidates:
+        if cand.is_file():
+            found_file = cand
+            break
+        elif (ROOT / cand).is_file():
+            found_file = ROOT / cand
+            break
+
+    if found_file:
+        parsed = _parse_workflow_dict(
+            _read_yaml_file(found_file, required=bool(workflow_file)),
+            base_dir=found_file.parent,
+        )
+        if parsed.get("phases"):
+            all_phases = parsed["phases"]
+        all_expansions.update(parsed.get("expansions", {}))
+        all_workflows.update(parsed.get("workflows", {}))
+        if parsed.get("dashboards"):
+            all_dashboards = parsed["dashboards"]
+        if parsed.get("stages"):
+            all_stages = parsed["stages"]
+        if parsed.get("publish"):
+            for e in parsed["publish"].get("exclude", []):
+                if e not in all_publish_extra["exclude"]:
+                    all_publish_extra["exclude"].append(e)
+            for i in parsed["publish"].get("include", []):
+                if i not in all_publish_extra["include"]:
+                    all_publish_extra["include"].append(i)
+        if parsed.get("archive"):
+            for e in parsed["archive"].get("exclude", []):
+                if e not in all_archive_extra["exclude"]:
+                    all_archive_extra["exclude"].append(e)
+            for i in parsed["archive"].get("include", []):
+                if i not in all_archive_extra["include"]:
+                    all_archive_extra["include"].append(i)
+
+    # If config_src defines inline custom phases or workflows, merge them
+    if isinstance(raw_cfg, dict):
+        if "phases" in raw_cfg and isinstance(raw_cfg["phases"], dict):
+            cfg_p = _parse_workflow_dict({"phases": raw_cfg["phases"]})
+            all_phases.update(cfg_p["phases"])
+            all_expansions.update(cfg_p["expansions"])
+            all_workflows.update(cfg_p["workflows"])
+        if "workflows" in raw_cfg and isinstance(raw_cfg["workflows"], dict):
+            cfg_w = _parse_workflow_dict({"workflows": raw_cfg["workflows"]})
+            all_workflows.update(cfg_w["workflows"])
+        if "dashboards" in raw_cfg and isinstance(raw_cfg["dashboards"], list):
+            all_dashboards.extend(raw_cfg["dashboards"])
+
+    DASHBOARDS = all_dashboards
+    STAGES = all_stages
+    PUBLISH_EXTRA = all_publish_extra
+    ARCHIVE_EXTRA = all_archive_extra
+
+    return all_phases, all_expansions, all_workflows
+
+
+# Initialize module-level registries from repository
+PHASES, PHASE_EXPANSIONS, WORKFLOWS = load_workflow_registry()
 
 # Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
 # write_index() must leave them alone.  "index" is generated but always wanted; the rest are
@@ -653,12 +971,28 @@ def find_step(r: dict, name: str) -> dict:
     for s in r["steps"]:
         if s["name"] == name:
             return s
+    cfg_src = roast_dir(r["id"]) / "config.yml" if (roast_dir(r["id"]) / "config.yml").exists() else None
+    wf_phases, _, _ = load_workflow_registry(config_src=cfg_src, workflow_file=r.get("workflow_file"))
+    if name in wf_phases:
+        host, smk = wf_phases[name]
+        s = {"name": name, "host": host, "snakefile": smk, "targets": "", "extra": ""}
+        r["steps"].append(s)
+        save_roast(r)
+        return s
     die(f"no step '{name}' in roast {r['id']}; steps: " + ", ".join(s["name"] for s in r["steps"]))
 
 
 def checkout_path(cfg: dict, r: dict, host: str) -> str:
     hc = host_cfg(cfg, host)
-    return f"{hc['prod_root'].rstrip('/')}/{r['id']}/barista"
+    prod_root = hc["prod_root"].rstrip("/")
+    ana = r.get("analysis") or detect_analysis(r)
+    if "{analysis}" in prod_root:
+        prod_root = prod_root.replace("{analysis}", ana)
+    elif ana != "HH4b" and "/HH4b/" in prod_root:
+        prod_root = prod_root.replace("/HH4b/", f"/{ana}/")
+    elif ana != "HH4b" and prod_root.endswith("/HH4b"):
+        prod_root = prod_root[:-5] + f"/{ana}"
+    return f"{prod_root}/{r['id']}/barista"
 
 
 # ---------------------------------------------------------------------------
@@ -672,26 +1006,30 @@ def cmd_init(args) -> None:
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
         cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node or 'cmslpc-el9'}.fnal.gov"
-        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
+        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/{{analysis}}_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
     if getattr(args, "bridges2_user", None):
         u = args.bridges2_user
         cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
-        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/HH4b/prod"
-        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/HH4b/barista"
+        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/prod"
+        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/barista"
     if args.cern_user:
         u = args.cern_user
-        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/ttHbb/prod"
-        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/ttHbb/prod"
+        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/{{analysis}}/prod"
+        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/{{analysis}}/prod"
         cfg["cernbox"]["analyses"] = {
+            "HH4b": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            },
             "ttHbb": {
                 "eos_path": f"/eos/user/{u[0]}/{u}/www/ttHbb/prod",
                 "url": f"https://{u}.web.cern.ch/{u}/ttHbb/prod",
             },
-            "HH4b": {
-                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
-                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            "HH4b_lowpt": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b_lowpt/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b_lowpt/prod",
             },
         }
     cfg["owner"] = args.owner or getpass.getuser()
@@ -707,15 +1045,25 @@ def cmd_init(args) -> None:
 
 
 def detect_analysis(r: dict | None = None, config_path: Path | str | None = None, label: str | None = None) -> str:
-    """Detect whether a roast belongs to HH4b or ttHbb. Defaults to ttHbb."""
+    """Detect whether a roast belongs to HH4b, ttHbb, or HH4b_lowpt. Defaults to HH4b."""
     if r and r.get("analysis"):
         return r["analysis"]
     if r:
         web = (r.get("user_paths") or {}).get("web_prod", "") or (r.get("publish") or {}).get("eos", "")
+        if "/www/HH4b_lowpt/" in web:
+            return "HH4b_lowpt"
         if "/www/HH4b/" in web:
             return "HH4b"
         if "/www/ttHbb/" in web:
             return "ttHbb"
+
+    if r and isinstance(r.get("config"), dict):
+        cfg_dict = r["config"]
+        if cfg_dict.get("analysis"):
+            return cfg_dict["analysis"]
+        if cfg_dict.get("channel"):
+            return cfg_dict["channel"]
+
     text_to_check = []
     if label:
         text_to_check.append(str(label).lower())
@@ -730,9 +1078,11 @@ def detect_analysis(r: dict | None = None, config_path: Path | str | None = None
         text_to_check.append(str(config_path).lower())
 
     joined = " ".join(text_to_check)
+    if "lowpt" in joined or "low_pt" in joined:
+        return "HH4b_lowpt"
     if "tthbb" in joined or "ttbb" in joined:
         return "ttHbb"
-    if any(k in joined for k in ("hh4b", "lowpt", "nominal", "mvd", "declustered", "mixeddata")):
+    if any(k in joined for k in ("hh4b", "nominal", "mvd", "declustered", "mixeddata")):
         return "HH4b"
 
     cfg_file = None
@@ -743,19 +1093,21 @@ def detect_analysis(r: dict | None = None, config_path: Path | str | None = None
     if cfg_file:
         try:
             content = cfg_file.read_text()
-            if re.search(r"channel:\s*['\"]?ttHbb", content, re.I):
+            if re.search(r"(?:channel|analysis):\s*['\"]?ttHbb", content, re.I):
                 return "ttHbb"
-            if re.search(r"(processor_HH4b|channel:\s*['\"]?HH4b|friends_HH4b)", content, re.I):
+            if re.search(r"(?:channel|analysis):\s*['\"]?HH4b_lowpt", content, re.I) or re.search(r"processor_HH4b_lowpt", content, re.I):
+                return "HH4b_lowpt"
+            if re.search(r"(processor_HH4b|(?:channel|analysis):\s*['\"]?HH4b|friends_HH4b)", content, re.I):
                 return "HH4b"
         except Exception:
             pass
 
-    return "ttHbb"
+    return "HH4b"
 
 
 def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> tuple[str, str]:
     """Return (eos_path, url) for CERNBox.
-    Defaults to ttHbb from cfg['cernbox'], or selects from cfg['cernbox']['analyses'] / replaces path for HH4b.
+    Resolves {analysis} placeholders or selects from cfg['cernbox']['analyses'] / replaces path for channel.
     """
     cb = cfg.get("cernbox") or {}
     ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
@@ -766,12 +1118,25 @@ def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None)
     elif cb.get("eos_path"):
         base_eos = cb["eos_path"]
         base_url = cb.get("url", "")
-        if ana == "HH4b" and "/www/ttHbb" in base_eos:
+        if "{analysis}" in base_eos:
+            eos_path = base_eos.replace("{analysis}", ana)
+            url = base_url.replace("{analysis}", ana)
+        elif ana == "HH4b" and "/www/ttHbb" in base_eos:
             eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b")
             url = base_url.replace("/ttHbb", "/HH4b")
         elif ana == "ttHbb" and "/www/HH4b" in base_eos:
             eos_path = base_eos.replace("/www/HH4b", "/www/ttHbb")
             url = base_url.replace("/HH4b", "/ttHbb")
+        elif ana == "HH4b_lowpt":
+            if "/www/ttHbb" in base_eos:
+                eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b_lowpt")
+                url = base_url.replace("/ttHbb", "/HH4b_lowpt")
+            elif "/www/HH4b" in base_eos:
+                eos_path = base_eos.replace("/www/HH4b", "/www/HH4b_lowpt")
+                url = base_url.replace("/HH4b", "/HH4b_lowpt")
+            else:
+                eos_path = base_eos
+                url = base_url
         else:
             eos_path = base_eos
             url = base_url
@@ -789,6 +1154,22 @@ def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) ->
     xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
     """
     out = {}
+    ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        eos_path = eos["path"].strip("/")
+        if "{analysis}" in eos_path:
+            eos_path = eos_path.replace("{analysis}", ana)
+        elif ana == "ttHbb" and "HH4b" in eos_path:
+            eos_path = eos_path.replace("HH4b", "ttHbb")
+        elif ana == "HH4b_lowpt" and "HH4b_prod" in eos_path:
+            eos_path = eos_path.replace("HH4b_prod", "HH4b_lowpt_prod")
+        out["eos_prod"] = f"{host}//{eos_path}"
+    web, _ = cernbox_paths(cfg, r, ana)
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
     eos = cfg.get("eos") or {}
     if eos.get("path") and "<" not in eos["path"]:
         host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
@@ -797,6 +1178,67 @@ def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) ->
     if web and "<" not in web:
         out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
     return out
+
+
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+    except ImportError:
+        try:
+            from validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+        except ImportError:
+            import importlib.util
+            _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+            if not _vpath.exists():
+                _vpath = ROOT / "src/tools/validate_config.py"
+            if _vpath.exists():
+                _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                validate_config = _mod.validate_config
+                format_report = _mod.format_report
+                find_repo_root = _mod.find_repo_root
+                DEFAULT_CI_CONFIGS = _mod.DEFAULT_CI_CONFIGS
+            else:
+                die("Could not locate validate_config module.")
+
+    repo_root = find_repo_root()
+    targets: list[Path] = []
+    if getattr(args, "all", False):
+        config_dir = repo_root / "coffea4bees/workflows/config"
+        if not config_dir.is_dir():
+            config_dir = repo_root / "workflows/config"
+        if config_dir.is_dir():
+            targets.extend(sorted(config_dir.glob("*.yml")))
+            targets.extend(sorted(config_dir.glob("*.yaml")))
+    elif getattr(args, "config", None):
+        p = Path(args.config).expanduser()
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve()
+        if not p.exists():
+            die(f"config file not found: {p}")
+        targets.append(p)
+    else:
+        for c in DEFAULT_CI_CONFIGS:
+            cand1 = repo_root / c
+            cand2 = repo_root / c.replace("coffea4bees/", "")
+            if cand1.is_file():
+                targets.append(cand1)
+            elif cand2.is_file():
+                targets.append(cand2)
+
+    if not targets:
+        die("No configuration files found to validate.")
+
+    has_errors = False
+    for t in targets:
+        rep = validate_config(t, repo_root=repo_root)
+        print(format_report(rep))
+        if not rep.is_valid(strict=getattr(args, "strict", False)):
+            has_errors = True
+
+    if has_errors:
+        sys.exit(1)
 
 
 def cmd_new(args) -> None:
@@ -815,12 +1257,54 @@ def cmd_new(args) -> None:
     if dirty and not args.barista and not args.coffea4bees:
         info("WARNING: working tree has uncommitted tracked changes; the roast records HEAD, not your edits")
 
+    # Load workflow definitions from workflow YAML / config
+    wf_phases, wf_expansions, wf_workflows = load_workflow_registry(
+        config_src=config_src,
+        workflow_file=getattr(args, "workflow_file", None),
+    )
+
     steps = []
-    for ph in (args.phases.replace(" ", "").split(",") if args.phases else []):
-        ph = ph.upper()
-        if ph not in PHASES:
-            die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
-        host, smk = PHASES[ph]
+    chosen_phases = []
+    if getattr(args, "workflow", None):
+        wf_name = args.workflow
+        if wf_name not in wf_workflows:
+            die(f"unknown workflow '{wf_name}'; known workflows: {', '.join(sorted(wf_workflows))}")
+        chosen_phases = list(wf_workflows[wf_name])
+    elif args.phases:
+        chosen_phases = args.phases.replace(" ", "").split(",")
+
+    if not chosen_phases and not (args.step or []):
+        try:
+            import yaml
+            raw_cfg = _load_layered_config(config_src)[0] if re.search(r"^(inputs|base):", config_src.read_text(), re.M) else {}
+            if not raw_cfg:
+                raw_cfg = yaml.safe_load(config_src.read_text()) or {}
+        except Exception:
+            raw_cfg = {}
+        if isinstance(raw_cfg, dict):
+            if "workflow" in raw_cfg:
+                cfg_wf = raw_cfg["workflow"]
+                if isinstance(cfg_wf, str) and cfg_wf in wf_workflows:
+                    chosen_phases = list(wf_workflows[cfg_wf])
+                elif isinstance(cfg_wf, list):
+                    chosen_phases = list(cfg_wf)
+            elif "phases" in raw_cfg and isinstance(raw_cfg["phases"], list):
+                chosen_phases = list(raw_cfg["phases"])
+            elif "upstream_pre_fvt" in raw_cfg:
+                chosen_phases = list(wf_workflows.get("bkg_syst", ["BKG_C", "BKG_F"]))
+
+    expanded_phases = []
+    for ph in chosen_phases:
+        ph_key = ph.upper() if (ph.upper() in wf_phases or ph.upper() in wf_expansions) else ph
+        if ph_key in wf_expansions:
+            expanded_phases.extend(wf_expansions[ph_key])
+        else:
+            expanded_phases.append(ph_key)
+
+    for ph in expanded_phases:
+        if ph not in wf_phases:
+            die(f"unknown phase '{ph}'; known: {','.join(sorted(wf_phases))}")
+        host, smk = wf_phases[ph]
         if getattr(args, "bridges2", False) and host == "falcon":
             host = "bridges2"
         elif getattr(args, "nautilus", False) and host == "falcon":
@@ -835,22 +1319,8 @@ def cmd_new(args) -> None:
         targets = parts[2] if len(parts) > 2 else ""
         name = Path(smk).stem.replace("Snakefile_", "")
         steps.append({"name": name, "host": host, "snakefile": smk, "targets": targets, "extra": ""})
-    if not steps and not (args.phases or args.step):
-        try:
-            import yaml
-            raw_cfg = _load_layered_config(config_src)[0] if re.search(r"^(inputs|base):", config_src.read_text(), re.M) else {}
-        except Exception:
-            raw_cfg = {}
-        if isinstance(raw_cfg, dict) and "upstream_pre_fvt" in raw_cfg:
-            for ph in ["BKG_C", "BKG_F"]:
-                host, smk = PHASES[ph]
-                if getattr(args, "bridges2", False) and host == "falcon":
-                    host = "bridges2"
-                elif getattr(args, "nautilus", False) and host == "falcon":
-                    host = "nautilus"
-                steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     if not steps:
-        die("nothing to run: give --phases and/or --step")
+        die("nothing to run: give --workflow, --phases, and/or --step")
     for s in steps:
         host_cfg(cfg, s["host"])
         if not (ROOT / s["snakefile"]).exists():
@@ -883,6 +1353,42 @@ def cmd_new(args) -> None:
     if isinstance(merged_wf, dict):
         check_friend_wiring(steps, merged_wf)
 
+    # 0. Validate configuration file before capturing
+    validation_summary = None
+    if not getattr(args, "no_validate", False):
+        try:
+            from tools.validate_config import validate_config_file, format_report
+        except ImportError:
+            try:
+                from validate_config import validate_config_file, format_report
+            except ImportError:
+                import importlib.util
+                _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+                if not _vpath.exists():
+                    _vpath = ROOT / "src/tools/validate_config.py"
+                if _vpath.exists():
+                    _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                    _mod = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(_mod)
+                    validate_config_file = _mod.validate_config_file
+                    format_report = _mod.format_report
+                else:
+                    validate_config_file = None
+
+        if validate_config_file:
+            v_rep = validate_config_file(config_src)
+            if not v_rep.is_valid(strict=getattr(args, "strict", False)):
+                print(format_report(v_rep))
+                die(f"configuration validation failed for {config_src} ({len(v_rep.errors)} error(s)); aborting roast creation.")
+            elif v_rep.warnings or v_rep.infos:
+                print(format_report(v_rep))
+            validation_summary = {
+                "valid": v_rep.is_valid(),
+                "errors": len(v_rep.errors),
+                "warnings": len(v_rep.warnings),
+                "infos": len(v_rep.infos),
+            }
+
     d = roast_dir(rid)
     d.mkdir(parents=True)
     # Verbatim, or merged over its `base:` chain; {roast_id} is resolved at run time via --config roast_id
@@ -897,10 +1403,13 @@ def cmd_new(args) -> None:
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
-                   **({"base": config_bases} if config_bases else {})},
+                   **({"base": config_bases} if config_bases else {}),
+                   **({"validation": validation_summary} if validation_summary else {})},
         **({"inputs": inputs} if inputs else {}),
         "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
+        **({"workflow": args.workflow} if getattr(args, "workflow", None) else {}),
+        **({"workflow_file": str(args.workflow_file)} if getattr(args, "workflow_file", None) else {}),
         "hosts": {},
         "publish": {},
         "history": [],
@@ -1040,7 +1549,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in output proxy run_container runner.py pixi.toml pixi.lock; do
+    for item in proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -1282,10 +1791,19 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         fi
         command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
         {unlock.strip()}
+        # 1. Capture visual rulegraph before execution
+        echo "=== generating rulegraph SVG ===" | tee -a "$LOG"
+        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+        # 2. Run workflow
         {base} 2>&1 | tee -a "$LOG"
         RC=${{PIPESTATUS[0]}}
         echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
         echo "$RC" > "$EXIT"
+        if [ "$RC" = "0" ]; then
+            # 3. Capture snakemake execution summary on success
+            echo "=== generating snakemake execution summary ===" | tee -a "$LOG"
+            ./run_container snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} > "logs/{name}_summary.txt" 2>/dev/null || true
+        fi
         if [ "$RC" != "0" ]; then
             echo "step {name} FAILED (rc=$RC). Shell kept open for inspection; exit to close."
             exec bash
@@ -1395,9 +1913,13 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   rm -rf .snakemake/locks/* 2>/dev/null || true
                   mkdir -p .snakemake/locks
                   {unlock}
+                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
+                  if [ "$RC" = "0" ]; then
+                      snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus > "logs/{name}_summary.txt" 2>/dev/null || true
+                  fi
                   echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
                   exit $RC
                 resources:
@@ -1488,7 +2010,45 @@ def _krb_refresh_script(warn_hours: int = 12) -> str:
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
-    step = find_step(r, args.step)
+    target_step = args.step
+
+    # If user requests step C or BKG_C, check if GPU training is already exit 0 and C4 needs to run
+    if target_step in ("C", "BKG_C"):
+        c_step = next((s for s in r.get("steps", []) if s["name"] == target_step), None)
+        c4_name = "C4" if target_step == "C" else "BKG_C4"
+        c4_step = next((s for s in r.get("steps", []) if s["name"] == c4_name), None)
+        if c_step and c4_step:
+            c_host = c_step.get("host", "")
+            c_done = False
+            c_runs = [run for run in c_step.get("runs", []) if not run.get("dry_run")]
+            if c_runs:
+                if c_host == "nautilus":
+                    hc_n = host_cfg(cfg, "nautilus")
+                    ns = hc_n.get("namespace", "cms-cmu")
+                    jname = c_runs[-1].get("job_name") or _k8s_job_name(r, c_step)
+                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "1":
+                        c_done = True
+                elif c_host in r.get("hosts", {}):
+                    ckpt_c = r["hosts"][c_host]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
+                             f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c_done = True
+
+            if c_done:
+                c4_done = False
+                if "cmslpc" in r.get("hosts", {}):
+                    ckpt_c4 = r["hosts"]["cmslpc"]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"]["cmslpc"].get("ssh") or "cmslpc",
+                             f"test -f {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit && cat {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c4_done = True
+                if not c4_done:
+                    info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
+                    target_step = c4_name
+
+    step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
     if host not in r["hosts"]:
@@ -1854,6 +2414,7 @@ def proxy_candidates() -> list[str]:
         '"$PWD/proxy/x509_proxy"',
         '"$PWD/../proxy/x509_proxy"',
         '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+        '"$HOME/x509up_u$(id -u)"',
         '"$HOME/.roast/x509_proxy"',
     ]
 
@@ -1900,10 +2461,10 @@ def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
         TMPLST=$(mktemp)
         trap 'rm -f "$TMPLST"' EXIT
         xrdfs $EOS ls -l -R "$P" 2>/dev/null > "$TMPLST"
-        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         DEPTHS=$(awk '$1 ~ /^d/ {{ path=$NF; n=split(path, arr, "/"); print n }}' "$TMPLST" | sort -urn)
         for d in $DEPTHS; do
-            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
+            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
         done
         rm -f "$TMPLST"
         trap - EXIT
@@ -2217,30 +2778,32 @@ def cmd_rm(args) -> None:
         info("dry run. Re-run with --yes to delete. Use --keep-eos / --keep-cernbox / --keep-hosts to spare a location.")
         return
     # refuse while a step is running
-    for host, h in r.get("hosts", {}).items():
-        if host == "nautilus":
-            hc = host_cfg(cfg, "nautilus")
-            ns = hc.get("namespace", "cms-cmu")
-            chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
-            if chk.returncode == 0 and "Running" in (chk.stdout or ""):
-                die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
-            continue
-        target = roast_ssh(cfg, r, host)
-        session = _tmux_session(r)
-        chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
-        if chk.stdout.strip() not in ("", "0"):
-            die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
+    if not args.keep_hosts:
+        for host, h in r.get("hosts", {}).items():
+            if host == "nautilus":
+                hc = host_cfg(cfg, "nautilus")
+                ns = hc.get("namespace", "cms-cmu")
+                chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
+                if chk.returncode == 0 and "Running" in (chk.stdout or ""):
+                    die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
+                continue
+            target = roast_ssh(cfg, r, host)
+            session = _tmux_session(r)
+            chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+            if chk.stdout.strip() not in ("", "0"):
+                die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
     # remote locations first, while we still have the manifest -- and EOS before the host checkouts,
     # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
-    lpc = roast_ssh(cfg, r, "cmslpc")
+    lpc = resolve_ssh(host_cfg(cfg, "cmslpc")) if args.keep_hosts else roast_ssh(cfg, r, "cmslpc")
     lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    proxy_args = [rq(f"{lpc_ck}/proxy/x509_proxy")] if lpc_ck else []
+    proxy_args.extend(proxy_candidates())
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -2249,7 +2812,7 @@ def cmd_rm(args) -> None:
                 ns = hc.get("namespace", "cms-cmu")
                 sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
                 top = h["checkout"].rsplit("/", 1)[0]
-                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
+                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
                 print(f"  removed {top} on Nautilus")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
@@ -2999,11 +3562,17 @@ def cmd_monitor(args) -> None:
 
 
 def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False, with_pdfs: bool = False) -> dict:
-    """kind = 'publish' | 'archive'.  Defaults <- user config[kind] <- roast.json[kind + '_rules']."""
+    """kind = 'publish' | 'archive'.  Defaults <- user config[kind] <- roast.json[kind + '_rules'] + workflow registry extras."""
     base = PUBLISH_DEFAULTS if kind == "publish" else ARCHIVE_DEFAULTS
     ps = dict(base)
+    extra = PUBLISH_EXTRA if kind == "publish" else ARCHIVE_EXTRA
+    cfg_extra = cfg.get(f"{kind}_extra") or {}
     for src in (cfg.get(kind) or {}, r.get(kind + "_rules") or {}):
         ps.update({k: v for k, v in src.items() if k in base})
+    for ex in (extra.get("exclude", []), cfg_extra.get("exclude", [])):
+        ps["exclude"] = list(ps["exclude"]) + [e for e in ex if e not in ps["exclude"]]
+    for inc in (extra.get("include", []), cfg_extra.get("include", [])):
+        ps["include"] = list(ps["include"]) + [i for i in inc if i not in ps["include"]]
     if include_test:
         ps["exclude"] = [e for e in ps["exclude"] if "_test" not in e]
     if kind == "publish" and not with_pdfs:
@@ -3105,6 +3674,9 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
 
 def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
     """Regenerate the analysis-level index.html on CERNBox listing all published roasts."""
+    if not shutil.which("xrdfs"):
+        info("notice: xrdfs not on local PATH, skipping analysis-level index refresh")
+        return
     res = sh(["xrdfs", "eosuser.cern.ch", "ls", eos_base], check=False)
     if res.returncode != 0:
         info("warning: could not list CERNBox analysis directory for index refresh")
@@ -3224,7 +3796,7 @@ def cmd_publish(args) -> None:
     rdir = roast_dir(r["id"])
     if rdir.exists():
         (rdir / "index.html").write_text(summary_html, encoding="utf-8")
-    if not args.dry_run and not args.docs_only and ok:
+    if not args.dry_run and ok:
         pub_host = None
         for h in hosts:
             if h != "nautilus" and h in r.get("hosts", {}):
@@ -3414,6 +3986,7 @@ def write_docs(r: dict) -> None:
         f"| coffea4bees | [`{c['sha'][:12]}`]({c['web']}/-/commit/{c['sha']}) |",
         f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) — [captured copy]({url}roasts/{r['id']}/config.yml) |" if url
         else f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) |",
+        (f"| validation | {'✅ valid' if r['config']['validation'].get('valid') else '❌ invalid'} ({r['config']['validation'].get('errors', 0)} error(s), {r['config']['validation'].get('warnings', 0)} warning(s)) |" if r.get("config", {}).get("validation") else ""),
         f"| results | [{url}]({url}) |" if url else "| results | not published |",
         f"| manifest | [roast.json]({url}roasts/{r['id']}/roast.json) |" if url else "",
         (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
@@ -3424,13 +3997,20 @@ def write_docs(r: dict) -> None:
         "",
         "## Steps",
         "",
-        "| step | host | snakefile | state | log |",
+        "| step | host | snakefile | state | logs & artifacts |",
         "|---|---|---|---|---|",
     ]
-    for s in r["steps"]:
-        log = f"[{s['name']}.log]({url}logs/{s['name']}.log)" if url else ""
-        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {log} |")
     pages = r.get("publish", {}).get("pages", [])
+    for s in r["steps"]:
+        artifacts = []
+        if url:
+            artifacts.append(f"[log]({url}logs/{s['name']}.log)")
+            if not pages or f"logs/{s['name']}_rulegraph.svg" in pages:
+                artifacts.append(f"[dag]({url}logs/{s['name']}_rulegraph.svg)")
+            if not pages or f"logs/{s['name']}_summary.txt" in pages:
+                artifacts.append(f"[summary]({url}logs/{s['name']}_summary.txt)")
+        art_str = " · ".join(artifacts) if artifacts else ""
+        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {art_str} |")
     if url and pages:
         # galleries (…/index.html) and cutflow closure tables (…/cutflow_*.html), grouped by workflow dir
         lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
@@ -3484,8 +4064,22 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     cfg_src = html.escape(str(r.get("config", {}).get("source", "—")))
     cfg_sha = html.escape(str(r.get("config", {}).get("sha256", ""))[:12])
 
+    val = r.get("config", {}).get("validation")
+    if val:
+        if val.get("valid"):
+            n_warn = val.get("warnings", 0)
+            val_badge = f'<span class="badge badge-success">VALID</span> <span class="muted">({n_warn} warning{"s" if n_warn != 1 else ""})</span>'
+        else:
+            n_err = val.get("errors", 0)
+            val_badge = f'<span class="badge badge-danger">FAILED</span> <span class="muted">({n_err} error{"s" if n_err != 1 else ""})</span>'
+    else:
+        val_badge = '<span class="badge badge-secondary">Not audited</span>'
+
     hosts = list(r.get("hosts", {}).keys())
     hosts_html = " ".join(f'<span class="badge badge-host">{html.escape(h)}</span>' for h in hosts) or "—"
+
+    if pages is None:
+        pages = r.get("publish", {}).get("pages", [])
 
     history = r.get("history", [])
     step_rows = []
@@ -3509,7 +4103,15 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             st_badge = f'<span class="badge badge-secondary">{html.escape(state_text)}</span>'
 
         log_path = f"logs/{s.get('name')}.log"
-        log_cell = f'<a href="{log_path}" class="file-link">{sname}.log</a>'
+        rulegraph_path = f"logs/{s.get('name')}_rulegraph.svg"
+        summary_path = f"logs/{s.get('name')}_summary.txt"
+
+        links = [f'<a href="{log_path}" class="file-link">{sname}.log</a>']
+        if pages is None or rulegraph_path in pages:
+            links.append(f'<a href="{rulegraph_path}" class="pill-link" target="_blank" title="View Snakemake Rulegraph SVG">📊 DAG</a>')
+        if pages is None or summary_path in pages:
+            links.append(f'<a href="{summary_path}" class="pill-link" target="_blank" title="View Snakemake Execution Summary">📋 Summary</a>')
+        log_cell = " ".join(links)
 
         target_str = f" <span class='muted'>({targets})</span>" if targets else ""
         step_rows.append(f"""
@@ -3523,18 +4125,18 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
     steps_table_html = "\n".join(step_rows) if step_rows else "<tr><td colspan='5' class='muted'>No steps registered</td></tr>"
 
-    if pages is None:
-        pages = r.get("publish", {}).get("pages", [])
-
     featured_cards = []
+    gallery_cards = []
+    seen_gallery_urls = set()
     models_dict = {}
-    stage_f_items = []
-    stage_c_items = []
-    stage_b_items = []
-    stage_a_items = []
+    stage_items = {s.get("id", f"stage_{i}"): [] for i, s in enumerate(STAGES)}
     galleries = []
     cutflows = []
     others = []
+
+    is_bkg_roast = ("bkg_syst" in r.get("analysis", "").lower()
+                    or "bkg_syst" in r.get("id", "").lower()
+                    or any("bkg" in s.get("name", "").lower() for s in r.get("steps", [])))
 
     for p in pages:
         p_esc = html.escape(p)
@@ -3543,8 +4145,9 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         lower_p = p.lower()
 
         # Check for 16 models in Stage C: .../models/mix_(\d+)/...
+        # Only populate models_dict if this roast is actually a background systematics roast
         m_mix = re.search(r"/models/mix_(\d+)/", p)
-        if m_mix:
+        if m_mix and is_bkg_roast:
             idx = int(m_mix.group(1))
             if idx not in models_dict:
                 models_dict[idx] = {}
@@ -3559,103 +4162,129 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 models_dict[idx]["plots"] = p
             continue
 
-        # Check for featured key dashboards
+        # Check for featured key dashboards from DASHBOARDS registry
         is_featured = False
-        if filename == "training_summary.html":
-            is_bkg = "bkg_syst" in p.lower()
+        stage_prefix = "Stage" if is_bkg_roast else "Phase"
+        for db in DASHBOARDS:
+            match_glob = db.get("match") or db.get("pattern")
+            if match_glob:
+                matched = fnmatch.fnmatch(filename, match_glob) or fnmatch.fnmatch(p, match_glob)
+                if not matched:
+                    try:
+                        matched = bool(re.search(match_glob, p, re.I))
+                    except re.error:
+                        matched = False
+                if not matched:
+                    continue
+            path_contains = db.get("path_contains")
+            if path_contains:
+                if isinstance(path_contains, str):
+                    path_contains = [path_contains]
+                if not any(k.lower() in lower_p for k in path_contains):
+                    continue
+            path_excludes = db.get("path_excludes")
+            if path_excludes:
+                if isinstance(path_excludes, str):
+                    path_excludes = [path_excludes]
+                if any(k.lower() in lower_p for k in path_excludes):
+                    continue
+            tag = db.get("tag", "").replace("{stage}", stage_prefix)
+            if not tag:
+                tag = db.get("tag_bkg" if is_bkg_roast else "tag_nom", f"{stage_prefix} Dashboard")
+            title = db.get("bkg_title" if is_bkg_roast and "bkg_title" in db else "title",
+                           db.get("title_bkg" if is_bkg_roast else "title_nom", "Dashboard"))
+            desc = db.get("bkg_desc" if is_bkg_roast and "bkg_desc" in db else "desc",
+                          db.get("desc_bkg" if is_bkg_roast else "desc_nom", ""))
             featured_cards.append({
-                "tag": "Stage C" if is_bkg else "Phase C",
-                "title": "FvT Training Summary (16 Models)" if is_bkg else "FvT Training Summary",
-                "desc": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics" if is_bkg else "Model AUCs, loss curves, and training evaluation metrics",
+                "tag": tag,
+                "title": title,
+                "desc": desc,
                 "url": p_esc,
             })
             is_featured = True
-        elif filename == "closure_summary.html":
-            featured_cards.append({
-                "tag": "Stage F.2",
-                "title": "Two-Stage Closure Summary",
-                "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
-                "url": p_esc,
-            })
-            is_featured = True
-        elif filename == "summary.html" and ("bkg_syst_F_3_stats" in p or "bkg_syst_F_4_stats_mixeddata" in p):
-            if "unblinded_mixeddata" in p:
-                featured_cards.append({
-                    "tag": "Stage F.4",
-                    "title": "MixedData Unblinded Stats Summary",
-                    "desc": "Statistical inference & limits on unblinded mixed data",
+            break
+
+        # Check for featured visual plot galleries (also kept in stage listings)
+        if (filename in ("index.html", "gallery.html") or p.endswith("/plots/")) and p_esc not in seen_gallery_urls:
+            if "plots_ttbar_mc_vs_d3" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "ttbar MC vs d3 (4b) Gallery",
+                    "desc": "ttbar MC validation vs 3b data with d3_to_t4 reweighting",
                     "url": p_esc,
                 })
-                is_featured = True
-            elif "bkg_syst_F_3_stats" in p and "rebin" not in p:
-                featured_cards.append({
-                    "tag": "Stage F.3",
-                    "title": "Standard Stats Summary (Master)",
-                    "desc": "Master multi-rebin statistical inference on standard dataset",
+                seen_gallery_urls.add(p_esc)
+            elif "plots_ttbar3b_mc_vs_d3" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "ttbar MC vs d3 (3b) Gallery",
+                    "desc": "ttbar MC validation vs 3b data with d3_to_t3 reweighting",
                     "url": p_esc,
                 })
-                is_featured = True
-        elif filename == "summary.html" and ("stat_analysis" in p or "phasef_2_stats" in lower_p or "phasef" in lower_p):
-            featured_cards.append({
-                "tag": "Phase F.2",
-                "title": "Statistical Analysis Summary",
-                "desc": "Expected limits, significance, and likelihood scan overview",
-                "url": p_esc,
-            })
-            is_featured = True
+                seen_gallery_urls.add(p_esc)
+            elif "fvt_closure" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "FvT Closure Gallery",
+                    "desc": "Multijet FvT reweighting closure plots & data comparisons",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif "phaseb" in lower_p or "bkg_syst_b" in lower_p or "plots_wjcm" in lower_p or "test_v0_closure" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage B" if is_bkg_roast else "Phase B.1",
+                    "title": "JCM Validation Gallery",
+                    "desc": "Jet Combinatoric Model weights, transfer factors & closure plots",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif any(k in lower_p for k in ["phasef", "bkg_syst_f", "closure_v", "analysis", "plots_"]):
+                g_title = f"Analysis & SvB Gallery ({parts[-2]})" if len(parts) > 1 and parts[-2] not in ("plots", "output") else "Analysis & SvB Gallery"
+                gallery_cards.append({
+                    "tag": "Stage F.1" if is_bkg_roast else "Phase F.1",
+                    "title": g_title,
+                    "desc": "Final analysis distributions, SvB discriminants, and control kinematics",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
 
         if is_featured:
             continue
 
-        # Check Stage F
-        if "bkg_syst_f" in lower_p or "phasef" in lower_p or ("closure_summary" in lower_p) or ("summary_svb" in lower_p) or ("stat_analysis" in lower_p):
-            title = filename.removesuffix(".html")
-            if "closure_summary_sb" in lower_p:
-                title = "Closure Summary (SB)"
-            elif "closure_summary_sr" in lower_p:
-                title = "Closure Summary (SR)"
-            elif "summary_svb_ma_sb" in lower_p:
-                title = "SvB_MA Summary (SB)"
-            elif "summary_svb_ma_sr" in lower_p:
-                title = "SvB_MA Summary (SR)"
-            elif "summary_svb_sb" in lower_p:
-                title = "SvB Summary (SB)"
-            elif "summary_svb_sr" in lower_p:
-                title = "SvB Summary (SR)"
-            elif filename == "summary.html":
-                title = "Stats Summary"
-            elif filename.endswith("index.html"):
-                title = f"{parts[-2]} gallery" if len(parts) > 1 else "Analysis Plots"
-            stage_f_items.append((title, p_esc, p))
+        # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
+        if filename.endswith(".html") and any(k in lower_p for k in ("summary", "dashboard", "crosscheck")) and not filename.startswith("dask-report") and p_esc not in seen_gallery_urls:
+            clean_title = filename.removesuffix(".html").replace("_", " ").title()
+            parent_dir = parts[-2] if len(parts) > 1 else "output"
+            tag_name = f"{stage_prefix} Summary"
+            featured_cards.append({
+                "tag": tag_name,
+                "title": clean_title,
+                "desc": f"Auto-discovered analysis summary / dashboard ({parent_dir})",
+                "url": p_esc,
+            })
             continue
 
-        # Check Stage C (FvT Classifier & Closure)
-        if "bkg_syst_c" in lower_p or "phasec" in lower_p or "fvt_closure" in lower_p or "fvt" in lower_p:
-            title = filename.removesuffix(".html")
-            if "closure" in lower_p:
-                if filename == "cutflow_FvT_closure.html":
-                    title = "FvT Closure Table"
-                elif filename == "ttbar_MC_vs_d3_cutflow.html":
-                    title = "ttbar MC vs d3 Cutflow"
-                elif filename.endswith("index.html"):
-                    title = f"FvT Closure ({parts[-2]})" if len(parts) > 1 else "FvT Closure Gallery"
-            stage_c_items.append((title, p_esc, p))
-            continue
+        # Classify into STAGES
+        matched_stage = False
+        for s in STAGES:
+            sid = s.get("id", "")
+            pats = s.get("patterns", [])
+            if any(pat in lower_p for pat in pats):
+                title = filename.removesuffix(".html").replace("_", " ").title()
+                if filename.endswith("index.html"):
+                    title = f"{parts[-2]} gallery" if len(parts) > 1 else "Plots"
+                if sid in stage_items:
+                    stage_items[sid].append((title, p_esc, p))
+                else:
+                    stage_items.setdefault(sid, []).append((title, p_esc, p))
+                matched_stage = True
+                break
 
-        # Check Stage B
-        if "bkg_syst_b" in lower_p or "phaseb" in lower_p or "computejcm" in lower_p or "test_v0_closure" in lower_p:
-            title = "JCM Closure Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
-            stage_b_items.append((title, p_esc, p))
-            continue
-
-        # Check Stage A
-        if "bkg_syst_a" in lower_p or "phasea" in lower_p or "process_subsamples" in lower_p or "skimmer" in lower_p:
-            title = "Subsamples Validation Gallery" if filename.endswith("index.html") else filename.removesuffix(".html")
-            stage_a_items.append((title, p_esc, p))
+        if matched_stage:
             continue
 
         # Default categorization
-        if p.endswith("index.html"):
+        if p.endswith("index.html") or p.endswith("/plots/"):
             wf = parts[2] if len(parts) > 3 else parts[-2] if len(parts) > 1 else "root"
             sub = parts[-2] if len(parts) > 2 and parts[-2] != wf else ""
             title = f"{wf} ({sub}) gallery" if sub else f"{wf} gallery"
@@ -3708,6 +4337,32 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             </div>
         </div>"""
 
+    galleries_card_html = ""
+    if gallery_cards:
+        g_cards_html = []
+        for gc in gallery_cards:
+            g_cards_html.append(f"""
+            <a href="{gc['url']}" class="featured-box">
+                <div>
+                    <div class="featured-tag">{html.escape(gc['tag'])}</div>
+                    <div class="featured-title">{html.escape(gc['title'])}</div>
+                    <div class="featured-desc">{html.escape(gc['desc'])}</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>""")
+        galleries_card_html = f"""
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>🖼️ Key Visual Plot Galleries</h2>
+                <span class="chip chip-accent">{len(gallery_cards)} Galleries</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    {"".join(g_cards_html)}
+                </div>
+            </div>
+        </div>"""
+
     models_html = ""
     if models_dict:
         m_rows = []
@@ -3749,63 +4404,58 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             </div>
         </details>"""
 
-    stage_f_html = ""
-    if stage_f_items:
-        stage_f_html = f"""
-        <div class="card" style="margin-top: 1rem;">
-            <div class="card-header">
-                <h2>📊 Stage F — Statistical Inference & Closure</h2>
-                <span class="chip chip-accent">{len(stage_f_items)} items</span>
-            </div>
-            <div class="card-body">
-                <div class="page-list">
-                    {make_page_items(stage_f_items)}
-                </div>
-            </div>
-        </div>"""
-
-    stage_c_html = ""
-    if stage_c_items:
-        stage_c_html = f"""
-        <details class="card" style="margin-top: 1rem;">
+    stages_html_blocks = []
+    for s in STAGES:
+        sid = s.get("id", "")
+        items = stage_items.get(sid, [])
+        if not items:
+            continue
+        title = html.escape(s.get("title", sid))
+        badge_chip = "chip-accent" if "stage_f" in sid else "chip-neutral"
+        stages_html_blocks.append(f"""
+        <details class="card" open style="margin-top: 1rem;">
             <summary class="card-header" style="cursor: pointer; user-select: none;">
-                <h2>🎯 Stage C — FvT Classifier & Closure</h2>
-                <span class="chip chip-neutral">{len(stage_c_items)} items</span>
+                <h2>{title}</h2>
+                <span class="chip {badge_chip}">{len(items)} items</span>
             </summary>
             <div class="card-body">
                 <div class="page-list">
-                    {make_page_items(stage_c_items)}
+                    {make_page_items(items)}
                 </div>
             </div>
-        </details>"""
+        </details>""")
+    stages_html = "\n".join(stages_html_blocks)
 
-    stage_b_html = ""
-    if stage_b_items:
-        stage_b_html = f"""
-        <details class="card" style="margin-top: 1rem;">
+    dag_blocks = []
+    for s in r.get("steps", []):
+        sname = html.escape(str(s.get("name", "")))
+        svg_rel = f"logs/{s.get('name')}_rulegraph.svg"
+        sum_rel = f"logs/{s.get('name')}_summary.txt"
+        has_svg = (pages is None) or (svg_rel in pages)
+        has_sum = (pages is None) or (sum_rel in pages)
+        if has_svg or has_sum:
+            dag_blocks.append(f"""
+            <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc;">
+                <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                    <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
+                    <span style="display: flex; gap: 8px;">
+                        {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
+                        {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
+                    </span>
+                </div>
+                {f'<div style="text-align: center; overflow-x: auto; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid var(--line); max-height: 420px;"><object data="{svg_rel}" type="image/svg+xml" style="max-width: 100%; height: auto;"></object></div>' if has_svg else ''}
+            </div>""")
+
+    dags_html = ""
+    if dag_blocks:
+        dags_html = f"""
+        <details class="card" open style="margin-top: 1rem;">
             <summary class="card-header" style="cursor: pointer; user-select: none;">
-                <h2>📈 Stage B — JCM Computation & Validation</h2>
-                <span class="chip chip-neutral">{len(stage_b_items)} items</span>
+                <h2>📐 Snakemake Rule Execution Graphs & DAGs</h2>
+                <span class="chip chip-accent">{len(dag_blocks)} Step DAG(s)</span>
             </summary>
             <div class="card-body">
-                <div class="page-list">
-                    {make_page_items(stage_b_items)}
-                </div>
-            </div>
-        </details>"""
-
-    stage_a_html = ""
-    if stage_a_items:
-        stage_a_html = f"""
-        <details class="card" style="margin-top: 1rem;">
-            <summary class="card-header" style="cursor: pointer; user-select: none;">
-                <h2>📁 Stage A — Subsamples & PicoAOD Validation</h2>
-                <span class="chip chip-neutral">{len(stage_a_items)} items</span>
-            </summary>
-            <div class="card-body">
-                <div class="page-list">
-                    {make_page_items(stage_a_items)}
-                </div>
+                {"".join(dag_blocks)}
             </div>
         </details>"""
 
@@ -4063,6 +4713,10 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                             <td><code>{cfg_src}</code> <span class="muted">(sha256 {cfg_sha})</span></td>
                         </tr>
                         <tr>
+                            <td class="meta-label">validation</td>
+                            <td>{val_badge}</td>
+                        </tr>
+                        <tr>
                             <td class="meta-label">hosts</td>
                             <td>{hosts_html}</td>
                         </tr>
@@ -4082,7 +4736,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                                 <th>Host</th>
                                 <th>Snakefile</th>
                                 <th>State</th>
-                                <th>Log</th>
+                                <th>Log & Artifacts</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -4095,15 +4749,13 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         {featured_html}
 
+        {dags_html}
+
+        {galleries_card_html}
+
         {models_html}
 
-        {stage_f_html}
-
-        {stage_c_html}
-
-        {stage_b_html}
-
-        {stage_a_html}
+        {stages_html}
 
         <div class="card" style="margin-top: 1rem;">
             <div class="card-header">
@@ -4271,6 +4923,44 @@ def cmd_show(args) -> None:
     print(json.dumps(load_roast(args.id), indent=2))
 
 
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config_file, validate_all_configs, format_report
+    except ImportError:
+        try:
+            from validate_config import validate_config_file, validate_all_configs, format_report
+        except ImportError:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "validate_config", Path(__file__).resolve().parent / "validate_config.py"
+            )
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                validate_config_file = mod.validate_config_file
+                validate_all_configs = mod.validate_all_configs
+                format_report = mod.format_report
+            else:
+                die("Failed to import validate_config module.")
+
+    if args.all:
+        target_dir = Path(args.config) if args.config else None
+        code = validate_all_configs(
+            target_dir=target_dir,
+            strict=args.strict,
+            color=not args.no_color,
+            quiet=args.quiet,
+        )
+        sys.exit(code)
+    else:
+        if not args.config:
+            die("Either a config file path or --all must be specified.")
+        cfg_path = Path(args.config)
+        res = validate_config_file(cfg_path)
+        print(format_report(res, color=not args.no_color))
+        sys.exit(0 if res.is_valid(strict=args.strict) else 1)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -4293,7 +4983,9 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("new", help="create a roast manifest from the current HEADs and a config file")
     s.add_argument("--config", required=True, help="workflow --configfile YAML to capture")
-    s.add_argument("--phases", help="comma list from A,B,C,D,E,F (host chosen per phase)")
+    s.add_argument("--workflow", help="named workflow sequence (e.g. nominal, bkg_syst, full) defined in workflow YAML")
+    s.add_argument("--workflow-file", help="YAML file defining phases and workflows (default: coffea4bees/workflows/workflows.yml)")
+    s.add_argument("--phases", help="comma list of phases to run (host chosen per phase)")
     s.add_argument("--step", action="append", help="host:snakefile[:targets] for non-phase workflows (repeatable)")
     s.add_argument("--barista", help="barista sha (default: HEAD)")
     s.add_argument("--coffea4bees", help="coffea4bees sha (default: HEAD)")
@@ -4303,7 +4995,9 @@ def main(argv=None) -> None:
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
-    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="analysis channel for CERNBox web prod (default: auto-detected, fallback ttHbb)")
+    s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
+    s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
+    s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")
@@ -4363,7 +5057,7 @@ def main(argv=None) -> None:
     s.add_argument("--with-pdfs", action="store_true", help="include heavy .pdf and .svg files (excluded by default for fast web publishing)")
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
-    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
+    s.add_argument("--analysis", help="override analysis destination (e.g. HH4b, ttHbb, HH4b_lowpt; default: roast analysis or auto-detected)")
     s.add_argument("--category", help="override or set the catalogue family for this roast")
     s.set_defaults(func=cmd_publish)
 
@@ -4407,6 +5101,14 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("index", help="regenerate docs/prod from all manifests")
     s.set_defaults(func=cmd_index)
+
+    s = sub.add_parser("validate", help="validate workflow configuration files for duplicate definitions, divergence, and reference integrity")
+    s.add_argument("config", nargs="?", help="path to workflow YAML config file (or directory if --all)")
+    s.add_argument("--all", action="store_true", help="scan all workflow configs in coffea4bees/workflows/config/")
+    s.add_argument("--strict", action="store_true", help="treat warnings as validation failures (exit non-zero)")
+    s.add_argument("-q", "--quiet", action="store_true", help="only print summaries for configs with errors or warnings")
+    s.add_argument("--no-color", action="store_true", help="disable ANSI terminal colors")
+    s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("ls", help="list roasts")
     s.set_defaults(func=cmd_ls)
