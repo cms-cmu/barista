@@ -1180,6 +1180,67 @@ def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) ->
     return out
 
 
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+    except ImportError:
+        try:
+            from validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+        except ImportError:
+            import importlib.util
+            _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+            if not _vpath.exists():
+                _vpath = ROOT / "src/tools/validate_config.py"
+            if _vpath.exists():
+                _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                validate_config = _mod.validate_config
+                format_report = _mod.format_report
+                find_repo_root = _mod.find_repo_root
+                DEFAULT_CI_CONFIGS = _mod.DEFAULT_CI_CONFIGS
+            else:
+                die("Could not locate validate_config module.")
+
+    repo_root = find_repo_root()
+    targets: list[Path] = []
+    if getattr(args, "all", False):
+        config_dir = repo_root / "coffea4bees/workflows/config"
+        if not config_dir.is_dir():
+            config_dir = repo_root / "workflows/config"
+        if config_dir.is_dir():
+            targets.extend(sorted(config_dir.glob("*.yml")))
+            targets.extend(sorted(config_dir.glob("*.yaml")))
+    elif getattr(args, "config", None):
+        p = Path(args.config).expanduser()
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve()
+        if not p.exists():
+            die(f"config file not found: {p}")
+        targets.append(p)
+    else:
+        for c in DEFAULT_CI_CONFIGS:
+            cand1 = repo_root / c
+            cand2 = repo_root / c.replace("coffea4bees/", "")
+            if cand1.is_file():
+                targets.append(cand1)
+            elif cand2.is_file():
+                targets.append(cand2)
+
+    if not targets:
+        die("No configuration files found to validate.")
+
+    has_errors = False
+    for t in targets:
+        rep = validate_config(t, repo_root=repo_root)
+        print(format_report(rep))
+        if not rep.is_valid(strict=getattr(args, "strict", False)):
+            has_errors = True
+
+    if has_errors:
+        sys.exit(1)
+
+
 def cmd_new(args) -> None:
     cfg = load_config()
     config_src = Path(args.config)
@@ -1292,6 +1353,42 @@ def cmd_new(args) -> None:
     if isinstance(merged_wf, dict):
         check_friend_wiring(steps, merged_wf)
 
+    # 0. Validate configuration file before capturing
+    validation_summary = None
+    if not getattr(args, "no_validate", False):
+        try:
+            from tools.validate_config import validate_config_file, format_report
+        except ImportError:
+            try:
+                from validate_config import validate_config_file, format_report
+            except ImportError:
+                import importlib.util
+                _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+                if not _vpath.exists():
+                    _vpath = ROOT / "src/tools/validate_config.py"
+                if _vpath.exists():
+                    _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                    _mod = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(_mod)
+                    validate_config_file = _mod.validate_config_file
+                    format_report = _mod.format_report
+                else:
+                    validate_config_file = None
+
+        if validate_config_file:
+            v_rep = validate_config_file(config_src)
+            if not v_rep.is_valid(strict=getattr(args, "strict", False)):
+                print(format_report(v_rep))
+                die(f"configuration validation failed for {config_src} ({len(v_rep.errors)} error(s)); aborting roast creation.")
+            elif v_rep.warnings or v_rep.infos:
+                print(format_report(v_rep))
+            validation_summary = {
+                "valid": v_rep.is_valid(),
+                "errors": len(v_rep.errors),
+                "warnings": len(v_rep.warnings),
+                "infos": len(v_rep.infos),
+            }
+
     d = roast_dir(rid)
     d.mkdir(parents=True)
     # Verbatim, or merged over its `base:` chain; {roast_id} is resolved at run time via --config roast_id
@@ -1306,7 +1403,8 @@ def cmd_new(args) -> None:
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
-                   **({"base": config_bases} if config_bases else {})},
+                   **({"base": config_bases} if config_bases else {}),
+                   **({"validation": validation_summary} if validation_summary else {})},
         **({"inputs": inputs} if inputs else {}),
         "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
@@ -1693,10 +1791,19 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         fi
         command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
         {unlock.strip()}
+        # 1. Capture visual rulegraph before execution
+        echo "=== generating rulegraph SVG ===" | tee -a "$LOG"
+        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+        # 2. Run workflow
         {base} 2>&1 | tee -a "$LOG"
         RC=${{PIPESTATUS[0]}}
         echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
         echo "$RC" > "$EXIT"
+        if [ "$RC" = "0" ]; then
+            # 3. Capture snakemake execution summary on success
+            echo "=== generating snakemake execution summary ===" | tee -a "$LOG"
+            ./run_container snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} > "logs/{name}_summary.txt" 2>/dev/null || true
+        fi
         if [ "$RC" != "0" ]; then
             echo "step {name} FAILED (rc=$RC). Shell kept open for inspection; exit to close."
             exec bash
@@ -1806,9 +1913,13 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   rm -rf .snakemake/locks/* 2>/dev/null || true
                   mkdir -p .snakemake/locks
                   {unlock}
+                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
+                  if [ "$RC" = "0" ]; then
+                      snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus > "logs/{name}_summary.txt" 2>/dev/null || true
+                  fi
                   echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
                   exit $RC
                 resources:
@@ -3874,6 +3985,7 @@ def write_docs(r: dict) -> None:
         f"| coffea4bees | [`{c['sha'][:12]}`]({c['web']}/-/commit/{c['sha']}) |",
         f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) — [captured copy]({url}roasts/{r['id']}/config.yml) |" if url
         else f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) |",
+        (f"| validation | {'✅ valid' if r['config']['validation'].get('valid') else '❌ invalid'} ({r['config']['validation'].get('errors', 0)} error(s), {r['config']['validation'].get('warnings', 0)} warning(s)) |" if r.get("config", {}).get("validation") else ""),
         f"| results | [{url}]({url}) |" if url else "| results | not published |",
         f"| manifest | [roast.json]({url}roasts/{r['id']}/roast.json) |" if url else "",
         (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
@@ -3884,13 +3996,20 @@ def write_docs(r: dict) -> None:
         "",
         "## Steps",
         "",
-        "| step | host | snakefile | state | log |",
+        "| step | host | snakefile | state | logs & artifacts |",
         "|---|---|---|---|---|",
     ]
-    for s in r["steps"]:
-        log = f"[{s['name']}.log]({url}logs/{s['name']}.log)" if url else ""
-        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {log} |")
     pages = r.get("publish", {}).get("pages", [])
+    for s in r["steps"]:
+        artifacts = []
+        if url:
+            artifacts.append(f"[log]({url}logs/{s['name']}.log)")
+            if not pages or f"logs/{s['name']}_rulegraph.svg" in pages:
+                artifacts.append(f"[dag]({url}logs/{s['name']}_rulegraph.svg)")
+            if not pages or f"logs/{s['name']}_summary.txt" in pages:
+                artifacts.append(f"[summary]({url}logs/{s['name']}_summary.txt)")
+        art_str = " · ".join(artifacts) if artifacts else ""
+        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {art_str} |")
     if url and pages:
         # galleries (…/index.html) and cutflow closure tables (…/cutflow_*.html), grouped by workflow dir
         lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
@@ -3944,8 +4063,22 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     cfg_src = html.escape(str(r.get("config", {}).get("source", "—")))
     cfg_sha = html.escape(str(r.get("config", {}).get("sha256", ""))[:12])
 
+    val = r.get("config", {}).get("validation")
+    if val:
+        if val.get("valid"):
+            n_warn = val.get("warnings", 0)
+            val_badge = f'<span class="badge badge-success">VALID</span> <span class="muted">({n_warn} warning{"s" if n_warn != 1 else ""})</span>'
+        else:
+            n_err = val.get("errors", 0)
+            val_badge = f'<span class="badge badge-danger">FAILED</span> <span class="muted">({n_err} error{"s" if n_err != 1 else ""})</span>'
+    else:
+        val_badge = '<span class="badge badge-secondary">Not audited</span>'
+
     hosts = list(r.get("hosts", {}).keys())
     hosts_html = " ".join(f'<span class="badge badge-host">{html.escape(h)}</span>' for h in hosts) or "—"
+
+    if pages is None:
+        pages = r.get("publish", {}).get("pages", [])
 
     history = r.get("history", [])
     step_rows = []
@@ -3969,7 +4102,15 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             st_badge = f'<span class="badge badge-secondary">{html.escape(state_text)}</span>'
 
         log_path = f"logs/{s.get('name')}.log"
-        log_cell = f'<a href="{log_path}" class="file-link">{sname}.log</a>'
+        rulegraph_path = f"logs/{s.get('name')}_rulegraph.svg"
+        summary_path = f"logs/{s.get('name')}_summary.txt"
+
+        links = [f'<a href="{log_path}" class="file-link">{sname}.log</a>']
+        if pages is None or rulegraph_path in pages:
+            links.append(f'<a href="{rulegraph_path}" class="pill-link" target="_blank" title="View Snakemake Rulegraph SVG">📊 DAG</a>')
+        if pages is None or summary_path in pages:
+            links.append(f'<a href="{summary_path}" class="pill-link" target="_blank" title="View Snakemake Execution Summary">📋 Summary</a>')
+        log_cell = " ".join(links)
 
         target_str = f" <span class='muted'>({targets})</span>" if targets else ""
         step_rows.append(f"""
@@ -3982,9 +4123,6 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         </tr>""")
 
     steps_table_html = "\n".join(step_rows) if step_rows else "<tr><td colspan='5' class='muted'>No steps registered</td></tr>"
-
-    if pages is None:
-        pages = r.get("publish", {}).get("pages", [])
 
     featured_cards = []
     gallery_cards = []
@@ -4287,6 +4425,39 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         </details>""")
     stages_html = "\n".join(stages_html_blocks)
 
+    dag_blocks = []
+    for s in r.get("steps", []):
+        sname = html.escape(str(s.get("name", "")))
+        svg_rel = f"logs/{s.get('name')}_rulegraph.svg"
+        sum_rel = f"logs/{s.get('name')}_summary.txt"
+        has_svg = (pages is None) or (svg_rel in pages)
+        has_sum = (pages is None) or (sum_rel in pages)
+        if has_svg or has_sum:
+            dag_blocks.append(f"""
+            <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc;">
+                <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                    <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
+                    <span style="display: flex; gap: 8px;">
+                        {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
+                        {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
+                    </span>
+                </div>
+                {f'<div style="text-align: center; overflow-x: auto; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid var(--line); max-height: 420px;"><object data="{svg_rel}" type="image/svg+xml" style="max-width: 100%; height: auto;"></object></div>' if has_svg else ''}
+            </div>""")
+
+    dags_html = ""
+    if dag_blocks:
+        dags_html = f"""
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📐 Snakemake Rule Execution Graphs & DAGs</h2>
+                <span class="chip chip-accent">{len(dag_blocks)} Step DAG(s)</span>
+            </summary>
+            <div class="card-body">
+                {"".join(dag_blocks)}
+            </div>
+        </details>"""
+
     galleries_html = make_page_items(galleries)
     cutflows_html = make_page_items(cutflows)
     others_html = make_page_items(others)
@@ -4541,6 +4712,10 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                             <td><code>{cfg_src}</code> <span class="muted">(sha256 {cfg_sha})</span></td>
                         </tr>
                         <tr>
+                            <td class="meta-label">validation</td>
+                            <td>{val_badge}</td>
+                        </tr>
+                        <tr>
                             <td class="meta-label">hosts</td>
                             <td>{hosts_html}</td>
                         </tr>
@@ -4560,7 +4735,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                                 <th>Host</th>
                                 <th>Snakefile</th>
                                 <th>State</th>
-                                <th>Log</th>
+                                <th>Log & Artifacts</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -4572,6 +4747,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         </div>
 
         {featured_html}
+
+        {dags_html}
 
         {galleries_card_html}
 
@@ -4818,6 +4995,8 @@ def main(argv=None) -> None:
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
+    s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
+    s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")

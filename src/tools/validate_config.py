@@ -597,7 +597,7 @@ def audit_filesystem_references(cfg: dict, repo_root: Path, issues: list[Issue])
 
 def validate_config(config_path: Path | str, repo_root: Path | None = None) -> ValidationReport:
     """Validate a workflow configuration file and return a structured report."""
-    p = Path(config_path).expanduser().resolve()
+    p = Path(str(config_path).strip()).expanduser().resolve()
     root = repo_root or find_repo_root(p)
     report = ValidationReport(config_path=p)
 
@@ -820,6 +820,9 @@ def main() -> int:
                 targets.append(cand2)
     elif args.configs:
         for c in args.configs:
+            c = str(c).strip()
+            if not c:
+                continue
             p = Path(c).expanduser()
             if not p.is_absolute():
                 p = (Path.cwd() / p).resolve()
