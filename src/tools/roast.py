@@ -1913,6 +1913,7 @@ def proxy_candidates() -> list[str]:
         '"$PWD/proxy/x509_proxy"',
         '"$PWD/../proxy/x509_proxy"',
         '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+        '"$HOME/x509up_u$(id -u)"',
         '"$HOME/.roast/x509_proxy"',
     ]
 
@@ -1959,10 +1960,10 @@ def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
         TMPLST=$(mktemp)
         trap 'rm -f "$TMPLST"' EXIT
         xrdfs $EOS ls -l -R "$P" 2>/dev/null > "$TMPLST"
-        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         DEPTHS=$(awk '$1 ~ /^d/ {{ path=$NF; n=split(path, arr, "/"); print n }}' "$TMPLST" | sort -urn)
         for d in $DEPTHS; do
-            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
+            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
         done
         rm -f "$TMPLST"
         trap - EXIT
@@ -2294,12 +2295,13 @@ def cmd_rm(args) -> None:
     # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
     lpc = roast_ssh(cfg, r, "cmslpc")
     lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    proxy_args = [rq(f"{lpc_ck}/proxy/x509_proxy")] if lpc_ck else []
+    proxy_args.extend(proxy_candidates())
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -2308,7 +2310,7 @@ def cmd_rm(args) -> None:
                 ns = hc.get("namespace", "cms-cmu")
                 sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
                 top = h["checkout"].rsplit("/", 1)[0]
-                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
+                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
                 print(f"  removed {top} on Nautilus")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
