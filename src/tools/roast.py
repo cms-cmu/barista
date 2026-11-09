@@ -2277,23 +2277,24 @@ def cmd_rm(args) -> None:
         info("dry run. Re-run with --yes to delete. Use --keep-eos / --keep-cernbox / --keep-hosts to spare a location.")
         return
     # refuse while a step is running
-    for host, h in r.get("hosts", {}).items():
-        if host == "nautilus":
-            hc = host_cfg(cfg, "nautilus")
-            ns = hc.get("namespace", "cms-cmu")
-            chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
-            if chk.returncode == 0 and "Running" in (chk.stdout or ""):
-                die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
-            continue
-        target = roast_ssh(cfg, r, host)
-        session = _tmux_session(r)
-        chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
-        if chk.stdout.strip() not in ("", "0"):
-            die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
+    if not args.keep_hosts:
+        for host, h in r.get("hosts", {}).items():
+            if host == "nautilus":
+                hc = host_cfg(cfg, "nautilus")
+                ns = hc.get("namespace", "cms-cmu")
+                chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
+                if chk.returncode == 0 and "Running" in (chk.stdout or ""):
+                    die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
+                continue
+            target = roast_ssh(cfg, r, host)
+            session = _tmux_session(r)
+            chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+            if chk.stdout.strip() not in ("", "0"):
+                die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
     # remote locations first, while we still have the manifest -- and EOS before the host checkouts,
     # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
-    lpc = roast_ssh(cfg, r, "cmslpc")
+    lpc = resolve_ssh(host_cfg(cfg, "cmslpc")) if args.keep_hosts else roast_ssh(cfg, r, "cmslpc")
     lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
     proxy_args = [rq(f"{lpc_ck}/proxy/x509_proxy")] if lpc_ck else []
     proxy_args.extend(proxy_candidates())
