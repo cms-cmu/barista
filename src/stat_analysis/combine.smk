@@ -859,6 +859,7 @@ rule impacts_collect:
         WORKSPACE_FILE=$(realpath {input.workspace})
         FITS_DONE_DIR=$(realpath -m {input.fits_done})
         OUT_FILE=$(realpath -m {output.pdf})
+        PLOT_SCRIPT=$(realpath {input.plot_script})
         (
         echo "[$(date)] Starting impacts_collect rule with signal {params.signallabel}"
 
@@ -889,7 +890,7 @@ rule impacts_collect:
 
         echo "[$(date)] Running creating pdf"
         cd $(dirname $OUT_FILE) && \
-            python3 $(realpath {input.plot_script}) \
+            python3 $PLOT_SCRIPT \
             -i impacts_combine_$(basename {input.workspace} .root)_exp.json \
             -o $OUT_FILE \
             --poi r{params.signallabel} \
@@ -1034,6 +1035,7 @@ rule gof:
         LOG=$(pwd)/{log}
         DATACARD_DIR=$(realpath $(dirname {input.data}))
         OUT_FILE=$(realpath {output})
+        PLOT_SCRIPT=$(realpath {input.plot_script})
         mkdir -p $(dirname $LOG)
         mkdir -p $(dirname $OUT_FILE)
         (
@@ -1049,7 +1051,7 @@ rule gof:
             combineTool.py -M CollectGoodnessOfFit \
             --input $(basename {input.data}) $(for f in {input.toys}; do basename $f; done) \
             -o gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json && \
-            python3 $(realpath {input.plot_script}) \
+            python3 $PLOT_SCRIPT \
             -i gof_$(basename {input.data} _gof_data__{params.signallabel}.root)_{params.signallabel}.json \
             -o $OUT_FILE \
             --algo {params.gof_algo} \

@@ -96,6 +96,13 @@ PHASES = {
     "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
 
+# Phase expansions: composite phases that decompose into multiple coordinated steps across hosts.
+# Phase C is not only GPU training/evaluation; it includes the FvT data closure execution on cmslpc (C4).
+PHASE_EXPANSIONS = {
+    "C": ["C", "C4"],
+    "BKG_C": ["BKG_C", "BKG_C4"],
+}
+
 # What `publish` ships to CERNBox: small, human-readable artefacts.  Override any key under
 # "publish" in ~/.config/roast/config.json, or per roast under "publish" in roast.json.
 # include: filename globs (find -name); exclude: path globs (find -path, relative to the checkout).
@@ -653,6 +660,12 @@ def find_step(r: dict, name: str) -> dict:
     for s in r["steps"]:
         if s["name"] == name:
             return s
+    if name in PHASES:
+        host, smk = PHASES[name]
+        s = {"name": name, "host": host, "snakefile": smk, "targets": "", "extra": ""}
+        r["steps"].append(s)
+        save_roast(r)
+        return s
     die(f"no step '{name}' in roast {r['id']}; steps: " + ", ".join(s["name"] for s in r["steps"]))
 
 
@@ -816,8 +829,16 @@ def cmd_new(args) -> None:
         info("WARNING: working tree has uncommitted tracked changes; the roast records HEAD, not your edits")
 
     steps = []
-    for ph in (args.phases.replace(" ", "").split(",") if args.phases else []):
+    raw_phases = (args.phases.replace(" ", "").split(",") if args.phases else [])
+    expanded_phases = []
+    for ph in raw_phases:
         ph = ph.upper()
+        if ph in PHASE_EXPANSIONS:
+            expanded_phases.extend(PHASE_EXPANSIONS[ph])
+        else:
+            expanded_phases.append(ph)
+
+    for ph in expanded_phases:
         if ph not in PHASES:
             die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
         host, smk = PHASES[ph]
@@ -1040,7 +1061,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
 
     # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in output proxy run_container runner.py pixi.toml pixi.lock; do
+    for item in proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -1488,7 +1509,45 @@ def _krb_refresh_script(warn_hours: int = 12) -> str:
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
-    step = find_step(r, args.step)
+    target_step = args.step
+
+    # If user requests step C or BKG_C, check if GPU training is already exit 0 and C4 needs to run
+    if target_step in ("C", "BKG_C"):
+        c_step = next((s for s in r.get("steps", []) if s["name"] == target_step), None)
+        c4_name = "C4" if target_step == "C" else "BKG_C4"
+        c4_step = next((s for s in r.get("steps", []) if s["name"] == c4_name), None)
+        if c_step and c4_step:
+            c_host = c_step.get("host", "")
+            c_done = False
+            c_runs = [run for run in c_step.get("runs", []) if not run.get("dry_run")]
+            if c_runs:
+                if c_host == "nautilus":
+                    hc_n = host_cfg(cfg, "nautilus")
+                    ns = hc_n.get("namespace", "cms-cmu")
+                    jname = c_runs[-1].get("job_name") or _k8s_job_name(r, c_step)
+                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "1":
+                        c_done = True
+                elif c_host in r.get("hosts", {}):
+                    ckpt_c = r["hosts"][c_host]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
+                             f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c_done = True
+
+            if c_done:
+                c4_done = False
+                if "cmslpc" in r.get("hosts", {}):
+                    ckpt_c4 = r["hosts"]["cmslpc"]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"]["cmslpc"].get("ssh") or "cmslpc",
+                             f"test -f {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit && cat {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c4_done = True
+                if not c4_done:
+                    info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
+                    target_step = c4_name
+
+    step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
     if host not in r["hosts"]:
@@ -1854,6 +1913,7 @@ def proxy_candidates() -> list[str]:
         '"$PWD/proxy/x509_proxy"',
         '"$PWD/../proxy/x509_proxy"',
         '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+        '"$HOME/x509up_u$(id -u)"',
         '"$HOME/.roast/x509_proxy"',
     ]
 
@@ -1900,10 +1960,10 @@ def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
         TMPLST=$(mktemp)
         trap 'rm -f "$TMPLST"' EXIT
         xrdfs $EOS ls -l -R "$P" 2>/dev/null > "$TMPLST"
-        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         DEPTHS=$(awk '$1 ~ /^d/ {{ path=$NF; n=split(path, arr, "/"); print n }}' "$TMPLST" | sort -urn)
         for d in $DEPTHS; do
-            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
+            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
         done
         rm -f "$TMPLST"
         trap - EXIT
@@ -2235,12 +2295,13 @@ def cmd_rm(args) -> None:
     # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
     lpc = roast_ssh(cfg, r, "cmslpc")
     lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    proxy_args = [rq(f"{lpc_ck}/proxy/x509_proxy")] if lpc_ck else []
+    proxy_args.extend(proxy_candidates())
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -2249,7 +2310,7 @@ def cmd_rm(args) -> None:
                 ns = hc.get("namespace", "cms-cmu")
                 sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
                 top = h["checkout"].rsplit("/", 1)[0]
-                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
+                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
                 print(f"  removed {top} on Nautilus")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
@@ -3105,6 +3166,9 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
 
 def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
     """Regenerate the analysis-level index.html on CERNBox listing all published roasts."""
+    if not shutil.which("xrdfs"):
+        info("notice: xrdfs not on local PATH, skipping analysis-level index refresh")
+        return
     res = sh(["xrdfs", "eosuser.cern.ch", "ls", eos_base], check=False)
     if res.returncode != 0:
         info("warning: could not list CERNBox analysis directory for index refresh")
@@ -3543,8 +3607,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         lower_p = p.lower()
 
         # Check for 16 models in Stage C: .../models/mix_(\d+)/...
+        # Only populate models_dict if this roast is actually a background systematics roast
+        is_bkg_roast = ("bkg_syst" in r.get("analysis", "").lower()
+                        or "bkg_syst" in r.get("id", "").lower()
+                        or any("bkg" in s.get("name", "").lower() for s in r.get("steps", [])))
         m_mix = re.search(r"/models/mix_(\d+)/", p)
-        if m_mix:
+        if m_mix and is_bkg_roast:
             idx = int(m_mix.group(1))
             if idx not in models_dict:
                 models_dict[idx] = {}

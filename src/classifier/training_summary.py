@@ -116,8 +116,14 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "neg_fraction": None,
         "p99": None,
         "max": None,
+        "mean": None,
+        "std": None,
         "ratio_pd4_pd3": None,
         "ratio_pt4_pt3": None,
+        "true_ratio_t4_t3": None,
+        "pred_ratio_t4_t3": None,
+        "transfer_d3_to_t4_to_mc": None,
+        "transfer_d3_to_t3_to_mc": None,
         "chi2_ndf_pt4": None,
         "chi2_ndf_pt1": None,
         "chi2_ndf_fvt": None,
@@ -131,6 +137,7 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "chi2_t4_sb": None,
         "chi2_t3_sr": None,
         "chi2_t4_sr": None,
+        "fqs": [],
     }
     if not result_path.exists():
         return data
@@ -140,23 +147,39 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         models = y.get("models", [])
         fqs = []
         for m in models:
-            for s in m.get("history", []):
-                if "training" in s and s["training"]:
-                    last_epoch = s["training"][-1]
-                    val_fq = last_epoch.get("benchmarks", {}).get("validation", {}).get("fit_quality", [])
-                    if val_fq:
-                        fqs.append(val_fq[0])
+            trained = [
+                s for s in m.get("history", [])
+                if s.get("name") in ["Training", "Finetuning"] and s.get("training")
+            ]
+            if trained:
+                last_epoch = trained[-1]["training"][-1]
+                val_fq = last_epoch.get("benchmarks", {}).get("validation", {}).get("fit_quality", [])
+                if val_fq:
+                    fqs.append(val_fq[0])
         if fqs:
+            data["fqs"] = fqs
             data["neg_fraction"] = sum(fq.get("weights", {}).get("neg_fraction", 0.0) for fq in fqs) / len(fqs)
             data["p99"] = sum(fq.get("weights", {}).get("p99", 0.0) for fq in fqs) / len(fqs)
             data["max"] = max(fq.get("weights", {}).get("max", 0.0) for fq in fqs)
-            
+            data["mean"] = sum(fq.get("weights", {}).get("mean", 0.0) for fq in fqs) / len(fqs)
+            data["std"] = sum(fq.get("weights", {}).get("std", 0.0) for fq in fqs) / len(fqs)
+
             # Calibration & Transfer (support both new and legacy keys)
             pd4_vals = [fq.get("data_calibration", {}).get("calib_d4_prob_to_data") or fq.get("calibration", {}).get("ratio_pd4_pd3") for fq in fqs if (fq.get("data_calibration", {}).get("calib_d4_prob_to_data") or fq.get("calibration", {}).get("ratio_pd4_pd3")) is not None]
             data["ratio_pd4_pd3"] = (sum(pd4_vals) / len(pd4_vals)) if pd4_vals else None
 
             pt4_vals = [fq.get("ttbar_mc_comparison", {}).get("pred_ratio_t4_t3") or fq.get("calibration", {}).get("ratio_pt4_pt3") for fq in fqs if (fq.get("ttbar_mc_comparison", {}).get("pred_ratio_t4_t3") or fq.get("calibration", {}).get("ratio_pt4_pt3")) is not None]
             data["ratio_pt4_pt3"] = (sum(pt4_vals) / len(pt4_vals)) if pt4_vals else None
+
+            true_ratios = [fq.get("ttbar_mc_comparison", {}).get("true_ratio_t4_t3") for fq in fqs if fq.get("ttbar_mc_comparison", {}).get("true_ratio_t4_t3") is not None]
+            data["true_ratio_t4_t3"] = (sum(true_ratios) / len(true_ratios)) if true_ratios else None
+            data["pred_ratio_t4_t3"] = data["ratio_pt4_pt3"]
+
+            t_t4_vals = [fq.get("ttbar_mc_comparison", {}).get("transfer_d3_to_t4_to_mc") for fq in fqs if fq.get("ttbar_mc_comparison", {}).get("transfer_d3_to_t4_to_mc") is not None]
+            data["transfer_d3_to_t4_to_mc"] = (sum(t_t4_vals) / len(t_t4_vals)) if t_t4_vals else None
+
+            t_t3_vals = [fq.get("ttbar_mc_comparison", {}).get("transfer_d3_to_t3_to_mc") for fq in fqs if fq.get("ttbar_mc_comparison", {}).get("transfer_d3_to_t3_to_mc") is not None]
+            data["transfer_d3_to_t3_to_mc"] = (sum(t_t3_vals) / len(t_t3_vals)) if t_t3_vals else None
 
             # Closure
             chi2_pt4_vals = [fq.get("closure", {}).get("chi2_ndf_pt4") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_pt4") is not None]
@@ -184,6 +207,43 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         print(f"Warning: Failed to parse fit quality from {result_path}: {e}", file=sys.stderr)
 
     return data
+
+
+def generate_fit_quality_plots(fqs: list[dict], out_dir: Path, source: str = "d3") -> dict:
+    """Generate ratio comparison plots for fit quality closure histograms."""
+    if not fqs:
+        return {}
+    summed_hists = {}
+    for fq in fqs:
+        for k, h in (fq.get("histograms") or {}).items():
+            if k not in summed_hists:
+                summed_hists[k] = {key: list(h[key]) for key in h if isinstance(h[key], list)}
+                continue
+            for key in ("target", "model", "target_sumw2", "model_sumw2"):
+                if key in h and key in summed_hists[k]:
+                    summed_hists[k][key] = [a + b for a, b in zip(summed_hists[k][key], h[key])]
+
+    if not summed_hists:
+        return {}
+
+    try:
+        from src.classifier.fit_quality_report import _plot
+    except Exception:
+        return {}
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    generated = {}
+    for hname, h in summed_hists.items():
+        if not h.get("target") or sum(h["target"]) <= 0:
+            continue
+        png_path = out_dir / f"{hname}.png"
+        try:
+            _plot(hname, h, source, str(png_path))
+            generated[hname] = png_path
+        except Exception as e:
+            print(f"Warning: Failed to plot {hname} in {out_dir}: {e}", file=sys.stderr)
+
+    return generated
 
 
 def parse_analyze_log(log_path: Path) -> dict:
@@ -848,88 +908,118 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     </table>
   </div>
 
-  <!-- Cross-Sample Visual Comparisons Gallery -->
+  <!-- Diagnostic & Metric Plots Gallery -->
   <div class="section-title">
-    <span>Cross-Sample Diagnostic Plots</span>
+    <span>{"Cross-Sample Diagnostic Plots" if n_total > 1 else "Diagnostic & Metric Plots"}</span>
   </div>
-
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('tab-loss', this)">Loss Convergence Curves</button>
-    <button class="tab-btn" onclick="switchTab('tab-roc', this)">ROC Curves (4b vs 3b)</button>
-    <button class="tab-btn" onclick="switchTab('tab-auc', this)">AUC Evolution</button>
-    <button class="tab-btn" onclick="switchTab('tab-fold', this)">K-Fold Consistency</button>
-  </div>
-
-  <!-- Tab 1: Loss Divergence -->
-  <div id="tab-loss" class="tab-pane active">
 """)
 
-    for m in models_data:
-        m_name = m["name"]
-        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
-        img_path = f"{rel}plots/analyze/HCR/kfold-loss-divergence-1.png"
-        lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — Loss Divergence')">
-      <img src="{img_path}" alt="{m_name} Loss Divergence" loading="lazy">
+    tab_specs = [
+        {
+            "id": "tab-closure-evo",
+            "name": "Kinematic Closure Evolution",
+            "plots": [
+                ("plots/analyze/HCR/closure-evolution-fvt_sb-1.png", "Closure Evolution: FvT Weight (SB)", "χ²/ndf: fvt_sb"),
+                ("plots/analyze/HCR/closure-evolution-pt4_sb-1.png", "Closure Evolution: 4th Jet pT (SB)", "χ²/ndf: pt4_sb"),
+                ("plots/analyze/HCR/closure-evolution-pt1_sb-1.png", "Closure Evolution: Leading Jet pT (SB)", "χ²/ndf: pt1_sb"),
+            ],
+        },
+        {
+            "id": "tab-closure-dist",
+            "name": "Closure Histograms & Ratios",
+            "plots": [
+                ("plots/analyze/fit_quality/pt4_sb.png", "4th Jet pT (SB) [Data vs Model]", "pt4_sb"),
+                ("plots/analyze/fit_quality/pt1_sb.png", "Leading Jet pT (SB) [Data vs Model]", "pt1_sb"),
+                ("plots/analyze/fit_quality/fvt_sb.png", "Transfer Weight w (SB) [Data vs Model]", "fvt_sb"),
+                ("plots/analyze/fit_quality/t3_sb.png", "pt3 (SB) [ttbar MC vs Source x Prob]", "t3_sb"),
+                ("plots/analyze/fit_quality/t4_sb.png", "pt4 (SB) [ttbar MC vs Source x Prob]", "t4_sb"),
+                ("plots/analyze/fit_quality/t3_sr.png", "pt3 (SR) [ttbar MC vs Source x Prob]", "t3_sr"),
+                ("plots/analyze/fit_quality/t4_sr.png", "pt4 (SR) [ttbar MC vs Source x Prob]", "t4_sr"),
+            ],
+        },
+        {
+            "id": "tab-loss",
+            "name": "Loss & Convergence",
+            "plots": [
+                ("plots/analyze/HCR/kfold-loss-divergence-1.png", "Loss Convergence & Divergence Pull", "Loss Divergence"),
+                ("plots/analyze/HCR/learning-rate-1.png", "Learning Rate Schedule", "LR Schedule"),
+                ("plots/analyze/HCR/fold-consistency-1.png", "Fold Consistency", "Fold Consistency"),
+            ],
+        },
+        {
+            "id": "tab-roc",
+            "name": "ROC Discrimination Curves",
+            "plots": [
+                ("plots/analyze/HCR/roc-4b_vs_3b-1.png", "ROC: 4b vs 3b (Val)", "4b vs 3b"),
+                ("plots/analyze/HCR/roc-4b_vs_3b_data-1.png", "ROC: 4b vs 3b Data", "4b vs 3b Data"),
+                ("plots/analyze/HCR/roc-4b_vs_3b_data_sb-1.png", "ROC: 4b vs 3b Data (SB)", "4b vs 3b Data SB"),
+                ("plots/analyze/HCR/roc-ttbar_vs_data-1.png", "ROC: ttbar vs Data", "ttbar vs Data"),
+                ("plots/analyze/HCR/roc-ttbar_vs_data_sb-1.png", "ROC: ttbar vs Data (SB)", "ttbar vs Data SB"),
+                ("plots/analyze/HCR/roc-ttbar_vs_data_sr-1.png", "ROC: ttbar vs Data (SR)", "ttbar vs Data SR"),
+            ],
+        },
+        {
+            "id": "tab-auc",
+            "name": "AUC Evolution Across Epochs",
+            "plots": [
+                ("plots/analyze/HCR/auc-evolution-4b_vs_3b-1.png", "AUC Evolution: 4b vs 3b", "4b vs 3b"),
+                ("plots/analyze/HCR/auc-evolution-4b_vs_3b_data-1.png", "AUC Evolution: 4b vs 3b Data", "4b vs 3b Data"),
+                ("plots/analyze/HCR/auc-evolution-4b_vs_3b_data_sb-1.png", "AUC Evolution: 4b vs 3b Data (SB)", "4b vs 3b Data SB"),
+                ("plots/analyze/HCR/auc-evolution-ttbar_vs_data-1.png", "AUC Evolution: ttbar vs Data", "ttbar vs Data"),
+                ("plots/analyze/HCR/auc-evolution-ttbar_vs_data_sb-1.png", "AUC Evolution: ttbar vs Data (SB)", "ttbar vs Data SB"),
+                ("plots/analyze/HCR/auc-evolution-ttbar_vs_data_sr-1.png", "AUC Evolution: ttbar vs Data (SR)", "ttbar vs Data SR"),
+            ],
+        },
+    ]
+
+    tab_cards = {}
+    for spec in tab_specs:
+        cards = []
+        if n_total == 1:
+            m = models_data[0]
+            rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+            for rel_img, title, subtitle in spec["plots"]:
+                if (m["dir"] / rel_img).exists():
+                    cards.append({
+                        "src": f"{rel}{rel_img}",
+                        "title": title,
+                        "sub": subtitle,
+                    })
+        else:
+            for rel_img, title, subtitle in spec["plots"]:
+                for m in models_data:
+                    rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
+                    if (m["dir"] / rel_img).exists():
+                        cards.append({
+                            "src": f"{rel}{rel_img}",
+                            "title": f"{m['name']} — {subtitle}",
+                            "sub": title,
+                        })
+        tab_cards[spec["id"]] = cards
+
+    active_tabs = [spec for spec in tab_specs if tab_cards.get(spec["id"])]
+    if not active_tabs:
+        active_tabs = tab_specs[:1]
+
+    lines.append('  <div class="tabs">')
+    for i, spec in enumerate(active_tabs):
+        cls = "tab-btn active" if i == 0 else "tab-btn"
+        lines.append(f'    <button class="{cls}" onclick="switchTab(\'{spec["id"]}\', this)">{html.escape(spec["name"])}</button>')
+    lines.append('  </div>\n')
+
+    for i, spec in enumerate(active_tabs):
+        cls = "tab-pane active" if i == 0 else "tab-pane"
+        lines.append(f'  <!-- {spec["name"]} -->')
+        lines.append(f'  <div id="{spec["id"]}" class="{cls}">')
+        for c in tab_cards.get(spec["id"], []):
+            lines.append(f"""    <div class="card" onclick="openLightbox('{c['src']}', '{html.escape(c['title'])}')">
+      <img src="{c['src']}" alt="{html.escape(c['title'])}" loading="lazy">
       <div class="cap">
-        <b>{m_name}</b>
-        <span>{f_val(m['metrics']['val_loss'])} ({f_val(m['metrics']['z'], fmt='.2f', prefix='+')}σ)</span>
+        <b>{html.escape(c['title'])}</b>
+        <span>{html.escape(c['sub'])}</span>
       </div>
     </div>""")
-
-    lines.append("""  </div>
-
-  <!-- Tab 2: ROC Curves -->
-  <div id="tab-roc" class="tab-pane">
-""")
-
-    for m in models_data:
-        m_name = m["name"]
-        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
-        img_path = f"{rel}plots/analyze/HCR/roc-4b_vs_3b-1.png"
-        auc_str = f"{m['metrics']['auc_4b_vs_3b']:.4f}" if m['metrics']['auc_4b_vs_3b'] is not None else "—"
-        lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — ROC Curve 4b vs 3b')">
-      <img src="{img_path}" alt="{m_name} ROC Curve" loading="lazy">
-      <div class="cap">
-        <b>{m_name}</b>
-        <span>AUC = {auc_str}</span>
-      </div>
-    </div>""")
-
-    lines.append("""  </div>
-
-  <!-- Tab 3: AUC Evolution -->
-  <div id="tab-auc" class="tab-pane">
-""")
-
-    for m in models_data:
-        m_name = m["name"]
-        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
-        img_path = f"{rel}plots/analyze/HCR/auc-evolution-4b_vs_3b-1.png"
-        lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — AUC Evolution')">
-      <img src="{img_path}" alt="{m_name} AUC Evolution" loading="lazy">
-      <div class="cap">
-        <b>{m_name}</b>
-        <span>AUC Evolution</span>
-      </div>
-    </div>""")
-
-    lines.append("""  </div>
-
-  <!-- Tab 4: K-Fold Consistency -->
-  <div id="tab-fold" class="tab-pane">
-""")
-
-    for m in models_data:
-        m_name = m["name"]
-        rel = "" if m["rel_dir"] in (".", "") else f"{m['rel_dir'].rstrip('/')}/"
-        img_path = f"{rel}plots/analyze/HCR/fold-consistency-1.png"
-        lines.append(f"""    <div class="card" onclick="openLightbox('{img_path}', '{m_name} — K-Fold Consistency')">
-      <img src="{img_path}" alt="{m_name} Fold Consistency" loading="lazy">
-      <div class="cap">
-        <b>{m_name}</b>
-        <span>Fold Consistency</span>
-      </div>
-    </div>""")
+        lines.append('  </div>\n')
 
     lines.append("""  </div>
 </main>
@@ -1074,7 +1164,53 @@ def main():
         res_file = p / "result.json"
         if not res_file.exists() and (p / "models" / "result.json").exists():
             res_file = p / "models" / "result.json"
+        if not res_file.exists():
+            train_yml = p / "wfs" / "train.yml"
+            if train_yml.exists():
+                try:
+                    content = train_yml.read_text(encoding="utf-8", errors="replace")
+                    m = re.search(r"output:\s*['\"]?(root://[^\s'\"]+|[^\s'\"]+)", content)
+                    if m:
+                        out_target = m.group(1).rstrip("/")
+                        cand = f"{out_target}/result.json"
+                        if "{" in out_target:
+                            # Try to resolve from roast config if inside a roast checkout
+                            for cfg_path in (
+                                list(p.glob("../../roasts/*/config.yml"))
+                                + list(p.glob("../../../roasts/*/config.yml"))
+                                + list(Path.cwd().glob("roasts/*/config.yml"))
+                            ):
+                                try:
+                                    cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace")
+                                    m_fvt = re.search(r"model:\s*['\"]?([^\s'\"]+)", cfg_text)
+                                    if m_fvt:
+                                        m_tmpl = m_fvt.group(1)
+                                        eos_p = "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod"
+                                        rid = cfg_path.parent.name
+                                        m_url = m_tmpl.replace("{eos_prod}", eos_p)
+                                        m_url = m_url.replace("{eos_base}", f"{eos_p}/{rid}")
+                                        m_url = m_url.replace("{roast_id}", rid)
+                                        m_url = m_url.replace("{label}", p.name)
+                                        if m_url.startswith("root://"):
+                                            cand = f"{m_url.rstrip('/')}/result.json"
+                                            break
+                                except Exception:
+                                    pass
+                        if cand.startswith("root://"):
+                            import subprocess
+                            cmd = ["xrdcp", "-s", "-f", cand, str(p / "result.json")]
+                            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            if (p / "result.json").exists():
+                                res_file = p / "result.json"
+                        elif Path(cand).exists():
+                            res_file = Path(cand)
+                except Exception:
+                    pass
         fq = parse_fit_quality_json(res_file)
+        if fq.get("fqs"):
+            fq_plot_dir = p / "plots" / "analyze" / "fit_quality"
+            src = fq.get("fqs", [{}])[0].get("source", "d3")
+            generate_fit_quality_plots(fq["fqs"], fq_plot_dir, source=src)
 
         # Merge metrics
         metrics = {}
