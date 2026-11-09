@@ -1,0 +1,433 @@
+# ==============================================================================
+# GLOBAL WORKFLOW CONFIGURATION
+# ==============================================================================
+label: "ttHbb"
+output_path: "output/ttHbb/"
+# No cern_user/cern_path: publishing goes through `roast publish` (per-user roast config).
+
+dataset:
+  - "ttHbb"
+  - "data"
+
+year_eras:
+  UL16_preVFP:
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+  UL16_postVFP:
+    - "F"
+    - "G"
+    - "H"
+  UL17:
+    - "C"
+    - "D"
+    - "E"
+    - "F"
+  UL18:
+    - "A"
+    - "B"
+    - "C"
+    - "D"
+
+# ==============================================================================
+# PHASE A: SKIMMING & TRIGGER WEIGHTS
+# ==============================================================================
+skimmer:
+  processor: "coffea4bees/skimmer/processor/skimmer_4b.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  runner:
+    condor_cores: 1
+    worker_memory: 8GB
+    chunksize: 10000
+    picosize: 100000
+    basketsize: 10000
+    condor: true
+    shared_dask: true
+    run_performance: true
+    allowlist_sites:
+      - T3_US_FNALLPC
+      - T2_US_Nebraska
+      - T2_US_Purdue
+      - T3_US_Baylor
+      - T2_US_Wisconsin
+
+  config:
+    base_path: root://cmseos.fnal.gov//store/user/algomez/XX4b/2024_v2/ttHbb_stitched/
+    step: 100000
+    loosePtForSkim: true
+
+trigger_weights:
+  processor: "coffea4bees/analysis/processors/processor_trigger_weights.py"
+  runner:
+    condor_cores: 1
+    worker_memory: 8GB
+    chunksize: 10000
+    condor: true
+    shared_dask: true
+    run_performance: true
+    condor_transfer_input_files:
+      - src/
+      - coffea4bees/analysis/
+      - coffea4bees/metadata/
+  config:
+    use_vectorized: false
+    tagger: DeepJet
+    make_classifier_input: "{eos_prod}/{roast_id}/classifier_inputs/"
+
+# ==============================================================================
+# PHASE B: CALIBRATION & CLASSIFIER INPUTS (JCM & Friendtrees)
+# ==============================================================================
+jcm_plot_config: "coffea4bees/plots/metadata/plots_JCM_ttHbb.yml"
+jcm_datasets:
+  - "data"
+  - "TTTo2L2Nu_stitched"
+  - "TTToSemiLeptonic_stitched"
+  - "TTToHadronic_stitched"
+
+# --data4bName data: make_jcm_weights.py (since 94936fc09) replaces data4bName with the -w label
+# when that label contains "v" (2024_v2), and then finds no 4b data histograms.
+jcm_extra_arguments: "--jcm_config coffea4bees/analysis/jcm_tools/metadata/ttHbb_jcm_config.yml -m coffea4bees/plots/metadata/plots_JCM_ttHbb.yml --data4bName data"
+
+# B.1 cutflow references.  The defaults (known_fullCounts_JCM_{NoJCM,wJCM}.yml) hold the HH4b
+# nominal_run2 numbers and would fail this run; point at ttHbb files that do not exist yet so the
+# first production only dumps its cutflows, then bless and commit them.
+jcm_known_counts_NoJCM: "coffea4bees/analysis/tests/known_fullCounts_JCM_NoJCM_ttHbb.yml"
+jcm_known_counts_wJCM: "coffea4bees/analysis/tests/known_fullCounts_JCM_wJCM_ttHbb.yml"
+
+classifier_inputs:
+  processor: "coffea4bees/analysis/processors/processor_ttHbb.py"
+  friend_file: "coffea4bees/metadata/friends/friends_ttHbb.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_ttHbb.yml"
+  candidates_selection_cfg: "coffea4bees/analysis/metadata/candidates_selection_thresholds_ttHbb.yml"
+  datasets:
+    - "ttHbb"
+    - "data"
+    - "TTTo2L2Nu_stitched"
+    - "TTToSemiLeptonic_stitched"
+    - "TTToHadronic_stitched"
+  runner:
+    condor_cores: 1
+    worker_memory: 8GB
+    chunksize: 10000
+    condor: true
+    shared_dask: true
+    run_performance: true
+    condor_transfer_input_files:
+      - src/
+      - coffea4bees/analysis/
+      - coffea4bees/metadata/
+  config:
+    blind: true
+    apply_JCM: true
+    apply_FvT: false
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    run_SvB: false
+    top_reconstruction: slow
+    fill_histograms: true
+    make_classifier_input: "{eos_prod}/{roast_id}/classifier_inputs/"
+
+# ==============================================================================
+# PHASE C & D: CLASSIFIER SETTINGS (Entirely on falcon / PSC)
+# ==============================================================================
+classifier_setting:
+  - module: ml.DataLoader
+    option:
+      - optimize_sliceable_dataset: true
+  - module: ROOT
+    option:
+      - friend_allow_missing: false
+  - module: cms.CollisionData
+    option:
+      - eras:
+          UL16_preVFP: [C, D, E, F]
+          UL16_postVFP: [F, G, H]
+          UL17: [B, C, D, E, F]
+          UL18: [A, B, C, D]
+  - module: cms.MC_TTbar
+    option:
+      - datasets:
+          - TTToSemiLeptonic_stitched
+          - TTToHadronic_stitched
+          - TTTo2L2Nu_stitched
+  - module: HCR.InputBranch
+    option:
+      - feature_ancillary: [xW, nSelJets, xbW, year]
+
+# ==============================================================================
+# PHASE B -> C/D HANDOFF
+# ==============================================================================
+# Where Phase B publishes the two files C and D consume (rule phaseB_handoff in
+# Snakefile_PhaseB.smk).  B always writes local copies at
+#   coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml
+#   coffea4bees/metadata/datasets/classifier_inputs_{roast_id}.json
+# on the host it runs on (cmslpc), which is what C.4 and F.1 read -- the analysis processor
+# opens the JCM with a plain open(), so those consumers need a real file.
+#
+# eos_base additionally publishes both to EOS.  C and D run on falcon and read them through
+# the classifier's parse.mapping, which deserializes with fsspec and so accepts root:// URLs.
+# The fvt/svb blocks below must point at these same two URLs.
+handoff:
+  eos_base: "{eos_prod}/{roast_id}/handoff"
+
+# ==============================================================================
+# PHASE C: FvT (falcon).  Self-contained per roast: models and friends go to the roast's own
+# EOS directory, and training/evaluation read THIS roast's classifier-input manifest and JCM
+# fit from the handoff area above.
+# workflow_overrides: the checked-in templates classifier/config/workflows/ttHbb/FvT/
+# {train,evaluate}.yml stay the source of truth; only the listed flags are replaced
+# (helpers/common.smk: write_workflow_overrides).
+# ==============================================================================
+fvt:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/ttHbb/FvT"
+  label: "FvT_ttHbb_stitched"
+  output_dir: "output/FvT_ttHbb_stitched/"
+  plot_inputs: true
+  plot_weights: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}"
+  eval_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --metadata: "coffea4bees/metadata/datasets/"
+    --JCM-weight: '"" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+
+# ==============================================================================
+# PHASE C.4 (cmslpc, roast step C4): FvT closure -- the processor on data with JCM x FvT (no
+# SvB; the ttbar histograms are reused from Phase B.1's wJCM pass, since the FvT does not
+# touch MC), plots, cutflow check and closure table.  Datasets follow jcm_datasets above,
+# which for ttHbb are the stitched ttbar samples.
+# ==============================================================================
+fvt_closure:
+  datasets: [data, TTToHadronic_stitched, TTToSemiLeptonic_stitched, TTTo2L2Nu_stitched]
+  plot_config: "coffea4bees/plots/metadata/plotsAll_ttHbb.yml"
+  # default known_fullCounts_FvT_closure.yml is HH4b nominal_run2; dump-only until blessed
+  known_counts: "coffea4bees/analysis/tests/known_fullCounts_FvT_closure_ttHbb.yml"
+
+# ==============================================================================
+# PHASE D: SvB (falcon).  Same per-roast pattern as fvt; the FvT friend used for the
+# background is {eos_base}/friend/FvT_ttHbb_stitched, i.e. THIS roast's Phase C output.
+# ==============================================================================
+svb:
+  eos_base: "{eos_prod}/{roast_id}"
+  plot_base: "{web_prod}/{roast_id}/classifier"
+  classifier_config_paths: "coffea4bees"
+  wfs_base: "coffea4bees/classifier/config/workflows/ttHbb/SvB"
+  label: "SvB_ttHbb_stitched"
+  output_dir: "output/SvB_ttHbb_stitched/"
+  plot_inputs: true
+  plot_weights: true
+  evaluate: true
+  model: "{eos_base}/classifier/{label}"
+  friend: "{eos_base}/friend/{label}"
+  train_template: "model: {eos_base}/classifier/{label}, FvT: {eos_base}/friend/FvT_ttHbb_stitched"
+  eval_template: "model: {eos_base}/classifier/{label}, SvB: {eos_base}/friend/{label}"
+  metadata: "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+  workflow_overrides:
+    --metadata: "coffea4bees/metadata/datasets/"
+    --JCM-weight: '"" {eos_prod}/{roast_id}/handoff/jetCombinatoricModel_SB_2024_v2.yml@@JCM_weights'
+    '--friends ""': "{eos_prod}/{roast_id}/handoff/classifier_inputs_{roast_id}.json@@HCR_input"
+
+# ==============================================================================
+# PHASE F.1: MAIN ANALYSIS PROCESSOR, CUTFLOWS & PLOTTING
+# ==============================================================================
+analysis_config:
+  processor: "coffea4bees/analysis/processors/processor_ttHbb.py"
+  dataset_location: "coffea4bees/metadata/datasets/"
+  friend_file: "coffea4bees/metadata/friends/friends_ttHbb.yml"
+  weights_file: "coffea4bees/metadata/weights/weights_ttHbb.yml"
+  runner:
+    workers: 4
+    worker_memory: 8GB
+    chunksize: 10000
+    dashboard_address: 0
+  config:
+    # Per-roast friends: runner.py merges these over the per-year entries of friend_file, so
+    # the FvT and SvB friend trees come from THIS roast's Phase C/D, not the algomez
+    # ttHbb_stitched production referenced in metadata/friends/friends_ttHbb.yml.  C.4 reads
+    # the FvT from here too.
+    friends:
+      FvT: "{eos_prod}/{roast_id}/friend/FvT_ttHbb_stitched/result.json@@analysis.0.merged"
+      SvB_MA: "{eos_prod}/{roast_id}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged"
+    # blind: the F.1 vs C.4 cutflow cross-check then ignores data*:counts4* by default.
+    blind: true
+    apply_FvT: true
+    apply_JCM: true
+    # THIS roast's JCM fit (Phase B.1 handoff copy; the same file C.4, the FvT and the SvB use).
+    # Without it the processor falls back to JCM/Run2_ttHbb from weights_file.
+    JCM_file: coffea4bees/metadata/weights/JCM/{roast_id}/jetCombinatoricModel_SB_2024_v2.yml
+    apply_trigWeight: true
+    apply_btagSF: true
+    apply_boosted_veto: false
+    apply_lepton_veto: false
+    run_SvB: true
+    # no on-the-fly SvB model: the scores come from the friend above (`true` would evaluate the
+    # model in weights_file, i.e. the algomez production).
+    SvB_MA: null
+    SvB: null
+    hist_cuts: ["pass_nSelJets_gt6", "passLeptonVeto"]
+    top_reconstruction: fast
+    plot_ttbar_with_weights: true
+
+plot_config: "coffea4bees/plots/metadata/plotsAll_ttHbb.yml"
+plot_extra_arguments: ""
+# F.1 compares against `known_counts` in production (known_counts_test/_full are not read by
+# Phase F).  known_Counts_ttHbb.yml is the CI -t slice and known_fullCounts_ttHbb.yml an older
+# production (different JCM/FvT), so point at a file to be blessed from this roast: dump-only.
+known_counts: "coffea4bees/analysis/tests/known_fullCounts_ttHbb_run2.yml"
+known_counts_test: "coffea4bees/analysis/tests/known_Counts_ttHbb.yml"
+known_counts_full: "none"
+
+# ==============================================================================
+# PHASE F.2: COMBINE STATISTICAL INTERPRETATION & LIMITS
+# ==============================================================================
+convert_hist_to_json:
+  histos: 
+    - "SvB_MA.ps_ttHbb"
+
+combine_outdir: "datacards/"
+make_combine_inputs:
+  stat_only: ""
+  bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+
+combine_flags: "--three_tag threeTag --four_tag fourTag --region sum --blind"
+likelihood_scan_points: 40
+likelihood_scan_r_min: 0
+likelihood_scan_r_max: 2
+likelihood_scan_y_cut: 30
+likelihood_scan_y_max: 30
+
+channels:
+  ttHbb:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "sum"
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "sum"
+    stat_only: true
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6"
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6"
+    stat_only: true
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_lepveto:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "passLeptonVeto"
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_lepveto_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "passLeptonVeto"
+    stat_only: true
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_lepveto:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6_passLeptonVeto"
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+  ttHbb_gt6_lepveto_stat_only:
+    signallabel: "ttHbb"
+    othersignal: ""
+    variable: "SvB_MA.ps_ttHbb"
+    signal: "ttHbb"
+    closure_subdir: "ttHbb"
+    region: "SR"
+    cut: "pass_nSelJets_gt6_passLeptonVeto"
+    stat_only: true
+    bkgsyst: "coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl"
+    combine_flags: "--three_tag threeTag --four_tag fourTag --region SR --blind"
+
+# ==============================================================================
+# PHASE E: BACKGROUND SYSTEMATICS & TWO-STAGE CLOSURE (Mixed Data / Synthetic Data)
+# ==============================================================================
+phase_e:
+  data_type: "mixeddata_4b"
+  label: "ttHbb_mixeddata"
+  output_path: "output/ttHbb/closure_studies/"
+  datasets_file: "coffea4bees/metadata/datasets/mixeddata_4b.yml"
+  
+  phase_e_dataset:
+    - "mixeddata_4b"
+  years: "UL16_preVFP UL16_postVFP UL17 UL18"
+  n_samples: 15
+  
+  phase_f_output_path: "output/ttHbb/"
+  phase_f_label: "ttHbb"
+  include_real_data_from_phase_f: true
+  
+  processor: "coffea4bees/analysis/processors/processor_ttHbb.py"
+  metadata: "coffea4bees/analysis/metadata/candidates_selection_thresholds_ttHbb.yml"
+  additional_parameters: "--shared-dask --condor --run-performance"
+  
+  plot_script: "coffea4bees/plots/makePlots.py"
+  comparison_plot_config: "coffea4bees/plots/metadata/plots_mixeddata_vs_data.yml"
+  comparison_extra_args: "-s xW --year RunII"
+  analysis_plot_config: "coffea4bees/plots/metadata/plotsAll_mixeddata.yml"
+  analysis_extra_args: "-s xW --year RunII"
+  
+  mix_name: "3bDvTMix4bDvT"
+  nMixes: 15
+  classifier: "SvB_MA"
+  variable: "SvB_MA_ps_ttHbb"
+  channel: "ttHbb"
+  rebin: "1"
+  years_closure: "2016 2017 2018"
+  closure_extra_args: ""
+  scale_mixed: 0.7
+  input_file_data3b: "output/ttHbb/closure_studies/root_inputs/histAll_ttHbb_mixeddata.root"
+  input_file_TT: "output/ttHbb/closure_studies/root_inputs/histAll_ttHbb_mixeddata.root"
+  input_file_sig: "output/ttHbb/closure_studies/root_inputs/histAll_ttHbb_mixeddata.root"

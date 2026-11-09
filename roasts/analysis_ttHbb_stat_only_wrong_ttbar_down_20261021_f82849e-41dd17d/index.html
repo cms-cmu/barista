@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roast analysis_ttHbb_stat_only_wrong_ttbar_down_20261021_f82849e-41dd17d — Summary</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #7dd3fc;
+            --border: #334155;
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.15);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.15);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.15);
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 2rem 1.5rem;
+        }
+        .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .header-main h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-mono);
+        }
+        .header-sub { color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; }
+        .header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            color: var(--text);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            transition: all 0.15s ease;
+        }
+        .btn:hover {
+            background: #273549;
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 0.85rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .card-header h2 { font-size: 1.05rem; font-weight: 600; }
+        .card-body { padding: 1.25rem; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+        .meta-table { width: 100%; border-collapse: collapse; }
+        .meta-table td { padding: 0.45rem 0.6rem; vertical-align: top; }
+        .meta-label { color: var(--text-muted); width: 120px; font-weight: 500; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .badge-success { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+        .badge-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+        .badge-host { background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); font-family: var(--font-mono); text-transform: none; }
+        .badge-analysis { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); text-transform: none; font-family: var(--font-mono); }
+        .badge-secondary { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); text-transform: none; }
+        code { font-family: var(--font-mono); font-size: 0.85em; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 4px; }
+        a.code-link { font-family: var(--font-mono); color: var(--accent); text-decoration: none; }
+        a.code-link:hover { text-decoration: underline; }
+        a.file-link { color: var(--accent); text-decoration: none; }
+        a.file-link:hover { text-decoration: underline; }
+        table.data-table { width: 100%; border-collapse: collapse; text-align: left; }
+        table.data-table th, table.data-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); }
+        table.data-table th { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 600; }
+        table.data-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        .search-box {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            background: #0b1120;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            margin-bottom: 1rem;
+        }
+        .search-box:focus { border-color: var(--accent); }
+        .section-title { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 1rem 0 0.5rem 0; letter-spacing: 0.05em; }
+        .page-list { display: flex; flex-direction: column; gap: 0.35rem; }
+        .page-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            transition: background 0.15s ease;
+        }
+        .page-item:hover { background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3); }
+        .page-link { color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; }
+        .page-icon { font-size: 0.85rem; opacity: 0.7; }
+        .page-path { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }
+        .empty-state { color: var(--text-muted); font-style: italic; padding: 0.5rem 0; font-size: 0.85rem; }
+        .muted { color: var(--text-muted); }
+        .notes-block { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; }
+        details summary { cursor: pointer; color: var(--text-muted); font-weight: 500; padding: 0.5rem 0; user-select: none; }
+        details summary:hover { color: var(--text); }
+        .history-list { list-style: none; padding-left: 0.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
+        footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem 0; border-top: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-main">
+                <span class="badge badge-analysis">ttHbb</span>
+                <h1>analysis_ttHbb_stat_only_wrong_ttbar_down_20261021_f82849e-41dd17d</h1>
+                <span class="badge badge-success">● Published</span>
+                <div class="header-sub">
+                    <strong>analysis_ttHbb_stat_only_wrong_ttbar_down</strong> • Roasted by Alejandro Gomez on 2026-10-21 22:19:22
+                     • Published 2026-10-27 18:42:58
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="output/" class="btn">📁 Browse output/</a>
+                <a href="roasts/analysis_ttHbb_stat_only_wrong_ttbar_down_20261021_f82849e-41dd17d/roast.json" class="btn">⚙️ roast.json</a>
+                <a href="roasts/analysis_ttHbb_stat_only_wrong_ttbar_down_20261021_f82849e-41dd17d/config.yml" class="btn">📝 config.yml</a>
+            </div>
+        </header>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Configuration & Provenance</h2>
+                </div>
+                <div class="card-body">
+                    <table class="meta-table">
+                        <tr>
+                            <td class="meta-label">barista</td>
+                            <td><a href="https://gitlab.cern.ch/cms-cmu/barista/-/commit/f82849e44215a763f2a3098f1ce681ee852f81f7" target="_blank" class="code-link">f82849e4</a></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">coffea4bees</td>
+                            <td><a href="https://gitlab.cern.ch/cms-cmu/coffea4bees/-/commit/41dd17dcf9546a6c68010e4a8b5ce64aca9afdd0" target="_blank" class="code-link">41dd17dc</a></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">config</td>
+                            <td><code>coffea4bees/workflows/config/analysis_ttHbb_stat_only_wrong_ttbar_down.yml</code> <span class="muted">(sha256 d27825efa887)</span></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">hosts</td>
+                            <td><span class="badge badge-host">cmslpc</span> <span class="badge badge-host">falcon</span> <span class="badge badge-host">nautilus</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Pipeline Steps</h2>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Host</th>
+                                <th>Snakefile</th>
+                                <th>State</th>
+                                <th>Log</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+        <tr>
+            <td><strong>B</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_PhaseB.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-10-21 (resumed)</span></td>
+            <td><a href="logs/B.log" class="file-link">B.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>C</strong></td>
+            <td><span class="badge badge-host">nautilus</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_PhaseC.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-10-22</span></td>
+            <td><a href="logs/C.log" class="file-link">C.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>D</strong></td>
+            <td><span class="badge badge-host">nautilus</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_PhaseD.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-10-22</span></td>
+            <td><a href="logs/D.log" class="file-link">D.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>F</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_PhaseF.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-10-22</span></td>
+            <td><a href="logs/F.log" class="file-link">F.log</a></td>
+        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Interactive Results & Galleries</h2>
+                <span class="muted">8 pages available</span>
+            </div>
+            <div class="card-body">
+                <input type="text" id="pageSearch" class="search-box" placeholder="Filter pages by name, workflow, or dataset (e.g. cutflow, signal, 4b)...">
+
+                <div class="section-title">📊 Plot Galleries</div>
+                <div class="page-list" id="galleriesList">
+                    
+            <div class="page-item" data-search="output/analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb/plots_analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb/index.html">
+                <a href="output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/plots_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/index.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">plots_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB gallery</span>
+                </a>
+                <span class="page-path">output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/plots_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/index.html</span>
+            </div>
+                </div>
+
+                <div class="section-title">📈 Cutflow & Closure Tables</div>
+                <div class="page-list" id="cutflowsList">
+                    
+            <div class="page-item" data-search="output/analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb/cutflow_analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb.html">
+                <a href="output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/cutflow_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">cutflow_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB</span>
+                </a>
+                <span class="page-path">output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/cutflow_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb/cutflow_crosscheck_analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb.html">
+                <a href="output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB</span>
+                </a>
+                <span class="page-path">output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/cutflow_crosscheck_analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB.html</span>
+            </div>
+                </div>
+
+                <div class="section-title">📑 Other Pages & Reports</div>
+                <div class="page-list" id="othersList">
+                    
+            <div class="page-item" data-search="output/fvt_tthbb_stitched/yields.html">
+                <a href="output/FvT_ttHbb_stitched/yields.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">yields</span>
+                </a>
+                <span class="page-path">output/FvT_ttHbb_stitched/yields.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/svb_ma_tthbb_stitched/yields.html">
+                <a href="output/SvB_MA_ttHbb_stitched/yields.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">yields</span>
+                </a>
+                <span class="page-path">output/SvB_MA_ttHbb_stitched/yields.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_tthbb_stat_only_wrong_ttbar_down_nomsvb/stat_analysis/summary.html">
+                <a href="output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/stat_analysis/summary.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">summary</span>
+                </a>
+                <span class="page-path">output/analysis_ttHbb_stat_only_wrong_ttbar_down_nomSvB/stat_analysis/summary.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/tthbb_bkg_syst/bkg_syst_c_fvt/models/mix_0/yields.html">
+                <a href="output/ttHbb_bkg_syst/bkg_syst_C_FvT/models/mix_0/yields.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">yields</span>
+                </a>
+                <span class="page-path">output/ttHbb_bkg_syst/bkg_syst_C_FvT/models/mix_0/yields.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/tthbb_bkg_syst_declib16nc/bkg_syst_c_fvt/models/mix_15/yields.html">
+                <a href="output/ttHbb_bkg_syst_declib16nc/bkg_syst_C_FvT/models/mix_15/yields.html" class="page-link" target="_blank">
+                    <span class="page-icon">↗</span>
+                    <span class="page-title">yields</span>
+                </a>
+                <span class="page-path">output/ttHbb_bkg_syst_declib16nc/bkg_syst_C_FvT/models/mix_15/yields.html</span>
+            </div>
+                </div>
+            </div>
+        </div>
+
+        
+
+        <details>
+            <summary>Execution History & Timeline (19 events)</summary>
+            <div class="card" style="margin-top: 0.5rem;">
+                <div class="card-body">
+                    <ul class="history-list">
+                        <li><span class='muted'>2026-10-27 18:42:58</span> <strong>publish</strong> host=falcon ok=True</li>
+<li><span class='muted'>2026-10-27 18:42:44</span> <strong>publish</strong> host=cmslpc ok=True</li>
+<li><span class='muted'>2026-10-22 09:47:00</span> <strong>archive</strong> host=falcon ok=True</li>
+<li><span class='muted'>2026-10-22 09:46:53</span> <strong>archive</strong> host=cmslpc ok=True</li>
+<li><span class='muted'>2026-10-22 09:06:28</span> <strong>publish</strong> host=falcon ok=True</li>
+<li><span class='muted'>2026-10-22 09:06:15</span> <strong>publish</strong> host=cmslpc ok=True</li>
+<li><span class='muted'>2026-10-22 09:05:52</span> <strong>publish</strong> host=falcon ok=True</li>
+<li><span class='muted'>2026-10-22 09:05:33</span> <strong>publish</strong> host=cmslpc ok=False</li>
+<li><span class='muted'>2026-10-22 08:11:38</span> <strong>submit</strong> step=F host=cmslpc</li>
+<li><span class='muted'>2026-10-22 05:39:12</span> <strong>submit</strong> step=D host=nautilus</li>
+<li><span class='muted'>2026-10-22 03:47:12</span> <strong>submit</strong> step=C host=nautilus</li>
+<li><span class='muted'>2026-10-22 03:46:01</span> <strong>checkout</strong> host=nautilus</li>
+<li><span class='muted'>2026-10-21 23:17:34</span> <strong>submit</strong> step=C host=falcon</li>
+<li><span class='muted'>2026-10-21 23:16:32</span> <strong>resume</strong> step=B host=cmslpc</li>
+<li><span class='muted'>2026-10-21 22:32:36</span> <strong>submit</strong> step=B host=cmslpc</li>
+<li><span class='muted'>2026-10-21 22:23:46</span> <strong>submit</strong> step=B host=cmslpc</li>
+<li><span class='muted'>2026-10-21 22:21:41</span> <strong>checkout</strong> host=falcon</li>
+<li><span class='muted'>2026-10-21 22:21:30</span> <strong>checkout</strong> host=cmslpc</li>
+<li><span class='muted'>2026-10-21 22:19:22</span> <strong>new</strong> </li>
+                    </ul>
+                </div>
+            </div>
+        </details>
+
+        <footer>
+            Roast published with barista • CERNBox Web Distribution
+        </footer>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('pageSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const q = this.value.toLowerCase().trim();
+                document.querySelectorAll('.page-item').forEach(item => {
+                    const s = item.getAttribute('data-search') || '';
+                    item.style.display = s.includes(q) ? '' : 'none';
+                });
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: roast-analysis-tthbb-stat-only-wrong-ttba-126ebe-d
+  namespace: cms-cmu
+  labels:
+    roast: "nalysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d"
+    step: "D"
+    app: "roast-runner"
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        roast: "nalysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d"
+        step: "D"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: roast-runner
+      containers:
+      - name: orchestrator
+        image: docker.io/snakemake/snakemake:v9.27.0
+        imagePullPolicy: IfNotPresent
+        workingDir: /workspace/users/algomez/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "=== roast analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d step D start $(date) on Nautilus ==="
+          pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd
+          mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
+          export X509_USER_PROXY="$PWD/proxy/x509_proxy"
+          export PATH=/workspace/shared/bin:$PATH
+          export NAUTILUS_WORKDIR=/workspace/users/algomez/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista
+          export CLASSIFIER_CONFIG_PATHS=coffea4bees
+          export ROAST_ID="analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d"
+          export ROAST_STEP="D"
+          cd /workspace/users/algomez/prod/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/barista
+          mkdir -p logs
+          LOG=logs/D.log
+          EXIT=logs/D.exit
+          rm -f "$EXIT"
+          rm -rf .snakemake/locks || true
+          snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/config.yml --profile software/snakemake/profiles/nautilus --unlock || true
+
+          snakemake -s coffea4bees/workflows/Snakefile_PhaseD.smk --configfile roasts/analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d/config.yml --profile software/snakemake/profiles/nautilus --jobs 16 --printshellcmds --config roast_id=analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d eos_prod=root://cmseos.fnal.gov//store/user/algomez/HH4b_prod web_prod=root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod --rerun-incomplete 2>&1 | tee "$LOG"
+          RC=${PIPESTATUS[0]}
+          echo "$RC" > "$EXIT"
+          echo "=== roast analysis_ttHbb_stat_only_wrong_ttbar_up_20261021_f82849e-41dd17d step D exit $RC $(date) ===" | tee -a "$LOG"
+          exit $RC
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - mountPath: /workspace
+          name: ceph-storage
+      volumes:
+      - name: ceph-storage
+        persistentVolumeClaim:
+          claimName: cms-cmu-storage
