@@ -1309,9 +1309,9 @@ run_snakemake() {
     # Execute
 
     if [ "${ARGS[0]}" = "source" ]; then
-        pixi run bash -c "${ARGS[*]}"
+        pixi run -q bash -c "${ARGS[*]}"
     else
-        pixi run snakemake "${ARGS[@]}"
+        pixi run -q snakemake "${ARGS[@]}"
     fi
     info "Execution finished successfully!"
 }
