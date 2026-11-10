@@ -386,15 +386,6 @@ setup_host_env() {
             [ -d "/work/nvme/bjsv/${USER}" ] && CACHE_BASE="/work/nvme/bjsv/${USER}/barista_cache"
             mkdir -p "$CACHE_BASE"
             export PATH="${PWD}/software/bin:${PATH}"
-            if [ ! -d "/cvmfs/unpacked.cern.ch" ]; then
-                local CVMFSEXEC="/projects/bjsv/software/cvmfsexec/cvmfsexec"
-                [ ! -x "$CVMFSEXEC" ] && CVMFSEXEC="${HOME}/workingArea/software/cvmfsexec/cvmfsexec"
-                if [ -x "$CVMFSEXEC" ]; then
-                    exec "$CVMFSEXEC" unpacked.cern.ch grid.cern.ch cms.cern.ch -- "$0" "$@"
-                else
-                    warning "cvmfsexec not found at /projects/bjsv/software/cvmfsexec/cvmfsexec. /cvmfs will not be mounted."
-                fi
-            fi
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
