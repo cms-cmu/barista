@@ -12,6 +12,7 @@ default-resources:
   slurm_partition: "gpuA100x4"
   slurm_account: "bjsv-delta-gpu"
   gres: "gpu:1"
+  qos: ""
   runtime: "8h"
   mem_mb: 24000
   cpus_per_task: 4
@@ -23,6 +24,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "8h"
@@ -30,6 +32,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "8h"
@@ -37,6 +40,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "8h"
@@ -46,6 +50,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "4h"
@@ -53,6 +58,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "4h"
@@ -60,6 +66,7 @@ set-resources:
     slurm_partition: "gpuA100x4"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
+    qos: ""
     mem_mb: 24000
     cpus_per_task: 4
     runtime: "4h"
@@ -69,6 +76,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 2
     runtime: "1h"
@@ -76,6 +84,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -83,6 +92,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -90,6 +100,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -97,6 +108,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -104,6 +116,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -111,6 +124,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 4
     runtime: "2h"
@@ -118,6 +132,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 4000
     cpus_per_task: 2
     runtime: "30m"
@@ -125,6 +140,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 2
     runtime: "1h"
@@ -132,6 +148,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 2
     runtime: "1h"
@@ -139,6 +156,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 8000
     cpus_per_task: 2
     runtime: "1h"
@@ -146,6 +164,7 @@ set-resources:
     slurm_partition: "cpu"
     slurm_account: "bjsv-delta-cpu"
     gres: ""
+    qos: ""
     mem_mb: 16000
     cpus_per_task: 4
     runtime: "8h"
