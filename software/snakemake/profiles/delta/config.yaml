@@ -1,170 +1,164 @@
-# Snakemake profile for NCSA Delta cluster
 executor: slurm
 software-deployment-method:
-  - apptainer
-apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /projects/bjsv -B /work/nvme/bjsv -B /work/hdd/bjsv -B /tmp:/tmp --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh --env ENV=/srv/apptainer_env.sh"
-slurm-logdir: "slurm_logs"
-slurm-status-command: "squeue"
+- apptainer
+apptainer-args: -B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
+  -B /projects/bjsv -B /work/nvme/bjsv -B /work/hdd/bjsv -B /tmp:/tmp --env "X509_USER_PROXY"="proxy/x509_proxy"
+  --nv -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh
+  --env ENV=/srv/apptainer_env.sh
+slurm-logdir: slurm_logs
+slurm-status-command: squeue
 latency-wait: 60
-
-# Default resources (targeted for GPU ML training and inference)
 default-resources:
-  slurm_partition: "gpuA100x4"
-  slurm_account: "bjsv-delta-gpu"
-  gres: "gpu:1"
-  qos: ""
-  runtime: "8h"
+  slurm_partition: gpuA100x4
+  slurm_account: bjsv-delta-gpu
+  gres: gpu:1
+  runtime: 8h
   mem_mb: 24000
   cpus_per_task: 4
-  tmpdir: "'/tmp'"
-
+  tmpdir: '''/tmp'''
+  qos: bjsv-delta-gpu
 set-resources:
-  # Neural network training rules (Phase C FvT, Phase D SvB, Phase E mixed-data)
   train:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "8h"
+    runtime: 8h
+    qos: bjsv-delta-gpu
   train_fvt_subsample:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "8h"
+    runtime: 8h
+    qos: bjsv-delta-gpu
   train_fvt_mixed_model:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "8h"
-
-  # GPU Inference & Friend Tree Evaluation rules
+    runtime: 8h
+    qos: bjsv-delta-gpu
   evaluate:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "4h"
+    runtime: 4h
+    qos: bjsv-delta-gpu
   evaluate_fvt_subsample:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "4h"
+    runtime: 4h
+    qos: bjsv-delta-gpu
   evaluate_fvt_mixed_model:
-    slurm_partition: "gpuA100x4"
-    slurm_account: "bjsv-delta-gpu"
-    gres: "gpu:1"
-    qos: ""
+    slurm_partition: gpuA100x4
+    slurm_account: bjsv-delta-gpu
+    gres: gpu:1
     mem_mb: 24000
     cpus_per_task: 4
-    runtime: "4h"
-
-  # CPU-bound data preparation and post-processing rules
+    runtime: 4h
+    qos: bjsv-delta-gpu
   extract_friend_manifest:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 2
-    runtime: "1h"
+    runtime: 1h
+    qos: bjsv-delta-cpu
   evaluate_all:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   evaluate_single_dataset:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   evaluate_all_svb:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   evaluate_single_dataset_svb:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   analyze:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   analyze_fvt_subsample:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 4
-    runtime: "2h"
+    runtime: 2h
+    qos: bjsv-delta-cpu
   yields:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 4000
     cpus_per_task: 2
-    runtime: "30m"
+    runtime: 30m
+    qos: bjsv-delta-cpu
   plot_inputs_raw:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 2
-    runtime: "1h"
+    runtime: 1h
+    qos: bjsv-delta-cpu
   plot_inputs_dataprep:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 2
-    runtime: "1h"
+    runtime: 1h
+    qos: bjsv-delta-cpu
   plot_weights:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 8000
     cpus_per_task: 2
-    runtime: "1h"
+    runtime: 1h
+    qos: bjsv-delta-cpu
   classifier_inputs_mc:
-    slurm_partition: "cpu"
-    slurm_account: "bjsv-delta-cpu"
-    gres: ""
-    qos: ""
+    slurm_partition: cpu
+    slurm_account: bjsv-delta-cpu
+    gres: ''
     mem_mb: 16000
     cpus_per_task: 4
-    runtime: "8h"
+    runtime: 8h
+    qos: bjsv-delta-cpu

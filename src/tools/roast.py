@@ -1804,6 +1804,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
                 break
             fi
         done
+        [ -s proxy/x509_proxy ] && export X509_USER_PROXY="${{PWD}}/proxy/x509_proxy"
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
