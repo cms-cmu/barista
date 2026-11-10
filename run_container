@@ -52,7 +52,7 @@ add_x509_proxy_flags() {
     local -n FLAGS_REF="$2"
 
     case "$HOST" in
-        *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*)
+        *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*|*delta*)
             local PROXY="${PWD}/proxy/x509_proxy"
             mkdir -p proxy
             touch "$PROXY"
@@ -287,6 +287,7 @@ detect_cluster_profile() {
         *rogue*)   echo "rogue" ;;
         *runner*)  echo "ci" ;;
         *bridges2*|*psc*) echo "bridges2" ;;
+        *delta*|*dt-login*) echo "delta" ;;
         *)         echo "default" ;;
     esac
 }
@@ -379,6 +380,21 @@ setup_host_env() {
             fi
             CACHE_BASE="/uscms_data/d3/${USER}"
             export APPTAINER_IGNORE_PROOT=1
+            ;;
+        *delta*|*dt-login*)
+            [ -d "/projects/bjsv/${USER}" ] && PIXI_DIR="/projects/bjsv/${USER}/.pixi"
+            [ -d "/work/nvme/bjsv/${USER}" ] && CACHE_BASE="/work/nvme/bjsv/${USER}/barista_cache"
+            mkdir -p "$CACHE_BASE"
+            export PATH="${PWD}/software/bin:${PATH}"
+            if [ ! -d "/cvmfs/unpacked.cern.ch" ]; then
+                local CVMFSEXEC="/projects/bjsv/software/cvmfsexec/cvmfsexec"
+                [ ! -x "$CVMFSEXEC" ] && CVMFSEXEC="${HOME}/workingArea/software/cvmfsexec/cvmfsexec"
+                if [ -x "$CVMFSEXEC" ]; then
+                    exec "$CVMFSEXEC" unpacked.cern.ch grid.cern.ch cms.cern.ch -- "$0" "$@"
+                else
+                    warning "cvmfsexec not found at /projects/bjsv/software/cvmfsexec/cvmfsexec. /cvmfs will not be mounted."
+                fi
+            fi
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
@@ -1049,6 +1065,20 @@ run_classifier() {
         )
     fi
 
+    if [[ $HOST == *delta* ]]; then
+        FLAGS+=(
+            -B /cvmfs
+            -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
+            -B /projects/bjsv
+            -B /work/nvme/bjsv
+            -B /work/hdd/bjsv
+            -B /tmp:/tmp
+            --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+            --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
+        )
+    fi
+
     # Bind X509 proxy for XRootD authentication
     local PROXY="${PWD}/proxy/x509_proxy"
     if [ ! -f "$PROXY" ] && [ -n "${X509_USER_PROXY:-}" ] && [ -f "$X509_USER_PROXY" ]; then
@@ -1080,14 +1110,17 @@ run_classifier() {
         return
     fi
 
-    # GPU: Handle FALCON / BRIDGES2 interactive session
-    if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
+    # GPU: Handle FALCON / BRIDGES2 / DELTA interactive session
+    if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* || $HOST == *delta* ]]; then
         if [ -n "$SLURM_JOB_ID" ]; then
             # Already inside a job
             info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
         else
             # Login node - submit interactive GPU job
-            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+            if [[ $HOST == *delta* ]]; then
+                info "Not in a job. Launching interactive GPU Slurm session on Delta (gpuA100x4-interactive)..."
+                srun --pty -A bjsv-delta-gpu -p gpuA100x4-interactive --gpus=1 --cpus-per-task=8 --mem=32G -t 01:00:00 "$0" classifier
+            elif [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 info "Not in a job. Launching interactive GPU Slurm session with --gres=gpu:1..."
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
@@ -1248,7 +1281,7 @@ run_snakemake() {
         # Falcon uses a default account with no partition association, so skip it
         local PROFILE_NAME
         PROFILE_NAME=$(basename "$ACTIVE_PROFILE_DIR")
-        if [[ "$PROFILE_NAME" != "falcon" && "$PROFILE_NAME" != "bridges2" ]]; then
+        if [[ "$PROFILE_NAME" != "falcon" && "$PROFILE_NAME" != "bridges2" && "$PROFILE_NAME" != "delta" ]]; then
             info "Auto-injecting Slurm account: $USER"
             ARGS+=("--default-resources" "slurm_account=$USER")
         fi

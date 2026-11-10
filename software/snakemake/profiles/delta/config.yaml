@@ -1,0 +1,151 @@
+# Snakemake profile for NCSA Delta cluster
+executor: slurm
+software-deployment-method:
+  - apptainer
+apptainer-args: "-B /cvmfs -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security -B /projects/bjsv -B /work/nvme/bjsv -B /work/hdd/bjsv -B /tmp:/tmp -B proxy/x509_proxy:proxy/x509_proxy --env \"X509_USER_PROXY\"=\"proxy/x509_proxy\" --nv -B software/combine/apptainer_env.sh:/srv/apptainer_env.sh --env BASH_ENV=/srv/apptainer_env.sh --env ENV=/srv/apptainer_env.sh"
+slurm-logdir: "slurm_logs"
+slurm-status-command: "squeue"
+latency-wait: 60
+
+# Default resources (targeted for GPU ML training and inference)
+default-resources:
+  slurm_partition: "gpuA100x4"
+  slurm_account: "bjsv-delta-gpu"
+  gres: "gpu:1"
+  runtime: "8h"
+  mem_mb: 24000
+  cpus_per_task: 4
+  tmpdir: "'/tmp'"
+
+set-resources:
+  # Neural network training rules (Phase C FvT, Phase D SvB, Phase E mixed-data)
+  train:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "8h"
+  train_fvt_subsample:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "8h"
+  train_fvt_mixed_model:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "8h"
+
+  # GPU Inference & Friend Tree Evaluation rules
+  evaluate:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "4h"
+  evaluate_fvt_subsample:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "4h"
+  evaluate_fvt_mixed_model:
+    slurm_partition: "gpuA100x4"
+    slurm_account: "bjsv-delta-gpu"
+    gres: "gpu:1"
+    mem_mb: 24000
+    cpus_per_task: 4
+    runtime: "4h"
+
+  # CPU-bound data preparation and post-processing rules
+  extract_friend_manifest:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 2
+    runtime: "1h"
+  evaluate_all:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  evaluate_single_dataset:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  evaluate_all_svb:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  evaluate_single_dataset_svb:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  analyze:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  analyze_fvt_subsample:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: "2h"
+  yields:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 4000
+    cpus_per_task: 2
+    runtime: "30m"
+  plot_inputs_raw:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 2
+    runtime: "1h"
+  plot_inputs_dataprep:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 2
+    runtime: "1h"
+  plot_weights:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 8000
+    cpus_per_task: 2
+    runtime: "1h"
+  classifier_inputs_mc:
+    slurm_partition: "cpu"
+    slurm_account: "bjsv-delta-cpu"
+    gres: ""
+    mem_mb: 16000
+    cpus_per_task: 4
+    runtime: "8h"
