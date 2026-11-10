@@ -7,6 +7,12 @@
 # repositories (unpacked.cern.ch, grid.cern.ch, cms.cern.ch) in user space.
 # ==============================================================================
 
+case "$1" in
+    --version|version|-v)
+        exec /usr/bin/apptainer "$@"
+        ;;
+esac
+
 if [ -d "/cvmfs/unpacked.cern.ch" ]; then
     exec /usr/bin/apptainer "$@"
 fi
