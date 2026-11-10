@@ -15,13 +15,13 @@ _resolve_cvmfs() {
     # Access /cvmfs/unpacked.cern.ch to trigger autofs mount if available
     ls /cvmfs/unpacked.cern.ch >/dev/null 2>&1
     local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
-    if [ -e "$cvmfs_path" ]; then
+    if [[ $(hostname) == *delta* ]] || [ -e "$cvmfs_path" ]; then
         echo "$cvmfs_path"
     else
         echo "$img"
     fi
 }
-if [ -d '/cvmfs' ]; then
+if [ -d '/cvmfs' ] || [[ $(hostname) == *delta* ]]; then
     COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
     DEV_COFFEA0_7_IMAGE=$(_resolve_cvmfs "$DEV_COFFEA0_7_IMAGE")
     COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
