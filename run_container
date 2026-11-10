@@ -15,13 +15,13 @@ _resolve_cvmfs() {
     # Access /cvmfs/unpacked.cern.ch to trigger autofs mount if available
     ls /cvmfs/unpacked.cern.ch >/dev/null 2>&1
     local cvmfs_path="/cvmfs/unpacked.cern.ch/${img#docker://}"
-    if [ -e "$cvmfs_path" ]; then
+    if [[ $(hostname) == *delta* ]] || [ -e "$cvmfs_path" ]; then
         echo "$cvmfs_path"
     else
         echo "$img"
     fi
 }
-if [ -d '/cvmfs' ]; then
+if [ -d '/cvmfs' ] || [[ $(hostname) == *delta* ]]; then
     COFFEA_IMAGE=$(_resolve_cvmfs "$COFFEA_IMAGE")
     DEV_COFFEA0_7_IMAGE=$(_resolve_cvmfs "$DEV_COFFEA0_7_IMAGE")
     COMBINE_IMAGE=$(_resolve_cvmfs "$COMBINE_IMAGE")
@@ -52,7 +52,7 @@ add_x509_proxy_flags() {
     local -n FLAGS_REF="$2"
 
     case "$HOST" in
-        *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*)
+        *cmslpc*|*lxplus*|*falcon*|*rogue*|*bridges2*|*psc*|*delta*)
             local PROXY="${PWD}/proxy/x509_proxy"
             mkdir -p proxy
             touch "$PROXY"
@@ -287,6 +287,7 @@ detect_cluster_profile() {
         *rogue*)   echo "rogue" ;;
         *runner*)  echo "ci" ;;
         *bridges2*|*psc*) echo "bridges2" ;;
+        *delta*|*dt-login*) echo "delta" ;;
         *)         echo "default" ;;
     esac
 }
@@ -379,6 +380,12 @@ setup_host_env() {
             fi
             CACHE_BASE="/uscms_data/d3/${USER}"
             export APPTAINER_IGNORE_PROOT=1
+            ;;
+        *delta*|*dt-login*)
+            [ -d "/projects/bjsv/${USER}" ] && PIXI_DIR="/projects/bjsv/${USER}/.pixi"
+            [ -d "/work/nvme/bjsv/${USER}" ] && CACHE_BASE="/work/nvme/bjsv/${USER}/barista_cache"
+            mkdir -p "$CACHE_BASE"
+            export PATH="${PWD}/software/bin:${PATH}"
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
@@ -680,8 +687,8 @@ exit(1)
         FLAGS+=( --env COFFEA_IMAGE_FULL="$COFFEA_IMAGE" )
     fi
 
-    # 2. FALCON / ROGUE / BRIDGES2 Logic
-    if [[ $HOST == *falcon* || $HOST == *rogue* || $HOST == *bridges2* || $HOST == *psc* ]]; then
+    # 2. FALCON / ROGUE / BRIDGES2 / DELTA Logic
+    if [[ $HOST == *falcon* || $HOST == *rogue* || $HOST == *bridges2* || $HOST == *psc* || $HOST == *delta* ]]; then
         # Critical: Mirror Bind for Dask
         FLAGS=( -B "$PWD":"$PWD" --pwd "$PWD" --env PYTHONSTARTUP="$PWD/.pythonstartup" )
 
@@ -715,6 +722,18 @@ exit(1)
                 -B /run/munge
                 -B /etc/passwd -B /etc/group
             )
+        elif [[ $HOST == *delta* ]]; then
+            FLAGS+=(
+                -B /cvmfs
+                -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
+                --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+                --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+                --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
+                -B /projects/bjsv
+                -B /work/nvme/bjsv
+                -B /work/hdd/bjsv
+                -B /etc/passwd -B /etc/group
+            )
         fi
 
         if [ -n "$SLURM_JOB_ID" ]; then
@@ -738,6 +757,11 @@ exit(1)
                 MEM="${SLURM_MEM:-8000M}"
                 CPUS="${SLURM_CPUS:-4}"
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+            elif [[ $HOST == *delta* ]]; then
+                PARTITION="${SLURM_PARTITION:-cpu}"
+                MEM="${SLURM_MEM:-8G}"
+                CPUS="${SLURM_CPUS:-4}"
+                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" )
             else
                 PARTITION="${SLURM_PARTITION:-work}"
                 QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
@@ -785,6 +809,8 @@ exit(1)
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
                 srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" "$@"
+            elif [[ $HOST == *delta* ]]; then
+                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
             fi
@@ -901,6 +927,11 @@ run_coffea_dev() {
                 MEM="${SLURM_MEM:-8000M}"
                 CPUS="${SLURM_CPUS:-4}"
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
+            elif [[ $HOST == *delta* ]]; then
+                PARTITION="${SLURM_PARTITION:-cpu}"
+                MEM="${SLURM_MEM:-8G}"
+                CPUS="${SLURM_CPUS:-4}"
+                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" )
             else
                 PARTITION="${SLURM_PARTITION:-work}"
                 QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
@@ -948,6 +979,8 @@ run_coffea_dev() {
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
                 srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" dev "$@"
+            elif [[ $HOST == *delta* ]]; then
+                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" dev "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
             fi
@@ -1049,6 +1082,20 @@ run_classifier() {
         )
     fi
 
+    if [[ $HOST == *delta* ]]; then
+        FLAGS+=(
+            -B /cvmfs
+            -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
+            -B /projects/bjsv
+            -B /work/nvme/bjsv
+            -B /work/hdd/bjsv
+            -B /tmp:/tmp
+            --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
+            --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
+        )
+    fi
+
     # Bind X509 proxy for XRootD authentication
     local PROXY="${PWD}/proxy/x509_proxy"
     if [ ! -f "$PROXY" ] && [ -n "${X509_USER_PROXY:-}" ] && [ -f "$X509_USER_PROXY" ]; then
@@ -1080,14 +1127,17 @@ run_classifier() {
         return
     fi
 
-    # GPU: Handle FALCON / BRIDGES2 interactive session
-    if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* ]]; then
+    # GPU: Handle FALCON / BRIDGES2 / DELTA interactive session
+    if [ -z "$USER_CMD" ] && [[ $HOST == *falcon* || $HOST == *bridges2* || $HOST == *psc* || $HOST == *delta* ]]; then
         if [ -n "$SLURM_JOB_ID" ]; then
             # Already inside a job
             info "Inside Slurm Job ($SLURM_JOB_ID). Opening interactive GPU classifier shell..."
         else
             # Login node - submit interactive GPU job
-            if [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
+            if [[ $HOST == *delta* ]]; then
+                info "Not in a job. Launching interactive GPU Slurm session on Delta (gpuA100x4-interactive)..."
+                srun --pty -A bjsv-delta-gpu -p gpuA100x4-interactive --gpus=1 --cpus-per-task=8 --mem=32G -t 01:00:00 "$0" classifier
+            elif [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 info "Not in a job. Launching interactive GPU Slurm session with --gres=gpu:1..."
                 local ACCOUNT_ARG=()
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
@@ -1248,7 +1298,7 @@ run_snakemake() {
         # Falcon uses a default account with no partition association, so skip it
         local PROFILE_NAME
         PROFILE_NAME=$(basename "$ACTIVE_PROFILE_DIR")
-        if [[ "$PROFILE_NAME" != "falcon" && "$PROFILE_NAME" != "bridges2" ]]; then
+        if [[ "$PROFILE_NAME" != "falcon" && "$PROFILE_NAME" != "bridges2" && "$PROFILE_NAME" != "delta" ]]; then
             info "Auto-injecting Slurm account: $USER"
             ARGS+=("--default-resources" "slurm_account=$USER")
         fi

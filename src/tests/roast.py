@@ -1089,6 +1089,12 @@ class TestCommandLine(unittest.TestCase):
         res = self.run_roast("init", "--help")
         self.assertIn("--bridges2-user", res.stdout)
 
+    def test_delta_flags(self):
+        res = self.run_roast("new", "--help")
+        self.assertIn("--delta", res.stdout)
+        res = self.run_roast("init", "--help")
+        self.assertIn("--delta-user", res.stdout)
+
 
 class TestStatusGrouping(unittest.TestCase):
     """Slurm jobs are reported under the step that submitted them.
