@@ -9,7 +9,7 @@ latency-wait: 60
 
 # Default resources (targeted for GPU ML training and inference)
 default-resources:
-  slurm_partition: "gpuA100x4,gpuA40x4"
+  slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
   slurm_account: "bjsv-delta-gpu"
   gres: "gpu:1"
   qos: "bjsv-delta-gpu"
@@ -21,7 +21,7 @@ default-resources:
 set-resources:
   # Neural network training rules (Phase C FvT, Phase D SvB, Phase E mixed-data)
   train:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
@@ -29,7 +29,7 @@ set-resources:
     cpus_per_task: 4
     runtime: "105m"
   train_fvt_subsample:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
@@ -37,7 +37,7 @@ set-resources:
     cpus_per_task: 4
     runtime: "105m"
   train_fvt_mixed_model:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
@@ -47,7 +47,7 @@ set-resources:
 
   # GPU Inference & Friend Tree Evaluation rules
   evaluate:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
@@ -55,7 +55,7 @@ set-resources:
     cpus_per_task: 4
     runtime: "1h"
   evaluate_fvt_subsample:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
@@ -63,7 +63,7 @@ set-resources:
     cpus_per_task: 4
     runtime: "1h"
   evaluate_fvt_mixed_model:
-    slurm_partition: "gpuA100x4,gpuA40x4"
+    slurm_partition: "gpuA100x4,gpuA40x4,gpuA100x4-preempt,gpuA40x4-preempt"
     slurm_account: "bjsv-delta-gpu"
     gres: "gpu:1"
     qos: "bjsv-delta-gpu"
