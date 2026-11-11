@@ -26,9 +26,12 @@ The step's snakemake gets `--config train_host=orchard`. `src/classifier/workflo
 replaces its `train` rule by `train_orchard`, which runs on the falcon driver (a local rule, no GPU)
 and calls `software/orchard/remote_train.py`:
 
-1. ships the roast checkout (tracked files, uncommitted hot patches, and the untracked workflow files
-   the training names, e.g. `output/<model>/wfs/train.yml`) to `/project/community/$USER/barista/code/<key>`,
-   once per code state;
+1. makes `/project/community/$USER/barista/code/<key>` hold the roast checkout's code, once per code
+   state. ORCHARD keeps bare copies of barista and coffea4bees in `~/.orchard_git` and receives only
+   the commits it lacks (a git bundle, usually a few KB, sent through your bucket) plus `git diff HEAD`
+   for hot patches; the untracked workflow files the training names (`output/<model>/wfs/train.yml`,
+   `common.yml`) follow in a small tarball. Nothing heavy runs on the driver: falcon's login node
+   kills any process above 60 % CPU or 4 GB (`/usr/local/bin/falcon-watchdog.sh`);
 2. submits `software/orchard/submit.sh --source none` with the rule's template, so the models and
    `result.json` are written straight to the roast's EOS `classifier/<label>` path;
 3. waits, through requeues at the time limit and preemptions, copying `train.log` back every ~15 min;
@@ -56,7 +59,14 @@ curl -sSL https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-clou
     --tunnel-through-iap --command hostname        # creates the key; leave the passphrase empty
 ```
 
-and keep a grid proxy on ORCHARD: `bin/roast proxy` copies it to every host in
+Then, once per ORCHARD account and from a laptop (it sends ~370 MB of git history, which falcon's
+watchdog would kill), from a barista checkout with coffea4bees inside:
+
+```bash
+python3 software/orchard/remote_train.py --bootstrap
+```
+
+And keep a grid proxy on ORCHARD: `bin/roast proxy` copies it to every host in
 `~/.config/roast/config.json`, ORCHARD included once it has an `orchard` entry (see below).
 `remote_train.py` refuses to start when the proxy there has less than 4 h left or the image is missing.
 
