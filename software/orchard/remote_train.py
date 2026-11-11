@@ -228,7 +228,10 @@ def main():
     ap.add_argument("--wf"); ap.add_argument("--common")
     ap.add_argument("--template", help="full template string, e.g. 'model: root://...'")
     ap.add_argument("--log", help="where the training log is copied (the rule's log)")
-    ap.add_argument("--yields", help="where yields_loaded.json is copied")
+    ap.add_argument("--yields", help="where yields_loaded.json is copied (training)")
+    ap.add_argument("--task", default="train", help="train, or evaluate[_<split>]: names the ORCHARD run "
+                                                    "(<roast>__<model_dir>__<task>); an evaluation is not checkpointed, "
+                                                    "so it is not requeued at the time limit")
     ap.add_argument("--label", default="", help="run label on ORCHARD (default: <roast_id>__<model_dir>)")
     ap.add_argument("--roast-id", default="")
     ap.add_argument("--config-paths", default="coffea4bees", help="CLASSIFIER_CONFIG_PATHS")
@@ -238,7 +241,7 @@ def main():
     ap.add_argument("--bucket", default="auto", help="gs:// prefix for transfers (default gs://cmu-gpucloud-<ORCHARD user>/barista; "
                                                       "'none': gcloud compute scp)")
     ap.add_argument("--time", default="4:00:00"); ap.add_argument("--cpus", default="16"); ap.add_argument("--mem", default="160G")
-    ap.add_argument("--preempt", action="store_true"); ap.add_argument("--max-restarts", default="8")
+    ap.add_argument("--preempt", action="store_true"); ap.add_argument("--max-restarts", default="")
     ap.add_argument("--submit-args", default="", help="more software/orchard/submit.sh options, quoted")
     ap.add_argument("--poll", type=int, default=300, help="seconds between status checks")
     ap.add_argument("--max-unreachable", type=int, default=7200, help="seconds without contact before giving up")
@@ -250,15 +253,19 @@ def main():
         rem.bucket = "" if a.bucket == "none" else (a.bucket if a.bucket != "auto" else f"gs://cmu-gpucloud-{u}/barista")
         ship_code(rem, root, a.orchard_project or "/project/community/$USER/barista", bootstrap=True)
         return
-    for k in ("model_dir", "wf", "common", "template", "log", "yields"):
+    for k in ("model_dir", "wf", "common", "template", "log"):
         if not getattr(a, k):
             ap.error(f"--{k.replace('_', '-')} is required")
 
     model_dir = Path(a.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
-    state_file = model_dir / "orchard.json"
+    state_file = model_dir / ("orchard.json" if a.task == "train" else f"orchard_{a.task}.json")
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
-    label = a.label or re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{a.roast_id or 'run'}__{a.model_dir.strip('/')}")[:150]
+    evaluating = a.task.startswith("evaluate")
+    if not a.max_restarts:
+        a.max_restarts = "0" if evaluating else "8"
+    task_tag = "" if a.task == "train" else f"__{a.task}"
+    label = a.label or re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{a.roast_id or 'run'}__{a.model_dir.strip('/')}{task_tag}")[:150]
     wf, common = rel_to_root(a.wf, root), rel_to_root(a.common, root)
     rem = Remote(a)
     proj = a.orchard_project or "/project/community/$USER/barista"
@@ -292,8 +299,8 @@ def main():
             Path(a.log).write_text(r.stdout)
         if not final:
             return False
-        y = rem.run(f"cat {run_dir}/yields_loaded.json 2>/dev/null", check=False)
-        if y.returncode == 0 and y.stdout.strip():
+        y = rem.run(f"cat {run_dir}/yields_loaded.json 2>/dev/null", check=False) if a.yields else None
+        if y is not None and y.returncode == 0 and y.stdout.strip():
             Path(a.yields).write_text(y.stdout)
         s = rem.run(f"bash {code_dir_of(state)}/software/orchard/summarize.sh {run_dir} 2>/dev/null; "
                     f"test -f {run_dir}/train.done", check=False)

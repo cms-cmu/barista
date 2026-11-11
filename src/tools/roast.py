@@ -1262,6 +1262,10 @@ def cmd_validate(args) -> None:
 
 def cmd_new(args) -> None:
     cfg = load_config()
+    if getattr(args, "cmslpc", False):
+        # no GPU on cmslpc: the C/D trainings and evaluations go to ORCHARD
+        args.train_on = args.train_on or "orchard"
+        args.eval_on = getattr(args, "eval_on", None) or "orchard"
     config_src = Path(args.config)
     if not config_src.exists():
         die(f"config file {config_src} not found")
@@ -1330,6 +1334,11 @@ def cmd_new(args) -> None:
             host = "bridges2"
         elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
+        elif getattr(args, "cmslpc", False) and host == "falcon":
+            if ph in CMSLPC_GPU_PHASES_REFUSED:
+                die(f"--cmslpc: phase {ph} has GPU rules besides train/evaluate ({CMSLPC_GPU_PHASES_REFUSED[ph]}); "
+                    f"leave it on falcon (give --step falcon:<snakefile> for it, or drop --cmslpc)")
+            host = "cmslpc"
         steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     for spec in args.step or []:
         # host:snakefile[:targets]
@@ -1431,6 +1440,7 @@ def cmd_new(args) -> None:
         "steps": steps,
         **({"workflow": args.workflow} if getattr(args, "workflow", None) else {}),
         **({"train_on": args.train_on} if getattr(args, "train_on", None) else {}),
+        **({"eval_on": args.eval_on} if getattr(args, "eval_on", None) else {}),
         **({"workflow_file": str(args.workflow_file)} if getattr(args, "workflow_file", None) else {}),
         "hosts": {},
         "publish": {},
@@ -1750,14 +1760,21 @@ def _tmux_session(r: dict | None = None) -> str:
 
 
 TRAIN_HOSTS = ("orchard",)
+# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
+CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}
 
 
 def train_host_setting(r: dict) -> str:
-    """` train_host=<host>` for the snakemake --config of a roast whose classifier trainings run
-    elsewhere (`roast new --train-on orchard`): src/classifier/workflow/Snakefile then swaps its
-    `train` rule for one that runs the fit there, and the rest of the step stays on its own host."""
-    t = r.get("train_on") or ""
-    return f" train_host={shlex.quote(t)}" if t in TRAIN_HOSTS else ""
+    """` train_host=<host>` / ` eval_host=<host>` for the snakemake --config of a roast whose classifier
+    trainings / evaluations run elsewhere (`roast new --train-on orchard --eval-on orchard`):
+    src/classifier/workflow/Snakefile then swaps its `train` / `evaluate` rules for ones that run there,
+    and the rest of the step stays on its own host."""
+    out = ""
+    for key, setting in (("train_on", "train_host"), ("eval_on", "eval_host")):
+        t = r.get(key) or ""
+        if t in TRAIN_HOSTS:
+            out += f" {setting}={shlex.quote(t)}"
+    return out
 
 
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
@@ -2082,20 +2099,23 @@ def _submit(args, resume: bool) -> None:
                     info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
                     target_step = c4_name
 
-    if getattr(args, "train_on", None):
-        new = "" if args.train_on == "host" else args.train_on
-        if (r.get("train_on") or "") != new:
-            r["train_on"] = new
-            log_event(r, "train_on", host=new or "step host")
-            save_roast(r)
-            where = new or "each step's own host"
-            info(f"classifier trainings of {r['id']} now run on {where}")
+    for key, what in (("train_on", "trainings"), ("eval_on", "evaluations")):
+        if getattr(args, key, None):
+            new = "" if getattr(args, key) == "host" else getattr(args, key)
+            if (r.get(key) or "") != new:
+                r[key] = new
+                log_event(r, key, host=new or "step host")
+                save_roast(r)
+                where = new or "each step's own host"
+                info(f"classifier {what} of {r['id']} now run on {where}")
     step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
-    if r.get("train_on") and host == "nautilus":
-        die(f"--train-on {r['train_on']} needs a driver that can reach it with gcloud; step {step['name']} runs on "
-            f"Nautilus. Use falcon for this step (`roast new` without --nautilus) or `--train-on host`")
+    if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
+        die(f"--train-on/--eval-on orchard need a driver that can reach ORCHARD with gcloud; step {step['name']} runs "
+            f"on Nautilus. Use falcon or cmslpc for this step, or `--train-on host --eval-on host`")
+    if host == "cmslpc" and step["name"] in ("C", "D") and not (r.get("train_on") and r.get("eval_on")):
+        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard`")
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
@@ -5168,6 +5188,10 @@ def main(argv=None) -> None:
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
     s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")
+    s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
+    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D) on cmslpc instead of Falcon, with their "
+                                                        "trainings and evaluations on ORCHARD (implies --train-on and "
+                                                        "--eval-on orchard)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
     s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
     s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
@@ -5189,6 +5213,7 @@ def main(argv=None) -> None:
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
         s.add_argument("--train-on", choices=(*TRAIN_HOSTS, "host"), help="change where this roast's classifier trainings "
                                                                         "run (saved): orchard, or host = the step's own host")
+        s.add_argument("--eval-on", choices=(*TRAIN_HOSTS, "host"), help="same for the classifier evaluations")
         s.set_defaults(func=fn)
 
     s = sub.add_parser("proxy", help="voms-proxy-init on a host (interactive) and copy the proxy to the "

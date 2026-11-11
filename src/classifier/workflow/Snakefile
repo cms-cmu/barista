@@ -267,27 +267,35 @@ rule train:
 # the driver host, where software/orchard/remote_train.py ships the checkout to ORCHARD, submits the
 # fit there, waits, and copies train.log and yields_loaded.json back. The template's `model:` (the
 # roast's EOS path) is where the models land, so evaluate/analyze/plots run here unchanged.
+# `eval_host: orchard` does the same for the evaluations (friend trees written to EOS), further down.
 # Settings (all optional): orchard: {instance, zone, project, gcloud, project_dir, time, cpus, mem,
-# preempt, poll, submit_args}. See docs/software/orchard.md.
+# preempt, poll, submit_args, bucket, and eval_<key> overrides}. See docs/software/orchard.md.
 TRAIN_HOST = str(config.get("train_host", "") or "").lower()
+EVAL_HOST  = str(config.get("eval_host", "") or "").lower()
+_orchard   = config.get("orchard") or {}
+
+
+def _orchard_opts(task="train"):
+    """remote_train.py options from the `orchard:` config block; `eval_<key>` overrides `<key>`
+    for the evaluations (e.g. eval_time)."""
+    o = []
+    for key, flag in (("instance", "--instance"), ("zone", "--zone"), ("project", "--project"),
+                      ("gcloud", "--gcloud"), ("project_dir", "--orchard-project"), ("time", "--time"),
+                      ("cpus", "--cpus"), ("mem", "--mem"), ("poll", "--poll"),
+                      ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args"),
+                      ("bucket", "--bucket")):
+        val = _orchard.get(f"eval_{key}") if task != "train" and f"eval_{key}" in _orchard else _orchard.get(key)
+        if val not in (None, ""):
+            o.append(f"{flag} {shlex.quote(str(val))}")
+    if _orchard.get("preempt"):
+        o.append("--preempt")
+    if config.get("roast_id"):
+        o.append(f"--roast-id {shlex.quote(str(config['roast_id']))}")
+    o.append(f"--task {task}")
+    return " ".join(o)
+
+
 if TRAIN_HOST == "orchard":
-    _orchard = config.get("orchard") or {}
-
-    def _orchard_opts():
-        o = []
-        for key, flag in (("instance", "--instance"), ("zone", "--zone"), ("project", "--project"),
-                          ("gcloud", "--gcloud"), ("project_dir", "--orchard-project"), ("time", "--time"),
-                          ("cpus", "--cpus"), ("mem", "--mem"), ("poll", "--poll"),
-                          ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args"),
-                          ("bucket", "--bucket")):
-            if _orchard.get(key) not in (None, ""):
-                o.append(f"{flag} {shlex.quote(str(_orchard[key]))}")
-        if _orchard.get("preempt"):
-            o.append("--preempt")
-        if config.get("roast_id"):
-            o.append(f"--roast-id {shlex.quote(str(config['roast_id']))}")
-        return " ".join(o)
-
     localrules: train_orchard
     ruleorder: train_orchard > train
 
@@ -303,7 +311,7 @@ if TRAIN_HOST == "orchard":
             template_str            = _get_train_template,
             classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
             yields                  = lambda wildcards: f"{wildcards.model_dir}/yields_loaded.json",
-            opts                    = _orchard_opts(),
+            opts                    = _orchard_opts("train"),
         shell:
             """
             python3 software/orchard/remote_train.py \
@@ -503,6 +511,62 @@ else:
             test ${{PIPESTATUS[0]}} -eq 0
             touch {output.flag}
             """
+
+
+
+# ── GPU evaluation on CMU ORCHARD ────────────────────────────────────────────
+# `eval_host: orchard`: same output as evaluate / evaluate_split, run through remote_train.py --task.
+# The template's output paths (friend trees, result.json) are on EOS, so evaluate_combine and every
+# consumer run here unchanged. An evaluation has no checkpoint: it is not requeued at the time limit
+# (orchard: eval_time, default as `time`).
+if EVAL_HOST == "orchard":
+    _EVAL_ORCHARD_SHELL = """
+            python3 software/orchard/remote_train.py \\
+                --model-dir {wildcards.model_dir:q} --wf {input.eval_wf:q} --common {input.common:q} \\
+                --template {params.template_str:q} --log {log:q} \\
+                --config-paths {params.classifier_config_paths:q} {params.opts}
+            touch {output.flag}
+            """
+
+    if not EVAL_SPLITS:
+        localrules: evaluate_orchard
+        ruleorder: evaluate_orchard > evaluate
+
+        rule evaluate_orchard:
+            input:
+                train_flag = "{model_dir}/train.done",
+                eval_wf    = _get_eval_wf,
+                common     = _get_common,
+            output:
+                flag = "{model_dir}/evaluate.done",
+            log:
+                "{model_dir}/evaluate.log",
+            params:
+                classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+                template_str            = _get_eval_template,
+                opts                    = _orchard_opts("evaluate"),
+            shell:
+                _EVAL_ORCHARD_SHELL
+
+    else:
+        localrules: evaluate_split_orchard
+        ruleorder: evaluate_split_orchard > evaluate_split
+
+        rule evaluate_split_orchard:
+            input:
+                train_flag = "{model_dir}/train.done",
+                eval_wf    = "{model_dir}/wfs/evaluate.split_{split}.yml",
+                common     = _get_common,
+            output:
+                flag = "{model_dir}/evaluate.split_{split}.done",
+            log:
+                "{model_dir}/evaluate.split_{split}.log",
+            params:
+                classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+                template_str            = _get_eval_template,
+                opts                    = lambda wildcards: _orchard_opts(f"evaluate_{wildcards.split}"),
+            shell:
+                _EVAL_ORCHARD_SHELL
 
 
 rule plot_inputs_raw:

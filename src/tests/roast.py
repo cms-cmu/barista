@@ -1037,6 +1037,19 @@ class TestTrainOn(unittest.TestCase):
         r["train_on"] = ""                      # `--train-on host` clears it
         self.assertNotIn("train_host", self.script(r))
 
+    def test_eval_host_reaches_snakemake(self):
+        r = fake_roast(host="cmslpc", step_name="C")
+        r["train_on"] = r["eval_on"] = "orchard"
+        script = self.script(r)
+        self.assertIn("train_host=orchard", script)
+        self.assertIn("eval_host=orchard", script)
+
+    def test_classifier_snakefile_has_the_orchard_eval_rules(self):
+        smk = (REPO / "src" / "classifier" / "workflow" / "Snakefile").read_text()
+        self.assertIn('if EVAL_HOST == "orchard":', smk)
+        self.assertIn("ruleorder: evaluate_orchard > evaluate", smk)
+        self.assertIn("ruleorder: evaluate_split_orchard > evaluate_split", smk)
+
     def test_classifier_snakefile_has_the_orchard_rule(self):
         smk = (REPO / "src" / "classifier" / "workflow" / "Snakefile").read_text()
         self.assertIn('if TRAIN_HOST == "orchard":', smk)

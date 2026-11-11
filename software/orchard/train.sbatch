@@ -106,7 +106,7 @@ if [ -n "$REMOTE" ] && [ ! -d "$CKPT" ] && [ ! -d "$MODEL" ] \
     mkdir -p "${ORCHARD_RUN_DIR}"
     gcloud storage rsync --recursive "${REMOTE}" "${ORCHARD_RUN_DIR}" || log "WARNING: restore failed"
 fi
-mkdir -p "$CKPT" "$LOGS" "$LOCAL" "$DATA" || exit 1
+mkdir -p "$CKPT" "$LOGS" "$LOCAL" "$LOCAL/eval_scratch" "$DATA" || exit 1
 case "$MODEL" in *://*) ;; *) mkdir -p "$MODEL" ;; esac
 mark start
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | sed 's/^/[orchard] GPU: /'
@@ -159,6 +159,7 @@ log "training: template {${TEMPLATE}} ${TRAIN} -from ${COMMON} ${ORCHARD_EXTRA_A
 in_container "HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
     CLASSIFIER_CONFIG_PATHS='${ORCHARD_CLASSIFIER_CONFIG_PATHS}' \
     CLASSIFIER_CHECKPOINT_DIR='${CKPT}' \
+    EVAL_SCRATCH='${LOCAL}/eval_scratch' \
     python -m src.classifier.task.main template '{${TEMPLATE}}' '${TRAIN}' -from '${COMMON}' -flag debug ${ORCHARD_EXTRA_ARGS}" \
     >> "${ORCHARD_RUN_DIR}/train.log" 2>&1 &
 STEP_PID=$!; wait "$STEP_PID"; RC=$?; STEP_PID=""
