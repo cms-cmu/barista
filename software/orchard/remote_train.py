@@ -56,10 +56,11 @@ class Remote:
             sys.exit("[orchard] no gcloud on this host: install the Google Cloud CLI (see docs/software/orchard.md) "
                      "and `gcloud auth login <andrew-id>@andrew.cmu.edu`")
         self.gcloud = g
-        self.where = [a.instance, "--tunnel-through-iap", "--quiet", "--zone", a.zone, "--project", a.project]
+        self.instance = a.instance
+        self.flags = ["--tunnel-through-iap", "--quiet", "--zone", a.zone, "--project", a.project]
 
     def run(self, script: str, check=True, timeout=600, retries=3) -> subprocess.CompletedProcess:
-        cmd = [self.gcloud, "compute", "ssh", *self.where, "--command", "bash -s"]
+        cmd = [self.gcloud, "compute", "ssh", self.instance, *self.flags, "--command", "bash -s"]
         r = None
         for i in range(retries):
             try:
@@ -75,7 +76,7 @@ class Remote:
         return r
 
     def put(self, local: str, remote: str):
-        cmd = [self.gcloud, "compute", "scp", *self.where, local, f"{self.where[0]}:{remote}"]
+        cmd = [self.gcloud, "compute", "scp", *self.flags, local, f"{self.instance}:{remote}"]
         for i in range(3):
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode == 0:
