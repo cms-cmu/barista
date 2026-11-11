@@ -13,7 +13,8 @@ barista GitLab Pages site ("cupping notes", docs/prod/).
 Typical session (from the barista root on your laptop):
 
     roast init                                   # once: ~/.config/roast/config.json
-    roast proxy                                  # voms-proxy-init on cmslpc (weekly); --check to see time left
+    roast proxy                                  # voms-proxy-init on cmslpc (weekly), copied to the other hosts;
+                                                 # --check to see time left, --push to only copy
     roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,D,F
     roast checkout <id>                          # isolated trees on cmslpc + falcon
     roast submit   <id> --step B --dry-run       # plan only
@@ -73,11 +74,10 @@ def ssh_opts(target: str = "") -> list[str]:
     or ~/.ssh/config. Overriding ControlPath breaks their existing authentication.
     For standard hosts (cmslpc, falcon), multiplexing into ~/.ssh/roast-cm-%C is enabled.
     """
-    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
-            "-o", "HostName=%h"]
-    if target and ("bridges2" in target or "psc.edu" in target):
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR"]
+    if target and ("bridges2" in target or "psc.edu" in target or "delta" in target or "ncsa.illinois.edu" in target):
         return opts
-    return [*opts, "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+    return [*opts, "-o", "HostName=%h", "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
 
 
@@ -120,12 +120,19 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
     {
         "match": "closure_summary.html",
         "tag": "Stage F.2",
-        "title": "Two-Stage Closure Summary",
-        "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+        "title": "Two-Stage Closure Summary (SvB_MA)",
+        "desc": "Master closure verdict dashboard with interactive SR/SB toggle (SvB_MA)",
+    },
+    {
+        "match": "summary_SvB.html",
+        "tag": "Stage F.2",
+        "title": "Two-Stage Closure Summary (SvB)",
+        "desc": "Two-stage closure verdict dashboard with interactive SR/SB toggle (SvB)",
     },
     {
         "match": "summary.html",
         "path_contains": "bkg_syst_F_4_stats_mixeddata",
+        "path_excludes": "rebin",
         "tag": "Stage F.4",
         "title": "MixedData Unblinded Stats Summary",
         "desc": "Statistical inference & limits on unblinded mixed data",
@@ -135,12 +142,13 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
         "path_contains": "bkg_syst_F_3_stats",
         "path_excludes": "rebin",
         "tag": "Stage F.3",
-        "title": "Standard Stats Summary (Master)",
+        "title": "Standard Stats Summary",
         "desc": "Master multi-rebin statistical inference on standard dataset",
     },
     {
         "match": "summary.html",
-        "path_contains": ["stat_analysis", "phasef"],
+        "path_contains": ["phasef_2", "phasef", "stat_analysis"],
+        "path_excludes": ["bkg_syst", "rebin"],
         "tag": "Phase F.2",
         "title": "Statistical Analysis Summary",
         "desc": "Expected limits, significance, and likelihood scan overview",
@@ -239,6 +247,12 @@ DEFAULT_CONFIG = {
             "ssh": "<user>@bridges2.psc.edu",
             "prod_root": "/ocean/projects/phy260026p/<user>/{analysis}/prod",
             "reference": "/ocean/projects/phy260026p/<user>/{analysis}/barista",
+            "cores": 16,
+        },
+        "delta": {
+            "ssh": "<user>@delta",
+            "prod_root": "/projects/bjsv/<user>/workingArea/{analysis}/prod",
+            "reference": "/projects/bjsv/<user>/workingArea/HH4b/barista",
             "cores": 16,
         },
         "nautilus": {
@@ -585,6 +599,14 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "ssh": f"{user}@bridges2.psc.edu",
             "prod_root": f"/ocean/projects/phy260026p/{user}/HH4b/prod",
             "reference": f"/ocean/projects/phy260026p/{user}/HH4b/barista",
+            "cores": 16,
+        }
+    if host == "delta" and "delta" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "ssh": f"{user}@delta",
+            "prod_root": f"/projects/bjsv/{user}/workingArea/HH4b/prod",
+            "reference": f"/projects/bjsv/{user}/workingArea/HH4b/barista",
             "cores": 16,
         }
     try:
@@ -1014,6 +1036,11 @@ def cmd_init(args) -> None:
         cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
         cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/prod"
         cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/barista"
+    if getattr(args, "delta_user", None):
+        u = args.delta_user
+        cfg["hosts"]["delta"]["ssh"] = f"{u}@delta"
+        cfg["hosts"]["delta"]["prod_root"] = f"/projects/bjsv/{u}/workingArea/{{analysis}}/prod"
+        cfg["hosts"]["delta"]["reference"] = f"/projects/bjsv/{u}/workingArea/HH4b/barista"
     if args.cern_user:
         u = args.cern_user
         cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/{{analysis}}/prod"
@@ -1243,6 +1270,10 @@ def cmd_validate(args) -> None:
 
 def cmd_new(args) -> None:
     cfg = load_config()
+    if getattr(args, "cmslpc", False):
+        # no GPU on cmslpc: the C/D trainings and evaluations go to ORCHARD
+        args.train_on = args.train_on or "orchard"
+        args.eval_on = getattr(args, "eval_on", None) or "orchard"
     config_src = Path(args.config)
     if not config_src.exists():
         die(f"config file {config_src} not found")
@@ -1305,10 +1336,17 @@ def cmd_new(args) -> None:
         if ph not in wf_phases:
             die(f"unknown phase '{ph}'; known: {','.join(sorted(wf_phases))}")
         host, smk = wf_phases[ph]
-        if getattr(args, "bridges2", False) and host == "falcon":
+        if getattr(args, "delta", False) and host == "falcon":
+            host = "delta"
+        elif getattr(args, "bridges2", False) and host == "falcon":
             host = "bridges2"
         elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
+        elif getattr(args, "cmslpc", False) and host == "falcon":
+            if ph in CMSLPC_GPU_PHASES_REFUSED:
+                die(f"--cmslpc: phase {ph} has GPU rules besides train/evaluate ({CMSLPC_GPU_PHASES_REFUSED[ph]}); "
+                    f"leave it on falcon (give --step falcon:<snakefile> for it, or drop --cmslpc)")
+            host = "cmslpc"
         steps.append({"name": ph, "host": host, "snakefile": smk, "targets": "", "extra": ""})
     for spec in args.step or []:
         # host:snakefile[:targets]
@@ -1409,6 +1447,8 @@ def cmd_new(args) -> None:
         "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
         **({"workflow": args.workflow} if getattr(args, "workflow", None) else {}),
+        **({"train_on": args.train_on} if getattr(args, "train_on", None) else {}),
+        **({"eval_on": args.eval_on} if getattr(args, "eval_on", None) else {}),
         **({"workflow_file": str(args.workflow_file)} if getattr(args, "workflow_file", None) else {}),
         "hosts": {},
         "publish": {},
@@ -1727,6 +1767,24 @@ def _tmux_session(r: dict | None = None) -> str:
     return f"roast_{clean}"
 
 
+TRAIN_HOSTS = ("orchard",)
+# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
+CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}
+
+
+def train_host_setting(r: dict) -> str:
+    """` train_host=<host>` / ` eval_host=<host>` for the snakemake --config of a roast whose classifier
+    trainings / evaluations run elsewhere (`roast new --train-on orchard --eval-on orchard`):
+    src/classifier/workflow/Snakefile then swaps its `train` / `evaluate` rules for ones that run there,
+    and the rest of the step stays on its own host."""
+    out = ""
+    for key, setting in (("train_on", "train_host"), ("eval_on", "eval_host")):
+        t = r.get(key) or ""
+        if t in TRAIN_HOSTS:
+            out += f" {setting}={shlex.quote(t)}"
+    return out
+
+
 def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: str, resume: bool,
                 targets: str = "") -> str:
     """The bash script that runs one step inside its tmux window."""
@@ -1745,6 +1803,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     # (from the manifest) and whose production area to write into (from ~/.config/roast/config.json).
     # More name=value pairs are safe here; a bare target is not, hence tgts above.
     settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
+    settings += train_host_setting(r)
     base = (f"./run_container snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
             f"--cores {cores} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
@@ -1784,6 +1843,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
                 break
             fi
         done
+        [ -s proxy/x509_proxy ] && export X509_USER_PROXY="${{PWD}}/proxy/x509_proxy"
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
@@ -2048,9 +2108,23 @@ def _submit(args, resume: bool) -> None:
                     info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
                     target_step = c4_name
 
+    for key, what in (("train_on", "trainings"), ("eval_on", "evaluations")):
+        if getattr(args, key, None):
+            new = "" if getattr(args, key) == "host" else getattr(args, key)
+            if (r.get(key) or "") != new:
+                r[key] = new
+                log_event(r, key, host=new or "step host")
+                save_roast(r)
+                where = new or "each step's own host"
+                info(f"classifier {what} of {r['id']} now run on {where}")
     step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
+    if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
+        die(f"--train-on/--eval-on orchard need a driver that can reach ORCHARD with gcloud; step {step['name']} runs "
+            f"on Nautilus. Use falcon or cmslpc for this step, or `--train-on host --eval-on host`")
+    if host == "cmslpc" and step["name"] in ("C", "D") and not (r.get("train_on") and r.get("eval_on")):
+        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard`")
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
@@ -2315,17 +2389,135 @@ def cmd_attach(args) -> None:
     os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, tmux])
 
 
+def _proxy_install_script(paths: list[str], seconds_left: int = 0) -> str:
+    """Bash that installs the grid proxy arriving on stdin at each of `paths` (bash words).
+
+    A copy that outlives the incoming proxy (`seconds_left`) is kept: someone made a fresher one
+    on that host, and the weekly push must not shorten it.
+
+    A path under a directory that does not exist is skipped rather than created: a missing
+    reference tree means the host is not set up, and a stray proxy/ there would only mislead.
+    rm before cp: a checkout's proxy/x509_proxy can be a hard link into the reference tree.
+    """
+    return f"""
+        set -e; umask 077
+        t=$(mktemp); trap 'rm -f "$t"' EXIT; cat > "$t"
+        [ -s "$t" ] || {{ echo "empty proxy on stdin" >&2; exit 4; }}
+        n=0
+        for p in {" ".join(paths)}; do
+            d=$(dirname "$p")
+            [ -d "$(dirname "$d")" ] || {{ echo "skipped $p (no $(dirname "$d"))"; continue; }}
+            if [ {int(seconds_left)} -gt 0 ] && [ -s "$p" ] && openssl x509 -noout -checkend {int(seconds_left)} -in "$p" >/dev/null 2>&1; then
+                echo "kept $p (longer-lived than the incoming proxy)"; n=$((n+1)); continue
+            fi
+            mkdir -p "$d" && rm -f "$p" && cp "$t" "$p" && chmod 600 "$p" && echo "wrote $p" && n=$((n+1))
+        done
+        [ "$n" -gt 0 ]
+    """
+
+
+def _proxy_transport(host: str, hc: dict) -> tuple[list[str] | None, list[str]]:
+    """(command prefix that runs one bash script argument on `host`, proxy paths there).
+
+    Three kinds of host: ssh (cmslpc, falcon, bridges2, ...), a Google Cloud VM reached with
+    `gcloud compute ssh` through IAP (CMU ORCHARD: {"gcloud": {"instance", "zone", "project"}}),
+    and Nautilus, where the proxy lives on CephFS and is written through the storage-helper pod.
+    Every ssh-like host gets ~/.roast/x509_proxy (what the launchers and EOS commands look for)
+    and <reference>/proxy/x509_proxy (what run_container binds); Nautilus has no home.
+    """
+    ref = hc.get("reference")
+    ref_proxy = [rq(f"{ref.rstrip('/')}/proxy/x509_proxy")] if ref else []
+    if "gcloud" in hc:
+        g = hc["gcloud"]
+        cmd = ["gcloud", "compute", "ssh", g["instance"], "--tunnel-through-iap", "--quiet"]
+        for k in ("zone", "project"):
+            if g.get(k):
+                cmd += [f"--{k}", g[k]]
+        return [*cmd, "--command"], ['"$HOME/.roast/x509_proxy"', *ref_proxy]
+    if "ssh" in hc:
+        target = resolve_ssh(hc)
+        return ["ssh", *ssh_opts(target), target], ['"$HOME/.roast/x509_proxy"', *ref_proxy]
+    if host == "nautilus" or "namespace" in hc:
+        return [*k8s_cmd("exec", "-i", "storage-helper", "-n", hc.get("namespace", "cms-cmu"), "--", "sh", "-c"), None], ref_proxy
+    return None, []
+
+
+def _proxy_run(prefix: list, script: str, input: bytes | None = None) -> subprocess.CompletedProcess:
+    """Run a bash script through a transport from _proxy_transport, bytes in and out."""
+    if prefix[-1] is None:      # kubectl exec: the script is its own argv entry, no remote shell to quote for
+        cmd = [*prefix[:-1], script]
+    else:                       # ssh and gcloud hand one string to the remote login shell
+        cmd = [*prefix, f"bash -c {shlex.quote(script)}"]
+    try:
+        return subprocess.run(cmd, input=input, capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return subprocess.CompletedProcess(cmd, 255, b"", str(e).encode())
+
+
+def _proxy_push(cfg: dict, source: str, only: list[str] | None = None) -> int:
+    """Copy the shared proxy on `source` to every configured host (on `source` itself that fills
+    <reference>/proxy). Returns the number of hosts that did not get it; an unreachable host is
+    reported, not fatal -- the others still do."""
+    src_prefix, _ = _proxy_transport(source, host_cfg(cfg, source))
+    got = _proxy_run(src_prefix, f"cat {SHARED_PROXY}")
+    left = _proxy_hours_left(got.stdout)
+    if got.returncode != 0 or left <= 0:
+        die(f"no valid proxy at {SHARED_PROXY} on {source} "
+            f"({got.stderr.decode(errors='replace').strip() or 'expired or absent'}); run `{TOOL} proxy` first")
+    hosts = [h for h in cfg["hosts"] if not only or h in only]
+    for h in only or []:
+        if h not in cfg["hosts"]:
+            die(f"host '{h}' not in {CONFIG_PATH}")
+    failed = 0
+    print(f"grid proxy from {source}: {left:.0f} h left")
+    for host in hosts:
+        prefix, paths = _proxy_transport(host, cfg["hosts"][host])
+        if prefix is None or not paths:
+            print(f"  {host:10s} skipped (no ssh, gcloud or namespace in its config)")
+            continue
+        res = _proxy_run(prefix, _proxy_install_script(paths, int(left * 3600)), input=got.stdout)
+        out = res.stdout.decode(errors="replace").strip().splitlines()
+        if res.returncode == 0:
+            print(f"  {host:10s} ok      " + "; ".join(out))
+        else:
+            failed += 1
+            err = (res.stderr.decode(errors="replace").strip().splitlines() or out or ["no output"])[-1]
+            print(f"  {host:10s} FAILED  {err}")
+    return failed
+
+
+def _proxy_check_others(cfg: dict, source: str) -> None:
+    """Time left on the copies `roast proxy` distributes."""
+    for host, hc in cfg["hosts"].items():
+        if host == source:
+            continue
+        prefix, paths = _proxy_transport(host, hc)
+        if prefix is None or not paths:
+            continue
+        print(f"{host}:")
+        for p in paths:
+            res = _proxy_run(prefix, f"cat {p} 2>/dev/null")
+            left = _proxy_hours_left(res.stdout)
+            state = f"{left:.0f} h left" if left > 0 else ("expired or absent" if res.returncode in (0, 1) else "unreachable")
+            print(f"  {state:18s} {p}")
+
+
 def cmd_proxy(args) -> None:
-    """Create (interactively) or check the grid proxy on a host.
+    """Create (interactively) or check the grid proxy, and copy it to the other hosts.
 
     voms-proxy-init writes /tmp/x509up_u<uid>, which every roast launcher copies into its
     checkout's proxy/x509_proxy.  On LPC /tmp is node-local while the gateway is round-robin, so
     the proxy you just made is often on a different node from the roast you want to use it for.
     A copy therefore goes to ~/.roast/x509_proxy, which is on shared home and readable from
     whichever node a roast was pinned to.
+
+    That copy is then pushed to every other host in the config (falcon, bridges2, Nautilus,
+    ORCHARD, ...): most of them have no VOMS client or no certificate, and a GPU training that
+    reads EOS with a week-old proxy fails hours in.  --push only copies; --no-push only creates.
     """
     cfg = load_config()
     target = resolve_ssh(host_cfg(cfg, args.host))
+    only = [h for h in (args.to or "").split(",") if h] or None
     if args.check:
         res = ssh_run(target, f"echo -n 'node '; hostname -s; "
                               f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
@@ -2341,14 +2533,21 @@ def cmd_proxy(args) -> None:
             left = where.get(k, "none")
             pretty = f"{int(left)//3600} h left" if left.isdigit() and int(left) > 0 else "expired or absent"
             print(f"  {k:7s} {pretty}" + (f"   ({SHARED_PROXY}, readable from every node)" if k == "shared" else "   (/tmp, this node only)"))
+        _proxy_check_others(cfg, args.host)
         return
-    # the copy is part of the same command: os.execvp hands the terminal to ssh for the passphrase,
-    # so there is no second round trip to do it in
-    cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
-           f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
-           f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
-    info(f"ssh -t {target} {cmd}")
-    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
+    if not args.push:
+        cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+               f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
+               f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
+        info(f"ssh -t {target} {cmd}")
+        # not BatchMode/multiplexed-only: the terminal goes to ssh for the certificate passphrase
+        rc = subprocess.run(["ssh", "-t", *ssh_opts(target), target, cmd]).returncode
+        if rc != 0:
+            die(f"voms-proxy-init on {args.host} failed (exit {rc}); nothing copied", rc)
+        if args.no_push:
+            return
+    if _proxy_push(cfg, args.host, only):
+        die(f"some hosts did not get the proxy; fix the access and rerun `{TOOL} proxy --push`")
 
 
 def cmd_pull(args) -> None:
@@ -2959,7 +3158,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             # claims are reported too: they belong to a roast this checkout cannot see.
             f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
-    elif host in ("falcon", "bridges2"):
+    elif host in ("falcon", "bridges2", "delta"):
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
             f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
@@ -4251,6 +4450,17 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         if is_featured:
             continue
 
+        # Skip redundant single-region or redundant primary classifier summaries if closure_summary.html exists
+        if filename in ("closure_summary_SR.html", "closure_summary_SB.html",
+                        "summary_SvB_MA_SR.html", "summary_SvB_MA_SB.html",
+                        "summary_SvB_SR.html", "summary_SvB_SB.html"):
+            continue
+        if filename == "summary_SvB_MA.html" and any("closure_summary.html" in page for page in pages):
+            continue
+        # Skip sub-rebin detail summaries from top-level featured cards (master summary.html covers them)
+        if filename == "summary.html" and "rebin" in lower_p:
+            continue
+
         # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
         if filename.endswith(".html") and any(k in lower_p for k in ("summary", "dashboard", "crosscheck")) and not filename.startswith("dask-report") and p_esc not in seen_gallery_urls:
             clean_title = filename.removesuffix(".html").replace("_", " ").title()
@@ -4976,7 +5186,7 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
@@ -4994,7 +5204,14 @@ def main(argv=None) -> None:
     s.add_argument("--notes", help="free text for the cupping notes")
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
+    s.add_argument("--delta", action="store_true", help="run GPU phases (C, D, BKG_C) on NCSA Delta instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
+    s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s); "
+                                                          "the rest of each step stays on its host (falcon/cmslpc)")
+    s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
+    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D) on cmslpc instead of Falcon, with their "
+                                                        "trainings and evaluations on ORCHARD (implies --train-on and "
+                                                        "--eval-on orchard)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
     s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
     s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
@@ -5014,11 +5231,19 @@ def main(argv=None) -> None:
                                          "be swallowed by --config). resume reuses the last real run's targets")
         s.add_argument("-n", "--dry-run", action="store_true", help="snakemake -n: show the plan, run nothing")
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
+        s.add_argument("--train-on", choices=(*TRAIN_HOSTS, "host"), help="change where this roast's classifier trainings "
+                                                                        "run (saved): orchard, or host = the step's own host")
+        s.add_argument("--eval-on", choices=(*TRAIN_HOSTS, "host"), help="same for the classifier evaluations")
         s.set_defaults(func=fn)
 
-    s = sub.add_parser("proxy", help="voms-proxy-init on a host (interactive), or --check its time left")
-    s.add_argument("--host", default="cmslpc"); s.add_argument("--valid", default="168:00", help="hours:minutes (default 168:00)")
-    s.add_argument("--check", action="store_true")
+    s = sub.add_parser("proxy", help="voms-proxy-init on a host (interactive) and copy the proxy to the "
+                                     "other hosts, or --check the time left everywhere")
+    s.add_argument("--host", default="cmslpc", help="where the proxy is created (default cmslpc)")
+    s.add_argument("--valid", default="168:00", help="hours:minutes (default 168:00)")
+    s.add_argument("--check", action="store_true", help="show the time left on every host, change nothing")
+    s.add_argument("--push", action="store_true", help="do not create a proxy: copy the existing one to the other hosts")
+    s.add_argument("--no-push", action="store_true", help="create the proxy on --host only")
+    s.add_argument("--to", metavar="HOST[,HOST]", help="copy to these hosts only (default: every other host in the config)")
     s.set_defaults(func=cmd_proxy)
 
     s = sub.add_parser("log", help="show, follow or summarise a step's log (no tmux needed)")

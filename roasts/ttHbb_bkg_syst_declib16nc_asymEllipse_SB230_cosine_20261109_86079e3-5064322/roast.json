@@ -1,0 +1,647 @@
+{
+  "id": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322",
+  "label": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine",
+  "analysis": "ttHbb",
+  "created": "2026-11-09 18:04:19",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "86079e3c01a8cb25fb03c9c3efde6d119dc3d72f",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "50643224a7eafb86f2f84088b70d8ad2e00902b4",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine.yml",
+    "captured": "config.yml",
+    "sha256": "34c29b0539d37327ec35f47746294f52282fea51b112e88fea1124b1c16edf0f",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc.yml",
+        "sha256": "7b9e0d9d2570e62ec29c726f1db057bda41ba953149ff049ee5486c99cf26147"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 11,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "barista": "3ab83026785c9e59203bb5d9fa426e83a828786d",
+        "coffea4bees": "b2d2dec126049807fe4bacb340b34f09022dc49b",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276",
+        "barista": "4c068ae5218261d6ea90f0993812f6cda37774d8",
+        "coffea4bees": "d3dd2760faf0cf018cc792a9c0037aed3930e425",
+        "eos": "root://cmseos.fnal.gov//store/user/smurthy/ttHbb/ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_20261107_bkg_syst_declib16nc_asymEllipse_SB230_3a7d3eb-d3dd276",
+        "barista": "3a7d3ebf214340bcba6fcd5aea23f7b5aa84da76",
+        "coffea4bees": "d3dd2760faf0cf018cc792a9c0037aed3930e425",
+        "eos": "root://cmseos.fnal.gov//store/user/smurthy/ttHbb/ttHbb_20261107_bkg_syst_declib16nc_asymEllipse_SB230_3a7d3eb-d3dd276",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16nc_multijet.yml",
+        "roast": "declib16nc_run2_20261003_3ab8302-b2d2dec"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}PhaseB_1_computeJCM/histAll_NoJCM.coffea",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "nominal_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}PhaseF_1_analysis/histAll_ttHbb.coffea",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "SvB_MA": {
+        "url": "{roast:nominal}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "SvB_MA_model": {
+        "url": "{roast:nominal}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_20261106_asymEllipse_SB230_4c068ae-d3dd276"
+      },
+      "input_handoff_eos": {
+        "url": "{roast:pre_fvt}/handoff",
+        "roast": "ttHbb_20261107_bkg_syst_declib16nc_asymEllipse_SB230_3a7d3eb-d3dd276"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-09 18:09:26",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-asymellip-d19846-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "6289c2baaca0"
+        },
+        {
+          "ts": "2026-11-09 18:10:46",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-asymellip-d19846-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "6289c2baaca0"
+        },
+        {
+          "ts": "2026-11-09 18:49:00",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-asymellip-d19846-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "7b73c4d745a7"
+        },
+        {
+          "ts": "2026-11-09 18:50:41",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-asymellip-d19846-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "7b73c4d745a7"
+        },
+        {
+          "ts": "2026-11-09 18:53:46",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-asymellip-d19846-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "b410a3e87f1f"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-10 23:31:31",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_C4",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "b410a3e87f1f"
+        },
+        {
+          "ts": "2026-11-10 23:34:11",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_C4",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "b410a3e87f1f"
+        },
+        {
+          "ts": "2026-11-11 08:47:10",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_C4",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-10 23:54:04",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "b410a3e87f1f"
+        },
+        {
+          "ts": "2026-11-10 23:58:06",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        },
+        {
+          "ts": "2026-11-10 23:59:40",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        },
+        {
+          "ts": "2026-11-11 00:33:27",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        },
+        {
+          "ts": "2026-11-11 00:33:51",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        },
+        {
+          "ts": "2026-11-11 08:03:12",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        },
+        {
+          "ts": "2026-11-11 08:03:56",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_86079e3-5064322_BKG_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "34c29b0539d3"
+        }
+      ]
+    }
+  ],
+  "workflow": "bkg_syst",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/barista",
+      "ssh": "algomez@cmslpc343.fnal.gov",
+      "checked_out": "2026-11-09 18:05:48"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/barista",
+      "checked_out": "2026-11-09 18:07:02"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/",
+    "ts": "2026-11-11 11:38:41",
+    "ok": true,
+    "pages": [
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_C_FvT/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary_SB.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary_SR.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SB.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_3_stats/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_4_stats_mixeddata/summary.html",
+      "roasts/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-09 18:04:19",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-09 18:05:48",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-09 18:07:02",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 18:09:26",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 18:10:46",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 18:48:57",
+      "event": "config-edited",
+      "sha256": "7b73c4d745a7"
+    },
+    {
+      "ts": "2026-11-09 18:49:00",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 18:50:41",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 18:53:43",
+      "event": "config-edited",
+      "sha256": "b410a3e87f1f"
+    },
+    {
+      "ts": "2026-11-09 18:53:46",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-10 23:31:31",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 23:34:11",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 23:54:04",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 23:58:06",
+      "event": "config-edited",
+      "sha256": "34c29b0539d3"
+    },
+    {
+      "ts": "2026-11-10 23:58:06",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 23:59:40",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 00:33:27",
+      "event": "resume",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 00:33:51",
+      "event": "resume",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 07:02:40",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-11 07:04:49",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-11 07:05:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 08:03:12",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 08:03:56",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 08:41:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 08:47:10",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 09:11:42",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 09:15:26",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 09:46:10",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 11:38:41",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "ttHbb_bkg_syst",
+  "publish_rules": {
+    "exclude": [
+      "*_test",
+      "*_test/*",
+      "*dask-report*",
+      "*/performance",
+      "*/performance/*",
+      "output/*/logs",
+      "output/*/logs/*",
+      "output/*/*/logs",
+      "output/*/*/logs/*",
+      "output/*/inputs",
+      "output/*/inputs/*"
+    ]
+  },
+  "archive_rules": {
+    "exclude": [
+      "*_test",
+      "*_test/*",
+      "*dask-report*",
+      "*/performance",
+      "*/performance/*",
+      "*/singlefiles",
+      "*/singlefiles/*",
+      "output/*/logs",
+      "output/*/logs/*",
+      "output/*/*/logs",
+      "output/*/*/logs/*",
+      "output/*/inputs",
+      "output/*/inputs/*"
+    ]
+  },
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322",
+    "ts": "2026-11-11 09:46:10",
+    "ok": true
+  }
+}

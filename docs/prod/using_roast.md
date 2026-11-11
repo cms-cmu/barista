@@ -41,8 +41,9 @@ in that file:
 You also need a grid proxy on the LPC, renewed about weekly:
 
 ```bash
-bin/roast proxy            # voms-proxy-init on cmslpc
-bin/roast proxy --check    # how much time is left, on this node and on shared home
+bin/roast proxy            # voms-proxy-init on cmslpc, then copy the proxy to the other hosts
+bin/roast proxy --check    # how much time is left: on this node, on shared home, on the other hosts
+bin/roast proxy --push     # no new proxy: copy the existing one again (--to falcon,orchard for some)
 ```
 
 `voms-proxy-init` writes into `/tmp`, which on the LPC belongs to one interactive node, while
@@ -50,6 +51,18 @@ the login alias is round-robin. The proxy you just made is therefore often not o
 given roast is pinned to, which shows up later as CERN EOS answering "unauthorized identity"
 even though you have a valid proxy. `roast proxy` also drops a copy in `~/.roast/x509_proxy`
 on shared home, and the commands that reach EOS take whichever copy still has time left.
+
+The other machines (falcon, Bridges-2, Nautilus, ORCHARD) have no VOMS client or no certificate,
+so `roast proxy` then copies that proxy to every other host in `hosts`: to `~/.roast/x509_proxy`
+and to `<reference>/proxy/x509_proxy`, which `run_container` binds (on Nautilus, only the latter,
+through the storage-helper pod). A host that cannot be reached is reported and the rest still get
+it; `--no-push` keeps the proxy on the LPC. A host reached with `gcloud compute ssh` instead of
+ssh, such as CMU ORCHARD, is declared with a `gcloud` block:
+
+```json
+"orchard": {"gcloud": {"instance": "orchard-login-001", "zone": "us-central1-c", "project": "cmu-gpu-cloud"},
+            "reference": "~/barista"}
+```
 
 For looking at histograms locally, see [Local pourover](#local-pourover) below, which
 needs a one-time virtual environment.
@@ -132,9 +145,84 @@ Phases map to machines the way the
 
 | Phase | A | B | C | D | E | F |
 |---|---|---|---|---|---|---|
-| runs on | cmslpc | cmslpc | falcon / nautilus | falcon / nautilus | cmslpc | cmslpc |
+| runs on | cmslpc | cmslpc | falcon / nautilus / cmslpc¹ | falcon / nautilus / cmslpc¹ | cmslpc | cmslpc |
+
+¹ with `--cmslpc`: the GPU work of C and D then runs on CMU ORCHARD, see below.
 
 Passing `--nautilus` to `bin/roast new` maps the GPU phases (`C`, `D`, `BKG_C`) to run as Kubernetes Jobs on the **NRP Nautilus** cluster instead of Falcon (see [Using roast on Nautilus](using_roast_nautilus.md)).
+
+### GPU training and evaluation on CMU ORCHARD
+
+The classifier trainings and evaluations of a roast can run on the CMU ORCHARD H100s while the rest
+of every step stays on its usual host. A nominal Run-3 2025 FvT trains in 2 h 08 min there, against
+3 h 10 min on a falcon MPS share. How it works, and the cluster itself:
+[Classifier training on the CMU ORCHARD cluster](../software/orchard.md).
+
+```bash
+# trainings (and evaluations) on ORCHARD, the rest of C/D on falcon
+bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F \
+    --train-on orchard --eval-on orchard
+# no falcon: C and D on cmslpc, their trainings and evaluations on ORCHARD
+bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --cmslpc
+# switch an existing roast (saved in roast.json; `host` switches back)
+bin/roast submit <id> --step C --train-on orchard --eval-on orchard
+```
+
+Then `checkout`, `submit`, `status` and `resume` as for any roast. The step's Snakemake gets
+`train_host=orchard` / `eval_host=orchard`; its `train` / `evaluate` rules are replaced by local
+rules that run `software/orchard/remote_train.py` on the step's host. That script ships the code,
+submits the job on ORCHARD with the models and friend trees going to the roast's EOS paths, waits,
+and copies `train.log` and `yields_loaded.json` back. Everything after (evaluation if it stays local,
+`analyze`, plots, C4, the next phase) is unchanged. BKG_C cannot use `--cmslpc` (its
+`evaluate_synthetic` is a GPU rule of its own); it can use `--train-on orchard` on falcon.
+
+**Before submitting** (each check takes seconds; the rule refuses to start without the first three):
+
+| Check | How | If it fails |
+|---|---|---|
+| The roast's barista sha includes ORCHARD support (master since 2026-11-11, b61f5552) | `git merge-base --is-ancestor b61f5552 <barista sha>` | new roast from an up-to-date tree |
+| gcloud on the step's host, logged in as the Andrew ID | `ssh <host> '~/google-cloud-sdk/bin/gcloud compute ssh orchard-login-001 --zone us-central1-c --project cmu-gpu-cloud --tunnel-through-iap --command hostname'` prints `orchard-login-001` | the owner runs `gcloud auth login <andrew-id>@andrew.cmu.edu --no-launch-browser` there (browser + Duo: not something an agent can do) |
+| A grid proxy with time left on ORCHARD (models and friend trees are written to EOS) | `bin/roast proxy --check` | `bin/roast proxy` (or `--push --to orchard`) |
+| The classifier image on ORCHARD (`/project/community` is wiped every two weeks) | `gcloud compute ssh ... --command 'ls -l /project/community/$USER/barista/images'` | on ORCHARD: `software/orchard/setup_image.sh` (restores from the bucket) |
+
+**Watching it.** The step log shows the ORCHARD side as `[orchard ...]` lines (code shipped, job id,
+completion). The job id is also in `output/<model>/orchard.json` (`orchard_evaluate*.json` for
+evaluations) in the checkout. On ORCHARD the run directory is
+`/project/community/<andrew-id>/barista/runs/<roast-id>__output_<model>[__evaluate]/`, with
+`train.log`, `logs/slurm-<job>.out` and `software/orchard/summarize.sh <run dir>` for wall time and GPU use:
+
+```bash
+gcloud compute ssh orchard-login-001 --zone us-central1-c --project cmu-gpu-cloud --tunnel-through-iap \
+    --command 'squeue -u $USER; tail -5 /project/community/$USER/barista/runs/<run>/train.log'
+```
+
+**Queueing.** The `general` queue runs one job per user at a time (12 h maximum, 5 submitted at
+most; more wait in `remote_train.py`). Trainings of one roast therefore run one after the other on
+ORCHARD; the default 4 h limit backfills within minutes, and a fit that needs longer requeues itself
+and resumes from its last epoch. Evaluations are not checkpointed and are not requeued: give long
+ones `orchard: {eval_time: "8:00:00"}` in the workflow config.
+
+**When something goes wrong:**
+
+* *The step was stopped or the host rebooted while ORCHARD was training.* `bin/roast resume`: the rule
+  finds `orchard.json` and reattaches to the running job (or fetches its result) instead of
+  submitting another. Do not `scancel` it and resubmit by hand, and do not delete its ORCHARD run
+  directory while it runs: two jobs for one model race, and the one that starts second finds the
+  saved models, skips the training and rewrites `result.json` without the training history that
+  `analyze` plots.
+* *`no grid proxy with 4 h left`*, *`no classifier image`*, *`no gcloud on this host`*: the table above.
+* *`ORCHARD has no copy of barista|coffea4bees yet`*: ORCHARD keeps git copies in `~/.orchard_git`
+  and receives only missing commits. If they are lost, rerun once, from a laptop:
+  `python3 software/orchard/remote_train.py --bootstrap` in a barista checkout with coffea4bees.
+  Not on the falcon login node: it kills processes above 60 % CPU or 4 GB
+  (`/usr/local/bin/falcon-watchdog.sh`).
+* *The ORCHARD job failed.* The rule resubmits once (resuming from the last epoch), then fails with
+  the end of `slurm-<job>.out` in the step log; `train.log` is copied into the checkout either way.
+  Once fixed, `bin/roast resume`.
+* *A model must be retrained although it exists on EOS.* The training skips models it finds at the
+  output path: remove them there first.
+* *Maintenance.* ORCHARD is down for announced maintenance on Wednesdays 10:00–14:00; the rule waits
+  up to 2 h for the cluster to answer, then fails, and `resume` picks it up again.
 
 `--phases B,C,D,F` sets up several steps at once; each is submitted separately, and you
 move to the next when the previous one reports `exit=0`. Run `checkout` for each machine

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Transparent Apptainer Wrapper for CVMFS on NCSA Delta (and unprivileged hosts)
+#
+# If /cvmfs/unpacked.cern.ch is already mounted, it passes through to system
+# apptainer. Otherwise, it invokes cvmfsexec to mount the required CVMFS
+# repositories (unpacked.cern.ch, grid.cern.ch, cms.cern.ch) in user space.
+# ==============================================================================
+
+case "$1" in
+    --version|version|-v)
+        exec /usr/bin/apptainer "$@"
+        ;;
+esac
+
+if [ -d "/cvmfs/unpacked.cern.ch" ]; then
+    exec /usr/bin/apptainer "$@"
+fi
+
+# Locate shared or user cvmfsexec
+CVMFSEXEC="/projects/bjsv/software/cvmfsexec/cvmfsexec"
+if [ ! -x "$CVMFSEXEC" ]; then
+    CVMFSEXEC="${HOME}/workingArea/software/cvmfsexec/cvmfsexec"
+fi
+
+if [ -x "$CVMFSEXEC" ]; then
+    CVMFSEXEC_BASE="$(dirname "$CVMFSEXEC")"
+    TMP_CVMFS=$(mktemp -d /tmp/cvmfsexec_XXXXXX)
+    cp -rs "$CVMFSEXEC_BASE"/* "$TMP_CVMFS"/ 2>/dev/null || true
+    rm -rf "$TMP_CVMFS/mnt"
+    trap 'rm -rf "$TMP_CVMFS"' EXIT INT TERM
+    "$TMP_CVMFS/cvmfsexec" unpacked.cern.ch grid.cern.ch cms.cern.ch -- /usr/bin/apptainer "$@"
+    rc=$?
+    rm -rf "$TMP_CVMFS"
+    exit $rc
+fi
+
+# Fallback: if cvmfsexec is not found, try apptainer directly
+echo "[WARNING] CVMFS not mounted and cvmfsexec not found at $CVMFSEXEC. Invoking system apptainer directly." >&2
+exec /usr/bin/apptainer "$@"

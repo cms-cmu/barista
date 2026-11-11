@@ -294,7 +294,15 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
                 split_dir = split_dirs[0]
         impacts_pngs = sorted(glob.glob(os.path.join(split_dir, "*.png"))) if os.path.isdir(split_dir) else []
         if not impacts_pngs:
-            impacts_pngs = sorted(glob.glob(os.path.join(d, "impacts", "*.png")))
+            cands = sorted([p for p in glob.glob(os.path.join(d, "impacts", f"datacard_impacts__{signal}_page*.png")) if not os.path.islink(p)])
+            if cands:
+                impacts_pngs = cands
+            else:
+                cands2 = sorted([p for p in glob.glob(os.path.join(d, "impacts", "impacts_page-*.png")) if not os.path.islink(p)])
+                if cands2:
+                    impacts_pngs = cands2
+                else:
+                    impacts_pngs = sorted([p for p in glob.glob(os.path.join(d, "impacts", "*.png")) if not os.path.islink(p)])
         if not impacts_pngs and shutil.which("pdftoppm"):
             try:
                 subprocess.run(
@@ -424,83 +432,119 @@ tr:hover td { background: #f8fafc; }
 .roast-back-btn:hover { background: #dbeafe; }
 .small { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .sig td:first-child { font-weight: 600; }
+.tabs-container { display: flex; gap: 8px; margin: 12px 0 16px 0; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-wrap: wrap; }
+.rebin-tab-btn { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--fg); transition: all 0.15s ease; }
+.rebin-tab-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: #bfdbfe; }
+.active-tab { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+.rebin-row { cursor: pointer; transition: background-color 0.15s ease; }
+.rebin-row:hover { background-color: var(--accent-soft) !important; }
+.active-row { background-color: var(--accent-soft) !important; font-weight: 500; }
+.active-row td:first-child { border-left: 3px solid var(--accent); }
+.rebin-detail-pane { display: flex; flex-direction: column; gap: 18px; }
 """
 
 
-def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: str | None) -> str:
+def render_header(title: str, stat_dir: str, blind: bool, label: str | None = None) -> str:
     e = html.escape
-    h = [f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>{e(title)}</title><style>{CSS}</style></head><body>",
-         f"<div class='container'>",
-         f"<header><div style='display:flex;align-items:center;gap:12px;'><a href='#' onclick='goBackToRoastIndex(); return false;' class='roast-back-btn'>&larr; Roast Index</a><h1>{e(title)}</h1></div>",
-         f"<div class='meta'>{e(label) + ' &middot; ' if label else ''}<code>{e(stat_dir)}</code> &middot; "
-         + (f"<span class='badge blind'>blinded</span> data_obs = sum of backgrounds (Asimov); \"observed\" numbers are not data"
-            if blind else "<span class='badge ok'>unblinded</span>") + "</div></header>",
-         f"<div class='card'>"]
+    return (
+        f"<header><div style='display:flex;align-items:center;gap:12px;'>"
+        f"<a href='#' onclick='goBackToRoastIndex(); return false;' class='roast-back-btn'>&larr; Roast Index</a>"
+        f"<h1>{e(title)}</h1></div>"
+        f"<div class='meta'>{e(label) + ' &middot; ' if label else ''}<code>{e(stat_dir)}</code> &middot; "
+        + (f"<span class='badge blind'>blinded</span> data_obs = sum of backgrounds (Asimov); \"observed\" numbers are not data"
+           if blind else "<span class='badge ok'>unblinded</span>")
+        + "</div></header>"
+    )
 
-    # ---- overview
-    h.append("<h2>Overview</h2>")
-    h.append("<div class='wrap-table'><table><tr><th class='l'>channel</th><th class='l'>signal</th><th class='l'>variable</th>"
-             "<th>exp. significance</th>" + ("" if blind else "<th>obs. significance</th>") +
-             "<th>exp. 95% CL limit (median)</th><th>&plusmn;1&sigma;</th><th>&plusmn;2&sigma;</th>" + ("" if blind else "<th>obs. limit</th>") +
-             "<th>bkg yield</th><th>signal yield</th><th>S/&radic;B</th><th>likelihood scan (68% CL)</th><th>nuisances</th></tr>")
+
+def render_overview_card(chans: list[dict], blind: bool = True, title: str = "Overview") -> str:
+    e = html.escape
+    h = [
+        f"<div class='card'><h2>{e(title)}</h2>",
+        "<div class='wrap-table'><table><tr><th class='l'>channel</th><th class='l'>signal</th><th class='l'>variable</th>"
+        "<th>exp. significance</th>" + ("" if blind else "<th>obs. significance</th>") +
+        "<th>exp. 95% CL limit (median)</th><th>&plusmn;1&sigma;</th><th>&plusmn;2&sigma;</th>" + ("" if blind else "<th>obs. limit</th>") +
+        "<th>bkg yield</th><th>signal yield</th><th>S/&radic;B</th><th>likelihood scan (68% CL)</th><th>nuisances</th></tr>"
+    ]
     for c in chans:
-        med, one, two = flim(c["limits"])
-        sig = c["significance"] or {}
-        bkg = sum(v for p, v in c["totals"].items() if p != c["signal"])
-        s = c["totals"].get(c["signal"], float("nan"))
+        med, one, two = flim(c.get("limits"))
+        sig = c.get("significance") or {}
+        totals = c.get("totals", {})
+        signal_name = c.get("signal", "")
+        bkg = sum(v for p, v in totals.items() if p != signal_name)
+        s = totals.get(signal_name, float("nan"))
         soverb = s / math.sqrt(bkg) if bkg and not math.isnan(s) else float("nan")
-        sc = c["scan"]
-        h.append(f"<tr class='sig'><td>{e(c['channel'])}</td><td class='l'><code>{e(c['signal'])}</code></td><td class='l'>{e(c['variable'] or '-')}</td>"
-                 f"<td>{fsig(sig.get('expected'))}</td>" + ("" if blind else f"<td>{fsig(sig.get('observed'))}</td>") +
-                 f"<td><b>{med}</b></td><td>{one}</td><td>{two}</td>" + ("" if blind else f"<td>{fnum((c['limits'] or {}).get('obs'), 2)}</td>") +
-                 f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><b>{e(fscan(sc))}</b></td><td>{c['nuisances']}</td></tr>")
+        sc = c.get("scan")
+        h.append(
+            f"<tr class='sig'><td>{e(c.get('channel', ''))}</td><td class='l'><code>{e(signal_name)}</code></td><td class='l'>{e(c.get('variable') or '-')}</td>"
+            f"<td>{fsig(sig.get('expected'))}</td>" + ("" if blind else f"<td>{fsig(sig.get('observed'))}</td>") +
+            f"<td><b>{med}</b></td><td>{one}</td><td>{two}</td>" + ("" if blind else f"<td>{fnum((c.get('limits') or {}).get('obs'), 2)}</td>") +
+            f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><b>{e(fscan(sc))}</b></td><td>{c.get('nuisances', 0)}</td></tr>"
+        )
     h.append("</table></div>")
     h.append("<p class='small'>Limits: AsymptoticLimits on the signal strength r of the listed signal, other signals fixed to 0. "
              "Significance: <code>-M Significance</code>, expected from the Asimov dataset with r = 1. Yields: datacard rates summed over years "
              "(the fit variable's histogram in the SR). Likelihood scan: best-fit r with 68% CL (&plusmn;1&sigma;) interval.</p>")
-    h.append("</div>")  # close overview card
+    h.append("</div>")
+    return "\n".join(h)
 
-    # ---- per channel
-    for c in chans:
-        h.append(f"<div class='card'><h2>{e(c['channel'])} &mdash; <code>{e(c['signal'])}</code></h2>")
-        if c["years"]:
-            h.append("<h3>Datacard yields per year</h3><div class='wrap-table'><table><tr><th class='l'>year</th><th>observation</th>"
-                     + "".join(f"<th>{e(short_proc(p))}</th>" for p in c["processes"]) + "</tr>")
-            for year, card in c["years"].items():
-                h.append(f"<tr><td>{e(year)}</td><td>{fnum(card['observation'])}</td>"
-                         + "".join(f"<td>{fnum(card['rates'].get(p), 2)}</td>" for p in c["processes"]) + "</tr>")
-            h.append(f"<tr><th class='l'>all</th><th>{fnum(c['observation'])}</th>"
-                     + "".join(f"<th>{fnum(c['totals'].get(p), 2)}</th>" for p in c["processes"]) + "</tr></table></div>")
-        if c["limits"]:
-            lim = c["limits"]
-            h.append("<h3>Limits and significance</h3><div class='wrap-table'><table><tr><th class='l'>quantity</th><th>value</th></tr>")
-            for k, lab in (("exp-2", "expected −2σ"), ("exp-1", "expected −1σ"), ("exp0", "expected median"),
-                           ("exp+1", "expected +1σ"), ("exp+2", "expected +2σ"), ("obs", "observed" + (" (Asimov)" if blind else ""))):
-                if k in lim:
-                    h.append(f"<tr><td>95% CL limit, {e(lab)}</td><td>{fnum(lim[k], 3)}</td></tr>")
-            sig = c["significance"] or {}
-            h.append(f"<tr><td>expected significance</td><td>{fsig(sig.get('expected'))}</td></tr>")
-            h.append(f"<tr><td>observed significance{' (Asimov)' if blind else ''}</td><td>{fsig(sig.get('observed'))}</td></tr>")
-            if c["scan"]:
-                sc = c["scan"]
-                h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(sc))}</b></td></tr>")
-            h.append("</table></div>")
-        if c.get("impacts"):
-            top_imps = c["impacts"][:15]
-            h.append("<h3>Top systematic impacts on &Delta;r</h3><div class='wrap-table'><table><tr><th class='l'>nuisance parameter</th><th>impact on r</th><th>type</th></tr>")
-            for imp in top_imps:
-                h.append(f"<tr><td><code>{e(imp['name'])}</code></td><td><b>{imp['impact']:+.4f}</b></td><td>{e(imp['type'])}</td></tr>")
-            h.append("</table></div>")
-        if c["figures"]:
-            h.append("<div class='figs'>")
-            for cap, src in c["figures"].items():
-                h.append(f"<figure><a href='{e(src)}'><img src='{e(src)}' alt='{e(cap)}' loading='lazy'></a><figcaption>{e(cap)}</figcaption></figure>")
-            h.append("</div>")
-        if c["links"]:
-            h.append("<div class='links'>" + " ".join(f"<a href='{e(p)}'>{e(lab)} ↗</a>" for lab, p in c["links"].items()) + "</div>")
-        h.append("</div>")  # close channel card
-    h.append("""
-<script>
+
+def render_channel_card(c: dict, blind: bool = True, header_prefix: str = "") -> str:
+    e = html.escape
+    ch_name = c.get("channel", "")
+    sig_name = c.get("signal", "")
+    h = [f"<div class='card'><h2>{e(header_prefix)}{e(ch_name)} &mdash; <code>{e(sig_name)}</code></h2>"]
+
+    years = c.get("years", {})
+    procs = c.get("processes", [])
+    if years:
+        h.append("<h3>Datacard yields per year</h3><div class='wrap-table'><table><tr><th class='l'>year</th><th>observation</th>"
+                 + "".join(f"<th>{e(short_proc(p))}</th>" for p in procs) + "</tr>")
+        for year, card in years.items():
+            h.append(f"<tr><td>{e(year)}</td><td>{fnum(card.get('observation'))}</td>"
+                     + "".join(f"<td>{fnum(card.get('rates', {}).get(p), 2)}</td>" for p in procs) + "</tr>")
+        totals = c.get("totals", {})
+        h.append(f"<tr><th class='l'>all</th><th>{fnum(c.get('observation'))}</th>"
+                 + "".join(f"<th>{fnum(totals.get(p), 2)}</th>" for p in procs) + "</tr></table></div>")
+
+    lim = c.get("limits")
+    if lim:
+        h.append("<h3>Limits and significance</h3><div class='wrap-table'><table><tr><th class='l'>quantity</th><th>value</th></tr>")
+        for k, lab in (("exp-2", "expected −2σ"), ("exp-1", "expected −1σ"), ("exp0", "expected median"),
+                       ("exp+1", "expected +1σ"), ("exp+2", "expected +2σ"), ("obs", "observed" + (" (Asimov)" if blind else ""))):
+            if k in lim:
+                h.append(f"<tr><td>95% CL limit, {e(lab)}</td><td>{fnum(lim[k], 3)}</td></tr>")
+        sig = c.get("significance") or {}
+        h.append(f"<tr><td>expected significance</td><td>{fsig(sig.get('expected'))}</td></tr>")
+        h.append(f"<tr><td>observed significance{' (Asimov)' if blind else ''}</td><td>{fsig(sig.get('observed'))}</td></tr>")
+        if c.get("scan"):
+            h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(c['scan']))}</b></td></tr>")
+        h.append("</table></div>")
+
+    if c.get("impacts"):
+        top_imps = c["impacts"][:15]
+        h.append("<h3>Top systematic impacts on &Delta;r</h3><div class='wrap-table'><table><tr><th class='l'>nuisance parameter</th><th>impact on r</th><th>type</th></tr>")
+        for imp in top_imps:
+            h.append(f"<tr><td><code>{e(imp.get('name', ''))}</code></td><td><b>{imp.get('impact', 0.0):+.4f}</b></td><td>{e(imp.get('type', ''))}</td></tr>")
+        h.append("</table></div>")
+
+    figs = c.get("figures", {})
+    if figs:
+        h.append("<div class='figs'>")
+        for cap, src in figs.items():
+            h.append(f"<figure><a href='{e(src)}' target='_blank'><img src='{e(src)}' alt='{e(cap)}' loading='lazy'></a><figcaption>{e(cap)}</figcaption></figure>")
+        h.append("</div>")
+
+    links = c.get("links", {})
+    if links:
+        h.append("<div class='links'>" + " ".join(f"<a href='{e(p)}' target='_blank'>{e(lab)} ↗</a>" for lab, p in links.items()) + "</div>")
+
+    h.append("</div>")
+    return "\n".join(h)
+
+
+def render_roast_script() -> str:
+    return """<script>
 function goBackToRoastIndex() {
   if (document.referrer && (document.referrer.includes('index.html') || document.referrer.endsWith('/'))) {
     window.location.href = document.referrer;
@@ -518,8 +562,21 @@ function goBackToRoastIndex() {
   }
   window.location.href = '../index.html';
 }
-</script>
-</div></body></html>""")
+</script>"""
+
+
+def html_page(title: str, stat_dir: str, chans: list[dict], blind: bool, label: str | None) -> str:
+    e = html.escape
+    h = [
+        f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>{e(title)}</title><style>{CSS}</style></head><body>",
+        "<div class='container'>",
+        render_header(title, stat_dir, blind, label),
+        render_overview_card(chans, blind),
+    ]
+    for c in chans:
+        h.append(render_channel_card(c, blind))
+    h.append(render_roast_script())
+    h.append("</div></body></html>")
     return "\n".join(h)
 
 

@@ -18,6 +18,8 @@ import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,7 +112,97 @@ def parse_yields_json(json_path: Path) -> dict:
     return data
 
 
-def parse_fit_quality_json(result_path: Path) -> dict:
+def fetch_remote_file(src_url: str, dst_path: Path) -> bool:
+    """Fetch a remote file (e.g. root://...) using fsspec or xrdcp."""
+    if not src_url.startswith("root://"):
+        if Path(src_url).exists():
+            if str(dst_path.resolve()) != str(Path(src_url).resolve()):
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_url, dst_path)
+            return True
+        return False
+
+    # 1. Try fsspec (Python-native XRootD)
+    try:
+        import fsspec
+        with fsspec.open(src_url, "rb") as fin:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dst_path, "wb") as fout:
+                fout.write(fin.read())
+        if dst_path.exists() and dst_path.stat().st_size > 0:
+            return True
+    except Exception:
+        pass
+
+    # 2. Try xrdcp CLI if available
+    xrdcp_bin = shutil.which("xrdcp")
+    if not xrdcp_bin and os.path.exists("/cvmfs/cms.cern.ch/common/xrdcp"):
+        xrdcp_bin = "/cvmfs/cms.cern.ch/common/xrdcp"
+    if xrdcp_bin:
+        try:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            cmd = [xrdcp_bin, "-s", "-f", src_url, str(dst_path)]
+            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if dst_path.exists() and dst_path.stat().st_size > 0:
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+def locate_or_fetch_result_json(p: Path) -> Path | None:
+    """Locate result.json locally or fetch from remote EOS storage if referenced in train.yml."""
+    if not p.is_dir():
+        return None
+    res_file = p / "result.json"
+    if res_file.exists():
+        return res_file
+    if (p / "models" / "result.json").exists():
+        return p / "models" / "result.json"
+
+    train_yml = p / "wfs" / "train.yml"
+    if train_yml.exists():
+        try:
+            content = train_yml.read_text(encoding="utf-8", errors="replace")
+            m = re.search(r"output:\s*['\"]?(root://[^\s'\"]+|[^\s'\"]+)", content)
+            if m:
+                out_target = m.group(1).rstrip("/")
+                cand = f"{out_target}/result.json"
+                if "{" in out_target:
+                    for cfg_path in (
+                        list(p.glob("../../roasts/*/config.yml"))
+                        + list(p.glob("../../../roasts/*/config.yml"))
+                        + list(Path.cwd().glob("roasts/*/config.yml"))
+                    ):
+                        try:
+                            cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace")
+                            m_fvt = re.search(r"model:\s*['\"]?([^\s'\"]+)", cfg_text)
+                            if m_fvt:
+                                m_tmpl = m_fvt.group(1)
+                                eos_p = "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod"
+                                rid = cfg_path.parent.name
+                                m_url = m_tmpl.replace("{eos_prod}", eos_p)
+                                m_url = m_url.replace("{eos_base}", f"{eos_p}/{rid}")
+                                m_url = m_url.replace("{roast_id}", rid)
+                                m_url = m_url.replace("{label}", p.name)
+                                if m_url.startswith("root://"):
+                                    cand = f"{m_url.rstrip('/')}/result.json"
+                                    break
+                        except Exception:
+                            pass
+                if cand.startswith("root://"):
+                    if fetch_remote_file(cand, p / "result.json"):
+                        return p / "result.json"
+                elif Path(cand).exists():
+                    return Path(cand)
+        except Exception:
+            pass
+
+    return None
+
+
+def parse_fit_quality_json(result_path: Path | None) -> dict:
     """Parse fit quality benchmark (weights health, calibration, closure) from result.json."""
     data = {
         "neg_fraction": None,
@@ -1161,51 +1253,7 @@ def main():
         met_log = parse_analyze_log(p / "analyze.log")
         met_html = parse_analyze_html(p / "plots" / "analyze" / "index.html")
 
-        res_file = p / "result.json"
-        if not res_file.exists() and (p / "models" / "result.json").exists():
-            res_file = p / "models" / "result.json"
-        if not res_file.exists():
-            train_yml = p / "wfs" / "train.yml"
-            if train_yml.exists():
-                try:
-                    content = train_yml.read_text(encoding="utf-8", errors="replace")
-                    m = re.search(r"output:\s*['\"]?(root://[^\s'\"]+|[^\s'\"]+)", content)
-                    if m:
-                        out_target = m.group(1).rstrip("/")
-                        cand = f"{out_target}/result.json"
-                        if "{" in out_target:
-                            # Try to resolve from roast config if inside a roast checkout
-                            for cfg_path in (
-                                list(p.glob("../../roasts/*/config.yml"))
-                                + list(p.glob("../../../roasts/*/config.yml"))
-                                + list(Path.cwd().glob("roasts/*/config.yml"))
-                            ):
-                                try:
-                                    cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace")
-                                    m_fvt = re.search(r"model:\s*['\"]?([^\s'\"]+)", cfg_text)
-                                    if m_fvt:
-                                        m_tmpl = m_fvt.group(1)
-                                        eos_p = "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod"
-                                        rid = cfg_path.parent.name
-                                        m_url = m_tmpl.replace("{eos_prod}", eos_p)
-                                        m_url = m_url.replace("{eos_base}", f"{eos_p}/{rid}")
-                                        m_url = m_url.replace("{roast_id}", rid)
-                                        m_url = m_url.replace("{label}", p.name)
-                                        if m_url.startswith("root://"):
-                                            cand = f"{m_url.rstrip('/')}/result.json"
-                                            break
-                                except Exception:
-                                    pass
-                        if cand.startswith("root://"):
-                            import subprocess
-                            cmd = ["xrdcp", "-s", "-f", cand, str(p / "result.json")]
-                            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            if (p / "result.json").exists():
-                                res_file = p / "result.json"
-                        elif Path(cand).exists():
-                            res_file = Path(cand)
-                except Exception:
-                    pass
+        res_file = locate_or_fetch_result_json(p)
         fq = parse_fit_quality_json(res_file)
         if fq.get("fqs"):
             fq_plot_dir = p / "plots" / "analyze" / "fit_quality"
