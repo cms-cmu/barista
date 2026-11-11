@@ -79,7 +79,7 @@ If the CERN registry does not answer from the cluster, build the same conda envi
 instead (about 10 minutes; it needs the node-local SSD, so it is a job):
 
 ```bash
-sbatch -p general -q general_qos --cpus-per-task=16 --mem=64G --time=2:00:00 \
+sbatch -p general -q general_qos --gres=gpu:1 --cpus-per-task=16 --mem=64G --time=2:00:00 \
        -o build_image-%j.out software/orchard/build_image.sh
 ```
 

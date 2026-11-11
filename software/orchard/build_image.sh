@@ -6,7 +6,7 @@
 # made elsewhere and copied over, e.g. with `roast proxy`).
 #
 # Needs the node-local SSD, so run it as a job from the barista directory:
-#   sbatch -p general -q general_qos --cpus-per-task=16 --mem=64G --time=2:00:00 \
+#   sbatch -p general -q general_qos --gres=gpu:1 --cpus-per-task=16 --mem=64G --time=2:00:00 \
 #          -o build_image-%j.out software/orchard/build_image.sh
 set -euo pipefail
 
@@ -35,6 +35,9 @@ enroot start --root --rw --mount "${ENV_YML}:/tmp/env.yml" barista_build bash -c
     mamba env create -y -f /tmp/env.yml
     mamba clean --all --yes
     printf "%s\n" "eval \"\$(/opt/conda/bin/conda shell.bash hook)\"" "conda activate hep" > /entrypoint.sh
+    # enroot mounts the driver (libcuda) only for images that ask for it, as the CUDA images do
+    grep -q NVIDIA_VISIBLE_DEVICES /etc/environment 2>/dev/null || \
+        printf "NVIDIA_VISIBLE_DEVICES=all\nNVIDIA_DRIVER_CAPABILITIES=compute,utility\n" >> /etc/environment
     . /entrypoint.sh
     python -c "import torch, uproot, awkward, XRootD, fsspec_xrootd; print(\"torch\", torch.__version__, \"cuda build\", torch.version.cuda)"
 '
@@ -43,6 +46,10 @@ rm -f "${IMAGE}.new"
 enroot export --output "${IMAGE}.new" barista_build
 mv -f "${IMAGE}.new" "$IMAGE"
 ls -lh "$IMAGE"
+echo "[orchard] GPU check"
+srun --ntasks=1 --container-image="$IMAGE" --no-container-entrypoint bash -c \
+    'source /entrypoint.sh; python -c "import torch; assert torch.cuda.is_available(), \"no GPU in the container\"; print(torch.cuda.get_device_name(0))"' \
+    || echo "[orchard] WARNING: torch sees no GPU (submit with --gres=gpu:1 to check)"
 if [ -n "$ORCHARD_BUCKET" ]; then
     gcloud storage cp "$IMAGE" "${ORCHARD_BUCKET%/}/images/$(basename "$IMAGE")"
     echo "[orchard] copied to ${ORCHARD_BUCKET%/}/images/"
