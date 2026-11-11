@@ -1016,6 +1016,35 @@ class TestProxyPush(unittest.TestCase):
             roast._proxy_push(cfg, "cmslpc")
 
 
+class TestTrainOn(unittest.TestCase):
+    """`roast new --train-on orchard` moves only the classifier trainings: the step's snakemake gets
+    train_host=orchard and the classifier Snakefile swaps its train rule."""
+
+    def script(self, r):
+        step = r["steps"][0]
+        with patch.object(roast, "user_paths", return_value={}):
+            return roast._run_script(CFG, r, step, "/ck", 4, "", False)
+
+    def test_train_host_reaches_snakemake(self):
+        r = fake_roast(host="falcon", step_name="C")
+        r["train_on"] = "orchard"
+        self.assertIn("train_host=orchard", self.script(r))
+        bash_ok(self.script(r), "run script with train_host")
+
+    def test_default_trains_on_the_step_host(self):
+        r = fake_roast(host="falcon", step_name="C")
+        self.assertNotIn("train_host", self.script(r))
+        r["train_on"] = ""                      # `--train-on host` clears it
+        self.assertNotIn("train_host", self.script(r))
+
+    def test_classifier_snakefile_has_the_orchard_rule(self):
+        smk = (REPO / "src" / "classifier" / "workflow" / "Snakefile").read_text()
+        self.assertIn('if TRAIN_HOST == "orchard":', smk)
+        self.assertIn("ruleorder: train_orchard > train", smk)
+        self.assertIn("software/orchard/remote_train.py", smk)
+        self.assertTrue((REPO / "software" / "orchard" / "remote_train.py").exists())
+
+
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
     """The point of recording `cleaned`: status answers for finished work without a network call."""
 
