@@ -139,9 +139,15 @@ class MultiStepBS(MilestoneStep, BSScheduler):
         from .dataset import simple_loader
 
         if self._dataloader is None or self._dataloader.batch_size != self._bs:
+            # bs_milestones rebuild the loader mid-training; carry the shuffling
+            # epoch counter across so a pinned order does not restart its
+            # permutation sequence at every batch-size step.
+            epoch = getattr(self._dataloader, "_epoch", 0)
             self._dataloader = simple_loader(
                 self.dataset, batch_size=self._bs, **self.kwargs
             )
+            if hasattr(self._dataloader, "_epoch"):
+                self._dataloader._epoch = epoch
         return self._dataloader
 
     def step(self, epoch: int = None):
