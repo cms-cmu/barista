@@ -145,7 +145,7 @@ def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> 
                 cands = sorted({h for h in have if re.fullmatch(r"[0-9a-f]{40}", h)})
                 ok = subprocess.run(["git", "cat-file", "--batch-check"], cwd=d, input="\n".join(cands),
                                     capture_output=True, text=True).stdout.split("\n")
-                basis = [line.split()[0] for line in ok if line.endswith(" commit")]
+                basis = [w[0] for w in (line.split() for line in ok) if len(w) > 1 and w[1] == "commit"]
                 if not basis and not bootstrap:
                     sys.exit(f"[orchard] ORCHARD has no copy of {name} yet: run once, from a laptop (not a login node "
                              f"with a CPU watchdog), `software/orchard/remote_train.py --bootstrap`")
