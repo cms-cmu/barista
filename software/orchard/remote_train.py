@@ -68,10 +68,13 @@ class Remote:
                 r = subprocess.run(cmd, input=script, capture_output=True, text=True, timeout=timeout)
             except subprocess.TimeoutExpired as e:
                 r = subprocess.CompletedProcess(cmd, 255, "", f"timeout after {timeout} s: {e}")
-            # 255: ssh/IAP could not connect; anything else is the script's own exit code
-            if r.returncode != 255:
+            # 255: ssh/IAP could not connect; < 0: gcloud killed here (falcon's login-node watchdog
+            # kills anything above 60 % CPU). Anything else is the script's own exit code.
+            if r.returncode != 255 and r.returncode >= 0:
                 break
             time.sleep(20 * (i + 1))
+        if r.returncode < 0:
+            r = subprocess.CompletedProcess(cmd, 255, r.stdout, r.stderr)
         if check and r.returncode != 0:
             raise RuntimeError(f"remote command failed ({r.returncode}): {r.stderr.strip()[-1500:]}")
         return r
@@ -111,6 +114,63 @@ def code_key(root: Path, repos) -> str:
         h.update(sha.encode())
         h.update(subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout)
     return "-".join(shas) + "-" + h.hexdigest()[:8]
+
+
+GIT_STORE = "$HOME/.orchard_git"     # bare copies of the repositories on ORCHARD (survive the purge)
+REPOS = ((".", "barista"), ("coffea4bees", "coffea4bees"))
+
+
+def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> str:
+    """Make ORCHARD:<proj>/code/<key> hold this checkout's code; return that path.
+
+    ORCHARD cannot clone from gitlab.cern.ch without credentials, and falcon's login node kills any
+    process above 60 % CPU, which rules out compressing the whole tree there. So ORCHARD keeps bare
+    copies of the two repositories in ~/.orchard_git, and only what they lack travels: a git bundle
+    of the missing commits (usually a few KB), and `git diff HEAD` for uncommitted hot patches.
+    The very first copy is a full bundle (~0.7 GB): make it from a laptop with --bootstrap.
+    """
+    key = code_key(root, [d for d, _ in REPOS])
+    code_dir = f"{proj}/code/{key}"
+    if not bootstrap and rem.run(f"test -f {code_dir}/.orchard_code_ok && echo yes || true").stdout.strip() == "yes":
+        return code_dir
+    with tempfile.TemporaryDirectory() as tmp:
+        build = [f"set -e; G={GIT_STORE}; C={code_dir}; rm -rf $C.part; mkdir -p $C.part"]
+        for sub, name in REPOS:
+            d = root / sub
+            sha = git(["rev-parse", "HEAD"], d).strip()
+            have = rem.run(f"G={GIT_STORE}; [ -d $G/{name}.git ] || git init -q --bare $G/{name}.git; "
+                           f"git --git-dir=$G/{name}.git cat-file -e {sha}^{{commit}} 2>/dev/null && echo HAVE || "
+                           f"git --git-dir=$G/{name}.git for-each-ref --format='%(objectname)'").stdout.split()
+            if "HAVE" not in have:
+                basis = [h for h in have if re.fullmatch(r"[0-9a-f]{40}", h) and
+                         subprocess.run(["git", "cat-file", "-e", f"{h}^{{commit}}"], cwd=d, capture_output=True).returncode == 0]
+                if not basis and not bootstrap:
+                    sys.exit(f"[orchard] ORCHARD has no copy of {name} yet: run once, from a laptop (not a login node "
+                             f"with a CPU watchdog), `software/orchard/remote_train.py --bootstrap`")
+                bundle = f"{tmp}/{name}.bundle"
+                subprocess.run(["git", "bundle", "create", "-q", bundle, "HEAD", *[f"^{b}" for b in basis[:50]]],
+                               cwd=d, check=True, capture_output=True)
+                log(f"{name}: sending {os.path.getsize(bundle) / 1e6:.1f} MB of commits ({len(basis)} known refs on ORCHARD)")
+                rem.put(bundle, f"orchard_{name}.bundle")
+                rem.run(f"set -e; G={GIT_STORE}; git --git-dir=$G/{name}.git fetch -q ~/orchard_{name}.bundle "
+                        f"HEAD:refs/orchard/{sha} && rm -f ~/orchard_{name}.bundle", timeout=3600)
+            if bootstrap:
+                continue
+            dst = "$C.part" + ("" if sub == "." else f"/{sub}")
+            build.append(f"mkdir -p {dst} && git --git-dir=$G/{name}.git archive {sha} | tar -x -C {dst}")
+            diff = subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout
+            if diff.strip():
+                Path(f"{tmp}/{name}.diff").write_bytes(diff)
+                rem.put(f"{tmp}/{name}.diff", f"orchard_{name}_{key}.diff")
+                build.append(f"(cd {dst} && git apply --whitespace=nowarn ~/orchard_{name}_{key}.diff) && rm -f ~/orchard_{name}_{key}.diff")
+                log(f"{name}: uncommitted changes applied ({len(diff)} bytes)")
+        if bootstrap:
+            log("repositories copied to ORCHARD:~/.orchard_git")
+            return code_dir
+        build.append("rm -rf $C && mv $C.part $C && touch $C/.orchard_code_ok")
+        rem.run("\n".join(build), timeout=1800)
+    log(f"code {key} ready on ORCHARD:{code_dir}")
+    return code_dir
 
 
 def tracked(root: Path, sub: str) -> list[str]:
@@ -157,11 +217,13 @@ def rel_to_root(p: str, root: Path) -> str:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model-dir", required=True, help="the rule's {model_dir} (local, for orchard.json)")
-    ap.add_argument("--wf", required=True); ap.add_argument("--common", required=True)
-    ap.add_argument("--template", required=True, help="full template string, e.g. 'model: root://...'")
-    ap.add_argument("--log", required=True, help="where the training log is copied (the rule's log)")
-    ap.add_argument("--yields", required=True, help="where yields_loaded.json is copied")
+    ap.add_argument("--bootstrap", action="store_true", help="only copy this checkout's repositories to ORCHARD "
+                                                              "(once, from a laptop) and exit")
+    ap.add_argument("--model-dir", help="the rule's {model_dir} (local, for orchard.json)")
+    ap.add_argument("--wf"); ap.add_argument("--common")
+    ap.add_argument("--template", help="full template string, e.g. 'model: root://...'")
+    ap.add_argument("--log", help="where the training log is copied (the rule's log)")
+    ap.add_argument("--yields", help="where yields_loaded.json is copied")
     ap.add_argument("--label", default="", help="run label on ORCHARD (default: <roast_id>__<model_dir>)")
     ap.add_argument("--roast-id", default="")
     ap.add_argument("--config-paths", default="coffea4bees", help="CLASSIFIER_CONFIG_PATHS")
@@ -176,8 +238,17 @@ def main():
     ap.add_argument("--poll", type=int, default=300, help="seconds between status checks")
     ap.add_argument("--max-unreachable", type=int, default=7200, help="seconds without contact before giving up")
     a = ap.parse_args()
-
     root = Path.cwd()
+    if a.bootstrap:
+        rem = Remote(a)
+        u = rem.run("echo $USER").stdout.strip()
+        rem.bucket = "" if a.bucket == "none" else (a.bucket if a.bucket != "auto" else f"gs://cmu-gpucloud-{u}/barista")
+        ship_code(rem, root, a.orchard_project or "/project/community/$USER/barista", bootstrap=True)
+        return
+    for k in ("model_dir", "wf", "common", "template", "log", "yields"):
+        if not getattr(a, k):
+            ap.error(f"--{k.replace('_', '-')} is required")
+
     model_dir = Path(a.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
     state_file = model_dir / "orchard.json"
@@ -241,21 +312,12 @@ def main():
         return ("TRAIN_DONE " if "TRAIN_DONE" in r.stdout else "") + (r.stdout.split()[0] if r.stdout.split() else "UNKNOWN")
 
     def submit():
-        key = code_key(root, [".", "coffea4bees"])
-        code_dir = f"{proj}/code/{key}"
-        has = rem.run(f"test -f {code_dir}/.orchard_code_ok && echo yes || true").stdout.strip() == "yes"
-        files = tracked(root, ".") + tracked(root, "coffea4bees")
-        known = set(files)
+        key = code_key(root, [d for d, _ in REPOS])
+        code_dir = ship_code(rem, root, proj)
+        known = set(tracked(root, ".") + tracked(root, "coffea4bees"))
         texts = [Path(wf).read_text(), Path(common).read_text(), a.template]
         extra = sorted(set(referenced_files(texts, root, known)) | {wf, common} - known)
         with tempfile.TemporaryDirectory() as tmp:
-            if not has:
-                log(f"shipping the code ({len(files)} files, key {key}) to ORCHARD:{code_dir}")
-                make_tar(root, files, f"{tmp}/code.tgz")
-                rem.put(f"{tmp}/code.tgz", f"orchard_code_{key}.tgz")
-                rem.run(f"set -e; P={proj}; mkdir -p {code_dir}.part && tar xzf ~/orchard_code_{key}.tgz -C {code_dir}.part "
-                        f"&& rm -f ~/orchard_code_{key}.tgz && rm -rf {code_dir} && mv {code_dir}.part {code_dir} "
-                        f"&& touch {code_dir}/.orchard_code_ok", timeout=1800)
             log(f"shipping {len(extra)} workflow file(s): {', '.join(extra[:6])}{' ...' if len(extra) > 6 else ''}")
             make_tar(root, extra, f"{tmp}/wf.tgz")
             rem.put(f"{tmp}/wf.tgz", f"orchard_wf_{label}.tgz")
