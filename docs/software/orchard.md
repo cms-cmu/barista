@@ -106,6 +106,11 @@ software/orchard/submit.sh fvt_run3 coffea4bees/classifier/config/workflows/HH4b
 # scavenger queue: may be killed at any time, resumes from the last completed epoch
 software/orchard/submit.sh --preempt fvt_run3 coffea4bees/classifier/config/workflows/HH4b_Run3/FvT
 
+# shorter limits start much sooner: the scheduler backfills a job only if it ends before the next
+# reserved start, and a 12 h request rarely does. The job requeues itself and resumes, so a fit can
+# run as several short jobs (raise ORCHARD_MAX_RESTARTS, default 6, for many short pieces)
+software/orchard/submit.sh --source none --time 4:00:00 fvt_run3 coffea4bees/classifier/config/workflows/HH4b_Run3/FvT
+
 software/orchard/submit.sh --dry-run ...     # print the sbatch command
 software/orchard/submit.sh -h                # all options
 ```
@@ -149,7 +154,7 @@ therefore loses at most the epoch in progress, plus the staging time.
 |---|---|
 | `xrootd` (default) | `xrdcp` from the URLs in the metadata (FNAL EOS, CMU Tier-3, ...), 16 parallel streams. Needs `proxy/x509_proxy`. |
 | `gcs` | `gcloud storage rsync` from `$ORCHARD_BUCKET/data/<host>/<path>`. No proxy, and fastest from a compute node. |
-| `none` | no staging: read over XRootD during the training, as on the other clusters |
+| `none` | no staging: read over XRootD during the training, as on the other clusters. **Best for HCR trainings**: the loader reads ~20 branches of each picoAOD, so reading 22 M training events remotely takes minutes, while staging the whole files of the 2025 FvT inputs (554 GB) takes ~45 min at the ~200 MB/s measured from FNAL |
 
 To fill the bucket mirror once, so that later jobs (and preempt restarts) do not depend on the grid:
 
