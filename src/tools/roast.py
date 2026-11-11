@@ -131,6 +131,7 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
     {
         "match": "summary.html",
         "path_contains": "bkg_syst_F_4_stats_mixeddata",
+        "path_excludes": "rebin",
         "tag": "Stage F.4",
         "title": "MixedData Unblinded Stats Summary",
         "desc": "Statistical inference & limits on unblinded mixed data",
@@ -140,12 +141,13 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
         "path_contains": "bkg_syst_F_3_stats",
         "path_excludes": "rebin",
         "tag": "Stage F.3",
-        "title": "Standard Stats Summary (Master)",
+        "title": "Standard Stats Summary",
         "desc": "Master multi-rebin statistical inference on standard dataset",
     },
     {
         "match": "summary.html",
-        "path_contains": ["stat_analysis", "phasef"],
+        "path_contains": ["phasef_2", "phasef", "stat_analysis"],
+        "path_excludes": ["bkg_syst", "rebin"],
         "tag": "Phase F.2",
         "title": "Statistical Analysis Summary",
         "desc": "Expected limits, significance, and likelihood scan overview",
@@ -4284,6 +4286,9 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                         "summary_SvB_SR.html", "summary_SvB_SB.html"):
             continue
         if filename == "summary_SvB_MA.html" and any("closure_summary.html" in page for page in pages):
+            continue
+        # Skip sub-rebin detail summaries from top-level featured cards (master summary.html covers them)
+        if filename == "summary.html" and "rebin" in lower_p:
             continue
 
         # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
