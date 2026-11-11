@@ -1,0 +1,264 @@
+{
+  "id": "mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc",
+  "label": "mvd_run3_2025_ftfix",
+  "analysis": "HH4b",
+  "created": "2026-11-07 15:51:47",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "1c7c8db8b8ffa5c4818d6e2aa175f599e12b29a9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "3d65ecc79ab35ae28cfd2ffb46ad142f23d9cee9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/mvd_run3_2025_ftfix.yml",
+    "captured": "config.yml",
+    "sha256": "599ebcf6e9019c5ab44a3ff4946def2637e39de7d2e41a02da45898062c56f7e",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/mvd_run3_2025.yml",
+        "sha256": "3c16ec75734ff5bcb7a0bd6d69a9a71f63a8514b4af0ca104614cac844772375"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2025_20261027_1809191-df306da",
+        "barista": "180919122d0a8351625c13e77a75cb57d855873e",
+        "coffea4bees": "df306da384fda0f3100be2087541b4fc6684d3cd",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_20261027_1809191-df306da",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+        "barista": "cea2f984b4ad0c30b130f2afe98ca7577776a784",
+        "coffea4bees": "6c5c9c3bc1d928ffc7b5f3437d2246565895bec8",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+        "archived": true
+      },
+      {
+        "id": "mvd_run3_2025_20261028_4187034-e2edb1d",
+        "barista": "4187034c70d52cb075012f0e6794ae89b6921022",
+        "coffea4bees": "e2edb1d7d88aa5ca298943c9fda89fe5752d79b2",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_2025_20261028_4187034-e2edb1d",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:mixeddata_run3_2025_20261027_cea2f98-6c5c9c3}/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_run3_2025_20261027_1809191-df306da}/handoff/classifier_inputs_nominal_run3_2025_20261027_1809191-df306da.json",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "classifier_inputs_config": {
+        "url": "{roast:nominal_run3_2025_20261027_1809191-df306da}/output/Run3_2025_nominal/classifier_inputs/classifier_inputs_config.yml",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "JCM": {
+        "url": "{roast:nominal_run3_2025_20261027_1809191-df306da}/handoff/jetCombinatoricModel_SB_Run3_2025_v1.yml",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_run3_2025_20261027_1809191-df306da}/output/Run3_2025_nominal/computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "analysis_config": {
+        "url": "{roast:nominal_run3_2025_20261027_1809191-df306da}/output/Run3_2025_nominal/analysis_config.yml",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "mixed_jcm": {
+        "url": "{roast:mvd_run3_2025_20261028_4187034-e2edb1d}/handoff/jetCombinatoricModel_SB_mixeddata_tight.yml",
+        "roast": "mvd_run3_2025_20261028_4187034-e2edb1d"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "MvD_2_train",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_2_train.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 15:55:14",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-ftfix-698556-mvd-2-trai",
+          "namespace": "cms-cmu",
+          "config_sha256": "599ebcf6e901"
+        }
+      ]
+    },
+    {
+      "name": "MvD",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 22:58:47",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V2c",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2025_ftfix_1c7c8db-3d65ecc_MvD",
+          "ssh": "jda102@cmslpc315.fnal.gov",
+          "config_sha256": "599ebcf6e901"
+        },
+        {
+          "ts": "2026-11-08 03:10:00",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "all_V4",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "mvd_run3_2025_ftfix_1c7c8db-3d65ecc_MvD",
+          "ssh": "jda102@cmslpc315.fnal.gov",
+          "config_sha256": "599ebcf6e901"
+        }
+      ]
+    },
+    {
+      "name": "MvD_3_svb",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_MvD_3_svb.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 22:56:00",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-mvd-run3-2025-ftfix-698556-mvd-3-svb",
+          "namespace": "cms-cmu",
+          "config_sha256": "599ebcf6e901"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/barista",
+      "checked_out": "2026-11-07 15:53:59"
+    },
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/barista",
+      "ssh": "jda102@cmslpc315.fnal.gov",
+      "checked_out": "2026-11-07 22:58:45"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/",
+    "ts": "2026-11-08 21:48:50",
+    "ok": true,
+    "pages": [
+      "output/MvD/plots/analyze/HCR/index_group_1.html",
+      "output/MvD/plots/analyze/index.html",
+      "output/MvD/plots/index.html",
+      "output/MvD/yields.html",
+      "output/SvB_MvD/plots/analyze/HCR/index_group_1.html",
+      "output/SvB_MvD/plots/analyze/index.html",
+      "output/SvB_MvD/plots/index.html",
+      "output/SvB_MvD/yields.html",
+      "output/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/V2c/cutflow_MvD_closure.html",
+      "output/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/V2c/plots_MvD_closure/index.html",
+      "output/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/V4/plots_MvD/index.html",
+      "output/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc/V4/stat_analysis/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-07 15:51:47",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-07 15:53:59",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-07 15:55:14",
+      "event": "submit",
+      "step": "MvD_2_train",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-07 20:55:14",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ]
+    },
+    {
+      "ts": "2026-11-07 22:56:00",
+      "event": "submit",
+      "step": "MvD_3_svb",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-07 22:58:45",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 22:58:47",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-08 03:10:00",
+      "event": "submit",
+      "step": "MvD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-08 21:48:50",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-08 21:49:04",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Run 3 mixed MvD redo (V.2, V.2c, V.3, V.4) with the MvD finetune fix (FinetuneStep lr 1e-4); V.1 from the original MvD roast; era-split evaluations\n2026-11-07: hot patch on the NRP checkout: software/kubernetes/nautilus_submit.py NAUTILUS_EVAL_MEM_GB default 32 -> 64 (8e73987c caps evaluation pods at 32 Gi, too small for the Run 3 HCR evaluations).",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_2025_ftfix_20261107_1c7c8db-3d65ecc",
+    "ts": "2026-11-08 21:49:04",
+    "ok": true
+  }
+}
