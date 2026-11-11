@@ -33,7 +33,7 @@ import sys
 import time
 from pathlib import Path
 
-URL = re.compile(r"root://([A-Za-z0-9.\-]+(?::\d+)?)/(/[^\s\"',\]\}]+)")
+URL = re.compile(r"root://([A-Za-z0-9.\-]+(?::\d+)?)/(/[^\s\"',\]\}@]+)")
 # a repository path inside an option string, optionally followed by @@key
 TOKEN = re.compile(r"(?<![\w./\-:])([A-Za-z0-9_][\w.\-]*(?:/[\w.\-]+)+/?)")
 CONFIG_SUFFIX = (".json", ".yml", ".yaml")
@@ -113,11 +113,13 @@ def cmd_plan(a):
             log(f"remote config staged: {url}")
         return remote_cfg[url]
 
-    def rewrite(text: str) -> str:
+    def rewrite(text: str, known_only: bool = False) -> str:
         def sub(m):
             url = m.group(0)
             if url.endswith(CONFIG_SUFFIX):
-                return str(remote_config(url)) if a.source != "none" else url
+                return str(remote_config(url)) if a.source != "none" and not known_only else url
+            if known_only:  # a metadata directory lists every dataset: stage only what is used
+                return str(urls[url]) if url in urls else url
             if (inc and not inc.search(url)) or (exc and exc.search(url)):
                 return url
             dst = local_path(data, m.group(1), m.group(2))
@@ -126,24 +128,33 @@ def cmd_plan(a):
 
         return URL.sub(sub, text)
 
+    # Files named explicitly (friend-tree JSON, a metadata file, remote configs) select the URLs to
+    # stage. Files that are only reached through a directory (--metadata some/dir/) are rewritten
+    # afterwards, and only for URLs already selected: the friend JSON names every picoAOD it extends.
+    wfs = [(Path(w).resolve(), Path(w).resolve().read_text()) for w in a.workflow]
+    refs = [referenced(text, root) for _, text in wfs]
+    is_dir = lambda tok: (root / tok).is_dir()
+    texts = [rewrite(text) for _, text in wfs]
+    for known_only in (False, True):
+        for r in refs:
+            for tok, files in r.items():
+                if is_dir(tok) != known_only:
+                    continue
+                for src in files:
+                    dst = cfg / src.relative_to(root)
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    dst.write_text(rewrite(src.read_text(), known_only))
     staged_wfs = []
-    for wf in a.workflow:
-        wf = Path(wf).resolve()
-        text = wf.read_text()
-        refs = referenced(text, root)
+    for (wf, _), text, r in zip(wfs, texts, refs):
         # longest tokens first so a directory token never clobbers a longer file token
-        for tok in sorted(refs, key=len, reverse=True):
-            for src in refs[tok]:
-                dst = cfg / src.relative_to(root)
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                dst.write_text(rewrite(src.read_text()))
-            new = str(cfg / tok)
+        for tok in sorted(r, key=len, reverse=True):
+            new = str(cfg / tok) + ("/" if tok.endswith("/") else "")
             text = re.sub(r"(?<![\w./\-:])" + re.escape(tok) + r"(?![\w\-])", lambda _: new, text)
         out = cfg / "workflow" / wf.parent.name / wf.name
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(rewrite(text))
+        out.write_text(text)
         staged_wfs.append(out)
-        log(f"{wf.name}: {len(refs)} referenced config path(s) staged")
+        log(f"{wf.name}: {len(r)} referenced config path(s) staged")
     if not urls:
         log("WARNING: no root:// URLs selected, nothing will be staged (check --include/--exclude)")
     (stage / MANIFEST).write_text("".join(f"{u}\t{p}\n" for u, p in sorted(urls.items())))
