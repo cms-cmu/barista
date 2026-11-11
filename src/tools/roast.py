@@ -119,8 +119,14 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
     {
         "match": "closure_summary.html",
         "tag": "Stage F.2",
-        "title": "Two-Stage Closure Summary",
-        "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+        "title": "Two-Stage Closure Summary (SvB_MA)",
+        "desc": "Master closure verdict dashboard with interactive SR/SB toggle (SvB_MA)",
+    },
+    {
+        "match": "summary_SvB.html",
+        "tag": "Stage F.2",
+        "title": "Two-Stage Closure Summary (SvB)",
+        "desc": "Two-stage closure verdict dashboard with interactive SR/SB toggle (SvB)",
     },
     {
         "match": "summary.html",
@@ -4270,6 +4276,14 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 seen_gallery_urls.add(p_esc)
 
         if is_featured:
+            continue
+
+        # Skip redundant single-region or redundant primary classifier summaries if closure_summary.html exists
+        if filename in ("closure_summary_SR.html", "closure_summary_SB.html",
+                        "summary_SvB_MA_SR.html", "summary_SvB_MA_SB.html",
+                        "summary_SvB_SR.html", "summary_SvB_SB.html"):
+            continue
+        if filename == "summary_SvB_MA.html" and any("closure_summary.html" in page for page in pages):
             continue
 
         # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
