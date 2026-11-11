@@ -1,0 +1,723 @@
+{
+  "id": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3",
+  "label": "analysis_HH4b_bkg_syst_declib16_run3_ftfix",
+  "analysis": "HH4b",
+  "created": "2026-11-09 10:25:32",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "8b3f88c3ebfbf86a83509dbb96681fe3efb8c4e5",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "1dbd8f3e0c57c8416bed543c782421375e0c97b1",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3_ftfix.yml",
+    "captured": "config.yml",
+    "sha256": "3f31cf7806e1543f0ee41b158cb1b07ce4c5a19a50fa2312f56e1cd28375fae0",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3.yml",
+        "sha256": "4e9f9b5f4508006eff8a50fe48a9e5c62f3cf577ca4ddf956e9fa1962f3e9dcf"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16_run3_20261011_b948dfc-33f3094",
+        "barista": "b948dfc1eb2415a667048072172066b142a98adb",
+        "coffea4bees": "33f3094d441e331d0ca55f491cb00812c8f90eef",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_20261011_b948dfc-33f3094",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+        "barista": "1c7c8db8b8ffa5c4818d6e2aa175f599e12b29a9",
+        "coffea4bees": "d5ec5c4daff4f9059b75bad8dd183b9d1c917a26",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20261008_f839489-a481023",
+        "barista": "f839489ab9eb53565dcd43b6e7f9c1b8160f6248",
+        "coffea4bees": "a481023c6da813c474e6e037f65e2c2cf8b94091",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20261008_f839489-a481023",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16_multijet.yml",
+        "roast": "declib16_run3_20261011_b948dfc-33f3094"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_b}/{roast:nominal_b:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "nominal_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}histAll_{roast:nominal:label}.coffea",
+        "roast": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_b}/handoff/classifier_inputs_{roast:nominal_b:id}.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-09 10:37:38",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_AB",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-09 10:41:42",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_AB",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "fdf41618064c"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-09 12:45:27",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "all_bkg_syst_C_pilot output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/friends/friends_FvT_HH4b_bkg_syst_declib16_run3_ftfix_v0.json",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-analysis-hh4b-bkg-syst-declib16-run-6fc0c4-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-09 12:55:10",
+          "cores": 16,
+          "extra": "",
+          "targets": "all_bkg_syst_C_pilot output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/friends/friends_FvT_HH4b_bkg_syst_declib16_run3_ftfix_v0.json",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-analysis-hh4b-bkg-syst-declib16-run-6fc0c4-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-10 07:38:18",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-analysis-hh4b-bkg-syst-declib16-run-6fc0c4-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-10 07:39:50",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-analysis-hh4b-bkg-syst-declib16-run-6fc0c4-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "fdf41618064c"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-10 11:39:16",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_C4",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-10 11:39:47",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_C4",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "fdf41618064c"
+        },
+        {
+          "ts": "2026-11-10 12:14:58",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_C4",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "825d3d75e70d"
+        },
+        {
+          "ts": "2026-11-11 12:07:39",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_C4",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "3f31cf7806e1"
+        },
+        {
+          "ts": "2026-11-11 12:08:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_C4",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "3f31cf7806e1"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-11 07:17:39",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "825d3d75e70d"
+        },
+        {
+          "ts": "2026-11-11 07:18:09",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "825d3d75e70d"
+        },
+        {
+          "ts": "2026-11-11 08:29:09",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "3f31cf7806e1"
+        },
+        {
+          "ts": "2026-11-11 09:32:23",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "3f31cf7806e1"
+        },
+        {
+          "ts": "2026-11-11 12:03:48",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "3f31cf7806e1"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/barista",
+      "checked_out": "2026-11-09 10:26:19"
+    },
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/barista",
+      "ssh": "jda102@cmslpc340.fnal.gov",
+      "checked_out": "2026-11-09 10:37:31"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/",
+    "ts": "2026-11-11 14:35:06",
+    "ok": true,
+    "pages": [
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_C_FvT/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_2_run_two_stage_closure/closure_summary_SB.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_2_run_two_stage_closure/closure_summary_SR.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SB.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/stat_analysis_rebin12/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/stat_analysis_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_3_stats/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin12/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_F_4_stats_mixeddata/summary.html",
+      "roasts/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-09 10:25:32",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-09 10:26:19",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 15:26:46",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ]
+    },
+    {
+      "ts": "2026-11-09 10:37:31",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-09 10:37:38",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-09 10:41:42",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-09 12:45:27",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-09 12:55:10",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-10 12:26:55",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ],
+      "note": "eval cap 64 -> 50 Gi"
+    },
+    {
+      "ts": "2026-11-10 07:38:18",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-10 07:39:50",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-10 12:40:01",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ],
+      "note": "eval cap 50 Gi re-applied after full BKG_C submit"
+    },
+    {
+      "ts": "2026-11-10 11:39:16",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 11:39:47",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 16:39:47",
+      "event": "manual",
+      "note": "mix_0 friend manifest copied NRP -> cmslpc for pilot C4"
+    },
+    {
+      "ts": "2026-11-10 12:14:58",
+      "event": "config-edited",
+      "sha256": "825d3d75e70d"
+    },
+    {
+      "ts": "2026-11-10 12:14:58",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-10 17:15:19",
+      "event": "config-edit",
+      "note": "fvt_closure.config.fourTag_use_tight: true; C4 rerun"
+    },
+    {
+      "ts": "2026-11-10 14:13:37",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-10 16:11:35",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-10 16:42:58",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-10 16:43:39",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 01:02:07",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ],
+      "note": "training memory cap 56 Gi"
+    },
+    {
+      "ts": "2026-11-11 08:36:31",
+      "event": "manual",
+      "note": "pilot C4 vs synthetic mix_0: synthetic FvT evaluation + synthetic processor run"
+    },
+    {
+      "ts": "2026-11-11 03:41:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 07:17:39",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 07:18:09",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 13:28:58",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/workflows/Snakefile_bkg_syst_F_1_analysis.smk"
+      ],
+      "note": "coffea4bees 04bb98b3c; f1_validation.max_sb_yield 1e6"
+    },
+    {
+      "ts": "2026-11-11 08:29:09",
+      "event": "config-edited",
+      "sha256": "3f31cf7806e1"
+    },
+    {
+      "ts": "2026-11-11 08:29:09",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 09:32:23",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 16:26:07",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "src/stat_analysis/combine.smk"
+      ],
+      "note": "barista 521f66f0 applied"
+    },
+    {
+      "ts": "2026-11-11 11:58:15",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 17:03:44",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "src/stat_analysis/plots/plot_gof.py"
+      ],
+      "note": "barista 2be4e5fb applied"
+    },
+    {
+      "ts": "2026-11-11 12:03:48",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 17:07:31",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+        "coffea4bees/plots/metadata/plotsAll_FvTClosure_synthetic.yml"
+      ],
+      "note": "coffea4bees 8cff242a1; C4 rerun with SvB"
+    },
+    {
+      "ts": "2026-11-11 12:07:39",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 12:08:10",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 13:01:53",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 14:35:06",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 14:35:59",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-11 14:36:42",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "HH4b 2022+2023 bkg_syst redo: FvT finetune fix (FinetuneStep), ftfix nominal (B from nominal_run3_20261008), barista master deterministic seeds (666). Pilot first (mix_0 + C_4).\n2026-11-09: hot patch on the NRP checkout: software/kubernetes/nautilus_submit.py NAUTILUS_EVAL_MEM_GB default 32 -> 64 (the Oct 17 run's evaluations needed 48 GB).\n2026-11-10: NRP checkout hot patch changed: NAUTILUS_EVAL_MEM_GB default 64 -> 50 (the 63 Gi mix_0 evaluation pod waited 8 h unscheduled; the Oct 17 run's evaluations needed ~48 GB). The pending evaluation job was deleted; the orchestrator resubmitted it at 50 Gi.\n2026-11-10: pilot orchestrator (targets all_bkg_syst_C_pilot + mix_0 friend) stopped while its mix_0 evaluation was still queued; full BKG_C submitted (15 new trainings, 16 evaluations, handoff; mix_0 training reused). Eval-cap hot patch (50 Gi) re-applied after the submit's software/ sync.\n2026-11-10: manual handoff for the pilot C4: mix_0's friend manifest (bkg_syst_C_FvT/friends/friends_FvT_HH4b_bkg_syst_declib16_run3_ftfix_v0.json, md5 fb0ecc16c27e291cce179f9e9479e78f; points at EOS friend files) copied from the NRP checkout to the cmslpc checkout, since C's handoff only publishes after all 16. BKG_C4 submitted while the rest of C runs.\n2026-11-10: first pilot C4 used the NON-tight four-tag data (C_4 builds its processor config from fvt_closure over analysis_config; neither carried the top-level fourTag_use_tight): data/bkg 1.72 SB / 1.74 SR. Captured config edited (fvt_closure.config.fourTag_use_tight: true, as coffea4bees 8520b151d), old C4 outputs moved to bkg_syst_C_4_closure_nontight_bug/, BKG_C4 resubmitted. BKG_F was not affected (its F_1 config has fourTag_use_tight: true, checked on the Oct 17 run).\n2026-11-11: NRP checkout hot patch: software/kubernetes/nautilus_submit.py caps training pods at NAUTILUS_TRAIN_MEM_GB (default 56; was the 63 Gi default GPU memory) -- the last 4 trainings had waited 12 h unscheduled; the Oct 17 run trained in 56 GB. Their pending jobs were deleted and the orchestrator resubmitted them at 56 Gi.\n2026-11-11: pilot C4 against the SYNTHETIC four-tag (the bkg_syst FvT target; C_4 as written compares with the real 4b data): (1) kinematic closure: makePlots on [C_4 histAll, A_3 histAll_HH4b_mixeddata_v0] with plotsAll_FvTClosure_synthetic.yml (coffea4bees 663efc510, 2a04a081c) -> bkg_syst_C_4_closure/plots_FvT_closure_synthetic/ (+ make_gallery index); (2) mix_0's FvT evaluated on its synthetic sample by a manual CPU k8s Job (johnda-bkgsyst-ftfix-v0-synthetic-eval; workflow models/mix_0/wfs/evaluate_synthetic.yml) -> friend/FvT/HH4b_bkg_syst_declib16_run3_ftfix_v0_synthetic; (3) processor_HH4b on mixeddata_4b:0 with that FvT (bkg_syst_C_4_closure/synthetic/run_synthetic.sh, tmux pilot_synth_v0 on cmslpc340) for the FvT-output histograms.\n2026-11-11: BKG_F stopped at validate_f1_normalization: every subsample's SB multijet yield (~206k, mix_0 206,647 = its C_4 model) above the script's default max 200k (a Run 2-era bound). Hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_F_1_analysis.smk from coffea4bees 04bb98b3c (f1_validation bounds passed to the script; also the C_4 fetch-rule guard, inert here); captured config + f1_validation.max_sb_yield 1e6. BKG_F resubmitted.\n2026-11-11: BKG_F's impacts_collect hung ~2 h at an interactive python prompt: the pinned combine.smk resolved the plot_impacts.py path after `cd` into the datacard dir (empty path -> `python3 -i <json>`). Killed the two hung processes; hot patch on the cmslpc checkout: src/stat_analysis/combine.smk = pinned + barista 521f66f0 (resolve PLOT_SCRIPT before cd, impacts_collect + gof). BKG_F resubmitted (also the Combine expansion pass).\n2026-11-11: BKG_F stopped at rule gof (plot step): the pinned plot_gof.py rejects --algo/--mass that combine.smk passes. Hot patch on the cmslpc checkout: src/stat_analysis/plots/plot_gof.py = pinned + barista 2be4e5fb. BKG_F resubmitted.\n2026-11-11: C4 rerun with SvB histograms and the synthetic closure built in: hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk + plots/metadata/plotsAll_FvTClosure_synthetic.yml from coffea4bees 8cff242a1; previous C4 outputs moved to superseded/bkg_syst_C_4_closure_v2_noSvB/; mix_0's synthetic FvT manifest placed at bkg_syst_C_FvT/friends_synthetic/ (this roast's C did not publish it).",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3",
+    "ts": "2026-11-11 14:36:42",
+    "ok": true
+  }
+}
