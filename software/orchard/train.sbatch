@@ -75,12 +75,15 @@ cleanup() {
     rm -rf "${LOCAL}"
 }
 
-stop_and_requeue() {  # $1 = reason
+stop_step() {  # $1 = reason
     log "$1: stopping the training step"
     [ -n "$STEP_PID" ] && kill -TERM "$STEP_PID" 2>/dev/null && wait "$STEP_PID" 2>/dev/null
     mark interrupted
     sync_out
     cleanup
+}
+stop_and_requeue() {  # before the time limit: the job puts itself back in the queue and resumes
+    stop_step "$1"
     if [ "$RESTART" -lt "$ORCHARD_MAX_RESTARTS" ]; then
         log "requeueing (restart $((RESTART + 1)) of ${ORCHARD_MAX_RESTARTS}); the next run resumes from ${CKPT}"
         scontrol requeue "${SLURM_JOB_ID}" || log "ERROR: scontrol requeue failed; resubmit by hand with submit.sh"
@@ -90,7 +93,10 @@ stop_and_requeue() {  # $1 = reason
     exit 1
 }
 trap 'stop_and_requeue "time limit in 15 min (SIGUSR1)"' USR1
-trap 'stop_and_requeue "preempted or cancelled (SIGTERM)"' TERM
+# SIGTERM is a preemption or an scancel. Do not requeue here: on ORCHARD (PreemptMode=REQUEUE, and
+# the job is --requeue) Slurm requeues a preempted job itself, and an scancel'ed job must stay
+# cancelled (a self-requeued one came back after its replacement had finished and rewrote result.json).
+trap 'stop_step "preempted or cancelled (SIGTERM)"; exit 143' TERM
 
 # ── 1. directories, restore after a purge ────────────────────────────────────────────────────────
 log "job ${SLURM_JOB_ID} restart ${RESTART} on $(hostname), partition ${SLURM_JOB_PARTITION:-?}, label ${ORCHARD_LABEL}"
