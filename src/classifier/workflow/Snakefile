@@ -278,7 +278,8 @@ if TRAIN_HOST == "orchard":
         for key, flag in (("instance", "--instance"), ("zone", "--zone"), ("project", "--project"),
                           ("gcloud", "--gcloud"), ("project_dir", "--orchard-project"), ("time", "--time"),
                           ("cpus", "--cpus"), ("mem", "--mem"), ("poll", "--poll"),
-                          ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args")):
+                          ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args"),
+                          ("bucket", "--bucket")):
             if _orchard.get(key) not in (None, ""):
                 o.append(f"{flag} {shlex.quote(str(_orchard[key]))}")
         if _orchard.get("preempt"):

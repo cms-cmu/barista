@@ -57,6 +57,7 @@ class Remote:
                      "and `gcloud auth login <andrew-id>@andrew.cmu.edu`")
         self.gcloud = g
         self.instance = a.instance
+        self.bucket = (a.bucket or "").rstrip("/")
         self.flags = ["--tunnel-through-iap", "--quiet", "--zone", a.zone, "--project", a.project]
 
     def run(self, script: str, check=True, timeout=600, retries=3) -> subprocess.CompletedProcess:
@@ -76,6 +77,17 @@ class Remote:
         return r
 
     def put(self, local: str, remote: str):
+        """Copy a file to ORCHARD:~/<remote>. Through the bucket when there is one: plain HTTPS from
+        here and an in-cloud copy there. `gcloud compute scp` pushes it through the IAP tunnel
+        instead, which is slow and was killed on falcon's 15 GB login node with a 140 MB tarball."""
+        if self.bucket:
+            obj = f"{self.bucket}/transfer/{os.path.basename(remote)}"
+            r = subprocess.run([self.gcloud, "storage", "cp", "--quiet", local, obj], capture_output=True, text=True)
+            if r.returncode == 0:
+                self.run(f"set -e; gcloud storage cp --quiet {obj} ~/{remote} && gcloud storage rm --quiet {obj}",
+                         timeout=1800)
+                return
+            log(f"bucket upload failed ({r.stderr.strip()[-300:]}); trying scp")
         cmd = [self.gcloud, "compute", "scp", *self.flags, local, f"{self.instance}:{remote}"]
         for i in range(3):
             r = subprocess.run(cmd, capture_output=True, text=True)
@@ -156,6 +168,8 @@ def main():
     ap.add_argument("--instance", default="orchard-login-001"); ap.add_argument("--zone", default="us-central1-c")
     ap.add_argument("--project", default="cmu-gpu-cloud"); ap.add_argument("--gcloud", default="")
     ap.add_argument("--orchard-project", default="", help="remote ORCHARD_PROJECT (default /project/community/$USER/barista)")
+    ap.add_argument("--bucket", default="auto", help="gs:// prefix for transfers (default gs://cmu-gpucloud-<ORCHARD user>/barista; "
+                                                      "'none': gcloud compute scp)")
     ap.add_argument("--time", default="4:00:00"); ap.add_argument("--cpus", default="16"); ap.add_argument("--mem", default="160G")
     ap.add_argument("--preempt", action="store_true"); ap.add_argument("--max-restarts", default="8")
     ap.add_argument("--submit-args", default="", help="more software/orchard/submit.sh options, quoted")
@@ -184,7 +198,12 @@ def main():
         [ -f "{run_dir}/train.done" ] && echo already done || true
     """)
     out = pre.stdout
-    log(f"ORCHARD reachable ({out.split()[1] if out.split() else '?'}); run {label}")
+    ruser = out.split()[1] if len(out.split()) > 1 else ""
+    if a.bucket == "auto":
+        rem.bucket = f"gs://cmu-gpucloud-{ruser}/barista" if ruser else ""
+    elif a.bucket == "none":
+        rem.bucket = ""
+    log(f"ORCHARD reachable ({ruser or '?'}); run {label}")
     if "proxy BAD" in out:
         sys.exit("[orchard] no grid proxy with 4 h left in ORCHARD:~/.roast/x509_proxy: run `bin/roast proxy` "
                  "(or `bin/roast proxy --push --to orchard`)")
