@@ -44,6 +44,36 @@ When testing changes use the skills /test-barista and /test-coffea4bees
 ./run_container voms-proxy-init -voms cms -rfc --valid 168:00 -out proxy/x509_proxy
 ```
 
+### Full Systematics Workflow (`full_syst`)
+
+Coordinates the complete systematic uncertainties pipeline, integrating signal systematic variations (`others` friend weights, `jes` PyTorch shifts) with data-driven background closure models (`bkg_syst`), shape variation plotting, interactive galleries, and Combine statistical inference.
+
+```bash
+# Dry-run full systematics DAG
+./run_container snakemake -s coffea4bees/workflows/Snakefile_full_syst.smk \
+    --configfile coffea4bees/workflows/config/ttHbb_full_syst.yml -n
+
+# Run Stage F.1 only: Signal systematics, merging, nominal integrity gate & cutflow
+./run_container snakemake -s coffea4bees/workflows/Snakefile_full_syst_1_analysis.smk \
+    --configfile coffea4bees/workflows/config/ttHbb_full_syst.yml --cores 4
+
+# Run Stage F.2 only: Datacard generation, shape variation plots, HTML gallery & Combine fits
+./run_container snakemake -s coffea4bees/workflows/Snakefile_full_syst_2_stats.smk \
+    --configfile coffea4bees/workflows/config/ttHbb_full_syst.yml --cores 4
+
+# Run complete end-to-end workflow (F.1 + F.2 + remote EOS transfer)
+./run_container snakemake -s coffea4bees/workflows/Snakefile_full_syst.smk \
+    --configfile coffea4bees/workflows/config/ttHbb_full_syst.yml --cores 4
+
+# Systematic cutflow validation against reference counts
+./run_container python src/tools/cutflow_systematics.py \
+    output/ttHbb_full_syst/PhaseF_1_analysis/histAll_ttHbb_full_syst_signals_syst.coffea \
+    --known-counts coffea4bees/analysis/tests/known_Counts_systematics_ttHbb.yml \
+    --output-html output/ttHbb_full_syst/PhaseF_1_analysis/cutflow_systematics.html \
+    --output-txt output/ttHbb_full_syst/PhaseF_1_analysis/cutflow_validation_systematics.txt \
+    --output-yml output/ttHbb_full_syst/PhaseF_1_analysis/cutflow_systematics.yml
+```
+
 ### Running Tests Locally
 
 ```bash

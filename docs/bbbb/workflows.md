@@ -4,8 +4,12 @@
 
 This is a list of the workflows using Snakemake that we are using:
 
- * Snakefile_reana: The workflow we use to launch the reana jobs.
- * Snakefile_binoptimization: workflow to test the bin optimization of the SvB variable.
+ * `Snakefile_full_syst`: Master coordinator workflow for the full systematics pipeline (Stage F.1 + Stage F.2 + remote EOS synchronization).
+ * `Snakefile_full_syst_1_analysis`: Stage F.1 signal systematic variations (`others` friend weights, `jes` PyTorch kinematic shifts), singlefile generation, merging, nominal integrity validation against upstream stat-only, and systematic cutflow table extraction.
+ * `Snakefile_full_syst_2_stats`: Stage F.2 Combine datacard creation integrating signal systematics and background closure models (`bkg_syst_file`), shape variation plotting (`make_syst_plots.py`), interactive HTML gallery (`make_gallery.py`), and Combine statistical inference (limits, significance, scans, postfit, and impacts).
+ * `Snakefile_bkg_syst`: Complete background systematics workflow (Mixed Data Creation, Subsamples, JCM, FvT Neural Networks, Closure & Stats).
+ * `Snakefile_reana`: The workflow we use to launch the reana jobs.
+ * `Snakefile_binoptimization`: workflow to test the bin optimization of the SvB variable.
 
 ## Useful commands
 
