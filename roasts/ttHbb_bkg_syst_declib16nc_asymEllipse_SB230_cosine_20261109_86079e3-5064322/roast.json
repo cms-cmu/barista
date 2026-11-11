@@ -343,7 +343,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/",
-    "ts": "2026-11-11 09:15:26",
+    "ts": "2026-11-11 11:38:41",
     "ok": true,
     "pages": [
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
@@ -426,6 +426,7 @@
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary_SB.html",
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/closure_summary_SR.html",
+      "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SB.html",
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA_SR.html",
       "output/ttHbb_bkg_syst_declib16nc_asymEllipse_SB230_cosine_20261109_86079e3-5064322/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
@@ -594,6 +595,12 @@
     {
       "ts": "2026-11-11 09:46:10",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 11:38:41",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }
