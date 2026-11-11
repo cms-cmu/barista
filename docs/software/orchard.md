@@ -17,11 +17,14 @@ Support: `ORCD-COMMUNITY@andrew.cmu.edu`.
 | | |
 |---|---|
 | Login | `orchard-login-001`, through Google IAP with your Andrew ID (no plain SSH) |
-| Queues (Community) | `general`: `-p general -q general_qos`, 1 GPU per job, 12 h maximum. `preempt`: scavenger, jobs can be killed at any time |
-| Containers | Enroot + Pyxis (`srun --container-image=...`); no Apptainer, no CVMFS |
+| `general` | `-p general -q general_qos`: 5 Community nodes (40 GPUs), 12 h maximum, 1 GPU per job, **1 running and 5 submitted jobs per user** |
+| `preempt` | `-p preempt -q preempt_qos` (the cluster default): all 37 nodes (296 GPUs), 2-day maximum, up to 24 running jobs. A job is killed with 2 minutes notice (`SIGTERM`) when the owner of the GPU wants it, and requeued by Slurm (`PreemptMode=REQUEUE`). Several hundred jobs are usually pending |
+| Containers | Enroot 3.5 + Pyxis (`srun --container-image=...`); no Apptainer, no conda, no environment modules, no CVMFS |
+| Host tools | `python3` 3.12, `git`, `gcloud`; no XRootD or grid tools (they are in the classifier image) |
+| Memory | 8.9 GB per requested CPU by default (`DefMemPerCPU`), 208 cores and 1.8 TB per 8-GPU node |
 | `/home` | 25 GB hard quota, on login and compute nodes |
-| `/project/community/<andrew-id>` | 10 TB shared by all Community users, **emptied completely every two weeks** (calendar on the wiki) |
-| `/tmp` | 6 TB SSD local to each compute node, fastest; not on the login node; gone after the job |
+| `/project/community/<andrew-id>` | 10 TB shared by all Community users (99 % full on 2026-11-10), **emptied completely every two weeks** (calendar on the wiki) |
+| `/tmp` | 6 TB SSD local to each compute node, fastest; gone after the job. On the login node `/tmp` is a 6 GB tmpfs: do nothing large there |
 | `gs://cmu-gpucloud-<andrew-id>` | personal GCS bucket, the only long-term storage; billed to your Oracle string per GB and per transaction; no backups |
 | Maintenance | Wednesdays 10:00–14:00 when announced: do not expect jobs to survive it |
 
@@ -31,7 +34,7 @@ Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) on you
 (`brew install --cask google-cloud-sdk`), then
 
 ```bash
-gcloud auth login                              # browser, Andrew ID (not a personal Google account)
+gcloud auth login <andrew-id>@andrew.cmu.edu   # browser; a personal Google account gets "compute.instances.get" denied
 gcloud config set project cmu-gpu-cloud
 gcloud config set compute/zone us-central1-c
 gcloud compute ssh orchard-login-001 --tunnel-through-iap
@@ -49,10 +52,14 @@ mkdir -p ~/.config/gcloud && chmod 700 ~/.config/gcloud
 gcloud auth login --update-adc
 gcloud storage ls gs://cmu-gpucloud-$USER
 
-# 2. code. $HOME survives the purge, /project/community does not. The two .git directories
-#    are ~0.7 GB; keep outputs out of the checkout.
+# 2. code. $HOME survives the purge, /project/community does not; keep outputs out of the checkout.
 cd ~ && git clone https://gitlab.cern.ch/cms-cmu/barista.git && cd barista
 git clone https://gitlab.cern.ch/cms-cmu/coffea4bees.git
+#    If gitlab.cern.ch does not answer from the cluster (it did not on 2026-11-10), ship the code
+#    from a machine that has it:
+#      git archive --format=tar.gz -o barista.tgz HEAD            (and the same in coffea4bees/)
+#      gcloud compute scp --tunnel-through-iap barista.tgz coffea4bees.tgz orchard-login-001:
+#      mkdir -p ~/barista/coffea4bees && tar xzf barista.tgz -C ~/barista && tar xzf coffea4bees.tgz -C ~/barista/coffea4bees
 
 # 3. classifier image -> /project/community/$USER/barista/images/*.sqsh (+ a copy in the bucket)
 software/orchard/setup_image.sh
@@ -67,6 +74,26 @@ gcloud compute scp --tunnel-through-iap x509_proxy orchard-login-001:barista/pro
 image used on LPC, falcon and lxplus, so the software environment is pinned to
 `software/dockerfiles/ml/env_ml.yml`. After a purge, rerun it: it restores the image from the
 bucket instead of importing again. `setup_image.sh --update` re-imports a newer image.
+
+If the CERN registry does not answer from the cluster, build the same conda environment there
+instead (about 10 minutes; it needs the node-local SSD, so it is a job):
+
+```bash
+sbatch -p general -q general_qos --cpus-per-task=16 --mem=64G --time=2:00:00 \
+       -o build_image-%j.out software/orchard/build_image.sh
+```
+
+It creates the `hep` environment of `env_ml.yml` on `condaforge/miniforge3` with the same
+`/entrypoint.sh`, leaves out the VOMS clients and rucio configuration (a training uses neither),
+and writes the same `.sqsh` path and bucket copy.
+
+For the proxy, `bin/roast proxy` does the copy for every host in `~/.config/roast/config.json`,
+ORCHARD included, once it has an entry there:
+
+```json
+"orchard": {"gcloud": {"instance": "orchard-login-001", "zone": "us-central1-c", "project": "cmu-gpu-cloud"},
+            "reference": "~/barista"}
+```
 
 ## Submitting a training
 
@@ -84,21 +111,33 @@ software/orchard/submit.sh -h                # all options
 ```
 
 The second argument is a `wfs_base` directory (holding `train.yml`, with `../common.yml`) or a
-`train.yml` path; the label names the run. Templates that need more than `model` take
+`train.yml` path (`--common` names a `common.yml` elsewhere); the label names the run. Templates that need more than `model` take
 `--template "FvT: <path>, ..."`. The workflow files are used unchanged: the training command is
 the one in `src/classifier/workflow/Snakefile` (rule `train`).
+
+!!! note "Roast productions"
+    A roast does not train from the checked-in templates directly: `write_workflow_overrides`
+    (coffea4bees `workflows/helpers/common.smk`) writes a patched `train.yml` and a `common.yml`
+    (from `classifier_setting`) into the roast's output directory, with the friend-tree JSON and
+    JCM file given as `root://` paths in the roast's `handoff/`. Give `submit.sh` that pair
+    (`<output>/<model>/wfs/train.yml`, `--common <output>/<model>/common.yml`): remote config
+    files are downloaded and staged like the rest. The checked-in
+    `HH4b_Run3/{FvT,SvB,MvD}/train.yml` name metadata paths that no longer exist on master.
 
 What the job does (`software/orchard/train.sbatch`):
 
 1. **Restore.** If the run directory is missing but the bucket has it (after a purge), copy it back.
-2. **Stage.** `stage_data.py` collects every `root://` URL in the metadata YAML / friend JSON files
-   that `train.yml` and `common.yml` name, copies those files to `/tmp/$USER/barista_data/<host>/<path>`
-   and writes copies of the configs that point there. The repository is not modified.
+2. **Stage.** `stage_data.py` collects the `root://` URLs in the friend-tree JSON / metadata files
+   that `train.yml` and `common.yml` name (downloading the ones that are themselves on EOS), copies
+   those ROOT files to `/tmp/$USER/barista_data/<host>/<path>` and writes copies of the configs that
+   point there. A metadata *directory* (`--metadata coffea4bees/metadata/datasets/`) lists every
+   dataset of the analysis, so its files are only rewritten for the picoAODs that a friend-tree JSON
+   names. The repository is not modified.
 3. **Train** inside the classifier image with `CLASSIFIER_CHECKPOINT_DIR=<run dir>/checkpoints`.
 4. **Mirror** the run directory to the bucket every 30 minutes and at exit.
-5. **Requeue.** Fifteen minutes before the time limit (`SIGUSR1`), or on preemption (`SIGTERM`), the
-   training step is stopped, the run directory mirrored, and the job requeued (at most
-   `ORCHARD_MAX_RESTARTS`, default 6). The requeued job stages again and resumes.
+5. **Requeue.** Fifteen minutes before the time limit (`SIGUSR1`), or on preemption (`SIGTERM`, 2
+   minutes notice), the training step is stopped, the run directory mirrored, and the job requeued
+   (at most `ORCHARD_MAX_RESTARTS`, default 6). The requeued job stages again and resumes.
 
 Resuming is the training code's own: each stage writes `checkpoint_<model>_<stage>.pt` at the end
 of every epoch and continues from it, and a model whose final file exists is skipped. A restart
@@ -128,6 +167,21 @@ python3 software/orchard/stage_data.py push  --stage $S --data $D --gcs-prefix g
 test: `--include '2022_EE'`); URLs that are not selected stay remote. The bucket is charged for
 storage and per transaction, so stage whole datasets with one `rsync` (as the script does) and
 do not rsync it in a tight loop.
+
+## Queue waits and cost
+
+- **`general` starts in minutes** when you have nothing running: its jobs evict the scavenger jobs
+  that fill the Community nodes. The limit that matters is one running job per user, so a second
+  fit waits for the first (up to 12 h). `squeue -p general -t PD -o "%r" | sort | uniq -c` shows
+  whether anyone is waiting for more than their own limits.
+- **`preempt` waits days** (several hundred jobs pending on priority in November 2026): not a way
+  to get more throughput, only a fallback.
+- A requeued job is held for about 10 minutes before it can start again.
+- **Compute is not charged** during the ORCHARD pilot. **The bucket is**, monthly to the Oracle
+  string given at sign-up: about $0.02 per GB-month plus per-request charges, and Google's usual
+  egress charge when data leaves Google Cloud. `/home` and `/project/community` are free. The
+  image and the run directories are a few tens of GB; a mirror of the inputs of one Run-3 FvT fit
+  is ~550 GB (picoAODs 520 GB, friend trees 32 GB).
 
 ## Outputs
 
@@ -175,7 +229,7 @@ Environment variables read by `submit.sh` (see `-h`) and passed to the job:
 | `ORCHARD_PROJECT` | `/project/community/$USER/barista` | run directories and image |
 | `ORCHARD_BUCKET` | `gs://cmu-gpucloud-$USER/barista` | long-term mirror; `none` disables it |
 | `ORCHARD_IMAGE` | `$ORCHARD_PROJECT/images/barista_classifier_latest.sqsh` | |
-| `ORCHARD_PARTITION`, `ORCHARD_QOS` | `general`, `general_qos` (`preempt`, none with `--preempt`) | |
+| `ORCHARD_PARTITION`, `ORCHARD_QOS` | `general`, `general_qos` (`preempt`, `preempt_qos` with `--preempt`) | |
 | `ORCHARD_MAX_RESTARTS` | 6 | requeues before giving up |
 | `ORCHARD_SYNC_MINUTES` | 30 | bucket mirror period |
 | `ORCHARD_STAGE_JOBS` | 16 | parallel `xrdcp` streams |
