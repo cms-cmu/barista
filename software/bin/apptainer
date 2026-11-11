@@ -7,6 +7,12 @@
 # repositories (unpacked.cern.ch, grid.cern.ch, cms.cern.ch) in user space.
 # ==============================================================================
 
+case "$1" in
+    --version|version|-v)
+        exec /usr/bin/apptainer "$@"
+        ;;
+esac
+
 if [ -d "/cvmfs/unpacked.cern.ch" ]; then
     exec /usr/bin/apptainer "$@"
 fi
@@ -18,7 +24,15 @@ if [ ! -x "$CVMFSEXEC" ]; then
 fi
 
 if [ -x "$CVMFSEXEC" ]; then
-    exec "$CVMFSEXEC" unpacked.cern.ch grid.cern.ch cms.cern.ch -- /usr/bin/apptainer "$@"
+    CVMFSEXEC_BASE="$(dirname "$CVMFSEXEC")"
+    TMP_CVMFS=$(mktemp -d /tmp/cvmfsexec_XXXXXX)
+    cp -rs "$CVMFSEXEC_BASE"/* "$TMP_CVMFS"/ 2>/dev/null || true
+    rm -rf "$TMP_CVMFS/mnt"
+    trap 'rm -rf "$TMP_CVMFS"' EXIT INT TERM
+    "$TMP_CVMFS/cvmfsexec" unpacked.cern.ch grid.cern.ch cms.cern.ch -- /usr/bin/apptainer "$@"
+    rc=$?
+    rm -rf "$TMP_CVMFS"
+    exit $rc
 fi
 
 # Fallback: if cvmfsexec is not found, try apptainer directly

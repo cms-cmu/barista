@@ -119,12 +119,19 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
     {
         "match": "closure_summary.html",
         "tag": "Stage F.2",
-        "title": "Two-Stage Closure Summary",
-        "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+        "title": "Two-Stage Closure Summary (SvB_MA)",
+        "desc": "Master closure verdict dashboard with interactive SR/SB toggle (SvB_MA)",
+    },
+    {
+        "match": "summary_SvB.html",
+        "tag": "Stage F.2",
+        "title": "Two-Stage Closure Summary (SvB)",
+        "desc": "Two-stage closure verdict dashboard with interactive SR/SB toggle (SvB)",
     },
     {
         "match": "summary.html",
         "path_contains": "bkg_syst_F_4_stats_mixeddata",
+        "path_excludes": "rebin",
         "tag": "Stage F.4",
         "title": "MixedData Unblinded Stats Summary",
         "desc": "Statistical inference & limits on unblinded mixed data",
@@ -134,12 +141,13 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
         "path_contains": "bkg_syst_F_3_stats",
         "path_excludes": "rebin",
         "tag": "Stage F.3",
-        "title": "Standard Stats Summary (Master)",
+        "title": "Standard Stats Summary",
         "desc": "Master multi-rebin statistical inference on standard dataset",
     },
     {
         "match": "summary.html",
-        "path_contains": ["stat_analysis", "phasef"],
+        "path_contains": ["phasef_2", "phasef", "stat_analysis"],
+        "path_excludes": ["bkg_syst", "rebin"],
         "tag": "Phase F.2",
         "title": "Statistical Analysis Summary",
         "desc": "Expected limits, significance, and likelihood scan overview",
@@ -1804,6 +1812,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
                 break
             fi
         done
+        [ -s proxy/x509_proxy ] && export X509_USER_PROXY="${{PWD}}/proxy/x509_proxy"
         if [ -s proxy/kubeconfig ]; then
             export KUBECONFIG="${{PWD}}/proxy/kubeconfig"
         elif [ -s "$HOME/.kube/config" ]; then
@@ -4269,6 +4278,17 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 seen_gallery_urls.add(p_esc)
 
         if is_featured:
+            continue
+
+        # Skip redundant single-region or redundant primary classifier summaries if closure_summary.html exists
+        if filename in ("closure_summary_SR.html", "closure_summary_SB.html",
+                        "summary_SvB_MA_SR.html", "summary_SvB_MA_SB.html",
+                        "summary_SvB_SR.html", "summary_SvB_SB.html"):
+            continue
+        if filename == "summary_SvB_MA.html" and any("closure_summary.html" in page for page in pages):
+            continue
+        # Skip sub-rebin detail summaries from top-level featured cards (master summary.html covers them)
+        if filename == "summary.html" and "rebin" in lower_p:
             continue
 
         # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html

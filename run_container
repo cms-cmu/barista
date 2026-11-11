@@ -386,6 +386,8 @@ setup_host_env() {
             [ -d "/work/nvme/bjsv/${USER}" ] && CACHE_BASE="/work/nvme/bjsv/${USER}/barista_cache"
             mkdir -p "$CACHE_BASE"
             export PATH="${PWD}/software/bin:${PATH}"
+            [ -d "/projects/bjsv/software/grid-security/certificates" ] && export X509_CERT_DIR="/projects/bjsv/software/grid-security/certificates"
+            [ -s "${PWD}/proxy/x509_proxy" ] && export X509_USER_PROXY="${PWD}/proxy/x509_proxy"
             ;;
         *falcon*|*rogue*)
             CACHE_BASE="$HOME"
@@ -1307,9 +1309,9 @@ run_snakemake() {
     # Execute
 
     if [ "${ARGS[0]}" = "source" ]; then
-        pixi run bash -c "${ARGS[*]}"
+        pixi run -q bash -c "${ARGS[*]}"
     else
-        pixi run snakemake "${ARGS[@]}"
+        pixi run -q snakemake "${ARGS[@]}"
     fi
     info "Execution finished successfully!"
 }
