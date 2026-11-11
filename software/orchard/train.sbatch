@@ -51,9 +51,15 @@ STEP_PID=""; BG_PIDS=()
 log() { echo "[orchard $(date '+%F %T')] $*"; }
 mark() { echo "$1 $(date +%s)" >> "${LOGS}/timing_${TAG}.txt"; }
 
+# the workflow files may live outside the checkout (a roast's patched train.yml, a scratch config)
+MOUNTS="${ORCHARD_BARISTA}:${ORCHARD_BARISTA},${ORCHARD_RUN_DIR}:${ORCHARD_RUN_DIR},/tmp:/tmp"
+for _d in "$(dirname "${ORCHARD_TRAIN}")" "$(dirname "${ORCHARD_COMMON}")"; do
+    case "$_d/" in "${ORCHARD_BARISTA}/"*|/tmp/*) ;; *) case ",${MOUNTS}," in *",${_d}:${_d}:ro,"*) ;; *) MOUNTS="${MOUNTS},${_d}:${_d}:ro" ;; esac ;; esac
+done
+
 in_container() {  # run a command inside the classifier image, in the barista directory
     srun --ntasks=1 --container-image="${ORCHARD_IMAGE}" --no-container-entrypoint \
-        --container-mounts="${ORCHARD_BARISTA}:${ORCHARD_BARISTA},${ORCHARD_RUN_DIR}:${ORCHARD_RUN_DIR},/tmp:/tmp" \
+        --container-mounts="${MOUNTS}" \
         --container-workdir="${ORCHARD_BARISTA}" \
         bash -c 'set +u; [ -f /entrypoint.sh ] && source /entrypoint.sh; set -u; ulimit -n 65536 2>/dev/null || true; export PYTHONUNBUFFERED=1; '"$1"
 }

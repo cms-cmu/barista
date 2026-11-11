@@ -69,6 +69,7 @@ if [ "$ORCHARD_SOURCE" != gcs ] && [ ! -f "${BARISTA}/proxy/x509_proxy" ] && [ -
 fi
 [ "$DRY" = 1 ] || [ -e "$ORCHARD_IMAGE" ] || { echo "[orchard] image not found: $ORCHARD_IMAGE (run software/orchard/setup_image.sh)" >&2; exit 2; }
 
+WF="$(cd "$(dirname "$WF")" && pwd)/$(basename "$WF")"; COMMON="$(cd "$(dirname "$COMMON")" && pwd)/$(basename "$COMMON")"
 export ORCHARD_TRAIN="$WF" ORCHARD_COMMON="$COMMON" ORCHARD_BARISTA="$BARISTA"
 export ORCHARD_RUN_DIR="${ORCHARD_PROJECT}/runs/${ORCHARD_LABEL}"
 CMD=(sbatch --job-name="barista-${ORCHARD_LABEL}" --partition="$PARTITION" ${QOS:+--qos="$QOS"}
