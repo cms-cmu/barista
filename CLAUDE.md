@@ -89,6 +89,10 @@ Production analyses and multi-phase pipelines must be executed via `bin/roast` r
    bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --label <label> [--nautilus | --bridges2]
    ```
    Pins the current git HEADs, merges any `base:` configs, and records validation status in `roasts/<id>/roast.json`.
+   For classifier trainings/evaluations on the CMU ORCHARD H100s add `--train-on orchard --eval-on orchard`
+   (rest of C/D stays on falcon), or `--cmslpc` (C/D on cmslpc, GPU work on ORCHARD). Preflight checks,
+   monitoring and failure handling: "GPU training and evaluation on CMU ORCHARD" in `docs/prod/using_roast.md`.
+   The Google Cloud login on falcon/cmslpc needs the owner's browser + Duo: ask them, do not try it yourself.
 3. **Cluster Checkouts:**
    ```bash
    bin/roast checkout <id> --host cmslpc

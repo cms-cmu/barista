@@ -343,7 +343,15 @@ def main():
                + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
                + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
                + (f" {a.submit_args}" if a.submit_args else "") + f" {shlex.quote(label)} {shlex.quote(wf)}")
-        r = rem.run(cmd)
+        while True:
+            r = rem.run(cmd, check=False)
+            # ORCHARD's QOS caps a user at a few submitted jobs (general: 5). A workflow with more models
+            # than that (bkg_syst subsamples) waits here for a slot instead of failing the rule.
+            if re.search(r"QOSMaxSubmitJob|AssocMaxSubmitJob|MaxSubmitJobs", r.stdout + r.stderr):
+                log(f"ORCHARD queue full for this user (submit limit); retrying in {a.poll} s")
+                time.sleep(a.poll)
+                continue
+            break
         m = re.search(r"Submitted batch job (\d+)", r.stdout)
         if not m:
             sys.exit(f"[orchard] submission failed:\n{r.stdout}\n{r.stderr}")
