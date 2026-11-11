@@ -98,6 +98,7 @@ nav:
         - Tools: src/tools.md
     - Software:
         - Index: software/index.md
+        - Orchard: software/orchard.md
     - Classifier:
         - Backend: classifier/backend.md
         - Hcr: classifier/hcr.md
