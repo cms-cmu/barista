@@ -8,9 +8,57 @@ requeued across the 12-hour limit or a preemption.
 Cluster documentation (CMU login): <https://cmu-enterprise.atlassian.net/wiki/spaces/ORCHARD/overview>.
 Support: `ORCD-COMMUNITY@andrew.cmu.edu`.
 
-!!! warning "Status"
-    Written from the ORCHARD wiki on 2026-11-10 and not yet run on the cluster. The items under
-    [To confirm on the cluster](#to-confirm-on-the-cluster) are assumptions until the first job.
+Measured on 2026-11-10: the nominal Run-3 2025 FvT (23 M events, 3 folds × 20 epochs) trains in
+2 h 08 min on one H100, 1.5× faster than on a falcon MPS A100 share.
+
+## Roast trainings on ORCHARD (`--train-on orchard`)
+
+Most of a roast stays where it is: phases A/B/C4/F on cmslpc, and the C/D/BKG_C steps (inputs,
+evaluation, plots) on falcon. Only the classifier trainings go to ORCHARD:
+
+```bash
+bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --train-on orchard
+bin/roast submit <id> --step C          # on falcon, as usual
+bin/roast submit <id> --step C --train-on orchard   # switch an existing roast (saved; `--train-on host` undoes it)
+```
+
+The step's snakemake gets `--config train_host=orchard`. `src/classifier/workflow/Snakefile` then
+replaces its `train` rule by `train_orchard`, which runs on the falcon driver (a local rule, no GPU)
+and calls `software/orchard/remote_train.py`:
+
+1. ships the roast checkout (tracked files, uncommitted hot patches, and the untracked workflow files
+   the training names, e.g. `output/<model>/wfs/train.yml`) to `/project/community/$USER/barista/code/<key>`,
+   once per code state;
+2. submits `software/orchard/submit.sh --source none` with the rule's template, so the models and
+   `result.json` are written straight to the roast's EOS `classifier/<label>` path;
+3. waits, through requeues at the time limit and preemptions, copying `train.log` back every ~15 min;
+4. copies `train.log` and `yields_loaded.json` back and touches `train.done` only if the fit finished.
+
+Evaluation, `analyze`, plots and every later rule then run on falcon unchanged. The job id is kept in
+`output/<model>/orchard.json`: after `roast resume` the rule reattaches to the running ORCHARD job
+instead of submitting another; a failed job is resubmitted once and resumes from its last epoch.
+Phase C, D, MvD and bkg_syst all train through this Snakefile, so all of them follow the setting.
+
+Optional settings, in the workflow config (or the roast's config) under `orchard:`
+(`time` defaults to 4:00:00, short enough to backfill; `cpus` 16, `mem` 160G):
+
+```yaml
+orchard: {time: "4:00:00", cpus: 16, mem: 160G, preempt: false, poll: 300}
+```
+
+One-time setup on the driver host (falcon), besides the ORCHARD setup below:
+
+```bash
+# Google Cloud CLI in your home (no root needed)
+curl -sSL https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz | tar xz -C ~
+~/google-cloud-sdk/bin/gcloud auth login <andrew-id>@andrew.cmu.edu --no-launch-browser
+~/google-cloud-sdk/bin/gcloud compute ssh orchard-login-001 --zone us-central1-c --project cmu-gpu-cloud \
+    --tunnel-through-iap --command hostname        # creates the key; leave the passphrase empty
+```
+
+and keep a grid proxy on ORCHARD: `bin/roast proxy` copies it to every host in
+`~/.config/roast/config.json`, ORCHARD included once it has an `orchard` entry (see below).
+`remote_train.py` refuses to start when the proxy there has less than 4 h left or the image is missing.
 
 ## The cluster in one table
 
