@@ -266,6 +266,7 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         ("diffNuisances (b-only)", "postfit", f"datacard_diffNuisances_bonly__{signal}.root"),
         ("correlation (physics) pdf", "postfit", "plots", "correlation_fit_s.pdf"),
         ("correlation (all) pdf", "postfit", "plots", "correlation_fit_s_all.pdf"),
+        ("systematics gallery", "plots_systematics", "index.html"),
     ):
         if exists(*p):
             info["links"][label] = rel(*p)
