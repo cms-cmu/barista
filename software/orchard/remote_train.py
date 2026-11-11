@@ -380,7 +380,7 @@ def main():
             fetch_back(False)
         if s.startswith("TRAIN_DONE") or s.startswith("COMPLETED"):
             ok = fetch_back(True)
-            log(f"ORCHARD job {state['job']} {s.split()[-1]}; training {'finished' if ok else 'did NOT finish'}")
+            log(f"ORCHARD job {state['job']} {s.split()[-1]}; {a.task} {'finished' if ok else 'did NOT finish'}")
             sys.exit(0 if ok else 1)
         if any(s.startswith(x) for x in TERMINAL_FAIL):
             fetch_back(False)
