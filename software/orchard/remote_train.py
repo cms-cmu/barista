@@ -141,19 +141,24 @@ def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> 
             have = rem.run(f"G={GIT_STORE}; [ -d $G/{name}.git ] || git init -q --bare $G/{name}.git; "
                            f"git --git-dir=$G/{name}.git cat-file -e {sha}^{{commit}} 2>/dev/null && echo HAVE || "
                            f"git --git-dir=$G/{name}.git for-each-ref --format='%(objectname)'").stdout.split()
-            if "HAVE" not in have:
-                basis = [h for h in have if re.fullmatch(r"[0-9a-f]{40}", h) and
-                         subprocess.run(["git", "cat-file", "-e", f"{h}^{{commit}}"], cwd=d, capture_output=True).returncode == 0]
+            if "HAVE" not in have or bootstrap:
+                cands = sorted({h for h in have if re.fullmatch(r"[0-9a-f]{40}", h)})
+                ok = subprocess.run(["git", "cat-file", "--batch-check"], cwd=d, input="\n".join(cands),
+                                    capture_output=True, text=True).stdout.split("\n")
+                basis = [line.split()[0] for line in ok if line.endswith(" commit")]
                 if not basis and not bootstrap:
                     sys.exit(f"[orchard] ORCHARD has no copy of {name} yet: run once, from a laptop (not a login node "
                              f"with a CPU watchdog), `software/orchard/remote_train.py --bootstrap`")
                 bundle = f"{tmp}/{name}.bundle"
-                subprocess.run(["git", "bundle", "create", "-q", bundle, "HEAD", *[f"^{b}" for b in basis[:50]]],
-                               cwd=d, check=True, capture_output=True)
+                # the bootstrap sends every branch, origin/* included, so later checkouts (roasts pin
+                # pushed commits) always share history with ORCHARD and send only a small bundle
+                revs = ["--all"] if bootstrap else ["HEAD", *[f"^{b}" for b in basis[:50]]]
+                subprocess.run(["git", "bundle", "create", "-q", bundle, *revs], cwd=d, check=True, capture_output=True)
                 log(f"{name}: sending {os.path.getsize(bundle) / 1e6:.1f} MB of commits ({len(basis)} known refs on ORCHARD)")
                 rem.put(bundle, f"orchard_{name}.bundle")
+                spec = "'+refs/*:refs/boot/*'" if bootstrap else f"HEAD:refs/orchard/{sha}"
                 rem.run(f"set -e; G={GIT_STORE}; git --git-dir=$G/{name}.git fetch -q ~/orchard_{name}.bundle "
-                        f"HEAD:refs/orchard/{sha} && rm -f ~/orchard_{name}.bundle", timeout=3600)
+                        f"{spec} && rm -f ~/orchard_{name}.bundle", timeout=3600)
             if bootstrap:
                 continue
             dst = "$C.part" + ("" if sub == "." else f"/{sub}")
