@@ -11,7 +11,7 @@ Support: `ORCD-COMMUNITY@andrew.cmu.edu`.
 Measured on 2026-11-10: the nominal Run-3 2025 FvT (23 M events, 3 folds × 20 epochs) trains in
 2 h 08 min on one H100, 1.5× faster than on a falcon MPS A100 share.
 
-## Roast trainings on ORCHARD (`--train-on orchard`)
+## Roast GPU work on ORCHARD (`--train-on`, `--eval-on`, `--cmslpc`)
 
 Most of a roast stays where it is: phases A/B/C4/F on cmslpc, and the C/D/BKG_C steps (inputs,
 evaluation, plots) on falcon. Only the classifier trainings go to ORCHARD:
@@ -20,9 +20,20 @@ evaluation, plots) on falcon. Only the classifier trainings go to ORCHARD:
 bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --train-on orchard
 bin/roast submit <id> --step C          # on falcon, as usual
 bin/roast submit <id> --step C --train-on orchard   # switch an existing roast (saved; `--train-on host` undoes it)
+
+# evaluations (friend trees to EOS) on ORCHARD too
+bin/roast new ... --train-on orchard --eval-on orchard
+
+# no falcon at all: C and D run on cmslpc, their trainings and evaluations on ORCHARD
+bin/roast new --config <config>.yml --phases B,C,C4,D,F --cmslpc
 ```
 
-The step's snakemake gets `--config train_host=orchard`. `src/classifier/workflow/Snakefile` then
+`--cmslpc` implies `--train-on orchard --eval-on orchard`, because the LPC Snakemake profile runs
+every rule on the interactive node, which has no GPU. The remaining C/D rules (input plots,
+`analyze`, weights, galleries, summaries) are CPU work. BKG_C is refused: its `evaluate_synthetic`
+rule is a GPU rule of its own, so it stays on falcon.
+
+The step's snakemake gets `--config train_host=orchard` (and `eval_host=orchard`). `src/classifier/workflow/Snakefile` then
 replaces its `train` rule by `train_orchard`, which runs on the falcon driver (a local rule, no GPU)
 and calls `software/orchard/remote_train.py`:
 
@@ -37,7 +48,12 @@ and calls `software/orchard/remote_train.py`:
 3. waits, through requeues at the time limit and preemptions, copying `train.log` back every ~15 min;
 4. copies `train.log` and `yields_loaded.json` back and touches `train.done` only if the fit finished.
 
-Evaluation, `analyze`, plots and every later rule then run on falcon unchanged. The job id is kept in
+With `eval_host: orchard`, `evaluate` / `evaluate_split` are replaced the same way
+(`remote_train.py --task evaluate[_<split>]`, run `<roast>__<model_dir>__evaluate`); their friend
+trees and `result.json` go to the template's EOS paths, so `evaluate_combine` and every consumer run
+unchanged. An evaluation has no checkpoint, so it is not requeued at the time limit: give it room
+with `orchard: {eval_time: "8:00:00"}` if needed. `analyze`, plots and every later rule run on the
+step's host. The job id is kept in
 `output/<model>/orchard.json`: after `roast resume` the rule reattaches to the running ORCHARD job
 instead of submitting another; a failed job is resubmitted once and resumes from its last epoch.
 Phase C, D, MvD and bkg_syst all train through this Snakefile, so all of them follow the setting.
@@ -49,7 +65,8 @@ Optional settings, in the workflow config (or the roast's config) under `orchard
 orchard: {time: "4:00:00", cpus: 16, mem: 160G, preempt: false, poll: 300}
 ```
 
-One-time setup on the driver host (falcon), besides the ORCHARD setup below:
+One-time setup on each driver host (falcon, cmslpc), besides the ORCHARD setup below
+(on cmslpc unpack into `~/nobackup` and link `~/google-cloud-sdk` to it: the home quota is 3 GB):
 
 ```bash
 # Google Cloud CLI in your home (no root needed)
