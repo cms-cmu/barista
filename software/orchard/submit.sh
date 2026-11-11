@@ -17,6 +17,7 @@
 #                      root://cmseos... classifier path writes them where the roast's train rule looks:
 #                      that rule then finds the saved models and skips the training (needs a grid proxy)
 #   --template STR     extra template keys, e.g. "FvT: /path/to/friend"
+#   --template-full S  the whole template instead (e.g. a Snakemake train rule's), `model:` included
 #   --args STR         extra arguments for src.classifier.task.main (e.g. '-setting ...')
 #   --time T           wall time (default 12:00:00, the general-queue maximum)
 #   --cpus N           CPUs (default 24)        --mem M   memory (default 200G)
@@ -40,7 +41,7 @@ export ORCHARD_IMAGE="${ORCHARD_IMAGE:-${ORCHARD_PROJECT}/images/barista_classif
 PARTITION="${ORCHARD_PARTITION:-general}"; QOS="${ORCHARD_QOS-general_qos}"
 TIME="12:00:00"; CPUS=24; MEM="200G"; DRY=0; COMMON=""; POS=(); EXTRA=()
 export ORCHARD_SOURCE="${ORCHARD_SOURCE:-xrootd}" ORCHARD_INCLUDE="${ORCHARD_INCLUDE:-}" ORCHARD_EXCLUDE="${ORCHARD_EXCLUDE:-}"
-export ORCHARD_TEMPLATE="${ORCHARD_TEMPLATE:-}" ORCHARD_EXTRA_ARGS="${ORCHARD_EXTRA_ARGS:-}" ORCHARD_MODEL="${ORCHARD_MODEL:-}"
+export ORCHARD_TEMPLATE="${ORCHARD_TEMPLATE:-}" ORCHARD_EXTRA_ARGS="${ORCHARD_EXTRA_ARGS:-}" ORCHARD_MODEL="${ORCHARD_MODEL:-}" ORCHARD_TEMPLATE_FULL="${ORCHARD_TEMPLATE_FULL:-}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --preempt)  PARTITION="${ORCHARD_PARTITION:-preempt}"; QOS="${ORCHARD_QOS-preempt_qos}"; shift ;;
@@ -50,12 +51,13 @@ while [[ $# -gt 0 ]]; do
         --exclude)  ORCHARD_EXCLUDE="$2"; shift 2 ;;
         --model)    ORCHARD_MODEL="$2"; shift 2 ;;
         --template) ORCHARD_TEMPLATE="$2"; shift 2 ;;
+        --template-full) ORCHARD_TEMPLATE_FULL="$2"; shift 2 ;;
         --args)     ORCHARD_EXTRA_ARGS="$2"; shift 2 ;;
         --time)     TIME="$2"; shift 2 ;;
         --cpus)     CPUS="$2"; shift 2 ;;
         --mem)      MEM="$2"; shift 2 ;;
         --dry-run)  DRY=1; shift ;;
-        -h|--help)  sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)  sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         -*)         EXTRA+=("$1"); shift ;;
         *)          POS+=("$1"); shift ;;
     esac

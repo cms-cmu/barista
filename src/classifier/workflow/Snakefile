@@ -46,6 +46,7 @@
 
 from datetime import datetime
 import os
+import shlex
 
 DATE = datetime.now().strftime("%Y%m%d")
 
@@ -259,6 +260,57 @@ rule train:
         test ${{PIPESTATUS[0]}} -eq 0
         touch {output.flag}
         """
+
+
+# ── GPU training on CMU ORCHARD ──────────────────────────────────────────────
+# `train_host: orchard` moves only the training: this rule replaces `train` (same output) and runs on
+# the driver host, where software/orchard/remote_train.py ships the checkout to ORCHARD, submits the
+# fit there, waits, and copies train.log and yields_loaded.json back. The template's `model:` (the
+# roast's EOS path) is where the models land, so evaluate/analyze/plots run here unchanged.
+# Settings (all optional): orchard: {instance, zone, project, gcloud, project_dir, time, cpus, mem,
+# preempt, poll, submit_args}. See docs/software/orchard.md.
+TRAIN_HOST = str(config.get("train_host", "") or "").lower()
+if TRAIN_HOST == "orchard":
+    _orchard = config.get("orchard") or {}
+
+    def _orchard_opts():
+        o = []
+        for key, flag in (("instance", "--instance"), ("zone", "--zone"), ("project", "--project"),
+                          ("gcloud", "--gcloud"), ("project_dir", "--orchard-project"), ("time", "--time"),
+                          ("cpus", "--cpus"), ("mem", "--mem"), ("poll", "--poll"),
+                          ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args")):
+            if _orchard.get(key) not in (None, ""):
+                o.append(f"{flag} {shlex.quote(str(_orchard[key]))}")
+        if _orchard.get("preempt"):
+            o.append("--preempt")
+        return " ".join(o)
+
+    localrules: train_orchard
+    ruleorder: train_orchard > train
+
+    rule train_orchard:
+        input:
+            wf     = _get_train_wf,
+            common = _get_common,
+        output:
+            flag = "{model_dir}/train.done",
+        log:
+            "{model_dir}/train.log",
+        params:
+            template_str            = _get_train_template,
+            classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+            yields                  = lambda wildcards: f"{wildcards.model_dir}/yields_loaded.json",
+            roast_id                = config.get("roast_id", ""),
+            opts                    = _orchard_opts(),
+        shell:
+            """
+            python3 software/orchard/remote_train.py \
+                --model-dir {wildcards.model_dir:q} --wf {input.wf:q} --common {input.common:q} \
+                --template {params.template_str:q} --log {log:q} --yields {params.yields:q} \
+                --roast-id {params.roast_id:q} --config-paths {params.classifier_config_paths:q} \
+                {params.opts}
+            touch {output.flag}
+            """
 
 
 rule yields:

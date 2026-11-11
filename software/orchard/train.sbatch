@@ -100,11 +100,20 @@ if [ -n "$REMOTE" ] && [ ! -d "$CKPT" ] && [ ! -d "$MODEL" ] \
     mkdir -p "${ORCHARD_RUN_DIR}"
     gcloud storage rsync --recursive "${REMOTE}" "${ORCHARD_RUN_DIR}" || log "WARNING: restore failed"
 fi
-mkdir -p "$MODEL" "$CKPT" "$LOGS" "$LOCAL" "$DATA" || exit 1
+mkdir -p "$CKPT" "$LOGS" "$LOCAL" "$DATA" || exit 1
+case "$MODEL" in *://*) ;; *) mkdir -p "$MODEL" ;; esac
 mark start
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | sed 's/^/[orchard] GPU: /'
 cd "${ORCHARD_BARISTA}" || exit 1
-[ -z "${X509_USER_PROXY:-}" ] && [ -f proxy/x509_proxy ] && export X509_USER_PROXY="${PWD}/proxy/x509_proxy"
+# grid proxy: the first with an hour left, copied where the container sees it (/tmp is mounted).
+# ~/.roast/x509_proxy is where `bin/roast proxy` puts it on every host.
+for _p in "${X509_USER_PROXY:-}" "${PWD}/proxy/x509_proxy" "${HOME}/.roast/x509_proxy"; do
+    if [ -n "$_p" ] && [ -s "$_p" ] && openssl x509 -checkend 3600 -noout -in "$_p" >/dev/null 2>&1; then
+        install -m 600 "$_p" "${LOCAL}/x509_proxy" && export X509_USER_PROXY="${LOCAL}/x509_proxy"
+        log "grid proxy from $_p"; break
+    fi
+done
+[ -n "${X509_USER_PROXY:-}" ] || log "WARNING: no grid proxy with an hour left; XRootD reads and EOS writes will fail"
 
 # ── 2. stage the inputs ──────────────────────────────────────────────────────────────────────────
 TRAIN="${ORCHARD_TRAIN}"; COMMON="${ORCHARD_COMMON}"
@@ -139,7 +148,7 @@ if [ -n "$REMOTE" ]; then
 fi
 
 # ── 4. train ─────────────────────────────────────────────────────────────────────────────────────
-TEMPLATE="model: ${MODEL}${ORCHARD_TEMPLATE:+, ${ORCHARD_TEMPLATE}}"
+TEMPLATE="${ORCHARD_TEMPLATE_FULL:-model: ${MODEL}${ORCHARD_TEMPLATE:+, ${ORCHARD_TEMPLATE}}}"
 log "training: template {${TEMPLATE}} ${TRAIN} -from ${COMMON} ${ORCHARD_EXTRA_ARGS}"
 in_container "HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
     CLASSIFIER_CONFIG_PATHS='${ORCHARD_CLASSIFIER_CONFIG_PATHS}' \
