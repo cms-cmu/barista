@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3 step BKG_F -- generated 2026-11-11 12:03:46
+# roast analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3 step BKG_F -- generated 2026-11-11 14:46:34
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {
@@ -20,6 +20,7 @@ for _p in "${X509_USER_PROXY:-}" "$HOME/.roast/x509_proxy" "$HOME/nobackup/HH4b/
         break
     fi
 done
+[ -s proxy/x509_proxy ] && export X509_USER_PROXY="${PWD}/proxy/x509_proxy"
 if [ -s proxy/kubeconfig ]; then
     export KUBECONFIG="${PWD}/proxy/kubeconfig"
 elif [ -s "$HOME/.kube/config" ]; then

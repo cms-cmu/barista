@@ -17,7 +17,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3_ftfix.yml",
     "captured": "config.yml",
-    "sha256": "3f31cf7806e1543f0ee41b158cb1b07ce4c5a19a50fa2312f56e1cd28375fae0",
+    "sha256": "112ab891510315d620ce02aa13cfaa0c187a992034baa3e19be8601bf73ec197",
     "base": [
       {
         "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3.yml",
@@ -329,6 +329,45 @@
           "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
           "ssh": "jda102@cmslpc340.fnal.gov",
           "config_sha256": "3f31cf7806e1"
+        },
+        {
+          "ts": "2026-11-11 14:41:35",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "112ab8915103"
+        },
+        {
+          "ts": "2026-11-11 14:42:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "112ab8915103"
+        },
+        {
+          "ts": "2026-11-11 14:46:36",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_declib16_run3_ftfix_8b3f88c-1dbd8f3_BKG_F",
+          "ssh": "jda102@cmslpc340.fnal.gov",
+          "config_sha256": "112ab8915103"
         }
       ]
     }
@@ -347,7 +386,7 @@
   "publish": {
     "eos": "/eos/user/j/johnda/www/HH4b/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3",
     "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/",
-    "ts": "2026-11-11 14:35:06",
+    "ts": "2026-11-11 15:13:45",
     "ok": true,
     "pages": [
       "output/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
@@ -711,13 +750,59 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-11 19:41:26",
+      "event": "config-edit",
+      "note": "unify_background false; F_2-F_4 rerun"
+    },
+    {
+      "ts": "2026-11-11 14:41:35",
+      "event": "config-edited",
+      "sha256": "112ab8915103"
+    },
+    {
+      "ts": "2026-11-11 14:41:35",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 14:42:10",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 14:46:36",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-11 15:13:45",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 15:14:25",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-11 15:14:41",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
-  "notes": "HH4b 2022+2023 bkg_syst redo: FvT finetune fix (FinetuneStep), ftfix nominal (B from nominal_run3_20261008), barista master deterministic seeds (666). Pilot first (mix_0 + C_4).\n2026-11-09: hot patch on the NRP checkout: software/kubernetes/nautilus_submit.py NAUTILUS_EVAL_MEM_GB default 32 -> 64 (the Oct 17 run's evaluations needed 48 GB).\n2026-11-10: NRP checkout hot patch changed: NAUTILUS_EVAL_MEM_GB default 64 -> 50 (the 63 Gi mix_0 evaluation pod waited 8 h unscheduled; the Oct 17 run's evaluations needed ~48 GB). The pending evaluation job was deleted; the orchestrator resubmitted it at 50 Gi.\n2026-11-10: pilot orchestrator (targets all_bkg_syst_C_pilot + mix_0 friend) stopped while its mix_0 evaluation was still queued; full BKG_C submitted (15 new trainings, 16 evaluations, handoff; mix_0 training reused). Eval-cap hot patch (50 Gi) re-applied after the submit's software/ sync.\n2026-11-10: manual handoff for the pilot C4: mix_0's friend manifest (bkg_syst_C_FvT/friends/friends_FvT_HH4b_bkg_syst_declib16_run3_ftfix_v0.json, md5 fb0ecc16c27e291cce179f9e9479e78f; points at EOS friend files) copied from the NRP checkout to the cmslpc checkout, since C's handoff only publishes after all 16. BKG_C4 submitted while the rest of C runs.\n2026-11-10: first pilot C4 used the NON-tight four-tag data (C_4 builds its processor config from fvt_closure over analysis_config; neither carried the top-level fourTag_use_tight): data/bkg 1.72 SB / 1.74 SR. Captured config edited (fvt_closure.config.fourTag_use_tight: true, as coffea4bees 8520b151d), old C4 outputs moved to bkg_syst_C_4_closure_nontight_bug/, BKG_C4 resubmitted. BKG_F was not affected (its F_1 config has fourTag_use_tight: true, checked on the Oct 17 run).\n2026-11-11: NRP checkout hot patch: software/kubernetes/nautilus_submit.py caps training pods at NAUTILUS_TRAIN_MEM_GB (default 56; was the 63 Gi default GPU memory) -- the last 4 trainings had waited 12 h unscheduled; the Oct 17 run trained in 56 GB. Their pending jobs were deleted and the orchestrator resubmitted them at 56 Gi.\n2026-11-11: pilot C4 against the SYNTHETIC four-tag (the bkg_syst FvT target; C_4 as written compares with the real 4b data): (1) kinematic closure: makePlots on [C_4 histAll, A_3 histAll_HH4b_mixeddata_v0] with plotsAll_FvTClosure_synthetic.yml (coffea4bees 663efc510, 2a04a081c) -> bkg_syst_C_4_closure/plots_FvT_closure_synthetic/ (+ make_gallery index); (2) mix_0's FvT evaluated on its synthetic sample by a manual CPU k8s Job (johnda-bkgsyst-ftfix-v0-synthetic-eval; workflow models/mix_0/wfs/evaluate_synthetic.yml) -> friend/FvT/HH4b_bkg_syst_declib16_run3_ftfix_v0_synthetic; (3) processor_HH4b on mixeddata_4b:0 with that FvT (bkg_syst_C_4_closure/synthetic/run_synthetic.sh, tmux pilot_synth_v0 on cmslpc340) for the FvT-output histograms.\n2026-11-11: BKG_F stopped at validate_f1_normalization: every subsample's SB multijet yield (~206k, mix_0 206,647 = its C_4 model) above the script's default max 200k (a Run 2-era bound). Hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_F_1_analysis.smk from coffea4bees 04bb98b3c (f1_validation bounds passed to the script; also the C_4 fetch-rule guard, inert here); captured config + f1_validation.max_sb_yield 1e6. BKG_F resubmitted.\n2026-11-11: BKG_F's impacts_collect hung ~2 h at an interactive python prompt: the pinned combine.smk resolved the plot_impacts.py path after `cd` into the datacard dir (empty path -> `python3 -i <json>`). Killed the two hung processes; hot patch on the cmslpc checkout: src/stat_analysis/combine.smk = pinned + barista 521f66f0 (resolve PLOT_SCRIPT before cd, impacts_collect + gof). BKG_F resubmitted (also the Combine expansion pass).\n2026-11-11: BKG_F stopped at rule gof (plot step): the pinned plot_gof.py rejects --algo/--mass that combine.smk passes. Hot patch on the cmslpc checkout: src/stat_analysis/plots/plot_gof.py = pinned + barista 2be4e5fb. BKG_F resubmitted.\n2026-11-11: C4 rerun with SvB histograms and the synthetic closure built in: hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk + plots/metadata/plotsAll_FvTClosure_synthetic.yml from coffea4bees 8cff242a1; previous C4 outputs moved to superseded/bkg_syst_C_4_closure_v2_noSvB/; mix_0's synthetic FvT manifest placed at bkg_syst_C_FvT/friends_synthetic/ (this roast's C did not publish it).",
+  "notes": "HH4b 2022+2023 bkg_syst redo: FvT finetune fix (FinetuneStep), ftfix nominal (B from nominal_run3_20261008), barista master deterministic seeds (666). Pilot first (mix_0 + C_4).\n2026-11-09: hot patch on the NRP checkout: software/kubernetes/nautilus_submit.py NAUTILUS_EVAL_MEM_GB default 32 -> 64 (the Oct 17 run's evaluations needed 48 GB).\n2026-11-10: NRP checkout hot patch changed: NAUTILUS_EVAL_MEM_GB default 64 -> 50 (the 63 Gi mix_0 evaluation pod waited 8 h unscheduled; the Oct 17 run's evaluations needed ~48 GB). The pending evaluation job was deleted; the orchestrator resubmitted it at 50 Gi.\n2026-11-10: pilot orchestrator (targets all_bkg_syst_C_pilot + mix_0 friend) stopped while its mix_0 evaluation was still queued; full BKG_C submitted (15 new trainings, 16 evaluations, handoff; mix_0 training reused). Eval-cap hot patch (50 Gi) re-applied after the submit's software/ sync.\n2026-11-10: manual handoff for the pilot C4: mix_0's friend manifest (bkg_syst_C_FvT/friends/friends_FvT_HH4b_bkg_syst_declib16_run3_ftfix_v0.json, md5 fb0ecc16c27e291cce179f9e9479e78f; points at EOS friend files) copied from the NRP checkout to the cmslpc checkout, since C's handoff only publishes after all 16. BKG_C4 submitted while the rest of C runs.\n2026-11-10: first pilot C4 used the NON-tight four-tag data (C_4 builds its processor config from fvt_closure over analysis_config; neither carried the top-level fourTag_use_tight): data/bkg 1.72 SB / 1.74 SR. Captured config edited (fvt_closure.config.fourTag_use_tight: true, as coffea4bees 8520b151d), old C4 outputs moved to bkg_syst_C_4_closure_nontight_bug/, BKG_C4 resubmitted. BKG_F was not affected (its F_1 config has fourTag_use_tight: true, checked on the Oct 17 run).\n2026-11-11: NRP checkout hot patch: software/kubernetes/nautilus_submit.py caps training pods at NAUTILUS_TRAIN_MEM_GB (default 56; was the 63 Gi default GPU memory) -- the last 4 trainings had waited 12 h unscheduled; the Oct 17 run trained in 56 GB. Their pending jobs were deleted and the orchestrator resubmitted them at 56 Gi.\n2026-11-11: pilot C4 against the SYNTHETIC four-tag (the bkg_syst FvT target; C_4 as written compares with the real 4b data): (1) kinematic closure: makePlots on [C_4 histAll, A_3 histAll_HH4b_mixeddata_v0] with plotsAll_FvTClosure_synthetic.yml (coffea4bees 663efc510, 2a04a081c) -> bkg_syst_C_4_closure/plots_FvT_closure_synthetic/ (+ make_gallery index); (2) mix_0's FvT evaluated on its synthetic sample by a manual CPU k8s Job (johnda-bkgsyst-ftfix-v0-synthetic-eval; workflow models/mix_0/wfs/evaluate_synthetic.yml) -> friend/FvT/HH4b_bkg_syst_declib16_run3_ftfix_v0_synthetic; (3) processor_HH4b on mixeddata_4b:0 with that FvT (bkg_syst_C_4_closure/synthetic/run_synthetic.sh, tmux pilot_synth_v0 on cmslpc340) for the FvT-output histograms.\n2026-11-11: BKG_F stopped at validate_f1_normalization: every subsample's SB multijet yield (~206k, mix_0 206,647 = its C_4 model) above the script's default max 200k (a Run 2-era bound). Hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_F_1_analysis.smk from coffea4bees 04bb98b3c (f1_validation bounds passed to the script; also the C_4 fetch-rule guard, inert here); captured config + f1_validation.max_sb_yield 1e6. BKG_F resubmitted.\n2026-11-11: BKG_F's impacts_collect hung ~2 h at an interactive python prompt: the pinned combine.smk resolved the plot_impacts.py path after `cd` into the datacard dir (empty path -> `python3 -i <json>`). Killed the two hung processes; hot patch on the cmslpc checkout: src/stat_analysis/combine.smk = pinned + barista 521f66f0 (resolve PLOT_SCRIPT before cd, impacts_collect + gof). BKG_F resubmitted (also the Combine expansion pass).\n2026-11-11: BKG_F stopped at rule gof (plot step): the pinned plot_gof.py rejects --algo/--mass that combine.smk passes. Hot patch on the cmslpc checkout: src/stat_analysis/plots/plot_gof.py = pinned + barista 2be4e5fb. BKG_F resubmitted.\n2026-11-11: C4 rerun with SvB histograms and the synthetic closure built in: hot patch on the cmslpc checkout: coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk + plots/metadata/plotsAll_FvTClosure_synthetic.yml from coffea4bees 8cff242a1; previous C4 outputs moved to superseded/bkg_syst_C_4_closure_v2_noSvB/; mix_0's synthetic FvT manifest placed at bkg_syst_C_FvT/friends_synthetic/ (this roast's C did not publish it).\n2026-11-11: F redone with unify_background: false (HH4b: ttbar a separate process, closure + systematic on the multijet model; the first F used the ttHbb setting true): captured config edited (top level + make_combine_inputs, as coffea4bees 87f5d81c4); the unify_background: true F_2/F_3/F_4 outputs (published + archived) moved to superseded/unify_background_true/ on the cmslpc checkout; F_1 histograms kept.\n2026-11-11: F (unify_background false) complete. Expected limits with the background systematic (2022+2023, mu, median): rebin12 7.78, 15 7.78, 16 7.84, 20 6.63, 24 9.13; same workspaces with the background nuisances frozen 4.69/4.78/4.80/4.95/5.06, all nuisances frozen 4.44/4.52/4.55/4.69/4.80 (nominal stat-only, fine binning: 4.05). Breakdown computed with superseded/statonly_rebin.sh (combine AsymptoticLimits --run blind, --freezeParameters) on the cmslpc checkout.",
   "category": "",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_declib16_run3_ftfix_20261109_8b3f88c-1dbd8f3",
-    "ts": "2026-11-11 14:36:42",
+    "ts": "2026-11-11 15:14:41",
     "ok": true
   }
 }
