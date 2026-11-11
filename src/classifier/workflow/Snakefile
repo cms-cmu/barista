@@ -283,6 +283,8 @@ if TRAIN_HOST == "orchard":
                 o.append(f"{flag} {shlex.quote(str(_orchard[key]))}")
         if _orchard.get("preempt"):
             o.append("--preempt")
+        if config.get("roast_id"):
+            o.append(f"--roast-id {shlex.quote(str(config['roast_id']))}")
         return " ".join(o)
 
     localrules: train_orchard
@@ -300,14 +302,13 @@ if TRAIN_HOST == "orchard":
             template_str            = _get_train_template,
             classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
             yields                  = lambda wildcards: f"{wildcards.model_dir}/yields_loaded.json",
-            roast_id                = config.get("roast_id", ""),
             opts                    = _orchard_opts(),
         shell:
             """
             python3 software/orchard/remote_train.py \
                 --model-dir {wildcards.model_dir:q} --wf {input.wf:q} --common {input.common:q} \
                 --template {params.template_str:q} --log {log:q} --yields {params.yields:q} \
-                --roast-id {params.roast_id:q} --config-paths {params.classifier_config_paths:q} \
+                --config-paths {params.classifier_config_paths:q} \
                 {params.opts}
             touch {output.flag}
             """
