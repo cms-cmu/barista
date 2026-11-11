@@ -10,10 +10,13 @@ their ROOT files as ``root://<host>//<path>`` URLs. This tool
      by its node-local path ``<data>/<host>/<path>``,
   4. copies the ROOT files themselves, from XRootD or from a GCS mirror of the same layout.
 
+Config files that are themselves remote (a friend-tree JSON or JCM YAML given as ``root://...json``,
+as the roast workflows do) are downloaded during ``plan`` and treated like repository files.
+
 Only the standard library is used and the files are edited as text, so it runs on the host as well
 as inside the classifier image. Nothing in the repository is modified.
 
-    stage_data.py plan  --stage DIR --data DIR [--include RE] [--exclude RE] train.yml common.yml
+    stage_data.py plan  --stage DIR --data DIR [--source ..] [--include RE] [--exclude RE] train.yml common.yml
     stage_data.py fetch --stage DIR --data DIR --source xrootd|gcs [--gcs-prefix gs://bucket/dir]
     stage_data.py push  --stage DIR --data DIR --gcs-prefix gs://bucket/dir     (fill the GCS mirror)
 
@@ -33,6 +36,7 @@ from pathlib import Path
 URL = re.compile(r"root://([A-Za-z0-9.\-]+(?::\d+)?)/(/[^\s\"',\]\}]+)")
 # a repository path inside an option string, optionally followed by @@key
 TOKEN = re.compile(r"(?<![\w./\-:])([A-Za-z0-9_][\w.\-]*(?:/[\w.\-]+)+/?)")
+CONFIG_SUFFIX = (".json", ".yml", ".yaml")
 MANIFEST = "manifest.txt"
 
 
@@ -62,6 +66,30 @@ def referenced(text: str, root: Path) -> dict[str, list[Path]]:
     return out
 
 
+def run(cmd, retries=3):
+    for i in range(retries):
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if r.returncode == 0:
+            return None
+        time.sleep(5 * (i + 1))
+    return f"{' '.join(cmd)}\n{r.stdout[-2000:]}"
+
+
+def download(url: str, dst: Path, source: str, gcs_prefix: str | None):
+    """Copy one remote file (a config) to dst, from XRootD or from the GCS mirror."""
+    if dst.exists():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    m = URL.fullmatch(url)
+    if source == "gcs":
+        cmd = ["gcloud", "storage", "cp", f"{gcs_prefix.rstrip('/')}/{m.group(1).split(':')[0]}/{m.group(2).lstrip('/')}", str(dst)]
+    else:
+        cmd = ["xrdcp", "--silent", "--force", url, str(dst)]
+    err = run(cmd)
+    if err:
+        sys.exit(f"[stage_data] cannot fetch config {url}:\n{err}")
+
+
 def cmd_plan(a):
     root = Path(a.root).resolve()
     stage, data = Path(a.stage).resolve(), Path(a.data).resolve()
@@ -70,9 +98,26 @@ def cmd_plan(a):
     exc = re.compile(a.exclude) if a.exclude else None
     urls: dict[str, Path] = {}
 
+    remote_cfg: dict[str, Path] = {}
+
+    def remote_config(url: str) -> Path:
+        """Download a remote config file once, return the path of its rewritten copy."""
+        if url not in remote_cfg:
+            m = URL.fullmatch(url)
+            raw = local_path(data, m.group(1), m.group(2))  # kept beside the ROOT files: `push` mirrors it
+            download(url, raw, a.source, a.gcs_prefix)
+            out = cfg / "remote" / m.group(1).split(":")[0] / m.group(2).lstrip("/")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            remote_cfg[url] = out
+            out.write_text(rewrite(raw.read_text()))
+            log(f"remote config staged: {url}")
+        return remote_cfg[url]
+
     def rewrite(text: str) -> str:
         def sub(m):
             url = m.group(0)
+            if url.endswith(CONFIG_SUFFIX):
+                return str(remote_config(url)) if a.source != "none" else url
             if (inc and not inc.search(url)) or (exc and exc.search(url)):
                 return url
             dst = local_path(data, m.group(1), m.group(2))
@@ -100,7 +145,7 @@ def cmd_plan(a):
         staged_wfs.append(out)
         log(f"{wf.name}: {len(refs)} referenced config path(s) staged")
     if not urls:
-        sys.exit("[stage_data] no root:// URLs selected: nothing to stage (check --include/--exclude)")
+        log("WARNING: no root:// URLs selected, nothing will be staged (check --include/--exclude)")
     (stage / MANIFEST).write_text("".join(f"{u}\t{p}\n" for u, p in sorted(urls.items())))
     log(f"{len(urls)} ROOT files in {stage / MANIFEST}")
     for w in staged_wfs:
@@ -116,15 +161,6 @@ def read_manifest(stage: Path, data: Path):
     return rows
 
 
-def run(cmd, retries=3):
-    for i in range(retries):
-        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        if r.returncode == 0:
-            return None
-        time.sleep(5 * (i + 1))
-    return f"{' '.join(cmd)}\n{r.stdout[-2000:]}"
-
-
 def cmd_fetch(a):
     stage, data = Path(a.stage).resolve(), Path(a.data).resolve()
     rows = read_manifest(stage, data)
@@ -132,8 +168,6 @@ def cmd_fetch(a):
     log(f"{len(rows)} files, {len(todo)} to copy from {a.source}")
     t0 = time.time()
     if a.source == "gcs":
-        if not a.gcs_prefix:
-            sys.exit("[stage_data] --source gcs needs --gcs-prefix")
         prefix = a.gcs_prefix.rstrip("/")
         # one rsync per dataset directory: few transactions, parallel composite downloads
         dirs = sorted({(h, str(Path(p).parent)) for _, _, h, p in todo})
@@ -191,12 +225,14 @@ def main():
             s.add_argument("--include", help="only stage URLs matching this regex")
             s.add_argument("--exclude", help="do not stage URLs matching this regex")
             s.add_argument("workflow", nargs="+", help="train.yml, common.yml, ...")
-        if name == "fetch":
+        if name in ("plan", "fetch"):
             s.add_argument("--source", choices=("xrootd", "gcs"), default="xrootd")
+        if name == "fetch":
             s.add_argument("--jobs", type=int, default=16, help="parallel xrdcp streams")
-        if name in ("fetch", "push"):
-            s.add_argument("--gcs-prefix", required=(name == "push"), help="gs://bucket/dir holding <host>/<path>")
+        s.add_argument("--gcs-prefix", required=(name == "push"), help="gs://bucket/dir holding <host>/<path>")
     a = p.parse_args()
+    if a.cmd != "push" and a.source == "gcs" and not a.gcs_prefix:
+        p.error("--source gcs needs --gcs-prefix")
     {"plan": cmd_plan, "fetch": cmd_fetch, "push": cmd_push}[a.cmd](a)
 
 

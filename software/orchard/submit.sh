@@ -8,7 +8,8 @@
 #   <wfs_dir>          directory holding train.yml, with ../common.yml (as wfs_base in the workflow
 #                      configs), e.g. coffea4bees/classifier/config/workflows/HH4b_Run3/FvT
 #
-#   --preempt          use the preempt (scavenger) partition; the job is requeued when it is killed
+#   --preempt          use the preempt partition (all 37 nodes, 2-day limit): the job is killed with
+#                      2 minutes notice when a node owner needs the GPU, then requeued and resumed
 #   --common FILE      common.yml (default: <wfs_dir>/../common.yml)
 #   --source SRC       xrootd (default) | gcs | none   where the inputs are staged from
 #   --include RE       only stage root:// URLs matching RE      --exclude RE   skip those matching RE
@@ -39,7 +40,7 @@ export ORCHARD_SOURCE="${ORCHARD_SOURCE:-xrootd}" ORCHARD_INCLUDE="${ORCHARD_INC
 export ORCHARD_TEMPLATE="${ORCHARD_TEMPLATE:-}" ORCHARD_EXTRA_ARGS="${ORCHARD_EXTRA_ARGS:-}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --preempt)  PARTITION="${ORCHARD_PARTITION:-preempt}"; QOS="${ORCHARD_QOS-}"; shift ;;
+        --preempt)  PARTITION="${ORCHARD_PARTITION:-preempt}"; QOS="${ORCHARD_QOS-preempt_qos}"; shift ;;
         --common)   COMMON="$2"; shift 2 ;;
         --source)   ORCHARD_SOURCE="$2"; shift 2 ;;
         --include)  ORCHARD_INCLUDE="$2"; shift 2 ;;

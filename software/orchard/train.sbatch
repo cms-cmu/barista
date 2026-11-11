@@ -103,19 +103,21 @@ cd "${ORCHARD_BARISTA}" || exit 1
 # ── 2. stage the inputs ──────────────────────────────────────────────────────────────────────────
 TRAIN="${ORCHARD_TRAIN}"; COMMON="${ORCHARD_COMMON}"
 if [ "$ORCHARD_SOURCE" != none ]; then
-    mapfile -t STAGED < <(python3 "${HERE}/stage_data.py" plan --stage "$LOCAL" --data "$DATA" --root "$PWD" \
-        ${ORCHARD_INCLUDE:+--include "$ORCHARD_INCLUDE"} ${ORCHARD_EXCLUDE:+--exclude "$ORCHARD_EXCLUDE"} \
-        "$TRAIN" "$COMMON")
-    [ "${#STAGED[@]}" -eq 2 ] || { log "ERROR: staging plan failed"; cleanup; exit 1; }
-    TRAIN="${STAGED[0]}"; COMMON="${STAGED[1]}"
-    FETCH="python3 ${HERE}/stage_data.py fetch --stage ${LOCAL} --data ${DATA} --source ${ORCHARD_SOURCE} --jobs ${ORCHARD_STAGE_JOBS}"
+    STAGE="python3 ${HERE}/stage_data.py"
+    ARGS="--stage ${LOCAL} --data ${DATA} --source ${ORCHARD_SOURCE}"
+    [ "$ORCHARD_SOURCE" = gcs ] && ARGS="${ARGS} --gcs-prefix ${ORCHARD_BUCKET%/}/data"
+    PLAN="${STAGE} plan ${ARGS} --root ${PWD} ${ORCHARD_INCLUDE:+--include '${ORCHARD_INCLUDE}'} ${ORCHARD_EXCLUDE:+--exclude '${ORCHARD_EXCLUDE}'} '${TRAIN}' '${COMMON}' > ${LOCAL}/staged.txt"
+    FETCH="${STAGE} fetch ${ARGS} --jobs ${ORCHARD_STAGE_JOBS}"
     if [ "$ORCHARD_SOURCE" = gcs ]; then
-        $FETCH --gcs-prefix "${ORCHARD_BUCKET%/}/data" &
+        bash -c "${PLAN} && ${FETCH}" &
     else
-        in_container "$FETCH" &                      # xrdcp and the grid CA certificates are in the image
+        in_container "${PLAN} && ${FETCH}" &          # xrdcp and the grid CA certificates are in the image
     fi
     STEP_PID=$!; wait "$STEP_PID"; RC=$?; STEP_PID=""
     [ "$RC" -eq 0 ] || { log "ERROR: staging failed (rc=${RC})"; sync_out; cleanup; exit 1; }
+    mapfile -t STAGED < "${LOCAL}/staged.txt"
+    [ "${#STAGED[@]}" -eq 2 ] || { log "ERROR: staging plan did not return two workflow files"; cleanup; exit 1; }
+    TRAIN="${STAGED[0]}"; COMMON="${STAGED[1]}"
     cp "${LOCAL}/manifest.txt" "${LOGS}/manifest_${TAG}.txt"
     log "inputs staged: $(du -sh "$DATA" | cut -f1) in ${DATA}"
 fi
