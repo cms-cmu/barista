@@ -101,9 +101,12 @@ class MemoryViewIO:
         self.file = file
 
     def write(self, data):
-        if isinstance(data, memoryview):
-            data = data.tobytes()
-        self.file.write(data)
+        if isinstance(data, (memoryview, bytearray)):
+            data = bytes(data)
+        return self.file.write(data)
 
     def flush(self):
         self.file.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.file, name)

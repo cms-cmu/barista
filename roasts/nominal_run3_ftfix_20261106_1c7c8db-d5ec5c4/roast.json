@@ -1,0 +1,328 @@
+{
+  "id": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+  "label": "nominal_run3_ftfix",
+  "analysis": "HH4b",
+  "created": "2026-11-06 14:25:28",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "1c7c8db8b8ffa5c4818d6e2aa175f599e12b29a9",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "d5ec5c4daff4f9059b75bad8dd183b9d1c917a26",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_ftfix.yml",
+    "captured": "config.yml",
+    "sha256": "0e0d0ac198fee33f7d6d60465f738740964da6c6fbdfd52de841667e4dedd3a8",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3.yml",
+        "sha256": "5ca2e21cbbce47e252f7bbd72fa6d07167c07407eab14f358d92d5a94b410e3f"
+      }
+    ]
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-06 14:27:27",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-ftfix-4d25c1-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "006812cc5336"
+        },
+        {
+          "ts": "2026-11-06 14:27:54",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-ftfix-4d25c1-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "006812cc5336"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-06 18:33:36",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_C4",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "006812cc5336"
+        },
+        {
+          "ts": "2026-11-06 18:44:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_C4",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "006812cc5336"
+        },
+        {
+          "ts": "2026-11-06 20:00:21",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_C4",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "0e0d0ac198fe"
+        },
+        {
+          "ts": "2026-11-06 20:00:46",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_C4",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "0e0d0ac198fe"
+        }
+      ]
+    },
+    {
+      "name": "D",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseD.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-06 18:04:01",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-ftfix-4d25c1-d",
+          "namespace": "cms-cmu",
+          "config_sha256": "006812cc5336"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 01:01:49",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_F",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "0e0d0ac198fe"
+        },
+        {
+          "ts": "2026-11-07 01:02:02",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_ftfix_1c7c8db-d5ec5c4_F",
+          "ssh": "jda102@cmslpc328.fnal.gov",
+          "config_sha256": "0e0d0ac198fe"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4/barista",
+      "checked_out": "2026-11-06 14:25:46"
+    },
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4/barista",
+      "ssh": "jda102@cmslpc328.fnal.gov",
+      "checked_out": "2026-11-06 18:33:29"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4/",
+    "ts": "2026-11-07 13:30:13",
+    "ok": true,
+    "pages": [
+      "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_nominal/plots/analyze/index.html",
+      "output/FvT_nominal/plots/index.html",
+      "output/FvT_nominal/yields.html",
+      "output/Run3_nominal_ftfix/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_nominal_ftfix/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_nominal_ftfix/FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/Run3_nominal_ftfix/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_nominal_ftfix/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/Run3_nominal_ftfix/cutflow_Run3_nominal_ftfix.html",
+      "output/Run3_nominal_ftfix/cutflow_crosscheck_Run3_nominal_ftfix.html",
+      "output/Run3_nominal_ftfix/plots_Run3_nominal_ftfix/index.html",
+      "output/Run3_nominal_ftfix/stat_analysis/summary.html",
+      "output/SvB_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/SvB_nominal/plots/analyze/index.html",
+      "output/SvB_nominal/plots/index.html",
+      "output/SvB_nominal/yields.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-06 14:25:28",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-06 14:25:46",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-06 14:27:27",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-06 14:27:54",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-06 18:04:01",
+      "event": "submit",
+      "step": "D",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-06 18:33:29",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-06 18:33:36",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-06 18:44:12",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-06 20:00:21",
+      "event": "config-edited",
+      "sha256": "0e0d0ac198fe"
+    },
+    {
+      "ts": "2026-11-06 20:00:21",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-06 20:00:46",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 01:47:59",
+      "event": "hotpatch",
+      "host": "nautilus",
+      "files": [
+        "software/kubernetes/nautilus_submit.py"
+      ]
+    },
+    {
+      "ts": "2026-11-07 01:01:49",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 01:02:02",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 13:29:46",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-07 13:30:13",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-07 15:45:15",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Run 3 nominal redo from the FvT fits (C, C4, D, F) with the FvT finetune fix (FinetuneStep, lr 1e-4); B from the original roast\n2026-11-07: hot patch on the NRP checkout: software/kubernetes/nautilus_submit.py evaluate memory cap NAUTILUS_EVAL_MEM_GB default 32 -> 64 (8e73987c capped evaluation pods at 32 Gi; the Run 3 FvT evaluation OOM-killed at 32 Gi, the original nominal roasts ran with the profile's 64 Gi). Also: C4/F cutflow references pointed at dump-only *_ftfix.yml files (captured config), since the new FvT/SvB change the weighted counts.",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+    "ts": "2026-11-07 15:45:15",
+    "ok": true
+  }
+}

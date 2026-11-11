@@ -1,0 +1,5 @@
+classifier_robustness_barista:
+  stage: classifier
+  extends: .base_analysis_coffea4bees
+  script:
+    - python -m pytest src/classifier/test/test_deterministic_seeds.py -v

@@ -34,6 +34,9 @@ output_nav_for_prod() {
     if [ -f "$DOCS_ROOT/prod/using_roast.md" ]; then
         echo "${indent}    - Using roast: prod/using_roast.md" >> "$TMP_NAV"
     fi
+    if [ -f "$DOCS_ROOT/prod/using_roast_nautilus.md" ]; then
+        echo "${indent}    - Using roast on Nautilus: prod/using_roast_nautilus.md" >> "$TMP_NAV"
+    fi
     echo "${indent}    - All families: prod/index.md" >> "$TMP_NAV"
     for f in "$DOCS_ROOT/prod"/*.md; do
         [ -f "$f" ] || continue
@@ -42,6 +45,8 @@ output_nav_for_prod() {
             index.md|using_roast.md) continue ;;
             *_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*) continue ;;   # a roast page
         esac
+        # if roasts/<fname_without_md>/ exists, it is an individual roast page
+        [ -d "$DOCS_ROOT/../roasts/${fname%.md}" ] && continue
         # the family page's own H1 is the display name, so ttHbb keeps its capitals
         display_name=$(head -1 "$f" | sed 's/^#[[:space:]]*//')   # \s is GNU-only
         echo "${indent}    - ${display_name}: prod/${fname}" >> "$TMP_NAV"

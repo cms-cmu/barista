@@ -34,16 +34,20 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import datetime as dt
+import fnmatch
 import getpass
 import hashlib
 import html
 import json
+import time
 import os
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -69,28 +73,132 @@ def ssh_opts(target: str = "") -> list[str]:
     or ~/.ssh/config. Overriding ControlPath breaks their existing authentication.
     For standard hosts (cmslpc, falcon), multiplexing into ~/.ssh/roast-cm-%C is enabled.
     """
-    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
-            "-o", "HostName=%h"]
-    if target and ("bridges2" in target or "psc.edu" in target):
+    opts = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR"]
+    if target and ("bridges2" in target or "psc.edu" in target or "delta" in target or "ncsa.illinois.edu" in target):
         return opts
-    return [*opts, "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
+    return [*opts, "-o", "HostName=%h", "-o", "ControlMaster=auto", "-o", f"ControlPath={SSH_CONTROL_DIR}/roast-cm-%C",
             "-o", "ControlPersist=60"]
 
 
 SSH_OPTS = ssh_opts()
 
-# Phase -> (host, snakefile).  Mirrors coffea4bees/workflows/README.md.
-PHASES = {
+# Fallback phase catalog: used when no workflow YAML registry is found.
+FALLBACK_PHASES: dict[str, tuple[str, str]] = {
     "A": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseA.smk"),
     "B": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseB.smk"),
     "C": ("falcon", "coffea4bees/workflows/Snakefile_PhaseC.smk"),
-    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),   # FvT closure: processor + plots + cutflow with the new FvT
+    "C4": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk"),
     "D": ("falcon", "coffea4bees/workflows/Snakefile_PhaseD.smk"),
     "F": ("cmslpc", "coffea4bees/workflows/Snakefile_PhaseF.smk"),
     "BKG_AB": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk"),
     "BKG_C":  ("falcon", "coffea4bees/workflows/Snakefile_bkg_syst_C.smk"),
+    "BKG_C4": ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk"),
     "BKG_F":  ("cmslpc", "coffea4bees/workflows/Snakefile_bkg_syst_F.smk"),
 }
+FALLBACK_PHASE_EXPANSIONS: dict[str, list[str]] = {
+    "C": ["C", "C4"],
+    "BKG_C": ["BKG_C", "BKG_C4"],
+}
+FALLBACK_WORKFLOWS: dict[str, list[str]] = {
+    "nominal": ["B", "C", "D", "F"],
+    "full": ["A", "B", "C", "D", "F"],
+    "bkg_syst": ["BKG_C", "BKG_F"],
+    "bkg_syst_full": ["BKG_AB", "BKG_C", "BKG_F"],
+}
+
+FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
+    {
+        "match": "training_summary.html",
+        "tag": "Phase C",
+        "tag_bkg": "Stage C",
+        "title": "FvT Training Summary",
+        "title_bkg": "FvT Training Summary (16 Models)",
+        "desc": "Model AUCs, loss curves, and training evaluation metrics",
+        "desc_bkg": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics",
+    },
+    {
+        "match": "closure_summary.html",
+        "tag": "Stage F.2",
+        "title": "Two-Stage Closure Summary",
+        "desc": "Master closure verdict dashboard (variance, bias, spurious signal tests)",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": "bkg_syst_F_4_stats_mixeddata",
+        "tag": "Stage F.4",
+        "title": "MixedData Unblinded Stats Summary",
+        "desc": "Statistical inference & limits on unblinded mixed data",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": "bkg_syst_F_3_stats",
+        "path_excludes": "rebin",
+        "tag": "Stage F.3",
+        "title": "Standard Stats Summary (Master)",
+        "desc": "Master multi-rebin statistical inference on standard dataset",
+    },
+    {
+        "match": "summary.html",
+        "path_contains": ["stat_analysis", "phasef"],
+        "tag": "Phase F.2",
+        "title": "Statistical Analysis Summary",
+        "desc": "Expected limits, significance, and likelihood scan overview",
+    },
+    {
+        "match": "hist_crosscheck*.html",
+        "tag": "Phase F.1",
+        "tag_bkg": "Stage F.1",
+        "title": "Histogram Cross-Check (F vs C.4)",
+        "desc": "Direct validation that selJets.n and m4j (v4j.mass) match Phase C.4",
+    },
+    {
+        "match": "cutflow_crosscheck*.html",
+        "tag": "Phase F.1",
+        "tag_bkg": "Stage F.1",
+        "title": "Cutflow Cross-Check (F vs C.4)",
+        "desc": "Cut-by-cut event yield cross-check against Phase C.4",
+    },
+]
+
+FALLBACK_STAGES: list[dict[str, Any]] = [
+    {
+        "id": "stage_f",
+        "title": "📊 Stage F — Statistical Inference & Closure",
+        "patterns": ["bkg_syst_f", "phasef", "closure_summary", "summary_svb", "stat_analysis"],
+        "badge_cls": "chip-accent",
+    },
+    {
+        "id": "stage_c",
+        "title": "🎯 Stage C — FvT Classifier & Closure",
+        "patterns": ["bkg_syst_c", "phasec", "fvt_closure", "fvt"],
+        "badge_cls": "chip-neutral",
+    },
+    {
+        "id": "stage_b",
+        "title": "📈 Stage B — JCM Computation & Validation",
+        "patterns": ["bkg_syst_b", "phaseb", "computejcm", "test_v0_closure"],
+        "badge_cls": "chip-neutral",
+    },
+    {
+        "id": "stage_a",
+        "title": "📁 Stage A — Subsamples & PicoAOD Validation",
+        "patterns": ["bkg_syst_a", "phasea", "process_subsamples", "skimmer"],
+        "badge_cls": "chip-neutral",
+    },
+]
+
+DEFAULT_WORKFLOW_REGISTRY = "coffea4bees/workflows/workflows.yml"
+
+# Module-level registries; updated after ROOT resolution below.
+PHASES: dict[str, tuple[str, str]] = dict(FALLBACK_PHASES)
+PHASE_EXPANSIONS: dict[str, list[str]] = dict(FALLBACK_PHASE_EXPANSIONS)
+WORKFLOWS: dict[str, list[str]] = dict(FALLBACK_WORKFLOWS)
+DASHBOARDS: list[dict[str, Any]] = list(FALLBACK_DASHBOARDS)
+STAGES: list[dict[str, Any]] = list(FALLBACK_STAGES)
+PUBLISH_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
+ARCHIVE_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
+FALLBACK_PUBLISH_EXTRA = dict(PUBLISH_EXTRA)
+FALLBACK_ARCHIVE_EXTRA = dict(ARCHIVE_EXTRA)
 
 # What `publish` ships to CERNBox: small, human-readable artefacts.  Override any key under
 # "publish" in ~/.config/roast/config.json, or per roast under "publish" in roast.json.
@@ -99,17 +207,15 @@ PUBLISH_DEFAULTS = {
     "include": ["*.pdf", "*.png", "*.svg", "*.html", "*.yml", "*.yaml", "*.json", "*.txt", "*.log", "*.md", "*.csv", "*.tex"],
     # per-job logs under output/ stay on the host; the step log logs/<step>.log always ships
     "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
-                "*/classifier_inputs/classifier_inputs_dataset_*",
                 "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*"],
     "max_mb": 50,
 }
 # What `archive` ships to FNAL EOS (heavy, machine-readable products).  Same override mechanism ("archive" key).
 ARCHIVE_DEFAULTS = {
     "include": ["*.coffea", "*.root", "*.yml", "*.yaml", "*.json", "*.pkl"],
-    # merged products only: no per-dataset singlefiles, no per-dataset classifier-input manifests
-    # (classifier_inputs_friends.json contains every path they do)
+    # merged products only: no per-dataset singlefiles
     "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
-                "*/singlefiles", "*/singlefiles/*", "*/classifier_inputs/classifier_inputs_dataset_*",
+                "*/singlefiles", "*/singlefiles/*",
                 "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*"],
     "max_mb": 0,   # 0 = no limit
 }
@@ -118,8 +224,8 @@ DEFAULT_CONFIG = {
     "hosts": {
         "cmslpc": {
             "ssh": "<user>@cmslpc-el9.fnal.gov",
-            "prod_root": "~/nobackup/HH4b/prod",
-            "reference": "~/nobackup/HH4b/Run3/barista",
+            "prod_root": "~/nobackup/{analysis}/prod",
+            "reference": "~/nobackup/{analysis}/Run3/barista",
             "cores": 8,
         },
         "falcon": {
@@ -130,8 +236,14 @@ DEFAULT_CONFIG = {
         },
         "bridges2": {
             "ssh": "<user>@bridges2.psc.edu",
-            "prod_root": "/ocean/projects/phy260026p/<user>/HH4b/prod",
-            "reference": "/ocean/projects/phy260026p/<user>/HH4b/barista",
+            "prod_root": "/ocean/projects/phy260026p/<user>/{analysis}/prod",
+            "reference": "/ocean/projects/phy260026p/<user>/{analysis}/barista",
+            "cores": 16,
+        },
+        "delta": {
+            "ssh": "<user>@delta",
+            "prod_root": "/projects/bjsv/<user>/workingArea/{analysis}/prod",
+            "reference": "/projects/bjsv/<user>/workingArea/HH4b/barista",
             "cores": 16,
         },
         "nautilus": {
@@ -143,21 +255,25 @@ DEFAULT_CONFIG = {
         },
     },
     "cernbox": {
-        "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
-        "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+        "eos_path": "/eos/user/<x>/<user>/www/{analysis}/prod",
+        "url": "https://<user>.web.cern.ch/<user>/{analysis}/prod",
         "analyses": {
-            "ttHbb": {
-                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
-                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
-            },
             "HH4b": {
                 "eos_path": "/eos/user/<x>/<user>/www/HH4b/prod",
                 "url": "https://<user>.web.cern.ch/<user>/HH4b/prod",
             },
+            "ttHbb": {
+                "eos_path": "/eos/user/<x>/<user>/www/ttHbb/prod",
+                "url": "https://<user>.web.cern.ch/<user>/ttHbb/prod",
+            },
+            "HH4b_lowpt": {
+                "eos_path": "/eos/user/<x>/<user>/www/HH4b_lowpt/prod",
+                "url": "https://<user>.web.cern.ch/<user>/HH4b_lowpt/prod",
+            },
         },
     },
     "owner": "<your name>",
-    "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/HH4b_prod"},
+    "eos": {"url": "root://cmseos.fnal.gov", "path": "/store/user/<lpc_user>/{analysis}_prod"},
     "publish": PUBLISH_DEFAULTS,
     "archive": ARCHIVE_DEFAULTS,
 }
@@ -206,6 +322,217 @@ ROOT = repo_root()
 ROASTS = ROOT / "roasts"
 DOCS_PROD = ROOT / "docs" / "prod"
 
+
+def _read_yaml_file(path: Path, required: bool = True) -> dict:
+    try:
+        import yaml
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except ImportError:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            if required:
+                die(f"PyYAML is required to parse {path}. Please install pyyaml or run in the project environment.")
+            return {}
+    except Exception as e:
+        if required:
+            die(f"failed to read workflow definition from {path}: {e}")
+        return {}
+
+
+def _parse_workflow_dict(
+    raw: dict, base_dir: Path | None = None
+) -> dict[str, Any]:
+    """Parse a workflow registry dictionary into phases, expansions, workflows, dashboards, stages."""
+    phases: dict[str, tuple[str, str]] = {}
+    expansions: dict[str, list[str]] = {}
+    workflows: dict[str, list[str]] = {}
+    dashboards: list[dict[str, Any]] = []
+    stages: list[dict[str, Any]] = []
+    publish_extra: dict[str, list[str]] = {"exclude": [], "include": []}
+    archive_extra: dict[str, list[str]] = {"exclude": [], "include": []}
+
+    # 1. Parse phases
+    raw_phases = raw.get("phases", {})
+    if isinstance(raw_phases, dict):
+        for name, spec in raw_phases.items():
+            name_str = str(name)
+            if isinstance(spec, (list, tuple)) and len(spec) >= 2:
+                host, smk = str(spec[0]), str(spec[1])
+            elif isinstance(spec, dict):
+                host = str(spec.get("host", "cmslpc"))
+                smk = str(spec.get("snakefile", ""))
+                if "expands" in spec:
+                    exp = spec["expands"]
+                    expansions[name_str] = [str(x) for x in exp] if isinstance(exp, list) else [str(exp)]
+            else:
+                continue
+
+            # Resolve snakefile path relative to base_dir or ROOT if needed
+            if smk and not (ROOT / smk).exists() and base_dir:
+                cand = base_dir / smk
+                if (ROOT / cand).exists():
+                    smk = str(cand)
+                elif cand.exists():
+                    try:
+                        smk = str(cand.relative_to(ROOT))
+                    except ValueError:
+                        smk = str(cand)
+
+            phases[name_str] = (host, smk)
+
+    # 2. Parse top-level expansions (if any)
+    raw_exp = raw.get("expansions", {})
+    if isinstance(raw_exp, dict):
+        for k, v in raw_exp.items():
+            expansions[str(k)] = [str(x) for x in v] if isinstance(v, list) else [str(v)]
+
+    # 3. Parse workflows
+    raw_wfs = raw.get("workflows", {})
+    if isinstance(raw_wfs, dict):
+        for w_name, w_spec in raw_wfs.items():
+            if isinstance(w_spec, dict) and "phases" in w_spec:
+                phs = w_spec["phases"]
+                workflows[str(w_name)] = [str(x) for x in phs] if isinstance(phs, list) else [str(phs)]
+            elif isinstance(w_spec, list):
+                workflows[str(w_name)] = [str(x) for x in w_spec]
+
+    # 4. Parse dashboards
+    if "dashboards" in raw and isinstance(raw["dashboards"], list):
+        dashboards = [d for d in raw["dashboards"] if isinstance(d, dict)]
+
+    # 5. Parse stages
+    if "stages" in raw and isinstance(raw["stages"], list):
+        stages = [s for s in raw["stages"] if isinstance(s, dict)]
+
+    # 6. Parse publish / archive extra rules
+    if "publish" in raw and isinstance(raw["publish"], dict):
+        publish_extra["exclude"] = list(raw["publish"].get("exclude") or [])
+        publish_extra["include"] = list(raw["publish"].get("include") or [])
+    if "archive" in raw and isinstance(raw["archive"], dict):
+        archive_extra["exclude"] = list(raw["archive"].get("exclude") or [])
+        archive_extra["include"] = list(raw["archive"].get("include") or [])
+
+    return {
+        "phases": phases,
+        "expansions": expansions,
+        "workflows": workflows,
+        "dashboards": dashboards,
+        "stages": stages,
+        "publish": publish_extra,
+        "archive": archive_extra,
+    }
+
+
+def load_workflow_registry(
+    config_src: Path | str | None = None,
+    workflow_file: Path | str | None = None,
+) -> tuple[dict[str, tuple[str, str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Load workflow phases, expansions, dashboards, and stages from YAML.
+
+    Priority:
+    1. workflow_file argument (if provided)
+    2. 'workflow_file' key in config_src (if present)
+    3. Standard repository workflow files (e.g. coffea4bees/workflows/workflows.yml)
+    4. Inline 'phases:' or 'workflows:' blocks in config_src
+    5. Fallback built-in dictionary
+    """
+    global DASHBOARDS, STAGES, PUBLISH_EXTRA, ARCHIVE_EXTRA
+
+    all_phases = dict(FALLBACK_PHASES)
+    all_expansions = dict(FALLBACK_PHASE_EXPANSIONS)
+    all_workflows = dict(FALLBACK_WORKFLOWS)
+    all_dashboards = list(FALLBACK_DASHBOARDS)
+    all_stages = list(FALLBACK_STAGES)
+    all_publish_extra = {"exclude": list(FALLBACK_PUBLISH_EXTRA.get("exclude", [])), "include": list(FALLBACK_PUBLISH_EXTRA.get("include", []))}
+    all_archive_extra = {"exclude": list(FALLBACK_ARCHIVE_EXTRA.get("exclude", [])), "include": list(FALLBACK_ARCHIVE_EXTRA.get("include", []))}
+
+    candidates: list[Path] = []
+    if workflow_file:
+        candidates.append(Path(workflow_file).expanduser())
+
+    raw_cfg = {}
+    if config_src:
+        cpath = Path(config_src)
+        if cpath.exists():
+            try:
+                import yaml
+                raw_cfg = yaml.safe_load(cpath.read_text()) or {}
+                if isinstance(raw_cfg, dict) and "workflow_file" in raw_cfg:
+                    candidates.append(Path(raw_cfg["workflow_file"]).expanduser())
+            except Exception:
+                pass
+
+    candidates.extend([
+        ROOT / DEFAULT_WORKFLOW_REGISTRY,
+        ROOT / "coffea4bees/workflows/workflows.yaml",
+        ROOT / "workflows/workflows.yml",
+        ROOT / "workflows/workflows.yaml",
+    ])
+
+    found_file = None
+    for cand in candidates:
+        if cand.is_file():
+            found_file = cand
+            break
+        elif (ROOT / cand).is_file():
+            found_file = ROOT / cand
+            break
+
+    if found_file:
+        parsed = _parse_workflow_dict(
+            _read_yaml_file(found_file, required=bool(workflow_file)),
+            base_dir=found_file.parent,
+        )
+        if parsed.get("phases"):
+            all_phases = parsed["phases"]
+        all_expansions.update(parsed.get("expansions", {}))
+        all_workflows.update(parsed.get("workflows", {}))
+        if parsed.get("dashboards"):
+            all_dashboards = parsed["dashboards"]
+        if parsed.get("stages"):
+            all_stages = parsed["stages"]
+        if parsed.get("publish"):
+            for e in parsed["publish"].get("exclude", []):
+                if e not in all_publish_extra["exclude"]:
+                    all_publish_extra["exclude"].append(e)
+            for i in parsed["publish"].get("include", []):
+                if i not in all_publish_extra["include"]:
+                    all_publish_extra["include"].append(i)
+        if parsed.get("archive"):
+            for e in parsed["archive"].get("exclude", []):
+                if e not in all_archive_extra["exclude"]:
+                    all_archive_extra["exclude"].append(e)
+            for i in parsed["archive"].get("include", []):
+                if i not in all_archive_extra["include"]:
+                    all_archive_extra["include"].append(i)
+
+    # If config_src defines inline custom phases or workflows, merge them
+    if isinstance(raw_cfg, dict):
+        if "phases" in raw_cfg and isinstance(raw_cfg["phases"], dict):
+            cfg_p = _parse_workflow_dict({"phases": raw_cfg["phases"]})
+            all_phases.update(cfg_p["phases"])
+            all_expansions.update(cfg_p["expansions"])
+            all_workflows.update(cfg_p["workflows"])
+        if "workflows" in raw_cfg and isinstance(raw_cfg["workflows"], dict):
+            cfg_w = _parse_workflow_dict({"workflows": raw_cfg["workflows"]})
+            all_workflows.update(cfg_w["workflows"])
+        if "dashboards" in raw_cfg and isinstance(raw_cfg["dashboards"], list):
+            all_dashboards.extend(raw_cfg["dashboards"])
+
+    DASHBOARDS = all_dashboards
+    STAGES = all_stages
+    PUBLISH_EXTRA = all_publish_extra
+    ARCHIVE_EXTRA = all_archive_extra
+
+    return all_phases, all_expansions, all_workflows
+
+
+# Initialize module-level registries from repository
+PHASES, PHASE_EXPANSIONS, WORKFLOWS = load_workflow_registry()
+
 # Pages under docs/prod that are written by hand and committed, so the stale-page sweep in
 # write_index() must leave them alone.  "index" is generated but always wanted; the rest are
 # prose that lives next to the catalogue because colleagues reach it from the same nav.
@@ -214,7 +541,7 @@ HANDWRITTEN_PAGES = {"index", "using_roast"}
 # A grid proxy on shared home.  /tmp is node-local on LPC and the login gateway is
 # round-robin, so the proxy you just created is usually not on the node a given roast
 # was pinned to; this copy is readable from all of them.
-SHARED_PROXY = "~/.roast/x509_proxy"
+SHARED_PROXY = "$HOME/.roast/x509_proxy"
 
 DOCS_SITE_FALLBACK = "https://barista.docs.cern.ch"
 
@@ -263,6 +590,14 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "ssh": f"{user}@bridges2.psc.edu",
             "prod_root": f"/ocean/projects/phy260026p/{user}/HH4b/prod",
             "reference": f"/ocean/projects/phy260026p/{user}/HH4b/barista",
+            "cores": 16,
+        }
+    if host == "delta" and "delta" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "ssh": f"{user}@delta",
+            "prod_root": f"/projects/bjsv/{user}/workingArea/HH4b/prod",
+            "reference": f"/projects/bjsv/{user}/workingArea/HH4b/barista",
             "cores": 16,
         }
     try:
@@ -316,6 +651,23 @@ def roast_ssh(cfg: dict, r: dict, host: str) -> str:
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
     """Run a bash script on a remote host via stdin (no quoting games)."""
     return sh(["ssh", *ssh_opts(target), target, "bash -s"], check=check, capture=capture, input=script)
+
+
+def _is_local(target: str) -> bool:
+    """True when the SSH target is this node — avoids the SSH round-trip and its auth requirements."""
+    host = target.split("@")[-1]
+    try:
+        local = socket.getfqdn()
+        return host == local or host.split(".")[0] == local.split(".")[0]
+    except Exception:
+        return False
+
+
+def _run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
+    """Run a bash script locally if target is this node, otherwise via SSH."""
+    if _is_local(target):
+        return sh(["bash", "-s"], check=check, capture=capture, input=script)
+    return ssh_run(target, script, check=check, capture=capture)
 
 
 def scp_to(target: str, srcs: list[Path], dst: str) -> None:
@@ -518,6 +870,49 @@ def check_inputs(cfg: dict, wf: dict, analysis: str | None = None) -> dict | Non
             "refs": refs}
 
 
+def check_friend_wiring(steps: list[dict], wf: dict) -> None:
+    """Preflight check: if a roast runs training/evaluation (Phase C/D) AND the analysis processor (Phase F),
+    verify that analysis_config.config.friends overrides point to {roast_id} (or upstream {roast:...}).
+    Otherwise Phase F silently falls back to static metadata friend trees, ignoring the newly trained models."""
+    step_names = {s["name"] for s in steps}
+    if "F" not in step_names:
+        return
+    if "C" not in step_names and "D" not in step_names:
+        return
+
+    ac = wf.get("analysis_config")
+    if not isinstance(ac, dict):
+        return
+    ac_cfg = ac.get("config")
+    if not isinstance(ac_cfg, dict):
+        return
+    friends = ac_cfg.get("friends") or {}
+
+    bad = []
+    if "C" in step_names and ac_cfg.get("apply_FvT"):
+        fvt = str(friends.get("FvT") or "")
+        if not ("{roast_id}" in fvt or "{roast:" in fvt):
+            bad.append(
+                "Phase C (FvT training) is in the roast and Phase F has apply_FvT: true, "
+                "but `analysis_config.config.friends.FvT` does not reference {roast_id}.\n"
+                f"    Current FvT friend: {friends.get('FvT', '<missing (falls back to friends_*.yml)>')}\n"
+                "    Required: '{eos_prod}/{roast_id}/friend/FvT_.../result.json@@analysis.0.merged'"
+            )
+    if "D" in step_names and (ac_cfg.get("run_SvB") or ac_cfg.get("SvB_MA")):
+        svb_ma = str(friends.get("SvB_MA") or "")
+        svb = str(friends.get("SvB") or "")
+        if not ("{roast_id}" in svb_ma or "{roast:" in svb_ma or "{roast_id}" in svb or "{roast:" in svb):
+            bad.append(
+                "Phase D (SvB evaluation) is in the roast and Phase F has run_SvB/SvB_MA enabled, "
+                "but `analysis_config.config.friends.SvB_MA` does not reference {roast_id}.\n"
+                f"    Current SvB_MA friend: {friends.get('SvB_MA', '<missing (falls back to friends_*.yml)>')}\n"
+                "    Required: '{eos_prod}/{roast_id}/friend/SvB_MA_.../result.json@@analysis.0.merged'"
+            )
+    if bad:
+        die("preflight friend tree check failed:\n  " + "\n  ".join(bad) +
+            "\n  Phase F would silently use stale or external friend trees instead of this roast's outputs.")
+
+
 def capture_config(src: Path, dest: Path) -> list[dict]:
     """Write the config a roast runs from.  A plain config is copied verbatim.  One with a
     top-level `base: <path>` holds only its differences from that base: it is merged over
@@ -589,12 +984,28 @@ def find_step(r: dict, name: str) -> dict:
     for s in r["steps"]:
         if s["name"] == name:
             return s
+    cfg_src = roast_dir(r["id"]) / "config.yml" if (roast_dir(r["id"]) / "config.yml").exists() else None
+    wf_phases, _, _ = load_workflow_registry(config_src=cfg_src, workflow_file=r.get("workflow_file"))
+    if name in wf_phases:
+        host, smk = wf_phases[name]
+        s = {"name": name, "host": host, "snakefile": smk, "targets": "", "extra": ""}
+        r["steps"].append(s)
+        save_roast(r)
+        return s
     die(f"no step '{name}' in roast {r['id']}; steps: " + ", ".join(s["name"] for s in r["steps"]))
 
 
 def checkout_path(cfg: dict, r: dict, host: str) -> str:
     hc = host_cfg(cfg, host)
-    return f"{hc['prod_root'].rstrip('/')}/{r['id']}/barista"
+    prod_root = hc["prod_root"].rstrip("/")
+    ana = r.get("analysis") or detect_analysis(r)
+    if "{analysis}" in prod_root:
+        prod_root = prod_root.replace("{analysis}", ana)
+    elif ana != "HH4b" and "/HH4b/" in prod_root:
+        prod_root = prod_root.replace("/HH4b/", f"/{ana}/")
+    elif ana != "HH4b" and prod_root.endswith("/HH4b"):
+        prod_root = prod_root[:-5] + f"/{ana}"
+    return f"{prod_root}/{r['id']}/barista"
 
 
 # ---------------------------------------------------------------------------
@@ -608,26 +1019,35 @@ def cmd_init(args) -> None:
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     if args.cmslpc_user:
         cfg["hosts"]["cmslpc"]["ssh"] = f"{args.cmslpc_user}@{args.cmslpc_node or 'cmslpc-el9'}.fnal.gov"
-        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/HH4b_prod"
+        cfg["eos"]["path"] = f"/store/user/{args.cmslpc_user}/{{analysis}}_prod"
     if args.falcon_user:
         cfg["hosts"]["falcon"]["ssh"] = f"{args.falcon_user}@falcon.phys.cmu.edu"
     if getattr(args, "bridges2_user", None):
         u = args.bridges2_user
         cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
-        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/HH4b/prod"
-        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/HH4b/barista"
+        cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/prod"
+        cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/barista"
+    if getattr(args, "delta_user", None):
+        u = args.delta_user
+        cfg["hosts"]["delta"]["ssh"] = f"{u}@delta"
+        cfg["hosts"]["delta"]["prod_root"] = f"/projects/bjsv/{u}/workingArea/{{analysis}}/prod"
+        cfg["hosts"]["delta"]["reference"] = f"/projects/bjsv/{u}/workingArea/HH4b/barista"
     if args.cern_user:
         u = args.cern_user
-        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/ttHbb/prod"
-        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/ttHbb/prod"
+        cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/{{analysis}}/prod"
+        cfg["cernbox"]["url"] = f"https://{u}.web.cern.ch/{u}/{{analysis}}/prod"
         cfg["cernbox"]["analyses"] = {
+            "HH4b": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            },
             "ttHbb": {
                 "eos_path": f"/eos/user/{u[0]}/{u}/www/ttHbb/prod",
                 "url": f"https://{u}.web.cern.ch/{u}/ttHbb/prod",
             },
-            "HH4b": {
-                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b/prod",
-                "url": f"https://{u}.web.cern.ch/{u}/HH4b/prod",
+            "HH4b_lowpt": {
+                "eos_path": f"/eos/user/{u[0]}/{u}/www/HH4b_lowpt/prod",
+                "url": f"https://{u}.web.cern.ch/{u}/HH4b_lowpt/prod",
             },
         }
     cfg["owner"] = args.owner or getpass.getuser()
@@ -643,15 +1063,25 @@ def cmd_init(args) -> None:
 
 
 def detect_analysis(r: dict | None = None, config_path: Path | str | None = None, label: str | None = None) -> str:
-    """Detect whether a roast belongs to HH4b or ttHbb. Defaults to ttHbb."""
+    """Detect whether a roast belongs to HH4b, ttHbb, or HH4b_lowpt. Defaults to HH4b."""
     if r and r.get("analysis"):
         return r["analysis"]
     if r:
         web = (r.get("user_paths") or {}).get("web_prod", "") or (r.get("publish") or {}).get("eos", "")
+        if "/www/HH4b_lowpt/" in web:
+            return "HH4b_lowpt"
         if "/www/HH4b/" in web:
             return "HH4b"
         if "/www/ttHbb/" in web:
             return "ttHbb"
+
+    if r and isinstance(r.get("config"), dict):
+        cfg_dict = r["config"]
+        if cfg_dict.get("analysis"):
+            return cfg_dict["analysis"]
+        if cfg_dict.get("channel"):
+            return cfg_dict["channel"]
+
     text_to_check = []
     if label:
         text_to_check.append(str(label).lower())
@@ -666,9 +1096,11 @@ def detect_analysis(r: dict | None = None, config_path: Path | str | None = None
         text_to_check.append(str(config_path).lower())
 
     joined = " ".join(text_to_check)
+    if "lowpt" in joined or "low_pt" in joined:
+        return "HH4b_lowpt"
     if "tthbb" in joined or "ttbb" in joined:
         return "ttHbb"
-    if any(k in joined for k in ("hh4b", "lowpt", "nominal", "mvd", "declustered", "mixeddata")):
+    if any(k in joined for k in ("hh4b", "nominal", "mvd", "declustered", "mixeddata")):
         return "HH4b"
 
     cfg_file = None
@@ -679,19 +1111,21 @@ def detect_analysis(r: dict | None = None, config_path: Path | str | None = None
     if cfg_file:
         try:
             content = cfg_file.read_text()
-            if re.search(r"channel:\s*['\"]?ttHbb", content, re.I):
+            if re.search(r"(?:channel|analysis):\s*['\"]?ttHbb", content, re.I):
                 return "ttHbb"
-            if re.search(r"(processor_HH4b|channel:\s*['\"]?HH4b|friends_HH4b)", content, re.I):
+            if re.search(r"(?:channel|analysis):\s*['\"]?HH4b_lowpt", content, re.I) or re.search(r"processor_HH4b_lowpt", content, re.I):
+                return "HH4b_lowpt"
+            if re.search(r"(processor_HH4b|(?:channel|analysis):\s*['\"]?HH4b|friends_HH4b)", content, re.I):
                 return "HH4b"
         except Exception:
             pass
 
-    return "ttHbb"
+    return "HH4b"
 
 
 def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) -> tuple[str, str]:
     """Return (eos_path, url) for CERNBox.
-    Defaults to ttHbb from cfg['cernbox'], or selects from cfg['cernbox']['analyses'] / replaces path for HH4b.
+    Resolves {analysis} placeholders or selects from cfg['cernbox']['analyses'] / replaces path for channel.
     """
     cb = cfg.get("cernbox") or {}
     ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
@@ -702,12 +1136,25 @@ def cernbox_paths(cfg: dict, r: dict | None = None, analysis: str | None = None)
     elif cb.get("eos_path"):
         base_eos = cb["eos_path"]
         base_url = cb.get("url", "")
-        if ana == "HH4b" and "/www/ttHbb" in base_eos:
+        if "{analysis}" in base_eos:
+            eos_path = base_eos.replace("{analysis}", ana)
+            url = base_url.replace("{analysis}", ana)
+        elif ana == "HH4b" and "/www/ttHbb" in base_eos:
             eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b")
             url = base_url.replace("/ttHbb", "/HH4b")
         elif ana == "ttHbb" and "/www/HH4b" in base_eos:
             eos_path = base_eos.replace("/www/HH4b", "/www/ttHbb")
             url = base_url.replace("/HH4b", "/ttHbb")
+        elif ana == "HH4b_lowpt":
+            if "/www/ttHbb" in base_eos:
+                eos_path = base_eos.replace("/www/ttHbb", "/www/HH4b_lowpt")
+                url = base_url.replace("/ttHbb", "/HH4b_lowpt")
+            elif "/www/HH4b" in base_eos:
+                eos_path = base_eos.replace("/www/HH4b", "/www/HH4b_lowpt")
+                url = base_url.replace("/HH4b", "/HH4b_lowpt")
+            else:
+                eos_path = base_eos
+                url = base_url
         else:
             eos_path = base_eos
             url = base_url
@@ -725,6 +1172,22 @@ def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) ->
     xrootd wants root://host//abs/path, hence the doubled slash before an absolute path.
     """
     out = {}
+    ana = analysis or (r.get("analysis") if r else None) or detect_analysis(r)
+    eos = cfg.get("eos") or {}
+    if eos.get("path") and "<" not in eos["path"]:
+        host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
+        eos_path = eos["path"].strip("/")
+        if "{analysis}" in eos_path:
+            eos_path = eos_path.replace("{analysis}", ana)
+        elif ana == "ttHbb" and "HH4b" in eos_path:
+            eos_path = eos_path.replace("HH4b", "ttHbb")
+        elif ana == "HH4b_lowpt" and "HH4b_prod" in eos_path:
+            eos_path = eos_path.replace("HH4b_prod", "HH4b_lowpt_prod")
+        out["eos_prod"] = f"{host}//{eos_path}"
+    web, _ = cernbox_paths(cfg, r, ana)
+    if web and "<" not in web:
+        out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
+    return out
     eos = cfg.get("eos") or {}
     if eos.get("path") and "<" not in eos["path"]:
         host = eos.get("url", "root://cmseos.fnal.gov").rstrip("/")
@@ -733,6 +1196,67 @@ def user_paths(cfg: dict, r: dict | None = None, analysis: str | None = None) ->
     if web and "<" not in web:
         out["web_prod"] = f"root://eosuser.cern.ch//{web.strip('/')}"
     return out
+
+
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+    except ImportError:
+        try:
+            from validate_config import validate_config, format_report, find_repo_root, DEFAULT_CI_CONFIGS
+        except ImportError:
+            import importlib.util
+            _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+            if not _vpath.exists():
+                _vpath = ROOT / "src/tools/validate_config.py"
+            if _vpath.exists():
+                _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                _mod = importlib.util.module_from_spec(_spec)
+                _spec.loader.exec_module(_mod)
+                validate_config = _mod.validate_config
+                format_report = _mod.format_report
+                find_repo_root = _mod.find_repo_root
+                DEFAULT_CI_CONFIGS = _mod.DEFAULT_CI_CONFIGS
+            else:
+                die("Could not locate validate_config module.")
+
+    repo_root = find_repo_root()
+    targets: list[Path] = []
+    if getattr(args, "all", False):
+        config_dir = repo_root / "coffea4bees/workflows/config"
+        if not config_dir.is_dir():
+            config_dir = repo_root / "workflows/config"
+        if config_dir.is_dir():
+            targets.extend(sorted(config_dir.glob("*.yml")))
+            targets.extend(sorted(config_dir.glob("*.yaml")))
+    elif getattr(args, "config", None):
+        p = Path(args.config).expanduser()
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve()
+        if not p.exists():
+            die(f"config file not found: {p}")
+        targets.append(p)
+    else:
+        for c in DEFAULT_CI_CONFIGS:
+            cand1 = repo_root / c
+            cand2 = repo_root / c.replace("coffea4bees/", "")
+            if cand1.is_file():
+                targets.append(cand1)
+            elif cand2.is_file():
+                targets.append(cand2)
+
+    if not targets:
+        die("No configuration files found to validate.")
+
+    has_errors = False
+    for t in targets:
+        rep = validate_config(t, repo_root=repo_root)
+        print(format_report(rep))
+        if not rep.is_valid(strict=getattr(args, "strict", False)):
+            has_errors = True
+
+    if has_errors:
+        sys.exit(1)
 
 
 def cmd_new(args) -> None:
@@ -751,13 +1275,57 @@ def cmd_new(args) -> None:
     if dirty and not args.barista and not args.coffea4bees:
         info("WARNING: working tree has uncommitted tracked changes; the roast records HEAD, not your edits")
 
+    # Load workflow definitions from workflow YAML / config
+    wf_phases, wf_expansions, wf_workflows = load_workflow_registry(
+        config_src=config_src,
+        workflow_file=getattr(args, "workflow_file", None),
+    )
+
     steps = []
-    for ph in (args.phases.replace(" ", "").split(",") if args.phases else []):
-        ph = ph.upper()
-        if ph not in PHASES:
-            die(f"unknown phase '{ph}'; known: {','.join(PHASES)}")
-        host, smk = PHASES[ph]
-        if getattr(args, "bridges2", False) and host == "falcon":
+    chosen_phases = []
+    if getattr(args, "workflow", None):
+        wf_name = args.workflow
+        if wf_name not in wf_workflows:
+            die(f"unknown workflow '{wf_name}'; known workflows: {', '.join(sorted(wf_workflows))}")
+        chosen_phases = list(wf_workflows[wf_name])
+    elif args.phases:
+        chosen_phases = args.phases.replace(" ", "").split(",")
+
+    if not chosen_phases and not (args.step or []):
+        try:
+            import yaml
+            raw_cfg = _load_layered_config(config_src)[0] if re.search(r"^(inputs|base):", config_src.read_text(), re.M) else {}
+            if not raw_cfg:
+                raw_cfg = yaml.safe_load(config_src.read_text()) or {}
+        except Exception:
+            raw_cfg = {}
+        if isinstance(raw_cfg, dict):
+            if "workflow" in raw_cfg:
+                cfg_wf = raw_cfg["workflow"]
+                if isinstance(cfg_wf, str) and cfg_wf in wf_workflows:
+                    chosen_phases = list(wf_workflows[cfg_wf])
+                elif isinstance(cfg_wf, list):
+                    chosen_phases = list(cfg_wf)
+            elif "phases" in raw_cfg and isinstance(raw_cfg["phases"], list):
+                chosen_phases = list(raw_cfg["phases"])
+            elif "upstream_pre_fvt" in raw_cfg:
+                chosen_phases = list(wf_workflows.get("bkg_syst", ["BKG_C", "BKG_F"]))
+
+    expanded_phases = []
+    for ph in chosen_phases:
+        ph_key = ph.upper() if (ph.upper() in wf_phases or ph.upper() in wf_expansions) else ph
+        if ph_key in wf_expansions:
+            expanded_phases.extend(wf_expansions[ph_key])
+        else:
+            expanded_phases.append(ph_key)
+
+    for ph in expanded_phases:
+        if ph not in wf_phases:
+            die(f"unknown phase '{ph}'; known: {','.join(sorted(wf_phases))}")
+        host, smk = wf_phases[ph]
+        if getattr(args, "delta", False) and host == "falcon":
+            host = "delta"
+        elif getattr(args, "bridges2", False) and host == "falcon":
             host = "bridges2"
         elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
@@ -772,7 +1340,7 @@ def cmd_new(args) -> None:
         name = Path(smk).stem.replace("Snakefile_", "")
         steps.append({"name": name, "host": host, "snakefile": smk, "targets": targets, "extra": ""})
     if not steps:
-        die("nothing to run: give --phases and/or --step")
+        die("nothing to run: give --workflow, --phases, and/or --step")
     for s in steps:
         host_cfg(cfg, s["host"])
         if not (ROOT / s["snakefile"]).exists():
@@ -788,12 +1356,58 @@ def cmd_new(args) -> None:
 
     # Products read from other roasts, checked before anything is written
     inputs = None
+    merged_wf = None
     if re.search(r"^(inputs|base):", config_src.read_text(), re.M):    # a base may carry the inputs
         try:
             import yaml  # noqa: F401  (only configs with `inputs:` or `base:` need it)
         except ImportError:
             die(f"{config_src} has an `inputs:` or `base:` block; reading it needs PyYAML")
-        inputs = check_inputs(cfg, _load_layered_config(config_src)[0], analysis=analysis)
+        merged_wf = _load_layered_config(config_src)[0]
+        inputs = check_inputs(cfg, merged_wf, analysis=analysis)
+    else:
+        try:
+            import yaml
+            merged_wf = yaml.safe_load(config_src.read_text()) or {}
+        except Exception:
+            merged_wf = {}
+    if isinstance(merged_wf, dict):
+        check_friend_wiring(steps, merged_wf)
+
+    # 0. Validate configuration file before capturing
+    validation_summary = None
+    if not getattr(args, "no_validate", False):
+        try:
+            from tools.validate_config import validate_config_file, format_report
+        except ImportError:
+            try:
+                from validate_config import validate_config_file, format_report
+            except ImportError:
+                import importlib.util
+                _vpath = ROOT / "coffea4bees/workflows/scripts/validate_config.py"
+                if not _vpath.exists():
+                    _vpath = ROOT / "src/tools/validate_config.py"
+                if _vpath.exists():
+                    _spec = importlib.util.spec_from_file_location("validate_config", _vpath)
+                    _mod = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(_mod)
+                    validate_config_file = _mod.validate_config_file
+                    format_report = _mod.format_report
+                else:
+                    validate_config_file = None
+
+        if validate_config_file:
+            v_rep = validate_config_file(config_src)
+            if not v_rep.is_valid(strict=getattr(args, "strict", False)):
+                print(format_report(v_rep))
+                die(f"configuration validation failed for {config_src} ({len(v_rep.errors)} error(s)); aborting roast creation.")
+            elif v_rep.warnings or v_rep.infos:
+                print(format_report(v_rep))
+            validation_summary = {
+                "valid": v_rep.is_valid(),
+                "errors": len(v_rep.errors),
+                "warnings": len(v_rep.warnings),
+                "infos": len(v_rep.infos),
+            }
 
     d = roast_dir(rid)
     d.mkdir(parents=True)
@@ -809,15 +1423,18 @@ def cmd_new(args) -> None:
         "barista": {"sha": barista_sha, "origin": barista_origin, "web": gitlab_web(barista_origin)},
         "coffea4bees": {"sha": c4b_sha, "origin": c4b_origin, "web": gitlab_web(c4b_origin)},
         "config": {"source": str(config_src), "captured": "config.yml", "sha256": sha256_file(d / "config.yml"),
-                   **({"base": config_bases} if config_bases else {})},
+                   **({"base": config_bases} if config_bases else {}),
+                   **({"validation": validation_summary} if validation_summary else {})},
         **({"inputs": inputs} if inputs else {}),
         "user_paths": user_paths(cfg, analysis=analysis),
         "steps": steps,
+        **({"workflow": args.workflow} if getattr(args, "workflow", None) else {}),
+        **({"workflow_file": str(args.workflow_file)} if getattr(args, "workflow_file", None) else {}),
         "hosts": {},
         "publish": {},
         "history": [],
         "notes": args.notes or "",
-        "category": args.category or "",
+        "category": (args.category or (merged_wf.get("category") if isinstance(merged_wf, dict) else "") or "").strip(),
     }
     log_event(r, "new")
     save_roast(r)
@@ -861,6 +1478,75 @@ def _finish_checkout_script(r: dict, ckpt: str) -> str:
     """)
 
 
+def _ensure_storage_helper(ns: str) -> None:
+    """Make sure the storage-helper pod (our only way onto CephFS) is Running.
+
+    It is a bare Pod and NRP kills it after ~6 h. Without it the code sync used to fail with only
+    a warning and the Job then ran the old code, so recreate it from the manifest and wait.
+    """
+    phase = sh(k8s_cmd("get", "pod", "storage-helper", "-n", ns, "-o", "jsonpath={.status.phase}"), check=False)
+    if phase.returncode == 0 and phase.stdout.strip() == "Running":
+        return
+    info(f"[nautilus] storage-helper is {phase.stdout.strip() or 'missing'}; recreating it")
+    sh(k8s_cmd("delete", "pod", "storage-helper", "-n", ns, "--ignore-not-found", "--wait=true"), check=False)
+    res = sh(k8s_cmd("apply", "-n", ns, "-f", str(ROOT / "software/kubernetes/storage_helper.yaml")), check=False)
+    if res.returncode != 0:
+        die(f"failed to create storage-helper: {res.stderr.strip()}")
+    res = sh(k8s_cmd("wait", "--for=condition=Ready", "pod/storage-helper", "-n", ns, "--timeout=600s"), check=False)
+    if res.returncode != 0:
+        die(f"storage-helper did not become Ready: {res.stderr.strip() or res.stdout.strip()}")
+
+
+def _proxy_hours_left(pem: bytes) -> float:
+    """Hours until the first certificate in a grid proxy expires (-1 if unreadable)."""
+    if not pem.strip():
+        return -1
+    res = subprocess.run(["openssl", "x509", "-noout", "-enddate"], input=pem, capture_output=True)
+    m = re.search(rb"notAfter=(.+)", res.stdout)
+    if res.returncode != 0 or not m:
+        return -1
+    end = dt.datetime.strptime(" ".join(m.group(1).decode().split()), "%b %d %H:%M:%S %Y %Z")
+    return (end.replace(tzinfo=dt.timezone.utc) - dt.datetime.now(dt.timezone.utc)).total_seconds() / 3600
+
+
+def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 2) -> None:
+    """Make sure the grid proxy the Job will use is valid for at least `min_hours`.
+
+    Checkouts hard-link the reference tree's proxy/, which nothing refreshes, so a proxy that
+    expires mid-step makes every pod's EOS read fail. If the one on CephFS is short, take the
+    shared LPC copy (`roast proxy` keeps ~/.roast/x509_proxy fresh) and write it to `paths`.
+    """
+    cur = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "cat", paths[0]), check=False)
+    left = _proxy_hours_left(cur.stdout.encode())
+    if left >= min_hours:
+        info(f"[nautilus] grid proxy OK ({left:.0f} h left)")
+        return
+    lpc = resolve_ssh(host_cfg(cfg, "cmslpc"))
+    new = subprocess.run(["ssh", *ssh_opts(lpc), lpc, f"cat {SHARED_PROXY}"], capture_output=True)
+    if new.returncode != 0:
+        die(f"grid proxy on Nautilus has {left:.0f} h left and reading {SHARED_PROXY} from {lpc} failed "
+            f"(kinit?): {new.stderr.decode(errors='replace').strip()}")
+    new_left = _proxy_hours_left(new.stdout)
+    if new_left < min_hours:
+        die(f"grid proxy on Nautilus has {left:.0f} h left and the LPC copy {SHARED_PROXY} {new_left:.0f} h; "
+            f"run `{TOOL} proxy` first")
+    with tempfile.NamedTemporaryFile(prefix="x509_", delete=False) as f:
+        f.write(new.stdout)
+    try:
+        os.chmod(f.name, 0o600)
+        for p in paths:
+            # rm first: the checkout's proxy is a hard link into the reference tree
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                       f"mkdir -p {shlex.quote(os.path.dirname(p))} && rm -f {shlex.quote(p)}"), check=False)
+            res = sh(k8s_cmd("cp", f.name, f"{ns}/storage-helper:{p}"), check=False)
+            if res.returncode != 0:
+                die(f"failed to copy the grid proxy to {p}: {res.stderr.strip()}")
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", p), check=False)
+    finally:
+        os.unlink(f.name)
+    info(f"[nautilus] grid proxy refreshed from LPC ({new_left:.0f} h left)")
+
+
 def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     hc = host_cfg(cfg, "nautilus")
     ns = hc.get("namespace", "cms-cmu")
@@ -873,6 +1559,7 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     check_ns = sh(k8s_cmd("get", "ns", ns), check=False)
     if check_ns.returncode != 0:
         die(f"cannot reach Nautilus namespace '{ns}': {check_ns.stderr.strip()}")
+    _ensure_storage_helper(ns)
 
     # 1. Create directory structure on CephFS via storage-helper
     setup_cmd = f"mkdir -p {ckpt}/roasts/{r['id']} {ckpt}/logs /workspace/users/{user}/.kube"
@@ -880,9 +1567,9 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
     if sh_run.returncode != 0:
         die(f"failed to create directories on Nautilus CephFS: {sh_run.stderr.strip()}")
 
-    # 2. Hardlink reference tree on CephFS (instantaneous cp -al)
+    # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
-    for item in bin coffea4bees output proxy run_container runner.py software src roasts; do
+    for item in proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
             cp -al "{ref}/$item" "{ckpt}/$item" 2>/dev/null || cp -r "{ref}/$item" "{ckpt}/$item"
         fi
@@ -928,52 +1615,65 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     ns = hc.get("namespace", "cms-cmu")
     info(f"[nautilus] syncing code to {ckpt}...")
 
-    # 1. Clean code directories in the roast checkout to prevent stale or deleted ghost files
-    clean_dirs = [
-        f"{ckpt}/software",
-        f"{ckpt}/src",
-        f"{ckpt}/bin",
-    ]
+    # Quick atomic rename of existing code directories to avoid CephFS rm -rf stalls
+    ts = int(time.time())
+    for d in [f"{ckpt}/software", f"{ckpt}/src", f"{ckpt}/bin"]:
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                   f"if [ -d '{d}' ]; then mv '{d}' '{d}.trash_{ts}' && (rm -rf '{d}.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
     c4b_dir = ROOT / "coffea4bees"
     if c4b_dir.is_dir() and "coffea4bees" in r:
-        clean_dirs.append(f"{ckpt}/coffea4bees")
-    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", *clean_dirs), check=False)
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                   f"if [ -d '{ckpt}/coffea4bees' ]; then mv '{ckpt}/coffea4bees' '{ckpt}/coffea4bees.trash_{ts}' && (rm -rf '{ckpt}/coffea4bees.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
 
-    # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata)
+    # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata and heavy data)
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
     p_barista = subprocess.Popen(
-        ["git", "archive", "--format=tar.gz", barista_sha, ":!roasts"],
+        ["git", "archive", "--format=tar.gz", barista_sha, "--", ":!roasts", ":!src/data", ":!docs"],
         cwd=ROOT,
         stdout=subprocess.PIPE,
     )
-    res1 = subprocess.run(
+    p_tar1 = subprocess.Popen(
         k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
         stdin=p_barista.stdout,
-        capture_output=True,
-        timeout=300,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     p_barista.stdout.close()
-    if res1.returncode != 0:
-        info(f"[nautilus] warning: barista code sync returned {res1.returncode}")
+    _, stderr1 = p_tar1.communicate(timeout=900)
+    p_barista.wait()
+    if p_tar1.returncode != 0:
+        err = stderr1.decode("utf-8", errors="replace").strip() if stderr1 else ""
+        die(f"[nautilus] barista code sync failed ({p_tar1.returncode}): {err}")
 
-    # 3. Stream coffea4bees code at pinned sha (entire subrepo)
+    # 3. Stream coffea4bees code at pinned sha (excluding heavy non-code assets not needed for remote execution)
     if c4b_dir.is_dir() and "coffea4bees" in r:
         c4b_sha = r["coffea4bees"]["sha"]
         sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
         p_c4b = subprocess.Popen(
-            ["git", "archive", "--format=tar.gz", c4b_sha],
+            [
+                "git", "archive", "--format=tar.gz", c4b_sha, "--",
+                ":!jet_clustering",
+                ":!archive",
+                ":!metadata/weights",
+                ":!metadata/friends",
+                ":!analysis/trigger_emulator/data",
+                ":!hemisphere_mixing",
+            ],
             cwd=c4b_dir,
             stdout=subprocess.PIPE,
         )
-        res2 = subprocess.run(
+        p_tar2 = subprocess.Popen(
             k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
             stdin=p_c4b.stdout,
-            capture_output=True,
-            timeout=300,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         p_c4b.stdout.close()
-        if res2.returncode != 0:
-            info(f"[nautilus] warning: coffea4bees code sync returned {res2.returncode}")
+        _, stderr2 = p_tar2.communicate(timeout=900)
+        p_c4b.wait()
+        if p_tar2.returncode != 0:
+            err = stderr2.decode("utf-8", errors="replace").strip() if stderr2 else ""
+            die(f"[nautilus] coffea4bees code sync failed ({p_tar2.returncode}): {err}")
 
     info(f"[nautilus] synced code to {ckpt}")
 
@@ -1111,10 +1811,19 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         fi
         command -v voms-proxy-info >/dev/null && voms-proxy-info --file proxy/x509_proxy --timeleft 2>/dev/null | sed 's/^/=== proxy seconds left: /' | tee -a "$LOG"
         {unlock.strip()}
+        # 1. Capture visual rulegraph before execution
+        echo "=== generating rulegraph SVG ===" | tee -a "$LOG"
+        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+        # 2. Run workflow
         {base} 2>&1 | tee -a "$LOG"
         RC=${{PIPESTATUS[0]}}
         echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
         echo "$RC" > "$EXIT"
+        if [ "$RC" = "0" ]; then
+            # 3. Capture snakemake execution summary on success
+            echo "=== generating snakemake execution summary ===" | tee -a "$LOG"
+            ./run_container snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} > "logs/{name}_summary.txt" 2>/dev/null || true
+        fi
         if [ "$RC" != "0" ]; then
             echo "step {name} FAILED (rc=$RC). Shell kept open for inspection; exit to close."
             exec bash
@@ -1130,6 +1839,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     ns = hc.get("namespace", "cms-cmu")
     user = hc.get("user", getpass.getuser())
     jname = _k8s_job_name(r, step)
+    ref = hc.get("reference", f"/workspace/users/{user}/barista")
+    _ensure_storage_helper(ns)
+    _push_nautilus_proxy(cfg, ns, [f"{ckpt}/proxy/x509_proxy", f"{ref}/proxy/x509_proxy"])
 
     # 1. Guard against double-submit
     jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
@@ -1153,7 +1865,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     if step.get("extra"):
         base += f" {step['extra']}"
     if args.extra:
-        base += f" {args.extra}"
+        extra_str = args.extra.strip()
+        if "--config " in base and extra_str.startswith("--config "):
+            extra_str = extra_str[len("--config "):]
+        base += f" {extra_str}"
     if resume:
         base += " --rerun-incomplete"
 
@@ -1183,6 +1898,15 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
             spec:
               restartPolicy: Never
               serviceAccountName: roast-runner
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                        - tu.gp-engine.greatplains.net
               containers:
               - name: orchestrator
                 image: docker.io/snakemake/snakemake:v9.27.0
@@ -1206,11 +1930,16 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   LOG=logs/{name}.log
                   EXIT=logs/{name}.exit
                   rm -f "$EXIT"
-                  rm -rf .snakemake/locks || true
+                  rm -rf .snakemake/locks/* 2>/dev/null || true
+                  mkdir -p .snakemake/locks
                   {unlock}
+                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
+                  if [ "$RC" = "0" ]; then
+                      snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus > "logs/{name}_summary.txt" 2>/dev/null || true
+                  fi
                   echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
                   exit $RC
                 resources:
@@ -1229,8 +1958,10 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   claimName: cms-cmu-storage
     """)
 
-    # Sync code at pinned roast SHAs to CephFS checkout (clean archive stream, no ghost files)
-    _sync_nautilus_code(cfg, r, ckpt)
+    # Sync code at pinned roast SHAs to CephFS checkout if not already present
+    has_code = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-d", f"{ckpt}/coffea4bees"), check=False)
+    if has_code.returncode != 0:
+        _sync_nautilus_code(cfg, r, ckpt)
 
     manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
     manifest_path.write_text(manifest)
@@ -1261,15 +1992,99 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     info(f"attach: {TOOL} attach {r['id']} --step {name}    |    {TOOL} status {r['id']}")
 
 
+def _krb_refresh_script(warn_hours: int = 12) -> str:
+    """Bash that points every tmux session on an LPC node at the freshest Kerberos ticket.
+
+    A tmux session keeps the KRB5CCNAME of the ssh login that created it, and LPC tickets are not
+    renewable, so a long-lived roast session (and the dask daemon in it) ends up on an expired
+    cache: condor submission then fails with SECMAN:2011 and the step stalls. Copy the newest
+    valid /tmp/krb5cc_<uid>* over each older session cache (running processes keep their path)
+    and warn when even the newest ticket expires soon.
+    """
+    return textwrap.dedent(f"""\
+        best=""
+        for c in /tmp/krb5cc_$(id -u)*; do
+            [ -f "$c" ] && [ -O "$c" ] && klist -s -c "FILE:$c" 2>/dev/null || continue
+            if [ -z "$best" ] || [ "$c" -nt "$best" ]; then best="$c"; fi
+        done
+        if [ -z "$best" ]; then
+            echo "WARNING: no valid Kerberos ticket on $(hostname); condor submission will fail -- kinit there first"
+        else
+            for s in $(tmux list-sessions -F '#S' 2>/dev/null); do
+                cur=$(tmux show-environment -t "$s" KRB5CCNAME 2>/dev/null | sed -n 's/^KRB5CCNAME=\\(FILE:\\)\\{{0,1\\}}//p')
+                if [ -z "$cur" ]; then
+                    tmux set-environment -t "$s" KRB5CCNAME "FILE:$best"
+                elif [ "$cur" != "$best" ] && {{ [ ! -e "$cur" ] || {{ [ -O "$cur" ] && [ "$best" -nt "$cur" ]; }}; }}; then
+                    cp -p "$best" "$cur" && echo "kerberos: refreshed tmux session $s cache $cur"
+                fi
+            done
+            left=$(( $(date -d "$(klist -c "FILE:$best" 2>/dev/null | awk '/krbtgt\\//{{print $3" "$4; exit}}')" +%s 2>/dev/null || echo 0) - $(date +%s) ))
+            echo "kerberos: newest ticket $best, $(( left / 3600 ))h left"
+            if [ "$left" -lt {warn_hours * 3600} ]; then
+                echo "WARNING: the Kerberos ticket on $(hostname) expires in under {warn_hours}h and is not renewable; kinit there before a long step"
+            fi
+        fi
+    """)
+
+
 def _submit(args, resume: bool) -> None:
     cfg = load_config()
     r = load_roast(args.id)
-    step = find_step(r, args.step)
+    target_step = args.step
+
+    # If user requests step C or BKG_C, check if GPU training is already exit 0 and C4 needs to run
+    if target_step in ("C", "BKG_C"):
+        c_step = next((s for s in r.get("steps", []) if s["name"] == target_step), None)
+        c4_name = "C4" if target_step == "C" else "BKG_C4"
+        c4_step = next((s for s in r.get("steps", []) if s["name"] == c4_name), None)
+        if c_step and c4_step:
+            c_host = c_step.get("host", "")
+            c_done = False
+            c_runs = [run for run in c_step.get("runs", []) if not run.get("dry_run")]
+            if c_runs:
+                if c_host == "nautilus":
+                    hc_n = host_cfg(cfg, "nautilus")
+                    ns = hc_n.get("namespace", "cms-cmu")
+                    jname = c_runs[-1].get("job_name") or _k8s_job_name(r, c_step)
+                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "1":
+                        c_done = True
+                elif c_host in r.get("hosts", {}):
+                    ckpt_c = r["hosts"][c_host]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"][c_host].get("ssh") or c_host,
+                             f"test -f {shlex.quote(ckpt_c)}/logs/{target_step}.exit && cat {shlex.quote(ckpt_c)}/logs/{target_step}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c_done = True
+
+            if c_done:
+                c4_done = False
+                if "cmslpc" in r.get("hosts", {}):
+                    ckpt_c4 = r["hosts"]["cmslpc"]["checkout"]
+                    res = sh(["ssh", *SSH_OPTS, r["hosts"]["cmslpc"].get("ssh") or "cmslpc",
+                             f"test -f {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit && cat {shlex.quote(ckpt_c4)}/logs/{c4_name}.exit"], check=False)
+                    if res.returncode == 0 and res.stdout.strip() == "0":
+                        c4_done = True
+                if not c4_done:
+                    info(f"Step {target_step} (GPU training on {c_host}) is already complete (exit 0). Proceeding with {c4_name} (FvT closure on cmslpc)...")
+                    target_step = c4_name
+
+    step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
+
+    if step["name"] == "F":
+        cfg_path = roast_dir(r["id"]) / "config.yml"
+        if cfg_path.exists():
+            try:
+                import yaml
+                captured_wf = yaml.safe_load(cfg_path.read_text())
+                if isinstance(captured_wf, dict):
+                    check_friend_wiring(r.get("steps", []), captured_wf)
+            except Exception as e:
+                pass
     target = roast_ssh(cfg, r, host) if host != "nautilus" else ""
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
@@ -1341,6 +2156,8 @@ def _submit(args, resume: bool) -> None:
             tmux kill-window -t {TMUX_SESSION}:{shlex.quote(window)} 2>/dev/null || true
         fi
     """)
+    if host == "cmslpc":
+        guard += _krb_refresh_script()
     res = ssh_run(target, guard, check=False)
     if res.returncode == 255:
         # The node this roast was placed on is unreachable.  Its filesystem is shared, so
@@ -1532,7 +2349,7 @@ def cmd_proxy(args) -> None:
     if args.check:
         res = ssh_run(target, f"echo -n 'node '; hostname -s; "
                               f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
-                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {rq(SHARED_PROXY)} 2>/dev/null || echo none",
+                              f"echo -n 'shared '; voms-proxy-info --timeleft -file {SHARED_PROXY} 2>/dev/null || echo none",
                       check=False)
         where = {}
         for line in res.stdout.split("\n"):
@@ -1613,7 +2430,13 @@ def proxy_candidates() -> list[str]:
     The roast's own copy (scripts that need it run from the checkout), then this node's /tmp,
     then the shared-home copy.  A path that does not exist costs nothing to skip.
     """
-    return ['"$PWD/proxy/x509_proxy"', '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"', rq(SHARED_PROXY)]
+    return [
+        '"$PWD/proxy/x509_proxy"',
+        '"$PWD/../proxy/x509_proxy"',
+        '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"',
+        '"$HOME/x509up_u$(id -u)"',
+        '"$HOME/.roast/x509_proxy"',
+    ]
 
 
 def _xrd_auth(eos_url: str, *proxies: str) -> str:
@@ -1658,10 +2481,10 @@ def _eos_rm_tree_script(eos_url: str, path: str, *proxies: str) -> str:
         TMPLST=$(mktemp)
         trap 'rm -f "$TMPLST"' EXIT
         xrdfs $EOS ls -l -R "$P" 2>/dev/null > "$TMPLST"
-        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rm >/dev/null 2>&1
+        awk '$1 !~ /^d/ {{ print $NF }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rm >/dev/null 2>&1
         DEPTHS=$(awk '$1 ~ /^d/ {{ path=$NF; n=split(path, arr, "/"); print n }}' "$TMPLST" | sort -urn)
         for d in $DEPTHS; do
-            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 16 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
+            awk -v dep="$d" '$1 ~ /^d/ {{ path=$NF; if (split(path, arr, "/") == dep) print path }}' "$TMPLST" | tr '\\n' '\\0' | xargs -0 -r -P 64 -n 1 xrdfs $EOS rmdir >/dev/null 2>&1
         done
         rm -f "$TMPLST"
         trap - EXIT
@@ -1975,30 +2798,32 @@ def cmd_rm(args) -> None:
         info("dry run. Re-run with --yes to delete. Use --keep-eos / --keep-cernbox / --keep-hosts to spare a location.")
         return
     # refuse while a step is running
-    for host, h in r.get("hosts", {}).items():
-        if host == "nautilus":
-            hc = host_cfg(cfg, "nautilus")
-            ns = hc.get("namespace", "cms-cmu")
-            chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
-            if chk.returncode == 0 and "Running" in (chk.stdout or ""):
-                die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
-            continue
-        target = roast_ssh(cfg, r, host)
-        session = _tmux_session(r)
-        chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
-        if chk.stdout.strip() not in ("", "0"):
-            die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
+    if not args.keep_hosts:
+        for host, h in r.get("hosts", {}).items():
+            if host == "nautilus":
+                hc = host_cfg(cfg, "nautilus")
+                ns = hc.get("namespace", "cms-cmu")
+                chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
+                if chk.returncode == 0 and "Running" in (chk.stdout or ""):
+                    die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
+                continue
+            target = roast_ssh(cfg, r, host)
+            session = _tmux_session(r)
+            chk = ssh_run(target, f"(tmux list-windows -t {session} -F '#W' 2>/dev/null; tmux list-windows -t {TMUX_SESSION} -F '#W' 2>/dev/null) | grep -c {shlex.quote(r['label'][:16] + '_')} || true", check=False)
+            if chk.stdout.strip() not in ("", "0"):
+                die(f"a tmux window for this roast is still open on {host}; finish or kill it first (`{TOOL} attach {rid}`)")
     ok = True
     # remote locations first, while we still have the manifest -- and EOS before the host checkouts,
     # whose proxy/x509_proxy is the credential CERN EOS needs from a cmslpc node (see _xrd_auth)
-    lpc = roast_ssh(cfg, r, "cmslpc")
+    lpc = resolve_ssh(host_cfg(cfg, "cmslpc")) if args.keep_hosts else roast_ssh(cfg, r, "cmslpc")
     lpc_ck = (r.get("hosts", {}).get("cmslpc") or {}).get("checkout")
-    proxy = rq(f"{lpc_ck}/proxy/x509_proxy") if lpc_ck else '"${X509_USER_PROXY:-/tmp/x509up_u$(id -u)}"'
+    proxy_args = [rq(f"{lpc_ck}/proxy/x509_proxy")] if lpc_ck else []
+    proxy_args.extend(proxy_candidates())
     if not args.keep_eos and eos.get("path") and "<" not in eos["path"]:
-        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script(eos.get("url", "root://cmseos.fnal.gov"), f"{eos['path'].rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     if not args.keep_cernbox:
-        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", proxy), check=False)
+        res = ssh_run(lpc, _eos_rm_tree_script("root://eosuser.cern.ch", f"{cb_eos.rstrip('/')}/{rid}", *proxy_args), check=False)
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
@@ -2007,7 +2832,7 @@ def cmd_rm(args) -> None:
                 ns = hc.get("namespace", "cms-cmu")
                 sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
                 top = h["checkout"].rsplit("/", 1)[0]
-                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
+                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
                 print(f"  removed {top} on Nautilus")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
@@ -2154,7 +2979,7 @@ def _status_script(r: dict, ckpt: str, steps: list[dict], host: str) -> str:
             # claims are reported too: they belong to a roast this checkout cannot see.
             f'''condor_q -af:t JobStatus Arguments 2>/dev/null | awk -F\'\\t\' \'{{ s="-"; if (match($2, /tcp:\\/\\/[0-9.]+:[0-9]+/)) s=substr($2, RSTART, RLENGTH); n[s "\\t" $1]++ }} END {{ for (k in n) {{ split(k, a, "\\t"); print a[1] "\\t" a[2] "\\t" n[k] }} }}\' | while IFS="$(printf \'\\t\')" read -r sched st cnt; do owner=$(grep -l -- "$sched" logs/*.log 2>/dev/null | head -1); owner=${{owner##*/}}; owner=${{owner%%.log}}; echo "CONDOR|${{owner:-?}}|$sched|$st|$cnt"; done || true''',
         ])
-    elif host in ("falcon", "bridges2"):
+    elif host in ("falcon", "bridges2", "delta"):
         batch = "\n".join([
             # live jobs, each followed by the last line of its own slurm log (training progress, loss, ...)
             f'''squeue -u "$USER" -h -o \'%i|%k|%T|%M|%l|%R|%C|%m|%b|%Z\' 2>/dev/null | awk -F\'|\' -v rid={rid} \'$10 ~ rid {{ print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }}\' | while IFS="|" read -r jid rest; do hit=$(grep -H -m1 "SLURM jobid $jid " logs/*.log 2>/dev/null | head -1); step=${{hit%%:*}}; step=${{step##*/}}; step=${{step%%.log}}; [ -n "$hit" ] || step=""; log=$(ls -t slurm_logs/*/$jid.log slurm_logs/$jid.log 2>/dev/null | head -1); rule=$(echo "$rest" | cut -d"|" -f1); [ -n "$rule" ] || rule=$(echo "$hit" | grep -oE "slurm_logs/[^/]+/" | head -1 | cut -d/ -f2); echo "SLURM|$jid|$step|$rule|$(echo "$rest" | cut -d"|" -f2-)|$(tail -n 1 "$log" 2>/dev/null | tr -d "\\r" | tr "|" " ")"; done''',
@@ -2757,11 +3582,17 @@ def cmd_monitor(args) -> None:
 
 
 def copy_settings(kind: str, cfg: dict, r: dict, include_test: bool = False, with_pdfs: bool = False) -> dict:
-    """kind = 'publish' | 'archive'.  Defaults <- user config[kind] <- roast.json[kind + '_rules']."""
+    """kind = 'publish' | 'archive'.  Defaults <- user config[kind] <- roast.json[kind + '_rules'] + workflow registry extras."""
     base = PUBLISH_DEFAULTS if kind == "publish" else ARCHIVE_DEFAULTS
     ps = dict(base)
+    extra = PUBLISH_EXTRA if kind == "publish" else ARCHIVE_EXTRA
+    cfg_extra = cfg.get(f"{kind}_extra") or {}
     for src in (cfg.get(kind) or {}, r.get(kind + "_rules") or {}):
         ps.update({k: v for k, v in src.items() if k in base})
+    for ex in (extra.get("exclude", []), cfg_extra.get("exclude", [])):
+        ps["exclude"] = list(ps["exclude"]) + [e for e in ex if e not in ps["exclude"]]
+    for inc in (extra.get("include", []), cfg_extra.get("include", [])):
+        ps["include"] = list(ps["include"]) + [i for i in inc if i not in ps["include"]]
     if include_test:
         ps["exclude"] = [e for e in ps["exclude"] if "_test" not in e]
     if kind == "publish" and not with_pdfs:
@@ -2779,6 +3610,8 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
     size = f"-size -{int(ps['max_mb'])}M" if int(ps.get("max_mb") or 0) > 0 else ""
     extra_dirs = f"find logs roasts/{r['id']} -type f;" if with_logs else ""
     dry = "cat \"$LIST\"; echo; echo \"$(wc -l < \"$LIST\") files would be copied (dry run)\"; exit 0" if dry_run else ""
+    cern = "cern.ch" in eos_url
+    realm = "CERN\\.CH" if cern else "[A-Z.]*"
     ht = textwrap.dedent(f"""\
         # CERN EOS websites return 403 on directories without an index; enable Apache listings once at the root.
         HT=$(mktemp); printf 'Options +Indexes\\n' > "$HT"
@@ -2792,7 +3625,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         cd {rq(ckpt)} 2>/dev/null || {{ echo "no checkout at {ckpt} on $(hostname): nothing to copy. \\`{TOOL} checkout\\` rebuilds the code, but a cleaned or deleted checkout's outputs are gone" >&2; exit 4; }}
         command -v xrdcp >/dev/null || {{ echo "xrdcp not found on $(hostname)" >&2; exit 2; }}
         {_xrd_auth(eos_url, *proxy_candidates())}
-        [ -n "$PROXY" ] || klist -s 2>/dev/null || {{ echo "no grid proxy with time left on $(hostname) and no kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
+        [ -n "$PROXY" ] || (klist -s 2>/dev/null && klist 2>/dev/null | grep -q "Default principal: .*@{realm}$") || {{ echo "no grid proxy with time left on $(hostname) and no {realm} kerberos ticket: run \\`{TOOL} proxy\\`" >&2; exit 3; }}
         EOS={eos_url}
         DST_BASE=$EOS/{dst_dir}
         LIST=$(mktemp); HAVE=$(mktemp); RAW_HAVE=$(mktemp); TODO=$(mktemp)
@@ -2859,11 +3692,49 @@ def _refuse_if_cleaned(r: dict, what: str, allow: bool = False) -> None:
             f"`{TOOL} checkout {r['id']}` rebuilds it from the pinned shas.")
 
 
+def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
+    """Regenerate the analysis-level index.html on CERNBox listing all published roasts."""
+    if not shutil.which("xrdfs"):
+        info("notice: xrdfs not on local PATH, skipping analysis-level index refresh")
+        return
+    res = sh(["xrdfs", "eosuser.cern.ch", "ls", eos_base], check=False)
+    if res.returncode != 0:
+        info("warning: could not list CERNBox analysis directory for index refresh")
+        return
+    roasts = sorted(
+        [ln.strip() for ln in res.stdout.splitlines() if ln.strip() and "/." not in ln],
+        reverse=True,
+    )
+    url_base = url_base.rstrip("/")
+    rows = "\n".join(
+        f'  <li><a href="{url_base}/{ln.rstrip("/").rsplit("/", 1)[-1]}/index.html">'
+        f'{ln.rstrip("/").rsplit("/", 1)[-1]}</a></li>'
+        for ln in roasts
+    )
+    title = url_base.rsplit("/", 1)[-1]
+    html = (
+        f"<!DOCTYPE html><html><head><title>{title}</title></head>"
+        f"<body><h2>{title}</h2><ul>\n{rows}\n</ul></body></html>\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+        f.write(html)
+        tmp = f.name
+    try:
+        res = sh(["xrdcp", "-f", "-s", tmp, f"root://eosuser.cern.ch/{eos_base}/index.html"], check=False)
+        if res.returncode == 0:
+            info(f"analysis index updated: {url_base}/index.html")
+        else:
+            info("warning: could not update analysis index on CERNBox")
+    finally:
+        os.unlink(tmp)
+
+
 def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publish_mode: bool = False) -> None:
     if "nautilus" not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
         return
     hc = host_cfg(cfg, "nautilus")
     ns = hc.get("namespace", "cms-cmu")
+    _ensure_storage_helper(ns)
     nautilus_ck = r["hosts"]["nautilus"]["checkout"]
     target_ck = r["hosts"][target_host]["checkout"]
     target_ssh = roast_ssh(cfg, r, target_host)
@@ -2886,6 +3757,8 @@ def cmd_publish(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     _refuse_if_cleaned(r, "publish", allow=args.docs_only)
+    if getattr(args, "category", None):
+        r["category"] = args.category.strip()
     analysis = getattr(args, "analysis", None) or r.get("analysis") or detect_analysis(r)
     eos_base, url_base = cernbox_paths(cfg, r, analysis)
     eos_dir = f"{eos_base.rstrip('/')}/{r['id']}"
@@ -2906,9 +3779,9 @@ def cmd_publish(args) -> None:
                 continue
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
-            res = ssh_run(roast_ssh(cfg, r, host),
-                          _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
-                                       dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
+            res = _run(roast_ssh(cfg, r, host),
+                       _copy_script(r, hinfo["checkout"], "root://eosuser.cern.ch", eos_dir, ps, jobs=args.jobs,
+                                    dry_run=args.dry_run, with_logs=True, htaccess=True), check=False)
             combined_out = res.stdout + res.stderr
             for line in combined_out.splitlines():
                 if line.startswith("PAGE:"):
@@ -2943,7 +3816,7 @@ def cmd_publish(args) -> None:
     rdir = roast_dir(r["id"])
     if rdir.exists():
         (rdir / "index.html").write_text(summary_html, encoding="utf-8")
-    if not args.dry_run and not args.docs_only and ok:
+    if not args.dry_run and ok:
         pub_host = None
         for h in hosts:
             if h != "nautilus" and h in r.get("hosts", {}):
@@ -2961,16 +3834,24 @@ def cmd_publish(args) -> None:
                 xrdcp -f -s index.html "root://eosuser.cern.ch/{eos_dir}/index.html"
             """)
             target_ssh = roast_ssh(cfg, r, pub_host)
-            up_res = subprocess.run(
-                ["ssh", *ssh_opts(target_ssh), target_ssh, f"bash -l -c {rq(upload_script)}"],
-                input=summary_html.encode("utf-8"),
-                capture_output=True,
-            )
+            if _is_local(target_ssh):
+                up_res = subprocess.run(
+                    ["bash", "-c", upload_script],
+                    input=summary_html.encode("utf-8"),
+                    capture_output=True,
+                )
+            else:
+                up_res = subprocess.run(
+                    ["ssh", *ssh_opts(target_ssh), target_ssh, f"bash -l -c {rq(upload_script)}"],
+                    input=summary_html.encode("utf-8"),
+                    capture_output=True,
+                )
             if up_res.returncode != 0:
                 err_msg = up_res.stderr.decode("utf-8", errors="replace").strip()
                 info(f"[{pub_host}] warning: failed to upload summary index.html: {err_msg}")
             else:
                 info(f"summary roast index: {url}index.html")
+        _refresh_cernbox_analysis_index(eos_base, url_base)
 
     info(f"results: {url}")
     info(f"docs: {DOCS_PROD / (r['id'] + '.md')} and index.md regenerated; run `{TOOL} commit {r['id']}` to commit the roast manifest")
@@ -2998,9 +3879,9 @@ def cmd_archive(args) -> None:
             continue
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
-        res = ssh_run(roast_ssh(cfg, r, host),
-                      _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
-                                   dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
+        res = _run(roast_ssh(cfg, r, host),
+                   _copy_script(r, hinfo["checkout"], eos_url, dst_dir, ps, jobs=args.jobs,
+                                dry_run=args.dry_run, with_logs=True, htaccess=False), check=False)
         print((res.stdout + res.stderr).strip())
         if args.dry_run:
             continue
@@ -3125,6 +4006,7 @@ def write_docs(r: dict) -> None:
         f"| coffea4bees | [`{c['sha'][:12]}`]({c['web']}/-/commit/{c['sha']}) |",
         f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) — [captured copy]({url}roasts/{r['id']}/config.yml) |" if url
         else f"| config | `{r['config']['source']}` (sha256 `{r['config']['sha256'][:12]}`) |",
+        (f"| validation | {'✅ valid' if r['config']['validation'].get('valid') else '❌ invalid'} ({r['config']['validation'].get('errors', 0)} error(s), {r['config']['validation'].get('warnings', 0)} warning(s)) |" if r.get("config", {}).get("validation") else ""),
         f"| results | [{url}]({url}) |" if url else "| results | not published |",
         f"| manifest | [roast.json]({url}roasts/{r['id']}/roast.json) |" if url else "",
         (f"| production area | `{r['user_paths']['eos_prod']}/{r['id']}/` |" if r.get("user_paths", {}).get("eos_prod") else ""),
@@ -3135,20 +4017,31 @@ def write_docs(r: dict) -> None:
         "",
         "## Steps",
         "",
-        "| step | host | snakefile | state | log |",
+        "| step | host | snakefile | state | logs & artifacts |",
         "|---|---|---|---|---|",
     ]
-    for s in r["steps"]:
-        log = f"[{s['name']}.log]({url}logs/{s['name']}.log)" if url else ""
-        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {log} |")
     pages = r.get("publish", {}).get("pages", [])
+    for s in r["steps"]:
+        artifacts = []
+        if url:
+            artifacts.append(f"[log]({url}logs/{s['name']}.log)")
+            if not pages or f"logs/{s['name']}_rulegraph.svg" in pages:
+                artifacts.append(f"[dag]({url}logs/{s['name']}_rulegraph.svg)")
+            if not pages or f"logs/{s['name']}_summary.txt" in pages:
+                artifacts.append(f"[summary]({url}logs/{s['name']}_summary.txt)")
+        art_str = " · ".join(artifacts) if artifacts else ""
+        lines.append(f"| {s['name']} | {s['host']} | `{s['snakefile']}` {s.get('targets','')} | {_step_state(r, s)} | {art_str} |")
     if url and pages:
         # galleries (…/index.html) and cutflow closure tables (…/cutflow_*.html), grouped by workflow dir
         lines += ["", "## Pages", "", "| workflow | page |", "|---|---|"]
         for p in pages:
             parts = p.split("/")
-            wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
-            name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
+            if len(parts) == 1:
+                wf = "root"
+                name = parts[0].removesuffix(".html")
+            else:
+                wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
+                name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
             lines.append(f"| {wf} | [{name}]({url}{p}) |")
     if r.get("notes"):
         lines += ["", "## Notes", "", r["notes"]]
@@ -3191,8 +4084,22 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     cfg_src = html.escape(str(r.get("config", {}).get("source", "—")))
     cfg_sha = html.escape(str(r.get("config", {}).get("sha256", ""))[:12])
 
+    val = r.get("config", {}).get("validation")
+    if val:
+        if val.get("valid"):
+            n_warn = val.get("warnings", 0)
+            val_badge = f'<span class="badge badge-success">VALID</span> <span class="muted">({n_warn} warning{"s" if n_warn != 1 else ""})</span>'
+        else:
+            n_err = val.get("errors", 0)
+            val_badge = f'<span class="badge badge-danger">FAILED</span> <span class="muted">({n_err} error{"s" if n_err != 1 else ""})</span>'
+    else:
+        val_badge = '<span class="badge badge-secondary">Not audited</span>'
+
     hosts = list(r.get("hosts", {}).keys())
     hosts_html = " ".join(f'<span class="badge badge-host">{html.escape(h)}</span>' for h in hosts) or "—"
+
+    if pages is None:
+        pages = r.get("publish", {}).get("pages", [])
 
     history = r.get("history", [])
     step_rows = []
@@ -3216,7 +4123,15 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             st_badge = f'<span class="badge badge-secondary">{html.escape(state_text)}</span>'
 
         log_path = f"logs/{s.get('name')}.log"
-        log_cell = f'<a href="{log_path}" class="file-link">{sname}.log</a>'
+        rulegraph_path = f"logs/{s.get('name')}_rulegraph.svg"
+        summary_path = f"logs/{s.get('name')}_summary.txt"
+
+        links = [f'<a href="{log_path}" class="file-link">{sname}.log</a>']
+        if pages is None or rulegraph_path in pages:
+            links.append(f'<a href="{rulegraph_path}" class="pill-link" target="_blank" title="View Snakemake Rulegraph SVG">📊 DAG</a>')
+        if pages is None or summary_path in pages:
+            links.append(f'<a href="{summary_path}" class="pill-link" target="_blank" title="View Snakemake Execution Summary">📋 Summary</a>')
+        log_cell = " ".join(links)
 
         target_str = f" <span class='muted'>({targets})</span>" if targets else ""
         step_rows.append(f"""
@@ -3230,26 +4145,175 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
     steps_table_html = "\n".join(step_rows) if step_rows else "<tr><td colspan='5' class='muted'>No steps registered</td></tr>"
 
-    if pages is None:
-        pages = r.get("publish", {}).get("pages", [])
-
+    featured_cards = []
+    gallery_cards = []
+    seen_gallery_urls = set()
+    models_dict = {}
+    stage_items = {s.get("id", f"stage_{i}"): [] for i, s in enumerate(STAGES)}
     galleries = []
     cutflows = []
     others = []
 
+    is_bkg_roast = ("bkg_syst" in r.get("analysis", "").lower()
+                    or "bkg_syst" in r.get("id", "").lower()
+                    or any("bkg" in s.get("name", "").lower() for s in r.get("steps", [])))
+
     for p in pages:
         p_esc = html.escape(p)
         parts = p.split("/")
-        if p.endswith("index.html"):
+        filename = parts[-1]
+        lower_p = p.lower()
+
+        # Check for 16 models in Stage C: .../models/mix_(\d+)/...
+        # Only populate models_dict if this roast is actually a background systematics roast
+        m_mix = re.search(r"/models/mix_(\d+)/", p)
+        if m_mix and is_bkg_roast:
+            idx = int(m_mix.group(1))
+            if idx not in models_dict:
+                models_dict[idx] = {}
+            if filename == "yields.html":
+                models_dict[idx]["yields"] = p
+            elif "plots/analyze/HCR" in p:
+                if "hcr" not in models_dict[idx]:
+                    models_dict[idx]["hcr"] = p
+            elif "plots/analyze" in p:
+                models_dict[idx]["analyze"] = p
+            elif "plots/index.html" in p or "plots/gallery.html" in p or p.endswith("/plots/"):
+                models_dict[idx]["plots"] = p
+            continue
+
+        # Check for featured key dashboards from DASHBOARDS registry
+        is_featured = False
+        stage_prefix = "Stage" if is_bkg_roast else "Phase"
+        for db in DASHBOARDS:
+            match_glob = db.get("match") or db.get("pattern")
+            if match_glob:
+                matched = fnmatch.fnmatch(filename, match_glob) or fnmatch.fnmatch(p, match_glob)
+                if not matched:
+                    try:
+                        matched = bool(re.search(match_glob, p, re.I))
+                    except re.error:
+                        matched = False
+                if not matched:
+                    continue
+            path_contains = db.get("path_contains")
+            if path_contains:
+                if isinstance(path_contains, str):
+                    path_contains = [path_contains]
+                if not any(k.lower() in lower_p for k in path_contains):
+                    continue
+            path_excludes = db.get("path_excludes")
+            if path_excludes:
+                if isinstance(path_excludes, str):
+                    path_excludes = [path_excludes]
+                if any(k.lower() in lower_p for k in path_excludes):
+                    continue
+            tag = db.get("tag", "").replace("{stage}", stage_prefix)
+            if not tag:
+                tag = db.get("tag_bkg" if is_bkg_roast else "tag_nom", f"{stage_prefix} Dashboard")
+            title = db.get("bkg_title" if is_bkg_roast and "bkg_title" in db else "title",
+                           db.get("title_bkg" if is_bkg_roast else "title_nom", "Dashboard"))
+            desc = db.get("bkg_desc" if is_bkg_roast and "bkg_desc" in db else "desc",
+                          db.get("desc_bkg" if is_bkg_roast else "desc_nom", ""))
+            featured_cards.append({
+                "tag": tag,
+                "title": title,
+                "desc": desc,
+                "url": p_esc,
+            })
+            is_featured = True
+            break
+
+        # Check for featured visual plot galleries (also kept in stage listings)
+        if (filename in ("index.html", "gallery.html") or p.endswith("/plots/")) and p_esc not in seen_gallery_urls:
+            if "plots_ttbar_mc_vs_d3" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "ttbar MC vs d3 (4b) Gallery",
+                    "desc": "ttbar MC validation vs 3b data with d3_to_t4 reweighting",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif "plots_ttbar3b_mc_vs_d3" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "ttbar MC vs d3 (3b) Gallery",
+                    "desc": "ttbar MC validation vs 3b data with d3_to_t3 reweighting",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif "fvt_closure" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "title": "FvT Closure Gallery",
+                    "desc": "Multijet FvT reweighting closure plots & data comparisons",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif "phaseb" in lower_p or "bkg_syst_b" in lower_p or "plots_wjcm" in lower_p or "test_v0_closure" in lower_p:
+                gallery_cards.append({
+                    "tag": "Stage B" if is_bkg_roast else "Phase B.1",
+                    "title": "JCM Validation Gallery",
+                    "desc": "Jet Combinatoric Model weights, transfer factors & closure plots",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif any(k in lower_p for k in ["phasef", "bkg_syst_f", "closure_v", "analysis", "plots_"]):
+                g_title = f"Analysis & SvB Gallery ({parts[-2]})" if len(parts) > 1 and parts[-2] not in ("plots", "output") else "Analysis & SvB Gallery"
+                gallery_cards.append({
+                    "tag": "Stage F.1" if is_bkg_roast else "Phase F.1",
+                    "title": g_title,
+                    "desc": "Final analysis distributions, SvB discriminants, and control kinematics",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+
+        if is_featured:
+            continue
+
+        # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
+        if filename.endswith(".html") and any(k in lower_p for k in ("summary", "dashboard", "crosscheck")) and not filename.startswith("dask-report") and p_esc not in seen_gallery_urls:
+            clean_title = filename.removesuffix(".html").replace("_", " ").title()
+            parent_dir = parts[-2] if len(parts) > 1 else "output"
+            tag_name = f"{stage_prefix} Summary"
+            featured_cards.append({
+                "tag": tag_name,
+                "title": clean_title,
+                "desc": f"Auto-discovered analysis summary / dashboard ({parent_dir})",
+                "url": p_esc,
+            })
+            continue
+
+        # Classify into STAGES
+        matched_stage = False
+        for s in STAGES:
+            sid = s.get("id", "")
+            pats = s.get("patterns", [])
+            if any(pat in lower_p for pat in pats):
+                title = filename.removesuffix(".html").replace("_", " ").title()
+                if filename.endswith("index.html"):
+                    title = f"{parts[-2]} gallery" if len(parts) > 1 else "Plots"
+                if sid in stage_items:
+                    stage_items[sid].append((title, p_esc, p))
+                else:
+                    stage_items.setdefault(sid, []).append((title, p_esc, p))
+                matched_stage = True
+                break
+
+        if matched_stage:
+            continue
+
+        # Default categorization
+        if p.endswith("index.html") or p.endswith("/plots/"):
             wf = parts[2] if len(parts) > 3 else parts[-2] if len(parts) > 1 else "root"
             sub = parts[-2] if len(parts) > 2 and parts[-2] != wf else ""
             title = f"{wf} ({sub}) gallery" if sub else f"{wf} gallery"
             galleries.append((title, p_esc, p))
-        elif "cutflow" in p.lower():
-            name = parts[-1].removesuffix(".html")
+        elif "cutflow" in lower_p:
+            name = filename.removesuffix(".html")
             cutflows.append((name, p_esc, p))
         else:
-            name = parts[-1].removesuffix(".html")
+            name = filename.removesuffix(".html")
             others.append((name, p_esc, p))
 
     def make_page_items(items):
@@ -3259,13 +4323,161 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         for title, p_esc, p_raw in items:
             html_items.append(f"""
             <div class="page-item" data-search="{html.escape(p_raw.lower())}">
-                <a href="{p_esc}" class="page-link" target="_blank">
-                    <span class="page-icon">↗</span>
+                <a href="{p_esc}" class="page-link">
                     <span class="page-title">{html.escape(title)}</span>
+                    <span class="page-icon">↗</span>
                 </a>
                 <span class="page-path">{p_esc}</span>
             </div>""")
         return "\n".join(html_items)
+
+    featured_html = ""
+    if featured_cards:
+        cards_html = []
+        for fc in featured_cards:
+            cards_html.append(f"""
+            <a href="{fc['url']}" class="featured-box">
+                <div>
+                    <div class="featured-tag">{html.escape(fc['tag'])}</div>
+                    <div class="featured-title">{html.escape(fc['title'])}</div>
+                    <div class="featured-desc">{html.escape(fc['desc'])}</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>""")
+        featured_html = f"""
+        <div class="card">
+            <div class="card-header">
+                <h2>🌟 Primary Analysis Results & Master Dashboards</h2>
+                <span class="chip chip-neutral">Key Syntheses</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    {"".join(cards_html)}
+                </div>
+            </div>
+        </div>"""
+
+    galleries_card_html = ""
+    if gallery_cards:
+        g_cards_html = []
+        for gc in gallery_cards:
+            g_cards_html.append(f"""
+            <a href="{gc['url']}" class="featured-box">
+                <div>
+                    <div class="featured-tag">{html.escape(gc['tag'])}</div>
+                    <div class="featured-title">{html.escape(gc['title'])}</div>
+                    <div class="featured-desc">{html.escape(gc['desc'])}</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>""")
+        galleries_card_html = f"""
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>🖼️ Key Visual Plot Galleries</h2>
+                <span class="chip chip-accent">{len(gallery_cards)} Galleries</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    {"".join(g_cards_html)}
+                </div>
+            </div>
+        </div>"""
+
+    models_html = ""
+    if models_dict:
+        m_rows = []
+        for idx in sorted(models_dict.keys()):
+            m = models_dict[idx]
+            y_link = f'<a href="{html.escape(m["yields"])}" class="pill-link">Yields ↗</a>' if "yields" in m else '<span class="pill-disabled">—</span>'
+            p_link = f'<a href="{html.escape(m["plots"])}" class="pill-link">Plots ↗</a>' if "plots" in m else '<span class="pill-disabled">—</span>'
+            a_link = f'<a href="{html.escape(m["analyze"])}" class="pill-link">Loss & ROC ↗</a>' if "analyze" in m else '<span class="pill-disabled">—</span>'
+            h_link = f'<a href="{html.escape(m["hcr"])}" class="pill-link">HCR Group ↗</a>' if "hcr" in m else '<span class="pill-disabled">—</span>'
+            m_rows.append(f"""
+            <tr>
+                <td><strong><code>mix_{idx}</code></strong></td>
+                <td>{y_link}</td>
+                <td>{p_link}</td>
+                <td>{a_link}</td>
+                <td>{h_link}</td>
+            </tr>""")
+        models_html = f"""
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>🤖 Stage C — FvT Subsample Models ({len(models_dict)} Models)</h2>
+                <span class="chip chip-neutral">{len(models_dict)} Models Matrix</span>
+            </summary>
+            <div class="card-body" style="padding: 0; overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Subsample</th>
+                            <th>Yields Report</th>
+                            <th>Training Plots</th>
+                            <th>Loss & ROC Analysis</th>
+                            <th>Group Breakdown</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {"".join(m_rows)}
+                    </tbody>
+                </table>
+            </div>
+        </details>"""
+
+    stages_html_blocks = []
+    for s in STAGES:
+        sid = s.get("id", "")
+        items = stage_items.get(sid, [])
+        if not items:
+            continue
+        title = html.escape(s.get("title", sid))
+        badge_chip = "chip-accent" if "stage_f" in sid else "chip-neutral"
+        stages_html_blocks.append(f"""
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>{title}</h2>
+                <span class="chip {badge_chip}">{len(items)} items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    {make_page_items(items)}
+                </div>
+            </div>
+        </details>""")
+    stages_html = "\n".join(stages_html_blocks)
+
+    dag_blocks = []
+    for s in r.get("steps", []):
+        sname = html.escape(str(s.get("name", "")))
+        svg_rel = f"logs/{s.get('name')}_rulegraph.svg"
+        sum_rel = f"logs/{s.get('name')}_summary.txt"
+        has_svg = (pages is None) or (svg_rel in pages)
+        has_sum = (pages is None) or (sum_rel in pages)
+        if has_svg or has_sum:
+            dag_blocks.append(f"""
+            <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc;">
+                <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                    <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
+                    <span style="display: flex; gap: 8px;">
+                        {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
+                        {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
+                    </span>
+                </div>
+                {f'<div style="text-align: center; overflow-x: auto; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid var(--line); max-height: 420px;"><object data="{svg_rel}" type="image/svg+xml" style="max-width: 100%; height: auto;"></object></div>' if has_svg else ''}
+            </div>""")
+
+    dags_html = ""
+    if dag_blocks:
+        dags_html = f"""
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📐 Snakemake Rule Execution Graphs & DAGs</h2>
+                <span class="chip chip-accent">{len(dag_blocks)} Step DAG(s)</span>
+            </summary>
+            <div class="card-body">
+                {"".join(dag_blocks)}
+            </div>
+        </details>"""
 
     galleries_html = make_page_items(galleries)
     cutflows_html = make_page_items(cutflows)
@@ -3285,7 +4497,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     if r.get("notes"):
         notes_esc = html.escape(str(r["notes"]))
         notes_html = f"""
-        <div class="card">
+        <div class="card" style="margin-top: 1rem;">
             <div class="card-header">
                 <h2>Notes</h2>
             </div>
@@ -3302,149 +4514,183 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     <title>Roast {rid} — Summary</title>
     <style>
         :root {{
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #38bdf8;
-            --accent-hover: #7dd3fc;
-            --border: #334155;
-            --success: #22c55e;
-            --success-bg: rgba(34, 197, 94, 0.15);
-            --danger: #ef4444;
-            --danger-bg: rgba(239, 68, 68, 0.15);
-            --warning: #f59e0b;
-            --warning-bg: rgba(245, 158, 11, 0.15);
-            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --bg: #f8fafc;
+            --fg: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --line: #e2e8f0;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --pass-bg: #dcfce7;
+            --pass-fg: #15803d;
+            --pass-border: #bbf7d0;
+            --danger-bg: #fee2e2;
+            --danger-fg: #b91c1c;
+            --danger-border: #fecaca;
+            --warn-bg: #fef3c7;
+            --warn-fg: #b45309;
+            --warn-border: #fde68a;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }}
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
             background: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--fg);
+            font-family: var(--sans);
             font-size: 14px;
             line-height: 1.5;
-            padding: 2rem 1.5rem;
+            padding: 24px 32px 64px;
         }}
-        .container {{ max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }}
+        .container {{ max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }}
         header {{
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px 24px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             flex-wrap: wrap;
-            gap: 1rem;
-            padding-bottom: 1.25rem;
-            border-bottom: 1px solid var(--border);
+            gap: 12px;
         }}
         .header-main h1 {{
-            font-size: 1.75rem;
+            font-size: 1.4rem;
             font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            font-family: var(--font-mono);
+            gap: 10px;
+            font-family: var(--mono);
         }}
-        .header-sub {{ color: var(--text-muted); margin-top: 0.25rem; font-size: 0.9rem; }}
-        .header-actions {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
+        .header-sub {{ color: var(--muted); margin-top: 4px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; }}
+        .header-actions {{ display: flex; gap: 8px; flex-wrap: wrap; }}
         .btn {{
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.45rem 0.85rem;
+            gap: 6px;
+            padding: 6px 12px;
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 13px;
             font-weight: 500;
             text-decoration: none;
-            color: var(--text);
-            background: var(--card-bg);
-            border: 1px solid var(--border);
+            color: var(--fg);
+            background: var(--card);
+            border: 1px solid var(--line);
             transition: all 0.15s ease;
         }}
         .btn:hover {{
-            background: #273549;
+            background: var(--accent-soft);
             border-color: var(--accent);
             color: var(--accent);
         }}
         .card {{
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+            background: var(--card);
+            border: 1px solid var(--line);
             border-radius: 8px;
             overflow: hidden;
         }}
         .card-header {{
-            padding: 0.85rem 1.25rem;
-            border-bottom: 1px solid var(--border);
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--line);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255, 255, 255, 0.02);
+            background: #fafbfc;
         }}
-        .card-header h2 {{ font-size: 1.05rem; font-weight: 600; }}
-        .card-body {{ padding: 1.25rem; }}
-        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }}
+        .card-header h2 {{ font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }}
+        .card-body {{ padding: 18px; }}
+        .grid-2 {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }}
+        .grid-featured {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }}
+        .featured-box {{
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+            background: #ffffff;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.15s ease;
+        }}
+        .featured-box:hover {{
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+            transform: translateY(-2px);
+        }}
+        .featured-tag {{ font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }}
+        .featured-title {{ font-size: 14.5px; font-weight: 600; color: var(--fg); margin-bottom: 6px; }}
+        .featured-desc {{ font-size: 12.5px; color: var(--muted); margin-bottom: 12px; flex-grow: 1; }}
+        .featured-action {{ font-size: 12px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; }}
+        .chip {{ display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }}
+        .chip-pass {{ background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }}
+        .chip-neutral {{ background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); }}
+        .chip-accent {{ background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; }}
+        .pill-link {{ display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; text-decoration: none; color: var(--accent); background: var(--accent-soft); border: 1px solid #bfdbfe; }}
+        .pill-link:hover {{ background: var(--accent); color: #fff; }}
+        .pill-disabled {{ color: #cbd5e1; font-size: 12px; }}
         .meta-table {{ width: 100%; border-collapse: collapse; }}
-        .meta-table td {{ padding: 0.45rem 0.6rem; vertical-align: top; }}
-        .meta-label {{ color: var(--text-muted); width: 120px; font-weight: 500; }}
+        .meta-table td {{ padding: 6px 8px; vertical-align: top; }}
+        .meta-label {{ color: var(--muted); width: 120px; font-weight: 500; }}
         .badge {{
             display: inline-block;
-            padding: 0.15rem 0.55rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.03em;
         }}
-        .badge-success {{ background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }}
-        .badge-danger {{ background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }}
-        .badge-warning {{ background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }}
-        .badge-host {{ background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); font-family: var(--font-mono); text-transform: none; }}
-        .badge-analysis {{ background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); text-transform: none; font-family: var(--font-mono); }}
-        .badge-secondary {{ background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.3); text-transform: none; }}
-        code {{ font-family: var(--font-mono); font-size: 0.85em; background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 4px; }}
-        a.code-link {{ font-family: var(--font-mono); color: var(--accent); text-decoration: none; }}
+        .badge-success {{ background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }}
+        .badge-danger {{ background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border); }}
+        .badge-warning {{ background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }}
+        .badge-host {{ background: #f1f5f9; color: var(--fg); border: 1px solid var(--line); font-family: var(--mono); text-transform: none; }}
+        .badge-analysis {{ background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; text-transform: none; font-family: var(--mono); }}
+        .badge-secondary {{ background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); text-transform: none; }}
+        code {{ font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }}
+        a.code-link {{ font-family: var(--mono); color: var(--accent); text-decoration: none; font-weight: 600; }}
         a.code-link:hover {{ text-decoration: underline; }}
         a.file-link {{ color: var(--accent); text-decoration: none; }}
         a.file-link:hover {{ text-decoration: underline; }}
-        table.data-table {{ width: 100%; border-collapse: collapse; text-align: left; }}
-        table.data-table th, table.data-table td {{ padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border); }}
-        table.data-table th {{ color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 600; }}
-        table.data-table tr:hover td {{ background: rgba(255, 255, 255, 0.02); }}
+        table.data-table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }}
+        table.data-table th, table.data-table td {{ padding: 8px 12px; border-bottom: 1px solid var(--line); }}
+        table.data-table th {{ background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }}
+        table.data-table tr:hover td {{ background: #f8fafc; }}
         .search-box {{
             width: 100%;
-            padding: 0.55rem 0.85rem;
-            background: #0b1120;
-            border: 1px solid var(--border);
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
             border-radius: 6px;
-            color: var(--text);
-            font-size: 0.9rem;
+            color: var(--fg);
+            font-size: 13px;
             outline: none;
-            margin-bottom: 1rem;
+            margin-bottom: 14px;
         }}
-        .search-box:focus {{ border-color: var(--accent); }}
-        .section-title {{ font-size: 0.9rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin: 1rem 0 0.5rem 0; letter-spacing: 0.05em; }}
-        .page-list {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+        .search-box:focus {{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }}
+        .section-title {{ font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin: 16px 0 8px 0; letter-spacing: 0.04em; }}
+        .page-list {{ display: flex; flex-direction: column; gap: 6px; }}
         .page-item {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 0.75rem;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border);
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
             border-radius: 6px;
-            transition: background 0.15s ease;
+            transition: all 0.15s ease;
         }}
-        .page-item:hover {{ background: rgba(56, 189, 248, 0.06); border-color: rgba(56, 189, 248, 0.3); }}
-        .page-link {{ color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; }}
-        .page-icon {{ font-size: 0.85rem; opacity: 0.7; }}
-        .page-path {{ font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }}
-        .empty-state {{ color: var(--text-muted); font-style: italic; padding: 0.5rem 0; font-size: 0.85rem; }}
-        .muted {{ color: var(--text-muted); }}
-        .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; }}
-        details summary {{ cursor: pointer; color: var(--text-muted); font-weight: 500; padding: 0.5rem 0; user-select: none; }}
-        details summary:hover {{ color: var(--text); }}
-        .history-list {{ list-style: none; padding-left: 0.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }}
-        footer {{ text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem 0; border-top: 1px solid var(--border); }}
+        .page-item:hover {{ background: var(--accent-soft); border-color: #bfdbfe; }}
+        .page-link {{ color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px; }}
+        .page-icon {{ font-size: 12px; opacity: 0.8; }}
+        .page-path {{ font-family: var(--mono); font-size: 12px; color: var(--muted); }}
+        .empty-state {{ color: var(--muted); font-style: italic; padding: 6px 0; font-size: 13px; }}
+        .muted {{ color: var(--muted); }}
+        .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 13px; }}
+        details summary {{ cursor: pointer; color: var(--fg); font-weight: 600; user-select: none; }}
+        .history-list {{ list-style: none; padding-left: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }}
+        footer {{ text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0 12px; border-top: 1px solid var(--line); }}
     </style>
 </head>
 <body>
@@ -3455,8 +4701,9 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 <h1>{rid}</h1>
                 {status_badge}
                 <div class="header-sub">
-                    <strong>{label}</strong> • Roasted by {owner} on {created}
-                    {f" • Published {pub_ts}" if pub_ts else ""}
+                    <span><strong>{label}</strong></span> &bull;
+                    <span>Roasted by {owner} on {created}</span>
+                    {f" &bull; <span>Published {pub_ts}</span>" if pub_ts else ""}
                 </div>
             </div>
             <div class="header-actions">
@@ -3486,6 +4733,10 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                             <td><code>{cfg_src}</code> <span class="muted">(sha256 {cfg_sha})</span></td>
                         </tr>
                         <tr>
+                            <td class="meta-label">validation</td>
+                            <td>{val_badge}</td>
+                        </tr>
+                        <tr>
                             <td class="meta-label">hosts</td>
                             <td>{hosts_html}</td>
                         </tr>
@@ -3505,7 +4756,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                                 <th>Host</th>
                                 <th>Snakefile</th>
                                 <th>State</th>
-                                <th>Log</th>
+                                <th>Log & Artifacts</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3516,7 +4767,17 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             </div>
         </div>
 
-        <div class="card">
+        {featured_html}
+
+        {dags_html}
+
+        {galleries_card_html}
+
+        {models_html}
+
+        {stages_html}
+
+        <div class="card" style="margin-top: 1rem;">
             <div class="card-header">
                 <h2>Interactive Results & Galleries</h2>
                 <span class="muted">{total_pages} pages available</span>
@@ -3543,19 +4804,19 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         {notes_html}
 
-        <details>
-            <summary>Execution History & Timeline ({len(history)} events)</summary>
-            <div class="card" style="margin-top: 0.5rem;">
-                <div class="card-body">
-                    <ul class="history-list">
-                        {history_html}
-                    </ul>
-                </div>
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header">
+                <h2>Execution History & Timeline ({len(history)} events)</h2>
+            </summary>
+            <div class="card-body">
+                <ul class="history-list">
+                    {history_html}
+                </ul>
             </div>
         </details>
 
         <footer>
-            Roast published with barista • CERNBox Web Distribution
+            Roast published with barista &bull; CERNBox Web Distribution
         </footer>
     </div>
 
@@ -3579,13 +4840,22 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 def roast_category(r: dict) -> str:
     """Which production family a roast belongs to, for the catalogue's sub-pages.
 
-    Taken from the label: everything before the run period, so nominal_run3_30x and
-    nominal_run2 share a page.  `roast new --category` overrides it when the label does not
-    say what the roast really is (libA_run3 is a DeClustered library build, not its own kind).
+    Taken from explicit category (in roast.json, CLI override, or config.yml),
+    falling back to everything before the run period in the label.
     """
     explicit = (r.get("category") or "").strip()
     if explicit:
         return explicit
+    rid = r.get("id")
+    if rid:
+        cfg_file = roast_dir(rid) / (r.get("config", {}).get("captured") or "config.yml")
+        if cfg_file.exists():
+            try:
+                m = re.search(r"^category:\s*['\"]?([A-Za-z0-9_.-]+)['\"]?", cfg_file.read_text(), re.M)
+                if m:
+                    return m.group(1).strip()
+            except Exception:
+                pass
     label = r.get("label") or r["id"]
     head = re.split(r"_run[23]\b", label)[0] or label
     return head.split("_")[0] or "other"          # display case kept; the file name is slugged
@@ -3673,6 +4943,44 @@ def cmd_show(args) -> None:
     print(json.dumps(load_roast(args.id), indent=2))
 
 
+def cmd_validate(args) -> None:
+    try:
+        from tools.validate_config import validate_config_file, validate_all_configs, format_report
+    except ImportError:
+        try:
+            from validate_config import validate_config_file, validate_all_configs, format_report
+        except ImportError:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "validate_config", Path(__file__).resolve().parent / "validate_config.py"
+            )
+            if spec and spec.loader:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                validate_config_file = mod.validate_config_file
+                validate_all_configs = mod.validate_all_configs
+                format_report = mod.format_report
+            else:
+                die("Failed to import validate_config module.")
+
+    if args.all:
+        target_dir = Path(args.config) if args.config else None
+        code = validate_all_configs(
+            target_dir=target_dir,
+            strict=args.strict,
+            color=not args.no_color,
+            quiet=args.quiet,
+        )
+        sys.exit(code)
+    else:
+        if not args.config:
+            die("Either a config file path or --all must be specified.")
+        cfg_path = Path(args.config)
+        res = validate_config_file(cfg_path)
+        print(format_report(res, color=not args.no_color))
+        sys.exit(0 if res.is_valid(strict=args.strict) else 1)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -3688,14 +4996,16 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
 
     s = sub.add_parser("new", help="create a roast manifest from the current HEADs and a config file")
     s.add_argument("--config", required=True, help="workflow --configfile YAML to capture")
-    s.add_argument("--phases", help="comma list from A,B,C,D,E,F (host chosen per phase)")
+    s.add_argument("--workflow", help="named workflow sequence (e.g. nominal, bkg_syst, full) defined in workflow YAML")
+    s.add_argument("--workflow-file", help="YAML file defining phases and workflows (default: coffea4bees/workflows/workflows.yml)")
+    s.add_argument("--phases", help="comma list of phases to run (host chosen per phase)")
     s.add_argument("--step", action="append", help="host:snakefile[:targets] for non-phase workflows (repeatable)")
     s.add_argument("--barista", help="barista sha (default: HEAD)")
     s.add_argument("--coffea4bees", help="coffea4bees sha (default: HEAD)")
@@ -3704,8 +5014,11 @@ def main(argv=None) -> None:
     s.add_argument("--notes", help="free text for the cupping notes")
     s.add_argument("--category", help="catalogue family (default: the label up to _run2/_run3)")
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
+    s.add_argument("--delta", action="store_true", help="run GPU phases (C, D, BKG_C) on NCSA Delta instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
-    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="analysis channel for CERNBox web prod (default: auto-detected, fallback ttHbb)")
+    s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
+    s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
+    s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
     s.set_defaults(func=cmd_new)
 
     s = sub.add_parser("checkout", help="create isolated checkouts at the pinned shas on each host")
@@ -3765,7 +5078,8 @@ def main(argv=None) -> None:
     s.add_argument("--with-pdfs", action="store_true", help="include heavy .pdf and .svg files (excluded by default for fast web publishing)")
     s.add_argument("--include-test", action="store_true", help="also publish output/*_test/ directories")
     s.add_argument("-n", "--dry-run", action="store_true", help="list the files that would be published, copy nothing")
-    s.add_argument("--analysis", choices=["HH4b", "ttHbb"], help="override analysis destination (default: roast analysis or auto-detected)")
+    s.add_argument("--analysis", help="override analysis destination (e.g. HH4b, ttHbb, HH4b_lowpt; default: roast analysis or auto-detected)")
+    s.add_argument("--category", help="override or set the catalogue family for this roast")
     s.set_defaults(func=cmd_publish)
 
     s = sub.add_parser("archive", help="copy heavy products (.coffea/.root/yml/json) to FNAL EOS under eos.path/<id>/")
@@ -3808,6 +5122,14 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("index", help="regenerate docs/prod from all manifests")
     s.set_defaults(func=cmd_index)
+
+    s = sub.add_parser("validate", help="validate workflow configuration files for duplicate definitions, divergence, and reference integrity")
+    s.add_argument("config", nargs="?", help="path to workflow YAML config file (or directory if --all)")
+    s.add_argument("--all", action="store_true", help="scan all workflow configs in coffea4bees/workflows/config/")
+    s.add_argument("--strict", action="store_true", help="treat warnings as validation failures (exit non-zero)")
+    s.add_argument("-q", "--quiet", action="store_true", help="only print summaries for configs with errors or warnings")
+    s.add_argument("--no-color", action="store_true", help="disable ANSI terminal colors")
+    s.set_defaults(func=cmd_validate)
 
     s = sub.add_parser("ls", help="list roasts")
     s.set_defaults(func=cmd_ls)

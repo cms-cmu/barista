@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from src.classifier.task import GlobalSetting
 
 
@@ -51,6 +53,9 @@ class Training(GlobalSetting):
     "precision. NOTE: changes numerics at the ~1e-4 level, so do not mix precisions "
     "in a comparison finer than that."
 
+    seed: int | None = 666
+    "random seed for model weight initialization and batch shuffling reproducibility (default: 666)"
+
     @classmethod
     def set__precision(cls, value: str):
         v = (value or "").lower()
@@ -58,6 +63,12 @@ class Training(GlobalSetting):
             return ""
         assert v in ("fp16", "bf16"), f"unknown precision {value!r} (use fp16/bf16)"
         return v
+
+    @classmethod
+    def set__seed(cls, value: Any):
+        if value is ... or value is None or str(value).lower() in ("none", "null", "off", "false", ""):
+            return None
+        return int(value)
 
 
 class SplitterKeys(GlobalSetting):

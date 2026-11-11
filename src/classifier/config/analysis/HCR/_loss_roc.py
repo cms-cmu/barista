@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     import numpy as np
     import pandas as pd
 
+# SB closure histograms of the fit-quality benchmark plotted vs epoch (as in fvt_benchmark)
+CLOSURE_HISTS = ("fvt_sb", "pt4_sb", "pt1_sb")
+
 
 class LossROC(Analysis):
     argparser = ArgParser()
@@ -112,15 +115,25 @@ class _collect_loss_roc:
                     # scalars
                     scalars = v["scalars"]
                     plot.update(scalars)
+                    # SB closure chi2/ndf of the fit-quality benchmark (FvT/MvD), with the number of
+                    # target events so the training split can be scaled to the validation size
+                    closure = {}
+                    for fq in (v.get("fit_quality") or [])[:1]:
+                        for hname in CLOSURE_HISTS:
+                            h = (fq.get("histograms") or {}).get(hname) or {}
+                            if h.get("chi2_ndf") is not None and h.get("target"):
+                                closure[f"chi2/ndf: {hname}"] = h["chi2_ndf"]
+                                closure[f"N: {hname}"] = float(sum(h["target"]))
                     # update data
-                    _data[k].append(scalars | aucs)
+                    _data[k].append(scalars | aucs | closure)
                 _phases.append(hyperparameter)
                 for k, v in hyperparameter.items():
                     if isinstance(v, int):
                         int64.add(k)
             _phases = pd.DataFrame(_phases)
             for k in int64:
-                _phases[k] = _phases[k].astype(pd.Int64Dtype())
+                if k in _phases.columns:
+                    _phases[k] = _phases[k].astype(pd.Int64Dtype())
             group = None
             for target_group in groups:
                 if target_group.phase.equals(_phases):
@@ -186,14 +199,28 @@ class _generate_group_diagnostics_and_gallery:
         report_dir = IO.report / "HCR"
         report_dir.mkdir(recursive=True)
 
-        # 1. Filter training stage
+        # 1. Training stage, plus the Finetuning epoch(s) appended as the last point(s): the finetune
+        # makes the final model, so every vs-epoch plot shows it. The best epoch (and the ROC curves
+        # taken at it) is still chosen among the Training epochs only.
+        n_ft = 0
         if "stage" in self._phase and (self._phase["stage"] == "Training").any():
-            mask = self._phase["stage"] == "Training"
+            mask_train = self._phase["stage"] == "Training"
+            mask_ft = self._phase["stage"] == "Finetuning"
+            n_ft = int(mask_ft.sum())
+            mask = mask_train | mask_ft
         else:
-            mask = slice(None)
+            mask_train = mask = slice(None)
 
         if "epoch" in self._phase:
-            epochs = np.asarray(self._phase.loc[mask, "epoch"].values, dtype=int)
+            if n_ft:
+                ph = self._phase.loc[mask]
+                n_tr_ep = int(self._phase.loc[mask_train, "epoch"].max())
+                epochs = np.asarray(
+                    [int(e) if s == "Training" else n_tr_ep + int(e) for s, e in zip(ph["stage"], ph["epoch"])],
+                    dtype=int,
+                )
+            else:
+                epochs = np.asarray(self._phase.loc[mask, "epoch"].values, dtype=int)
         else:
             epochs = None
 
@@ -224,7 +251,30 @@ class _generate_group_diagnostics_and_gallery:
         gap = mean_val - mean_tr
         z_pull = np.where(std_val > 1e-7, gap / std_val, 0.0) if k_folds > 1 else np.zeros_like(mean_val)
 
-        best_idx = int(np.argmin(mean_val))
+        n_tr = n_epochs - n_ft            # points [0, n_tr) are Training, [n_tr, n_epochs) Finetuning
+
+        def _mark_finetune(ax, label=True):
+            """Shade the finetuning point(s) (ticked "FT"); no-op without a Finetuning stage."""
+            if not n_ft:
+                return
+            lo = 0.5 * (float(epochs[n_tr - 1]) + float(epochs[n_tr])) if n_tr > 0 else float(epochs[0]) - 0.5
+            ax.axvspan(lo, float(epochs[-1]) + 0.5, color="#c0561d", alpha=0.10, lw=0,
+                       label="Finetuning" if label else None)
+
+        def _epoch_ticks(ax):
+            """Integer epoch ticks, the finetuning point(s) labelled FT."""
+            ticks = [int(e) for e in epochs]
+            labels = [str(e) for e in ticks[:n_tr]] + (["FT"] if n_ft == 1 else [f"FT{i + 1}" for i in range(n_ft)])
+            if len(ticks) > 12:     # epoch 1, every 5th training epoch and the FT point(s)
+                # with a finetune point, skip the training ticks right next to it (they would overlap "FT")
+                last = ticks[n_tr - 1] if (n_ft and n_tr > 0) else None
+                keep = [i for i in range(len(ticks)) if i >= n_tr or ticks[i] == 1 or
+                        (ticks[i] % 5 == 0 and (last is None or ticks[i] < last))]
+                ticks, labels = [ticks[i] for i in keep], [labels[i] for i in keep]
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(labels)
+
+        best_idx = int(np.argmin(mean_val[:n_tr])) if n_tr > 0 else int(np.argmin(mean_val))
         best_ep = int(epochs[best_idx])
         best_val = float(mean_val[best_idx])
         best_tr = float(mean_tr[best_idx])
@@ -281,6 +331,7 @@ class _generate_group_diagnostics_and_gallery:
         ax1.plot(epochs, mean_tr, color="#ff7f0e", marker="s", markersize=4, linewidth=1.8,
                  linestyle="--", label=f"Mean Train Loss ({best_tr:.5f} @ ep {best_ep})")
         ax1.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+        _mark_finetune(ax1)
         ax1.set_ylabel(r"Loss $\mathcal{L}$", fontsize=13)
         ax1.set_title(f"Cross-Validation Loss & Statistical Divergence (K={k_folds})", fontsize=14, fontweight="bold")
         ax1.grid(True, linestyle="--", alpha=0.5)
@@ -302,9 +353,10 @@ class _generate_group_diagnostics_and_gallery:
             ax2.plot(epochs, gap, color="purple", marker="o", linewidth=2, label=r"Generalization Gap $\Delta L$")
             ax2.set_ylabel(r"Gap $\Delta L$", fontsize=11)
 
+        _mark_finetune(ax2, label=False)
         ax2.set_xlabel("Epoch", fontsize=12)
-        ax2.set_xlim(float(epochs[0]) - 0.2, float(epochs[-1]) + 0.2)
-        ax2.set_xticks(epochs)
+        ax2.set_xlim(float(epochs[0]) - 0.2, float(epochs[-1]) + 0.5)
+        _epoch_ticks(ax2)
         ax2.grid(True, linestyle="--", alpha=0.5)
         ax2.legend(loc="upper left", fontsize=9, framealpha=0.95)
         plt.tight_layout()
@@ -318,6 +370,8 @@ class _generate_group_diagnostics_and_gallery:
             fig, ax = plt.subplots(figsize=(9, 4.5))
             ax.plot(epochs, mean_lr, color="#9467bd", marker="o", linewidth=2, label="Learning Rate")
             ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel("Learning Rate", fontsize=12)
             ax.set_title("Learning Rate Evolution vs Epoch", fontsize=13, fontweight="bold")
@@ -332,7 +386,7 @@ class _generate_group_diagnostics_and_gallery:
         if k_folds > 1:
             fig, (ax_bar1, ax_bar2) = plt.subplots(1, 2, figsize=(10, 4))
             fold_min_vals = [float(np.min(val_mat[i])) for i in range(k_folds)]
-            fold_best_eps = [int(epochs[np.argmin(val_mat[i])]) for i in range(k_folds)]
+            fold_best_eps = [int(epochs[np.argmin(val_mat[i][:n_tr])]) for i in range(k_folds)]
             fold_labels = [f"Fold {i}" for i in range(k_folds)]
 
             ax_bar1.bar(fold_labels, fold_min_vals, color="#1f77b4", alpha=0.85, edgecolor="#0f4c81")
@@ -399,6 +453,8 @@ class _generate_group_diagnostics_and_gallery:
                         linestyle="--", label=f"Train AUC ({best_tr_auc:.4f} @ ep {best_ep})")
 
             ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best Epoch ({best_ep})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel(f"AUC ({auc_name})", fontsize=12)
             ax.set_title(f"AUC Evolution: {auc_name}", fontsize=13, fontweight="bold")
@@ -408,6 +464,72 @@ class _generate_group_diagnostics_and_gallery:
 
             safe_name = auc_name.replace(" ", "_").replace("/", "_").lower()
             _save_fig(fig, f"auc-evolution-{safe_name}-{self._group}.png", f"AUC: {auc_name}", "2. AUC Evolution")
+
+        # -------------------------------------------------------------
+        # Plot 3b: SB closure chi2/ndf vs epoch (fit-quality benchmark, FvT/MvD)
+        # -------------------------------------------------------------
+        # A fixed mis-modelling grows chi2/ndf - 1 with the number of events and the training split
+        # holds K-1 times the validation events, so the training curve is also shown scaled to the
+        # fold's validation size, 1 + (chi2/ndf_tr - 1) * N_val / N_tr: on top of the validation
+        # curve = the same bias on seen and unseen events; below it = overtraining.
+        for hname in CLOSURE_HISTS:
+            col, ncol = f"chi2/ndf: {hname}", f"N: {hname}"
+            v_rows, t_rows, tn_rows = [], [], []
+            for c in self._classifiers:
+                v_df = self._plot_data.get((c, "validation"))
+                t_df = self._plot_data.get((c, "training"))
+                if v_df is None or t_df is None or col not in v_df or col not in t_df:
+                    continue
+                v = np.asarray(v_df.loc[mask, col].values, dtype=float)
+                t = np.asarray(t_df.loc[mask, col].values, dtype=float)
+                nv = np.asarray(v_df.loc[mask, ncol].values, dtype=float)
+                nt = np.asarray(t_df.loc[mask, ncol].values, dtype=float)
+                if len(v) != len(epochs) or len(t) != len(epochs):
+                    continue
+                v_rows.append(v)
+                t_rows.append(t)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    tn_rows.append(np.where(nt > 0, 1.0 + (t - 1.0) * nv / nt, np.nan))
+            if not v_rows:
+                continue
+            v_mat, t_mat, tn_mat = np.array(v_rows), np.array(t_rows), np.array(tn_rows)
+            m_v, m_t, m_tn = np.nanmean(v_mat, axis=0), np.nanmean(t_mat, axis=0), np.nanmean(tn_mat, axis=0)
+            nf = len(v_rows)
+            s_v = np.nanstd(v_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_v)
+            s_tn = np.nanstd(tn_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_tn)
+            chi_best = int(np.nanargmin(m_v))
+
+            fig, ax = plt.subplots(figsize=(9, 5))
+            for i in range(nf):
+                ax.plot(epochs, v_mat[i], color="gray", linestyle=":", alpha=0.45,
+                        label="Individual Folds (Val)" if i == 0 else None)
+            final = f"; final, after finetune: {m_v[-1]:.2f} ± {s_v[-1]:.2f}" if n_ft else ""
+            ax.plot(epochs, m_v, color="#1f77b4", marker="o", markersize=4, linewidth=2,
+                    label=f"Val ({m_v[best_idx]:.2f} ± {s_v[best_idx]:.2f} @ ep {best_ep}{final})")
+            if nf > 1:
+                ax.fill_between(epochs, m_v - s_v, m_v + s_v, color="#1f77b4", alpha=0.18,
+                                label=r"Fold Spread ($\pm 1\sigma$)")
+            ax.plot(epochs, m_tn, color="#ff7f0e", marker="s", markersize=3.5, linewidth=1.8,
+                    label=f"Train, val-size ({m_tn[best_idx]:.2f} ± {s_tn[best_idx]:.2f})")
+            ax.plot(epochs, m_t, color="#ff7f0e", linestyle="--", linewidth=1.2, alpha=0.6,
+                    label=f"Train, raw ({m_t[best_idx]:.2f})")
+            ax.axhline(1.0, color="black", linewidth=0.8, alpha=0.6)
+            ax.axvline(best_ep, color="#d62728", linestyle="--", alpha=0.8, label=f"Best-loss Epoch ({best_ep})")
+            if int(epochs[chi_best]) != best_ep:
+                ax.axvline(int(epochs[chi_best]), color="#2ca02c", linestyle=":", alpha=0.9,
+                           label=f"Min Val χ²/ndf Epoch ({int(epochs[chi_best])})")
+            _mark_finetune(ax)
+            _epoch_ticks(ax)
+            ax.set_xlabel("Epoch", fontsize=12)
+            ax.set_ylabel(f"SB closure χ²/ndf ({hname})", fontsize=12)
+            ax.set_title(f"Closure Evolution: {hname}", fontsize=13, fontweight="bold")
+            if np.nanmax(m_t) > 20 * max(np.nanmin(m_v), 1e-3):
+                ax.set_yscale("log")
+            ax.grid(True, linestyle="--", alpha=0.5)
+            ax.legend(loc="upper right", fontsize=9, framealpha=0.95)
+            plt.tight_layout()
+            _save_fig(fig, f"closure-evolution-{hname}-{self._group}.png", f"χ²/ndf: {hname}",
+                      "2b. Closure Evolution")
 
         # -------------------------------------------------------------
         # Plot 4+: ROC Curves (Linear and Semi-Log Rejection at Best Epoch)
@@ -422,7 +544,7 @@ class _generate_group_diagnostics_and_gallery:
                 for c in self._classifiers:
                     series = roc_splits.get((c, split_name), [])
                     # Filter for training stage
-                    tr_series = [df for df, is_tr in zip(series, mask) if is_tr]
+                    tr_series = [df for df, is_tr in zip(series, mask_train) if is_tr]
                     if tr_series:
                         # Extract curve at best epoch index
                         chosen_df = tr_series[best_idx] if best_idx < len(tr_series) else tr_series[-1]

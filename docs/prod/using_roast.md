@@ -56,7 +56,58 @@ needs a one-time virtual environment.
 
 ---
 
-## Running a phase
+## The Roast Production Sequence
+
+The full lifecycle of an analysis production follows a mandatory 10-step protocol:
+
+```
+[0. Validate Config] ──▶ [1. Roast New] ──▶ [2. Roast Checkout] ──▶ [3. Dry-run (-n)]
+                                                                           │
+                                                                           ▼
+[7. Copy Products] ◀── [6. Step C Rule] ◀── [5. Monitor Status] ◀── [4. Submit Step]
+       │
+       ▼
+[8. Roast Publish] ──▶ [9. Archive & Clean]
+```
+
+| Step | Command | Purpose |
+|---|---|---|
+| **0. Preflight Validation** | `bin/roast validate <config.yml>` | Audits YAML for duplicate parameters, divergence, missing files, and era mismatches. |
+| **1. Create Manifest** | `bin/roast new --config <config.yml> --phases ...` | Pins `barista` and `coffea4bees` git SHAs, merges base configs, records validation. |
+| **2. Host Checkouts** | `bin/roast checkout <id> --host <host>` | Clones clean isolated checkouts at pinned SHAs on each compute host. |
+| **3. Dry-Run Verification** | `bin/roast submit <id> --step <step> -n` | Previews DAG and Snakemake job stats without executing commands. |
+| **4. Live Step Submission** | `bin/roast submit <id> --step <step>` | Launches detached tmux job; generates rulegraph SVG and summary log. |
+| **5. Status Tracking** | `bin/roast status <id>` / `bin/roast monitor` | Monitors driver processes, Condor workers, Slurm jobs, or Nautilus pods. |
+| **6. Step C Full Lifecycle** | Submit `C` (GPU), then immediately `C4` (CPU) | Mandatory closure step for FvT (trained strictly in Sideband, never Signal Region). |
+| **7. Copy Products** | `bin/roast copy <id>` | Synchronizes outputs across remote nodes and central EOS storage. |
+| **8. Publish Results** | `bin/roast publish <id>` | Deploys web dashboard with inline SVG DAGs, cutflow tables, and cupping notes to CERNBox. |
+| **9. Archive & Clean** | `bin/roast archive <id>` / `bin/roast clean <id>` | Archives products to EOS and cleans up ephemeral cluster checkouts. |
+
+---
+
+## 0. Preflight Configuration Validation
+
+Before creating or launching a production, audit the workflow YAML configuration:
+
+```bash
+bin/roast validate coffea4bees/workflows/config/nominal_run3.yml
+# To treat warnings as fatal errors:
+bin/roast validate coffea4bees/workflows/config/nominal_run3.yml --strict
+# To validate all standard configs:
+bin/roast validate --all
+```
+
+The validator checks:
+* **Duplicate parameter definitions:** Catches identical keys defined across different sections (e.g. `require_trigWeight`, `year_eras`, `blind`) that may diverge when modified.
+* **Parameter divergence:** Verifies that duplicate definitions have identical values.
+* **Era consistency:** Validates that dataset eras match between top-level `year_eras` and processor/classifier settings.
+* **Filesystem integrity:** Audits paths to selection configs, friend trees, and calibration payloads.
+
+`bin/roast new` automatically executes this preflight check and records the validation results (`valid`, `errors`, `warnings`) in `roast.json`. If fatal errors are found, roast creation is refused (override with `--no-validate` only if strictly necessary).
+
+---
+
+## 1. Running a phase
 
 Commit and push your code first. `roast` records the current `HEAD` of both repositories,
 and ships exactly those commits to the machines, so uncommitted edits are not in the run.
@@ -69,6 +120,12 @@ bin/roast submit   <id> --step B -n        # dry run: build the DAG, run nothing
 bin/roast submit   <id> --step B -t        # small test slice, writes to output/<label>_test/
 bin/roast submit   <id> --step B           # the real run
 ```
+
+### Visual DAG Rulegraphs and Summaries
+Whenever `roast submit` runs a step:
+1. It automatically runs `snakemake --rulegraph ... | dot -Tsvg` to capture the step's DAG rulegraph into `logs/{step}_rulegraph.svg`.
+2. Upon exit 0, it runs `snakemake --summary ...` to capture rule execution timestamps, input/output file states, and software commands into `logs/{step}_summary.txt`.
+3. When `roast publish` deploys the results to CERNBox, `generate_roast_index_html` embeds these SVG rulegraphs directly into the browser dashboard with clickable links to execution summaries.
 
 Phases map to machines the way the
 [workflow documentation](../bbbb/workflows.md) describes:

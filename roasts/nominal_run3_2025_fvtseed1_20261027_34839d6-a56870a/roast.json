@@ -1,0 +1,184 @@
+{
+  "id": "nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a",
+  "label": "nominal_run3_2025_fvtseed1",
+  "analysis": "HH4b",
+  "created": "2026-10-27 21:00:46",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "34839d67451af27bd9b8b231dd4fe57e1c006723",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "a56870a98082370be1ddb10cfa19c588e6b5e720",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/nominal_run3_2025_fvtseed1.yml",
+    "captured": "config.yml",
+    "sha256": "06b78344301e2fdd5db9a1fb1013324fd63fc102b4d2ade39a5307330eb76c40",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/nominal_run3_2025.yml",
+        "sha256": "e87e14e78653ee8f06ba80faca683aadd94e397d0512d5071aa567cff5b95243"
+      }
+    ]
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-27 21:04:09",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-fvtseed1-cdd207-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "06b78344301e"
+        },
+        {
+          "ts": "2026-10-27 21:06:51",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-nominal-run3-2025-fvtseed1-cdd207-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "06b78344301e"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-10-28 06:00:20",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_fvtseed1_34839d6-a56870a_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "06b78344301e"
+        },
+        {
+          "ts": "2026-10-28 06:01:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "nominal_run3_2025_fvtseed1_34839d6-a56870a_C4",
+          "ssh": "jda102@cmslpc345.fnal.gov",
+          "config_sha256": "06b78344301e"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "nautilus": {
+      "checkout": "/workspace/users/johnda/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/barista",
+      "checked_out": "2026-10-27 21:02:05",
+      "note": "built by hand without cp -al (CephFS stuck-inode workaround, 2026-10-27)"
+    },
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/barista",
+      "ssh": "jda102@cmslpc345.fnal.gov",
+      "checked_out": "2026-10-28 06:00:18"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a/",
+    "ts": "2026-10-28 20:19:21",
+    "ok": true,
+    "pages": [
+      "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_nominal/plots/analyze/index.html",
+      "output/FvT_nominal/plots/index.html",
+      "output/FvT_nominal/yields.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/cutflow_FvT_closure.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/plots_FvT_closure/index.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/Run3_2025_nominal_fvtseed1/FvT_closure/ttbar_MC_vs_d3_cutflow.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-10-27 21:00:46",
+      "event": "new"
+    },
+    {
+      "ts": "2026-10-27 21:04:09",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-27 21:06:51",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-10-28 06:00:18",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 06:00:20",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 06:01:12",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-10-28 20:02:41",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-10-28 20:19:21",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "DIAGNOSTIC: tight 2025 FvT retrain with --kfold-seed-offsets 1 on nominal_run3_2025_20261027_1809191-df306da B outputs",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a",
+    "ts": "2026-10-28 20:02:41",
+    "ok": true
+  }
+}

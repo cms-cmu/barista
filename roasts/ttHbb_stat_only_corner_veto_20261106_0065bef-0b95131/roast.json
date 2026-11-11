@@ -1,0 +1,252 @@
+{
+  "id": "ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131",
+  "label": "ttHbb_stat_only_corner_veto",
+  "analysis": "ttHbb",
+  "created": "2026-11-06 17:29:56",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "0065bef6542692641a50cf7eb13769d54f5a5ae3",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "0b9513161a31667b146b56409b530a084308d794",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_stat_only_corner_veto.yml",
+    "captured": "config.yml",
+    "sha256": "a15ddada2059e87aa15ccdf61e7d668daf63156b33ae25ee3e314bb49f03e2fd",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb.yml",
+        "sha256": "f739a2ee486d49da945001a45c90691ed93429ef427178ccf145f693918337eb"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "barista": "c68b6eff579870c69b16db0f99e9dd41585af5d5",
+        "coffea4bees": "c250a1195c4300bed213dbb420dcfcebbd713241",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "classifier_inputs": {
+        "url": "{roast:upstream}/handoff/classifier_inputs_ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "JCM.UL16_preVFP": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL16_preVFP.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "JCM.UL16_postVFP": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL16_postVFP.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "JCM.UL17": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL17.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "JCM.UL18": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL18.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "SvB_MA": {
+        "url": "{roast:upstream}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "svb_binning": {
+        "url": "{roast:upstream}/handoff/svb_quantiles.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-06 17:35:09",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-stat-only-corner-veto-c81169-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "a15ddada2059"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 01:23:44",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_0065bef-0b95131_F",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "a15ddada2059"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-07 05:37:30",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_0065bef-0b95131_C4",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "a15ddada2059"
+        },
+        {
+          "ts": "2026-11-07 05:37:47",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_0065bef-0b95131_C4",
+          "ssh": "algomez@cmslpc343.fnal.gov",
+          "config_sha256": "a15ddada2059"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/HH4b/prod/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131/barista",
+      "ssh": "algomez@cmslpc343.fnal.gov",
+      "checked_out": "2026-11-06 17:32:34"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131/barista",
+      "checked_out": "2026-11-06 17:33:56"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131/",
+    "ts": "2026-11-07 06:06:23",
+    "ok": true,
+    "pages": [
+      "output/FvT_ttHbb_stitched/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_ttHbb_stitched/plots/analyze/index.html",
+      "output/FvT_ttHbb_stitched/plots/index.html",
+      "output/FvT_ttHbb_stitched/training_summary.html",
+      "output/FvT_ttHbb_stitched/yields.html",
+      "output/ttHbb/FvT_closure/cutflow_FvT_closure.html",
+      "output/ttHbb/FvT_closure/plots_FvT_closure/index.html",
+      "output/ttHbb/FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/cutflow_FvT_closure.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_FvT_closure/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/PhaseF_1_analysis/cutflow_crosscheck_ttHbb_stat_only_corner_veto.html",
+      "output/ttHbb/PhaseF_1_analysis/cutflow_ttHbb_stat_only_corner_veto.html",
+      "output/ttHbb/PhaseF_1_analysis/plots_ttHbb_stat_only_corner_veto/index.html",
+      "output/ttHbb/PhaseF_2_stats/summary.html",
+      "roasts/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-06 17:29:56",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-06 17:32:34",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-06 17:33:56",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-06 17:35:09",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-07 01:23:44",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 05:22:46",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-07 05:37:30",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 05:37:47",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-07 05:51:33",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-07 06:06:23",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": ""
+}

@@ -81,33 +81,66 @@ def _table(title: str, regions: dict, ratios) -> str:
     rows = []
     for region in sorted(regions):
         classes = regions[region]
-        rows.append(f'<tr><th colspan="3" class="region">{html.escape(region)}</th></tr>')
+        rows.append(f'<tr><th colspan="3" class="region"><span class="region-badge">{html.escape(region)}</span></th></tr>')
         for label in sorted(classes):
             c = classes[label]
-            rows.append(f"<tr><td>{html.escape(label)}</td><td>{c['count']:,}</td><td>{c['weight']:,.1f}</td></tr>")
+            rows.append(f"<tr><td><code>{html.escape(label)}</code></td><td>{c['count']:,}</td><td>{c['weight']:,.1f}</td></tr>")
         for spec, num, den in ratios:
             n, d, r = ratio_value(classes, num, den)
             val = "-" if r is None else f"{r:.4f}"
             detail = "" if r is None else f" <span class='muted'>({n:,.1f} / {d:,.1f})</span>"
-            rows.append(f"<tr class='ratio'><td>{html.escape(spec)}</td><td></td><td><b>{val}</b>{detail}</td></tr>")
-    return (f"<h3>{html.escape(title)}</h3><table><tr><th>class</th><th>count</th><th>weight</th></tr>"
-            + "".join(rows) + "</table>")
+            rows.append(f"<tr class='ratio'><td><strong>{html.escape(spec)}</strong></td><td></td><td><b>{val}</b>{detail}</td></tr>")
+    return (f"<div class='card'><h3>{html.escape(title)}</h3>"
+            f"<div class='wrap-table'><table><thead><tr><th class='l'>class</th><th>count</th><th>weight</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></div></div>")
 
 
 def render(yields: dict, ratios, title: str, source: str) -> str:
-    parts = [f"<h1>{html.escape(title)}: loaded yields</h1>",
+    parts = [f"<header><h1>{html.escape(title)}: loaded yields</h1>"
              f"<p class='muted'>Per-class event counts and summed training weights at the end of "
-             f"dataset loading (before the k-fold split), by region. Source: {html.escape(source)}.</p>",
+             f"dataset loading (before the k-fold split), by region. Source: <code>{html.escape(source)}</code></p></header>",
+             "<div class='grid-tables'>",
              _table("All years", yields.get("regions", {}), ratios)]
     for year in sorted(yields.get("years", {})):
         parts.append(_table(f"Year {year}", yields["years"][year], ratios))
-    style = ("body{font-family:sans-serif;margin:1.5em;max-width:1000px}"
-             "table{border-collapse:collapse;margin:0.3em 2em 1.2em 0;display:inline-table;vertical-align:top}"
-             "td,th{border:1px solid #ccc;padding:2px 10px;text-align:right}th{background:#eee}"
-             "th.region{text-align:left;background:#f6f6f6}td:first-child{text-align:left}"
-             "tr.ratio td{background:#fbf8e8}.muted{color:#777;font-size:12px}")
-    return (f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{html.escape(title)} yields</title>"
-            f"<style>{style}</style></head><body>" + "".join(parts) + "</body></html>")
+    parts.append("</div>")
+    style = """
+    :root {
+      --bg: #f8fafc;
+      --fg: #0f172a;
+      --muted: #64748b;
+      --card: #ffffff;
+      --line: #e2e8f0;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --warn-bg: #fef3c7;
+      --warn-fg: #b45309;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--fg); font-size: 14px; line-height: 1.5; padding: 24px 32px 64px; }
+    .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    header { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px 24px; }
+    h1 { font-size: 1.35rem; font-weight: 700; margin-bottom: 6px; }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    code { font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+    .grid-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; align-items: start; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+    .wrap-table { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    th, td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: right; }
+    th { background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }
+    th.l, td:first-child { text-align: left; }
+    th.region { text-align: left; background: #f1f5f9; padding: 6px 10px; }
+    .region-badge { display: inline-block; font-weight: 700; color: var(--fg); text-transform: none; font-size: 12px; }
+    tr.ratio td { background: var(--accent-soft); }
+    tbody tr:hover td { background: #f8fafc; }
+    """
+    return (f"<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>"
+            f"<title>{html.escape(title)} yields</title><style>{style}</style></head><body><div class='container'>"
+            + "".join(parts) + "</div></body></html>")
 
 
 def main(argv=None):

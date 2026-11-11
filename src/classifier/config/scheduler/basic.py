@@ -29,10 +29,19 @@ class FixedStep(Schedule):
     lr_kwargs: dict[str, Any] = None
     weight_decay: float = 0.0
 
+    # Weight averaging (src/classifier/ml/training.py:_WeightAverage): "swa" (uniform mean of the
+    # end-of-epoch weights) or "ema" (per-step exponential moving average) over epochs
+    # [average_start, average_end]; after epoch average_end (default: the last) the average replaces
+    # the live weights and training, if any epochs remain, continues from it.
+    average: str = None
+    average_start: int = 1
+    average_end: int = None
+    ema_decay: float = 0.999
+
     def __post_init__(self):
         self.bs_kwargs = self.bs_kwargs or {}
         self.lr_kwargs = self.lr_kwargs or {}
-    
+
     def optimizer(self, parameters, **kwargs):
         import torch.optim as optim
 
@@ -62,6 +71,98 @@ class FixedStep(Schedule):
             gamma=self.lr_scale,
             **self.lr_kwargs | kwargs,
         )
+
+
+@dataclass
+class ClosureGatedStep(FixedStep):
+    """:class:`FixedStep` whose learning-rate decay starts when the model's calibration is good.
+
+    The learning rate stays at ``lr_init`` until the sideband closure of the fit-quality benchmark
+    (FvTFitQuality: 4b data vs source x w + 4b ttbar, histogram ``gate_hist``) on the TRAINING split
+    has an excess (chi2/ndf - 1) per 100k target events of at most ``gate_max_excess``; then it
+    decays by ``lr_scale`` per epoch for ``n_decay`` epochs and the stage ends. The training split,
+    not the validation one: in a k-fold FvT the validation fold is the events the model is applied
+    to, and tuning on their closure would bias it. The gate is evaluated from ``gate_min_epoch`` on;
+    at ``gate_max_epoch`` the decay starts regardless (logged). ``epoch`` is set to
+    gate_max_epoch + n_decay, the longest possible stage. Needs the fit-quality benchmark (a model
+    with fit_quality, e.g. HCR FvT/MvD) and benchmarks enabled.
+    """
+
+    require_benchmark = True
+
+    gate_hist: str = "fvt_sb"
+    gate_split: str = "training"
+    gate_max_excess: float = 1.0
+    gate_min_epoch: int = 8
+    gate_max_epoch: int = 30
+    n_decay: int = 5
+
+    _gate: int = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.epoch = int(self.gate_max_epoch) + int(self.n_decay)
+
+    def _factor(self, epoch: int) -> float:
+        if self._gate is None or epoch < self._gate:
+            return 1.0
+        return self.lr_scale ** (epoch - self._gate + 1)
+
+    def lr_scheduler(self, optimizer, **kwargs):
+        from torch.optim.lr_scheduler import LambdaLR
+
+        # called once at the start of each stage: a schedule object reused for another fold's
+        # training must not inherit its gate (a resume restores it afterwards from the checkpoint)
+        self._gate = None
+        return LambdaLR(optimizer=optimizer, lr_lambda=self._factor, **self.lr_kwargs | kwargs)
+
+    def _excess(self, benchmark: dict) -> float | None:
+        fqs = self._get_key(("benchmarks", self.gate_split, "fit_quality"), benchmark)
+        try:
+            h = fqs[0]["histograms"][self.gate_hist]
+            n = float(sum(h["target"]))
+            if h.get("chi2_ndf") is None or n <= 0:
+                return None
+            return (float(h["chi2_ndf"]) - 1.0) / (n / 1e5)
+        except Exception:
+            return None
+
+    def lr_step(self, lr, benchmark: dict = None):
+        import logging
+
+        epoch = self._get_key(self.epoch_key, benchmark)
+        if self._gate is None and epoch is not None:
+            excess = self._excess(benchmark)
+            shown = "n/a" if excess is None else f"{excess:.3f}"
+            if epoch >= self.gate_min_epoch and excess is not None and excess <= self.gate_max_excess:
+                self._gate = epoch
+                logging.info(
+                    f"ClosureGatedStep: epoch {epoch}: {self.gate_split} {self.gate_hist} excess "
+                    f"{shown}/100k <= {self.gate_max_excess}: learning-rate decay starts "
+                    f"({self.n_decay} epochs)"
+                )
+            elif epoch >= self.gate_max_epoch:
+                self._gate = epoch
+                logging.warning(
+                    f"ClosureGatedStep: epoch {epoch}: closure gate never passed (last excess "
+                    f"{shown}/100k > {self.gate_max_excess}); learning-rate decay starts anyway"
+                )
+            else:
+                logging.info(
+                    f"ClosureGatedStep: epoch {epoch}: {self.gate_split} {self.gate_hist} excess "
+                    f"{shown}/100k (gate {self.gate_max_excess}, from epoch {self.gate_min_epoch})"
+                )
+        lr.step(epoch)
+
+    def should_stop(self, benchmark: dict = None) -> bool:
+        epoch = self._get_key(self.epoch_key, benchmark)
+        return self._gate is not None and epoch is not None and epoch >= self._gate + self.n_decay
+
+    def state_dict(self) -> dict:
+        return {"gate": self._gate}
+
+    def load_state_dict(self, state: dict):
+        self._gate = (state or {}).get("gate")
 
 
 @dataclass

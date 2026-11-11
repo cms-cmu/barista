@@ -98,8 +98,9 @@ class GBNSchedule(MilestoneStep):
 
 @dataclass
 class HCRBenchmarks:
-    rocs: Iterable[ROC]
+    rocs: Iterable[ROC] = ()
     scalars: Iterable[Callable[[BatchType], dict[str, Tensor]]] = None
+    fit_quality: Iterable = ()
 
 
 def _HCRInput(batch: BatchType, device: tt.Device, selection: Tensor = None):
@@ -193,10 +194,16 @@ class HCRModel(Model):
         weight = 0.0
         scalars = defaultdict(float)
         scalar_funcs = self._benchmarks.scalars
-        rocs = [r.copy() for r in self._benchmarks.rocs]
+        rocs = [r.copy() for r in (self._benchmarks.rocs or [])]
+        fit_qualities = [f.copy() for f in (self._benchmarks.fit_quality or [])]
         for batch in batches:
+            inputs = _HCRInput(batch, self._device)
+            if fit_qualities:
+                # HCR.dataPrep rewrites the jet tensors in place (log(1+pt), eta sign); the
+                # fit-quality benchmark reads the original kinematics from the batch
+                inputs = [i.clone() for i in inputs]
             with _amp_autocast(self._device):
-                c, q = self._nn(*_HCRInput(batch, self._device))
+                c, q = self._nn(*inputs)
             c, q = c.float(), q.float()
             batch |= {
                 Output.quadjet_raw: q,
@@ -215,9 +222,14 @@ class HCRModel(Model):
             weight += sumw
             for roc in rocs:
                 roc.update(batch)
+            for fq in fit_qualities:
+                fq.update(batch)
         for k in scalars:
             scalars[k] /= weight
-        return {"scalars": scalars, "roc": [r.to_json() for r in rocs]}
+        res = {"scalars": scalars, "roc": [r.to_json() for r in rocs]}
+        if fit_qualities:
+            res["fit_quality"] = [fq.to_json() for fq in fit_qualities]
+        return res
 
     def step(self, epoch: int = None):
         if self.ghost_batch is not None and self.ghost_batch.step(epoch):
@@ -258,10 +270,20 @@ class HCRTraining(MultiStageTraining):
             if self._pretrained_weights.endswith(".pkl"):
                 path = self._pretrained_weights
             else:
-                import glob as _glob
                 offset = self.metadata.get("offset", 0)
-                pattern = f"{self._pretrained_weights}/*_offset{offset}_*.pkl"
-                matches = _glob.glob(pattern)
+                # saved models are named model_<...>__offset_{N}__<...>.pkl (filename(metadata));
+                # also accept the compact _offset{N}_ form. Resolved through fsspec, so the
+                # directory can be remote (root://, e.g. an earlier roast's classifier/<label>)
+                # as well as local; matches (files directly in the directory) are returned as
+                # URLs under the given directory, whatever path form the filesystem's glob uses.
+                url = self._pretrained_weights.rstrip("/")
+                fs, root = fsspec.core.url_to_fs(url)
+                root = root.rstrip("/")
+                names = [f"*__offset_{offset}__*.pkl", f"*_offset{offset}_*.pkl"]
+                pattern = " | ".join(f"{url}/{n}" for n in names)
+                matches = sorted(
+                    {f"{url}/{m.rstrip('/').rsplit('/', 1)[-1]}" for n in names for m in fs.glob(f"{root}/{n}")}
+                )
                 if not matches:
                     raise FileNotFoundError(
                         f"No pretrained weights found for offset {offset} in "
@@ -285,6 +307,8 @@ class HCRTraining(MultiStageTraining):
             model=skim,
             schedule=SkimStep(),
             training=self.dataset,
+            # the skim accumulates the input mean/std (not in any state dict): never resume it
+            checkpoint=False,
         )
         self._HCR.nn.initMeanStd()
         validation_sets = self._splitter.get()

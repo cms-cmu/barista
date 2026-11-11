@@ -74,6 +74,58 @@ Example `workflow_config.yml` files live in `coffea4bees/classifier/config/workf
 The DAG is: `train → evaluate` and `train → analyze` (parallel after training).
 
 
+## Roast Production Workflow System (`bin/roast`)
+
+Production analyses and multi-phase pipelines must be executed via `bin/roast` rather than manual ad-hoc scripts. `roast` enforces reproducibility by pinning exact git SHAs (`barista` and `coffea4bees`), capturing merged configurations, creating isolated checkouts per cluster, and running in detached `tmux` sessions.
+
+### Mandatory Roast Sequence:
+1. **Preflight Configuration Validation:**
+   ```bash
+   bin/roast validate coffea4bees/workflows/config/<config>.yml
+   ```
+   Audits for parameter divergence, duplicate key definitions across sections, invalid filesystem paths, and era mismatches. (`bin/roast new` also invokes this check automatically; bypass with `--no-validate` only if strictly needed).
+2. **Create Roast Manifest:**
+   ```bash
+   bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --label <label> [--nautilus | --bridges2]
+   ```
+   Pins the current git HEADs, merges any `base:` configs, and records validation status in `roasts/<id>/roast.json`.
+3. **Cluster Checkouts:**
+   ```bash
+   bin/roast checkout <id> --host cmslpc
+   bin/roast checkout <id> --host falcon    # or nautilus / bridges2
+   ```
+4. **Dry-run Each Step:**
+   ```bash
+   bin/roast submit <id> --step <step> -n
+   ```
+5. **Execute Step:**
+   ```bash
+   bin/roast submit <id> --step <step>
+   ```
+   Automatically generates visual Snakemake rulegraph DAG (`logs/<step>_rulegraph.svg`) before execution and execution summary (`logs/<step>_summary.txt`) on exit 0.
+6. **Track Status:**
+   ```bash
+   bin/roast status <id>
+   bin/roast monitor
+   ```
+7. **Step C Rule:**
+   Phase C consists of **BOTH** `C` (GPU training & evaluation) and `C4` (CPU FvT data closure on `cmslpc`). Always run both. FvT is strictly trained in SB, never in SR.
+8. **Copy & Sync Products:**
+   ```bash
+   bin/roast copy <id>
+   ```
+9. **Publish Cupping Notes & Dashboard:**
+   ```bash
+   bin/roast publish <id>
+   ```
+   Publishes results, cupping notes, and an interactive CERNBox web index rendering inline SVG DAG rulegraphs and execution metrics.
+10. **Archive & Clean:**
+   ```bash
+   bin/roast archive <id>
+   bin/roast clean <id> --yes
+   ```
+
+
 ## Architecture
 
 ### Key Entry Points

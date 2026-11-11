@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Transparent Apptainer Wrapper for CVMFS on NCSA Delta (and unprivileged hosts)
+#
+# If /cvmfs/unpacked.cern.ch is already mounted, it passes through to system
+# apptainer. Otherwise, it invokes cvmfsexec to mount the required CVMFS
+# repositories (unpacked.cern.ch, grid.cern.ch, cms.cern.ch) in user space.
+# ==============================================================================
+
+if [ -d "/cvmfs/unpacked.cern.ch" ]; then
+    exec /usr/bin/apptainer "$@"
+fi
+
+# Locate shared or user cvmfsexec
+CVMFSEXEC="/projects/bjsv/software/cvmfsexec/cvmfsexec"
+if [ ! -x "$CVMFSEXEC" ]; then
+    CVMFSEXEC="${HOME}/workingArea/software/cvmfsexec/cvmfsexec"
+fi
+
+if [ -x "$CVMFSEXEC" ]; then
+    exec "$CVMFSEXEC" unpacked.cern.ch grid.cern.ch cms.cern.ch -- /usr/bin/apptainer "$@"
+fi
+
+# Fallback: if cvmfsexec is not found, try apptainer directly
+echo "[WARNING] CVMFS not mounted and cvmfsexec not found at $CVMFSEXEC. Invoking system apptainer directly." >&2
+exec /usr/bin/apptainer "$@"
