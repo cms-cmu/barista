@@ -936,6 +936,86 @@ class TestProxyPicking(unittest.TestCase):
         self.assertIn("-n 25", s)
 
 
+class TestProxyPush(unittest.TestCase):
+    """`roast proxy` copies the LPC proxy to the other hosts: falcon, Nautilus and ORCHARD have no
+    VOMS client, and a stale proxy there fails a training hours in."""
+
+    HOSTS = {
+        "falcon": {"ssh": "u@falcon.phys.cmu.edu", "reference": "~/work/barista"},
+        "orchard": {"gcloud": {"instance": "orchard-login-001", "zone": "us-central1-c", "project": "cmu-gpu-cloud"},
+                    "reference": "~/barista"},
+        "nautilus": {"namespace": "cms-cmu", "reference": "/workspace/users/u/barista"},
+    }
+
+    def test_install_script_parses(self):
+        bash_ok(roast._proxy_install_script(['"$HOME/.roast/x509_proxy"', "/a/b/proxy/x509_proxy"]), "proxy install")
+
+    @unittest.skipUnless(BASH, "bash not available")
+    def test_install_writes_private_copies_and_skips_missing_trees(self):
+        with tempfile.TemporaryDirectory() as d:
+            ref = Path(d) / "ref" / "proxy"
+            ref.mkdir(parents=True)
+            (ref / "x509_proxy").write_text("old")
+            os.link(ref / "x509_proxy", Path(d) / "linked")      # a checkout hard-links the reference proxy
+            paths = [shlex.quote(f"{d}/.roast/x509_proxy"), shlex.quote(str(ref / "x509_proxy")),
+                     shlex.quote(f"{d}/absent/proxy/x509_proxy")]
+            res = subprocess.run([BASH, "-c", roast._proxy_install_script(paths)], input=b"PEM", capture_output=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual((ref / "x509_proxy").read_text(), "PEM")
+            self.assertEqual((Path(d) / "linked").read_text(), "old")     # replaced, not written through the link
+            self.assertEqual(os.stat(f"{d}/.roast/x509_proxy").st_mode & 0o777, 0o600)
+            self.assertFalse((Path(d) / "absent").exists())
+            self.assertIn("skipped", res.stdout.decode())
+            # a copy that outlives the incoming proxy is kept (openssl decides; a non-certificate is replaced)
+            kept = subprocess.run([BASH, "-c", roast._proxy_install_script(paths[:1], 3600)], input=b"NEW", capture_output=True)
+            self.assertEqual(kept.returncode, 0, kept.stderr)
+            self.assertEqual(Path(f"{d}/.roast/x509_proxy").read_text(), "NEW")
+            empty = subprocess.run([BASH, "-c", roast._proxy_install_script(paths)], input=b"", capture_output=True)
+            self.assertNotEqual(empty.returncode, 0)                      # never install an empty proxy
+
+    def test_transports(self):
+        ssh, paths = roast._proxy_transport("falcon", self.HOSTS["falcon"])
+        self.assertEqual((ssh[0], ssh[-1]), ("ssh", "u@falcon.phys.cmu.edu"))
+        self.assertEqual(paths, ['"$HOME/.roast/x509_proxy"', '"$HOME/work/barista/proxy/x509_proxy"'])
+        gc, paths = roast._proxy_transport("orchard", self.HOSTS["orchard"])
+        self.assertEqual(gc[:4], ["gcloud", "compute", "ssh", "orchard-login-001"])
+        self.assertIn("--tunnel-through-iap", gc)
+        self.assertEqual(gc[-1], "--command")
+        self.assertIn('"$HOME/barista/proxy/x509_proxy"', paths)
+        k8s, paths = roast._proxy_transport("nautilus", self.HOSTS["nautilus"])
+        self.assertIsNone(k8s[-1])
+        self.assertIn("storage-helper", k8s)
+        self.assertEqual(paths, ["/workspace/users/u/barista/proxy/x509_proxy"])   # no home on CephFS
+        self.assertEqual(roast._proxy_transport("odd", {"cores": 1}), (None, []))
+
+    def test_push_reaches_every_other_host_and_survives_a_dead_one(self):
+        cfg = {"hosts": {"cmslpc": {"ssh": "u@cmslpc-el9.fnal.gov"}, **self.HOSTS}}
+        calls = []
+
+        def fake_run(prefix, script, input=None):
+            calls.append((prefix[0], input))
+            if input is None:                                   # the read from the source host
+                return subprocess.CompletedProcess(prefix, 0, b"PEM", b"")
+            rc = 255 if prefix[0] == "gcloud" else 0            # ORCHARD unreachable
+            return subprocess.CompletedProcess(prefix, rc, b"wrote x", b"connection timed out")
+
+        with patch.object(roast, "_proxy_run", fake_run), patch.object(roast, "_proxy_hours_left", return_value=100.0), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            failed = roast._proxy_push(cfg, "cmslpc")
+        self.assertEqual(failed, 1)
+        # source read once, then an install on every host: the source too, for its <reference>/proxy
+        self.assertEqual([c[1] for c in calls], [None, b"PEM", b"PEM", b"PEM", b"PEM"])
+        self.assertRegex(out.getvalue(), r"orchard\s+FAILED\s+connection timed out")
+        self.assertRegex(out.getvalue(), r"falcon\s+ok")
+
+    def test_push_refuses_an_expired_source(self):
+        cfg = {"hosts": {"cmslpc": {"ssh": "u@cmslpc-el9.fnal.gov"}, **self.HOSTS}}
+        with patch.object(roast, "_proxy_run", return_value=subprocess.CompletedProcess([], 0, b"PEM", b"")), \
+                patch.object(roast, "_proxy_hours_left", return_value=-1), \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            roast._proxy_push(cfg, "cmslpc")
+
+
 class TestCleanedRoastsCostNoSsh(unittest.TestCase):
     """The point of recording `cleaned`: status answers for finished work without a network call."""
 

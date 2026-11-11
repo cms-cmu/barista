@@ -41,8 +41,9 @@ in that file:
 You also need a grid proxy on the LPC, renewed about weekly:
 
 ```bash
-bin/roast proxy            # voms-proxy-init on cmslpc
-bin/roast proxy --check    # how much time is left, on this node and on shared home
+bin/roast proxy            # voms-proxy-init on cmslpc, then copy the proxy to the other hosts
+bin/roast proxy --check    # how much time is left: on this node, on shared home, on the other hosts
+bin/roast proxy --push     # no new proxy: copy the existing one again (--to falcon,orchard for some)
 ```
 
 `voms-proxy-init` writes into `/tmp`, which on the LPC belongs to one interactive node, while
@@ -50,6 +51,18 @@ the login alias is round-robin. The proxy you just made is therefore often not o
 given roast is pinned to, which shows up later as CERN EOS answering "unauthorized identity"
 even though you have a valid proxy. `roast proxy` also drops a copy in `~/.roast/x509_proxy`
 on shared home, and the commands that reach EOS take whichever copy still has time left.
+
+The other machines (falcon, Bridges-2, Nautilus, ORCHARD) have no VOMS client or no certificate,
+so `roast proxy` then copies that proxy to every other host in `hosts`: to `~/.roast/x509_proxy`
+and to `<reference>/proxy/x509_proxy`, which `run_container` binds (on Nautilus, only the latter,
+through the storage-helper pod). A host that cannot be reached is reported and the rest still get
+it; `--no-push` keeps the proxy on the LPC. A host reached with `gcloud compute ssh` instead of
+ssh, such as CMU ORCHARD, is declared with a `gcloud` block:
+
+```json
+"orchard": {"gcloud": {"instance": "orchard-login-001", "zone": "us-central1-c", "project": "cmu-gpu-cloud"},
+            "reference": "~/barista"}
+```
 
 For looking at histograms locally, see [Local pourover](#local-pourover) below, which
 needs a one-time virtual environment.

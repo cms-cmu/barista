@@ -13,7 +13,8 @@ barista GitLab Pages site ("cupping notes", docs/prod/).
 Typical session (from the barista root on your laptop):
 
     roast init                                   # once: ~/.config/roast/config.json
-    roast proxy                                  # voms-proxy-init on cmslpc (weekly); --check to see time left
+    roast proxy                                  # voms-proxy-init on cmslpc (weekly), copied to the other hosts;
+                                                 # --check to see time left, --push to only copy
     roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,D,F
     roast checkout <id>                          # isolated trees on cmslpc + falcon
     roast submit   <id> --step B --dry-run       # plan only
@@ -2335,17 +2336,135 @@ def cmd_attach(args) -> None:
     os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, tmux])
 
 
+def _proxy_install_script(paths: list[str], seconds_left: int = 0) -> str:
+    """Bash that installs the grid proxy arriving on stdin at each of `paths` (bash words).
+
+    A copy that outlives the incoming proxy (`seconds_left`) is kept: someone made a fresher one
+    on that host, and the weekly push must not shorten it.
+
+    A path under a directory that does not exist is skipped rather than created: a missing
+    reference tree means the host is not set up, and a stray proxy/ there would only mislead.
+    rm before cp: a checkout's proxy/x509_proxy can be a hard link into the reference tree.
+    """
+    return f"""
+        set -e; umask 077
+        t=$(mktemp); trap 'rm -f "$t"' EXIT; cat > "$t"
+        [ -s "$t" ] || {{ echo "empty proxy on stdin" >&2; exit 4; }}
+        n=0
+        for p in {" ".join(paths)}; do
+            d=$(dirname "$p")
+            [ -d "$(dirname "$d")" ] || {{ echo "skipped $p (no $(dirname "$d"))"; continue; }}
+            if [ {int(seconds_left)} -gt 0 ] && [ -s "$p" ] && openssl x509 -noout -checkend {int(seconds_left)} -in "$p" >/dev/null 2>&1; then
+                echo "kept $p (longer-lived than the incoming proxy)"; n=$((n+1)); continue
+            fi
+            mkdir -p "$d" && rm -f "$p" && cp "$t" "$p" && chmod 600 "$p" && echo "wrote $p" && n=$((n+1))
+        done
+        [ "$n" -gt 0 ]
+    """
+
+
+def _proxy_transport(host: str, hc: dict) -> tuple[list[str] | None, list[str]]:
+    """(command prefix that runs one bash script argument on `host`, proxy paths there).
+
+    Three kinds of host: ssh (cmslpc, falcon, bridges2, ...), a Google Cloud VM reached with
+    `gcloud compute ssh` through IAP (CMU ORCHARD: {"gcloud": {"instance", "zone", "project"}}),
+    and Nautilus, where the proxy lives on CephFS and is written through the storage-helper pod.
+    Every ssh-like host gets ~/.roast/x509_proxy (what the launchers and EOS commands look for)
+    and <reference>/proxy/x509_proxy (what run_container binds); Nautilus has no home.
+    """
+    ref = hc.get("reference")
+    ref_proxy = [rq(f"{ref.rstrip('/')}/proxy/x509_proxy")] if ref else []
+    if "gcloud" in hc:
+        g = hc["gcloud"]
+        cmd = ["gcloud", "compute", "ssh", g["instance"], "--tunnel-through-iap", "--quiet"]
+        for k in ("zone", "project"):
+            if g.get(k):
+                cmd += [f"--{k}", g[k]]
+        return [*cmd, "--command"], ['"$HOME/.roast/x509_proxy"', *ref_proxy]
+    if "ssh" in hc:
+        target = resolve_ssh(hc)
+        return ["ssh", *ssh_opts(target), target], ['"$HOME/.roast/x509_proxy"', *ref_proxy]
+    if host == "nautilus" or "namespace" in hc:
+        return [*k8s_cmd("exec", "-i", "storage-helper", "-n", hc.get("namespace", "cms-cmu"), "--", "sh", "-c"), None], ref_proxy
+    return None, []
+
+
+def _proxy_run(prefix: list, script: str, input: bytes | None = None) -> subprocess.CompletedProcess:
+    """Run a bash script through a transport from _proxy_transport, bytes in and out."""
+    if prefix[-1] is None:      # kubectl exec: the script is its own argv entry, no remote shell to quote for
+        cmd = [*prefix[:-1], script]
+    else:                       # ssh and gcloud hand one string to the remote login shell
+        cmd = [*prefix, f"bash -c {shlex.quote(script)}"]
+    try:
+        return subprocess.run(cmd, input=input, capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return subprocess.CompletedProcess(cmd, 255, b"", str(e).encode())
+
+
+def _proxy_push(cfg: dict, source: str, only: list[str] | None = None) -> int:
+    """Copy the shared proxy on `source` to every configured host (on `source` itself that fills
+    <reference>/proxy). Returns the number of hosts that did not get it; an unreachable host is
+    reported, not fatal -- the others still do."""
+    src_prefix, _ = _proxy_transport(source, host_cfg(cfg, source))
+    got = _proxy_run(src_prefix, f"cat {SHARED_PROXY}")
+    left = _proxy_hours_left(got.stdout)
+    if got.returncode != 0 or left <= 0:
+        die(f"no valid proxy at {SHARED_PROXY} on {source} "
+            f"({got.stderr.decode(errors='replace').strip() or 'expired or absent'}); run `{TOOL} proxy` first")
+    hosts = [h for h in cfg["hosts"] if not only or h in only]
+    for h in only or []:
+        if h not in cfg["hosts"]:
+            die(f"host '{h}' not in {CONFIG_PATH}")
+    failed = 0
+    print(f"grid proxy from {source}: {left:.0f} h left")
+    for host in hosts:
+        prefix, paths = _proxy_transport(host, cfg["hosts"][host])
+        if prefix is None or not paths:
+            print(f"  {host:10s} skipped (no ssh, gcloud or namespace in its config)")
+            continue
+        res = _proxy_run(prefix, _proxy_install_script(paths, int(left * 3600)), input=got.stdout)
+        out = res.stdout.decode(errors="replace").strip().splitlines()
+        if res.returncode == 0:
+            print(f"  {host:10s} ok      " + "; ".join(out))
+        else:
+            failed += 1
+            err = (res.stderr.decode(errors="replace").strip().splitlines() or out or ["no output"])[-1]
+            print(f"  {host:10s} FAILED  {err}")
+    return failed
+
+
+def _proxy_check_others(cfg: dict, source: str) -> None:
+    """Time left on the copies `roast proxy` distributes."""
+    for host, hc in cfg["hosts"].items():
+        if host == source:
+            continue
+        prefix, paths = _proxy_transport(host, hc)
+        if prefix is None or not paths:
+            continue
+        print(f"{host}:")
+        for p in paths:
+            res = _proxy_run(prefix, f"cat {p} 2>/dev/null")
+            left = _proxy_hours_left(res.stdout)
+            state = f"{left:.0f} h left" if left > 0 else ("expired or absent" if res.returncode in (0, 1) else "unreachable")
+            print(f"  {state:18s} {p}")
+
+
 def cmd_proxy(args) -> None:
-    """Create (interactively) or check the grid proxy on a host.
+    """Create (interactively) or check the grid proxy, and copy it to the other hosts.
 
     voms-proxy-init writes /tmp/x509up_u<uid>, which every roast launcher copies into its
     checkout's proxy/x509_proxy.  On LPC /tmp is node-local while the gateway is round-robin, so
     the proxy you just made is often on a different node from the roast you want to use it for.
     A copy therefore goes to ~/.roast/x509_proxy, which is on shared home and readable from
     whichever node a roast was pinned to.
+
+    That copy is then pushed to every other host in the config (falcon, bridges2, Nautilus,
+    ORCHARD, ...): most of them have no VOMS client or no certificate, and a GPU training that
+    reads EOS with a week-old proxy fails hours in.  --push only copies; --no-push only creates.
     """
     cfg = load_config()
     target = resolve_ssh(host_cfg(cfg, args.host))
+    only = [h for h in (args.to or "").split(",") if h] or None
     if args.check:
         res = ssh_run(target, f"echo -n 'node '; hostname -s; "
                               f"echo -n 'local '; voms-proxy-info --timeleft 2>/dev/null || echo none; "
@@ -2361,14 +2480,21 @@ def cmd_proxy(args) -> None:
             left = where.get(k, "none")
             pretty = f"{int(left)//3600} h left" if left.isdigit() and int(left) > 0 else "expired or absent"
             print(f"  {k:7s} {pretty}" + (f"   ({SHARED_PROXY}, readable from every node)" if k == "shared" else "   (/tmp, this node only)"))
+        _proxy_check_others(cfg, args.host)
         return
-    # the copy is part of the same command: os.execvp hands the terminal to ssh for the passphrase,
-    # so there is no second round trip to do it in
-    cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
-           f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
-           f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
-    info(f"ssh -t {target} {cmd}")
-    os.execvp("ssh", ["ssh", "-t", *ssh_opts(target), target, cmd])
+    if not args.push:
+        cmd = (f"voms-proxy-init -rfc -voms cms --valid {shlex.quote(args.valid)}"
+               f" && mkdir -p ~/.roast && cp -f /tmp/x509up_u$(id -u) {SHARED_PROXY}"
+               f" && chmod 600 {SHARED_PROXY} && echo 'copied to {SHARED_PROXY} for the other nodes'")
+        info(f"ssh -t {target} {cmd}")
+        # not BatchMode/multiplexed-only: the terminal goes to ssh for the certificate passphrase
+        rc = subprocess.run(["ssh", "-t", *ssh_opts(target), target, cmd]).returncode
+        if rc != 0:
+            die(f"voms-proxy-init on {args.host} failed (exit {rc}); nothing copied", rc)
+        if args.no_push:
+            return
+    if _proxy_push(cfg, args.host, only):
+        die(f"some hosts did not get the proxy; fix the access and rerun `{TOOL} proxy --push`")
 
 
 def cmd_pull(args) -> None:
@@ -5037,9 +5163,14 @@ def main(argv=None) -> None:
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
         s.set_defaults(func=fn)
 
-    s = sub.add_parser("proxy", help="voms-proxy-init on a host (interactive), or --check its time left")
-    s.add_argument("--host", default="cmslpc"); s.add_argument("--valid", default="168:00", help="hours:minutes (default 168:00)")
-    s.add_argument("--check", action="store_true")
+    s = sub.add_parser("proxy", help="voms-proxy-init on a host (interactive) and copy the proxy to the "
+                                     "other hosts, or --check the time left everywhere")
+    s.add_argument("--host", default="cmslpc", help="where the proxy is created (default cmslpc)")
+    s.add_argument("--valid", default="168:00", help="hours:minutes (default 168:00)")
+    s.add_argument("--check", action="store_true", help="show the time left on every host, change nothing")
+    s.add_argument("--push", action="store_true", help="do not create a proxy: copy the existing one to the other hosts")
+    s.add_argument("--no-push", action="store_true", help="create the proxy on --host only")
+    s.add_argument("--to", metavar="HOST[,HOST]", help="copy to these hosts only (default: every other host in the config)")
     s.set_defaults(func=cmd_proxy)
 
     s = sub.add_parser("log", help="show, follow or summarise a step's log (no tmux needed)")
