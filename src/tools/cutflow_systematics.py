@@ -142,12 +142,17 @@ def validate_counts(
     reference: Dict[str, Any],
     tolerance: float = 1e-3,
     tag: str = "fourTag",
+    region: str = "SR",
 ) -> List[Dict[str, Any]]:
     """
     Validate observed yields against reference known counts.
     Returns list of comparison row dictionaries.
     """
     ref_counts = reference.get(f"counts_{tag}", reference.get(tag, reference.get("counts4", reference)))
+    if isinstance(ref_counts, dict) and region in ref_counts:
+        ref_counts = ref_counts[region]
+    elif isinstance(ref_counts, dict) and "SR" in ref_counts:
+        ref_counts = ref_counts["SR"]
     rows = []
 
     for proc, var_dict in observed.items():
@@ -362,15 +367,24 @@ def main():
             sys.exit(f"Error: Known counts file not found: {args.known_counts}")
         with open(args.known_counts, "r") as f:
             ref_data = yaml.safe_load(f)
-        validation_rows = validate_counts(observed, ref_data, tolerance=args.tolerance, tag=args.tag)
+        validation_rows = validate_counts(observed, ref_data, tolerance=args.tolerance, tag=args.tag, region=args.region)
+        print(f"\n{'='*75}")
+        print(f"{'Variation':<45} {'Observed':>9} {'Expected':>9} {'Diff %':>8}")
+        print(f"{'-'*75}")
+        for r in validation_rows:
+            diff_str = f"{r['rel_diff']*100:+.2f}%" if r.get('rel_diff') is not None else "-"
+            exp_str = f"{r['expected']:>9.4f}" if r.get('expected') is not None else "     None"
+            print(f"{r['variation']:<45} {r['observed']:>9.4f} {exp_str} {diff_str:>8}")
+        print(f"{'='*75}\n")
+
         failures = [r for r in validation_rows if r["status"] == "FAIL"]
         if failures:
             passed = False
-            print(f"\n[FAIL] {len(failures)} systematic variation(s) exceeded tolerance ({args.tolerance}):")
+            print(f"[FAIL] {len(failures)} systematic variation(s) exceeded tolerance ({args.tolerance}):")
             for f in failures:
                 print(f"  - {f['process']} {f['variation']}: observed={f['observed']:.5f}, expected={f['expected']:.5f}, rel_diff={f['rel_diff']*100:.3f}%")
         else:
-            print(f"\n[PASS] All {len(validation_rows)} systematic variation(s) matched reference within tolerance ({args.tolerance})")
+            print(f"[PASS] All {len(validation_rows)} systematic variation(s) matched reference within tolerance ({args.tolerance})")
 
     # Output text summary
     if args.output_txt:
