@@ -1036,11 +1036,15 @@ def cmd_init(args) -> None:
         cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
         cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/prod"
         cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/barista"
-    if getattr(args, "delta_user", None):
-        u = args.delta_user
+    if getattr(args, "delta_user", None) or getattr(args, "delta_project", None):
+        u = args.delta_user or "<user>"
+        proj = args.delta_project or "bjsv"
         cfg["hosts"]["delta"]["ssh"] = f"{u}@delta"
-        cfg["hosts"]["delta"]["prod_root"] = f"/projects/bjsv/{u}/workingArea/{{analysis}}/prod"
-        cfg["hosts"]["delta"]["reference"] = f"/projects/bjsv/{u}/workingArea/HH4b/barista"
+        cfg["hosts"]["delta"]["prod_root"] = f"/projects/{proj}/{u}/workingArea/{{analysis}}/prod"
+        cfg["hosts"]["delta"]["reference"] = f"/projects/{proj}/{u}/workingArea/HH4b/barista"
+        if args.delta_project:
+            # exported as DELTA_PROJECT for run_container (accounts, binds, rendered snakemake profile)
+            cfg["hosts"]["delta"]["project"] = proj
     if args.cern_user:
         u = args.cern_user
         cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/{{analysis}}/prod"
@@ -1813,7 +1817,10 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     unlock = f"{base} --unlock || true\n" if resume else ""
     if resume:
         base += " --rerun-incomplete"
-    ref = host_cfg(cfg, step["host"]).get("reference", "")
+    hcfg = host_cfg(cfg, step["host"])
+    ref = hcfg.get("reference", "")
+    # NCSA Delta: which ACCESS project run_container charges and binds (default bjsv)
+    project_env = f"export DELTA_PROJECT={shlex.quote(hcfg['project'])}" if hcfg.get("project") else ""
     ref_proxy = f"{ref}/proxy/x509_proxy" if ref else ""
     proxy_srcs = ['"${X509_USER_PROXY:-}"', '"$HOME/.roast/x509_proxy"']
     if ref_proxy:
@@ -1827,6 +1834,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         # regeneration of this script cannot derail a run that is already in progress.
         main() {{
         cd {rq(ckpt)} || exit 97
+        {project_env}
         LOG=logs/{name}.log
         EXIT=logs/{name}.exit
         rm -f "$EXIT"
@@ -5186,7 +5194,10 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user")
+    s.add_argument("--delta-project", help="NCSA Delta ACCESS project (default bjsv): sets the /projects/<project> "
+                   "paths and DELTA_PROJECT for run_container (accounts <project>-delta-gpu/-cpu)")
+    s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
