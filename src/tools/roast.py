@@ -1768,8 +1768,9 @@ def _tmux_session(r: dict | None = None) -> str:
 
 
 TRAIN_HOSTS = ("orchard",)
-# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
-CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}
+# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD (none since
+# coffea4bees' evaluate_synthetic_orchard; a phase with another GPU rule of its own goes here)
+CMSLPC_GPU_PHASES_REFUSED: dict[str, str] = {}
 
 
 def train_host_setting(r: dict) -> str:
@@ -2123,7 +2124,7 @@ def _submit(args, resume: bool) -> None:
     if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
         die(f"--train-on/--eval-on orchard need a driver that can reach ORCHARD with gcloud; step {step['name']} runs "
             f"on Nautilus. Use falcon or cmslpc for this step, or `--train-on host --eval-on host`")
-    if host == "cmslpc" and step["name"] in ("C", "D") and not (r.get("train_on") and r.get("eval_on")):
+    if host == "cmslpc" and step["name"] in ("C", "D", "BKG_C") and not (r.get("train_on") and r.get("eval_on")):
         die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard`")
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
@@ -5209,7 +5210,7 @@ def main(argv=None) -> None:
     s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")
     s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
-    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D) on cmslpc instead of Falcon, with their "
+    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D, BKG_C) on cmslpc instead of Falcon, with their "
                                                         "trainings and evaluations on ORCHARD (implies --train-on and "
                                                         "--eval-on orchard)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")

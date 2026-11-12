@@ -154,13 +154,27 @@ if [ -n "$REMOTE" ]; then
 fi
 
 # ── 4. train ─────────────────────────────────────────────────────────────────────────────────────
-TEMPLATE="${ORCHARD_TEMPLATE_FULL:-model: ${MODEL}${ORCHARD_TEMPLATE:+, ${ORCHARD_TEMPLATE}}}"
+if [ "${ORCHARD_TEMPLATE_SET:-0}" = 1 ]; then
+    TEMPLATE="${ORCHARD_TEMPLATE_FULL}"      # --template-full, possibly empty (a staged workflow needs none)
+else
+    TEMPLATE="model: ${MODEL}${ORCHARD_TEMPLATE:+, ${ORCHARD_TEMPLATE}}"
+fi
+# MPS: the classifier trains its k folds as parallel processes on one GPU. Without an MPS daemon
+# their CUDA contexts take turns; with one they run concurrently. Measured on ORCHARD (2025 FvT,
+# 2026-11-11): 4 fits sharing an H100 under MPS each progressed ~1.3x faster than one fit alone
+# without it. ORCHARD_MPS=0 turns it off.
+MPS_ON=""; MPS_OFF=""
+if [ "${ORCHARD_MPS:-1}" = 1 ]; then
+    MPS_DIR="${LOCAL}/mps"
+    MPS_ON="export CUDA_MPS_PIPE_DIRECTORY='${MPS_DIR}/pipe' CUDA_MPS_LOG_DIRECTORY='${MPS_DIR}/log'; mkdir -p '${MPS_DIR}/pipe' '${MPS_DIR}/log'; nvidia-cuda-mps-control -d && echo '[orchard] MPS daemon started'; "
+    MPS_OFF="; rc=\$?; echo quit | nvidia-cuda-mps-control; exit \$rc"
+fi
 log "training: template {${TEMPLATE}} ${TRAIN} -from ${COMMON} ${ORCHARD_EXTRA_ARGS}"
-in_container "HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
+in_container "${MPS_ON}HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
     CLASSIFIER_CONFIG_PATHS='${ORCHARD_CLASSIFIER_CONFIG_PATHS}' \
     CLASSIFIER_CHECKPOINT_DIR='${CKPT}' \
     EVAL_SCRATCH='${LOCAL}/eval_scratch' \
-    python -m src.classifier.task.main template '{${TEMPLATE}}' '${TRAIN}' -from '${COMMON}' -flag debug ${ORCHARD_EXTRA_ARGS}" \
+    python -m src.classifier.task.main template '{${TEMPLATE}}' '${TRAIN}' -from '${COMMON}' -flag debug ${ORCHARD_EXTRA_ARGS}${MPS_OFF}" \
     >> "${ORCHARD_RUN_DIR}/train.log" 2>&1 &
 STEP_PID=$!; wait "$STEP_PID"; RC=$?; STEP_PID=""
 mark trained

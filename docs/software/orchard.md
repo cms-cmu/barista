@@ -30,8 +30,13 @@ bin/roast new --config <config>.yml --phases B,C,C4,D,F --cmslpc
 
 `--cmslpc` implies `--train-on orchard --eval-on orchard`, because the LPC Snakemake profile runs
 every rule on the interactive node, which has no GPU. The remaining C/D rules (input plots,
-`analyze`, weights, galleries, summaries) are CPU work. BKG_C is refused: its `evaluate_synthetic`
-rule is a GPU rule of its own, so it stays on falcon.
+`analyze`, weights, galleries, summaries) are CPU work. BKG_C's `evaluate_synthetic` has an ORCHARD
+variant too, so BKG_C can also run from cmslpc, and should: falcon's login-node watchdog kills its
+Snakemake driver.
+
+Every ORCHARD job starts an MPS daemon (`ORCHARD_MPS=1`, default) so that the k-fold trainer
+processes share the GPU concurrently instead of taking turns: measured ~1.3x faster per fit, and
+four fits under MPS on one H100 each ran faster than one fit without it.
 
 The step's snakemake gets `--config train_host=orchard` (and `eval_host=orchard`). `src/classifier/workflow/Snakefile` then
 replaces its `train` rule by `train_orchard`, which runs on the falcon driver (a local rule, no GPU)

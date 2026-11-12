@@ -254,7 +254,7 @@ def main():
         ship_code(rem, root, a.orchard_project or "/project/community/$USER/barista", bootstrap=True)
         return
     for k in ("model_dir", "wf", "common", "template", "log"):
-        if not getattr(a, k):
+        if getattr(a, k) is None:   # an empty --template is fine: a staged workflow may need none
             ap.error(f"--{k.replace('_', '-')} is required")
 
     model_dir = Path(a.model_dir)
