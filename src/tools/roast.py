@@ -1771,7 +1771,9 @@ def _tmux_session(r: dict | None = None) -> str:
     return f"roast_{clean}"
 
 
-TRAIN_HOSTS = ("orchard",)
+# orchard: CMU ORCHARD via gcloud (software/orchard); delta: NCSA Delta via an EOS spool and a pull
+# agent on a Delta login node (software/delta, docs/delta.md)
+TRAIN_HOSTS = ("orchard", "delta")
 # GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
 CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}
 
@@ -2129,10 +2131,12 @@ def _submit(args, resume: bool) -> None:
     host = step["host"]
     hc = host_cfg(cfg, host)
     if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
-        die(f"--train-on/--eval-on orchard need a driver that can reach ORCHARD with gcloud; step {step['name']} runs "
-            f"on Nautilus. Use falcon or cmslpc for this step, or `--train-on host --eval-on host`")
+        die(f"--train-on/--eval-on {r.get('train_on') or r.get('eval_on')} need a driver that can reach ORCHARD "
+            f"(gcloud) or the Delta spool (EOS); step {step['name']} runs on Nautilus. Use falcon or cmslpc for "
+            f"this step, or `--train-on host --eval-on host`")
     if host == "cmslpc" and step["name"] in ("C", "D") and not (r.get("train_on") and r.get("eval_on")):
-        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard`")
+        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard` "
+            f"(or delta)")
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
@@ -5217,12 +5221,13 @@ def main(argv=None) -> None:
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--delta", action="store_true", help="run GPU phases (C, D, BKG_C) on NCSA Delta instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
-    s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s); "
+    s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s, "
+                                                          "or NCSA Delta A100s through the pull agent); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")
     s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
     s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D) on cmslpc instead of Falcon, with their "
                                                         "trainings and evaluations on ORCHARD (implies --train-on and "
-                                                        "--eval-on orchard)")
+                                                        "--eval-on orchard; give --train-on/--eval-on delta for Delta)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
     s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
     s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
@@ -5243,7 +5248,7 @@ def main(argv=None) -> None:
         s.add_argument("-n", "--dry-run", action="store_true", help="snakemake -n: show the plan, run nothing")
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
         s.add_argument("--train-on", choices=(*TRAIN_HOSTS, "host"), help="change where this roast's classifier trainings "
-                                                                        "run (saved): orchard, or host = the step's own host")
+                                                                        "run (saved): orchard, delta, or host = the step's own host")
         s.add_argument("--eval-on", choices=(*TRAIN_HOSTS, "host"), help="same for the classifier evaluations")
         s.set_defaults(func=fn)
 
