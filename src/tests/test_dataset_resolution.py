@@ -71,7 +71,7 @@ def test_yaml_dataset_definitions():
 
         for ds in datasets:
             assert ds in db
-            for era in ["2022_preEE", "2022_postEE", "2023_preBPIX", "2023_postBPIX"]:
+            for era in ["2022_preEE", "2022_EE", "2023_preBPix", "2023_BPix"]:
                 assert era in db[ds]
                 assert "nanoAOD" in db[ds][era]
                 assert db[ds][era]["nanoAOD"].startswith("root://cmsxrootd.fnal.gov//store/user/ekoenig/Run3_private_production/")

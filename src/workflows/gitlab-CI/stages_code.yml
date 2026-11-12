@@ -72,3 +72,11 @@ code_classifier_dependencies:
     - pwd && ls -la
   script:
     - python -m src.classifier.test.check_configs
+
+unit_tests_barista:
+  stage: code
+  extends:
+    - .base_analysis_barista
+  script:
+    - python3 src/tests/run_unit_tests.py
+
