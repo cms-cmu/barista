@@ -84,7 +84,8 @@ class Remote:
         here and an in-cloud copy there. `gcloud compute scp` pushes it through the IAP tunnel
         instead, which is slow and was killed on falcon's 15 GB login node with a 140 MB tarball."""
         if self.bucket:
-            obj = f"{self.bucket}/transfer/{os.path.basename(remote)}"
+            # unique per process: several rule instances upload at once
+            obj = f"{self.bucket}/transfer/{os.getpid()}_{int(time.time())}_{os.path.basename(remote)}"
             r = subprocess.run([self.gcloud, "storage", "cp", "--quiet", local, obj], capture_output=True, text=True)
             if r.returncode == 0:
                 self.run(f"set -e; gcloud storage cp --quiet {obj} ~/{remote} && gcloud storage rm --quiet {obj}",
@@ -135,6 +136,17 @@ REPOS = ((".", "barista"), ("coffea4bees", "coffea4bees"))
 
 
 def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> str:
+    """_ship_code under a lock on the driver host: the rule instances of one workflow start together
+    and would otherwise all ship the same code at once (and collide on the remote bundle names)."""
+    import fcntl
+    lock_dir = root / ".orchard_pack"
+    lock_dir.mkdir(exist_ok=True)
+    with open(lock_dir / "ship.lock", "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        return _ship_code(rem, root, proj, bootstrap)
+
+
+def _ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> str:
     """Make ORCHARD:<proj>/code/<key> hold this checkout's code; return that path.
 
     ORCHARD cannot clone from gitlab.cern.ch without credentials, and falcon's login node kills any
