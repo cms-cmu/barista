@@ -1,0 +1,117 @@
+setup_coffea4bees:
+  stage: setup
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
+  needs:
+    - voms_proxy
+  script:
+    - COFFEA4BEES_DEFAULT_BRANCH="master"
+    - echo "Checking for branch '$COFFEA4BEES_BRANCH' in coffea4bees..."
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/coffea4bees.git "$COFFEA4BEES_BRANCH" || COFFEA4BEES_BRANCH="$COFFEA4BEES_DEFAULT_BRANCH"
+    - echo "Cloning coffea4bees from branch '$COFFEA4BEES_BRANCH'"
+    - git clone --depth=1 --branch $COFFEA4BEES_BRANCH https://${DEPLOY_TOKEN_USERNAME_COFFEA4BEES}:${DEPLOY_TOKEN_PASSWORD_COFFEA4BEES}@gitlab.cern.ch/cms-cmu/coffea4bees.git coffea4bees/
+    - ls coffea4bees/
+    # Bootstrap Pixi environment
+    - echo "Installing Pixi and dependencies"
+    - export PIXI_NO_PATH_UPDATE=1
+    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
+    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
+    - pixi install
+  artifacts:
+    paths:
+      - coffea4bees/
+      - proxy/
+      - .pixi/
+      - .pixi-bin/
+    expire_in: 4 hours
+
+setup_bbreww:
+  stage: setup
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
+  needs:
+    - voms_proxy
+  script:
+    - BBREWW_DEFAULT_BRANCH="master"
+    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
+    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
+    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
+    - ls bbreww/
+    # Bootstrap Pixi environment
+    - echo "Installing Pixi and dependencies"
+    - export PIXI_NO_PATH_UPDATE=1
+    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
+    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
+    - pixi install
+  artifacts:
+    paths:
+      - bbreww/
+      - proxy/
+      - .pixi/
+      - .pixi-bin/
+    expire_in: 4 hours
+
+.base_analysis_coffea4bees:
+  needs:
+    - setup_coffea4bees
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "coffea4bees"
+  before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
+
+.base_analysis_bbreww:
+  needs:
+    - setup_bbreww
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "bbreww"
+  before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
+
+.base_combine_coffea4bees:
+  image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
+  needs:
+    - setup_coffea4bees
+  before_script:
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_DIR/output/ || true
+    - echo "Setting combine framework"
+    - source /cvmfs/cms.cern.ch/cmsset_default.sh
+    - cd /home/cmsusr/CMSSW_11_3_4/
+    - cmsenv || true
+    - cd $CI_PROJECT_DIR/
+    - pwd && ls -la
+    - ls -la coffea4bees/
+  tags:
+    - k8s-cvmfs
+  retry: 2
