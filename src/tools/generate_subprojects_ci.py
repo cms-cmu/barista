@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Generate dynamic child pipeline YAML for subprojects (coffea4bees & bbreww).
+"""Generate dynamic child pipeline YAMLs for subprojects (coffea4bees & bbreww).
 
 Resolves the target branch for each subproject:
 - Uses the current branch ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME or $CI_COMMIT_REF_NAME)
   if it exists on the remote repository.
 - Otherwise falls back to 'master'.
 
-Embeds self-contained base jobs (voms_proxy, setup_coffea4bees, setup_bbreww, .base_analysis_*)
-and an explicit workflow:rules block so the child pipeline is fully self-contained
-and always succeeds in creation and execution.
+Generates dedicated, decoupled child pipeline YAMLs:
+- coffea4bees-ci.yml: runs coffea4bees workflows and tests
+- bbreww-ci.yml:      runs bbreww workflows and tests
+- subprojects-ci.yml: combines both (for backwards compatibility)
+
+Each child pipeline is self-contained with its own base jobs (voms_proxy, setup, base templates)
+and explicit workflow:rules block so it can run independently as a downstream child pipeline.
 """
 import os
 import subprocess
@@ -49,7 +53,7 @@ def resolve_branch(repo_name, target_branch):
     return "master"
 
 
-BASE_DEFINITIONS = """
+VOMS_PROXY_JOB = """
 voms_proxy:
   stage: setup
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest
@@ -68,7 +72,9 @@ voms_proxy:
     - export VOMSPROXY=$(voms-proxy-info -path)
     - mkdir proxy
     - cp ${VOMSPROXY} proxy/x509_proxy
+"""
 
+COFFEA4BEES_BASE_DEFINITIONS = """
 setup_coffea4bees:
   stage: setup
   image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
@@ -95,32 +101,6 @@ setup_coffea4bees:
       - .pixi-bin/
     expire_in: 4 hours
 
-setup_bbreww:
-  stage: setup
-  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
-  needs:
-    - voms_proxy
-  script:
-    - BBREWW_DEFAULT_BRANCH="master"
-    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
-    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
-    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
-    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
-    - ls bbreww/
-    # Bootstrap Pixi environment
-    - echo "Installing Pixi and dependencies"
-    - export PIXI_NO_PATH_UPDATE=1
-    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
-    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
-    - pixi install
-  artifacts:
-    paths:
-      - bbreww/
-      - proxy/
-      - .pixi/
-      - .pixi-bin/
-    expire_in: 4 hours
-
 .base_analysis_coffea4bees:
   needs:
     - setup_coffea4bees
@@ -131,30 +111,6 @@ setup_bbreww:
   variables:
     CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
     CLASSIFIER_CONFIG_PATHS: "coffea4bees"
-  before_script:
-    - echo "Add error handling flags"
-    - set -e
-    - set -o pipefail
-    - export CONTAINER_PYTHON=$(which python)
-    - export PATH="$PWD/.pixi-bin/bin:$PATH"
-    - echo "Checking output directory"
-    - ls $CI_PROJECT_PATH/output/ || true
-    - echo "Setting analysis framework"
-    - pwd && ls -la
-  tags:
-    - k8s-cvmfs
-  retry: 2
-
-.base_analysis_bbreww:
-  needs:
-    - setup_bbreww
-    - job: build_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
-  variables:
-    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
-    CLASSIFIER_CONFIG_PATHS: "bbreww"
   before_script:
     - echo "Add error handling flags"
     - set -e
@@ -188,21 +144,147 @@ setup_bbreww:
   retry: 2
 """
 
+BBREWW_BASE_DEFINITIONS = """
+setup_bbreww:
+  stage: setup
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
+  needs:
+    - voms_proxy
+  script:
+    - BBREWW_DEFAULT_BRANCH="master"
+    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
+    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
+    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
+    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
+    - ls bbreww/
+    # Bootstrap Pixi environment
+    - echo "Installing Pixi and dependencies"
+    - export PIXI_NO_PATH_UPDATE=1
+    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
+    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
+    - pixi install
+  artifacts:
+    paths:
+      - bbreww/
+      - proxy/
+      - .pixi/
+      - .pixi-bin/
+    expire_in: 4 hours
 
-def main():
-    target_branch = (
-        os.environ.get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
-        or os.environ.get("CI_COMMIT_REF_NAME")
-        or "master"
-    )
-    print(f"Resolving subproject branches for target branch: '{target_branch}'")
+.base_analysis_bbreww:
+  needs:
+    - setup_bbreww
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  variables:
+    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
+    CLASSIFIER_CONFIG_PATHS: "bbreww"
+  before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
+"""
 
-    coffea4bees_ref = resolve_branch("coffea4bees", target_branch)
-    bbreww_ref = resolve_branch("bbreww", target_branch)
 
-    output_path = sys.argv[1] if len(sys.argv) > 1 else "subprojects-ci.yml"
+def build_coffea4bees_yaml(target_branch, coffea4bees_ref):
+    return f"""# Dynamic Child Pipeline for coffea4bees
+# Auto-generated by src/tools/generate_subprojects_ci.py
+# Target branch:   {target_branch}
+# coffea4bees ref: {coffea4bees_ref}
 
-    content = f"""# Dynamic Child Pipeline for Subprojects
+workflow:
+  rules:
+    - when: always
+
+variables:
+  CONTAINER_HOST: cms-cmu
+  RECREATE_CONTAINERS: "false"
+  DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+  ANALYSIS_IMAGE_TAG: ${{DEFAULT_ANALYSIS_IMAGE_TAG}}
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_DEPTH: 1
+  GIT_SUBMODULE_FORCE_HTTPS: "true"
+  COFFEA4BEES_BRANCH: '{coffea4bees_ref}'
+  DATASET: coffea4bees/metadata/datasets/
+  CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
+  CLASSIFIER_CONFIG_PATHS: "coffea4bees"
+
+stages:
+  - setup
+  - code
+  - classifier
+  - skimmer
+  - friendtree
+  - analysis
+  - tools
+  - mixeddata
+  - plot
+  - cutflow
+  - workflows
+
+include:
+  - project: 'cms-cmu/coffea4bees'
+    ref: '{coffea4bees_ref}'
+    file: 'workflows/gitlab-CI/stages_for_barista.yml'
+
+{VOMS_PROXY_JOB}
+{COFFEA4BEES_BASE_DEFINITIONS}
+"""
+
+
+def build_bbreww_yaml(target_branch, bbreww_ref):
+    return f"""# Dynamic Child Pipeline for bbreww
+# Auto-generated by src/tools/generate_subprojects_ci.py
+# Target branch: {target_branch}
+# bbreww ref:    {bbreww_ref}
+
+workflow:
+  rules:
+    - when: always
+
+variables:
+  CONTAINER_HOST: cms-cmu
+  RECREATE_CONTAINERS: "false"
+  DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+  ANALYSIS_IMAGE_TAG: ${{DEFAULT_ANALYSIS_IMAGE_TAG}}
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_DEPTH: 1
+  GIT_SUBMODULE_FORCE_HTTPS: "true"
+  BBREWW_BRANCH: '{bbreww_ref}'
+  CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
+  CLASSIFIER_CONFIG_PATHS: "bbreww"
+
+stages:
+  - setup
+  - skimmer
+  - classifier
+  - analysis
+  - plot
+  - cutflow
+
+include:
+  - project: 'cms-cmu/bbreww'
+    ref: '{bbreww_ref}'
+    file: 'workflows/gitlab-CI/stages_for_barista.yml'
+
+{VOMS_PROXY_JOB}
+{BBREWW_BASE_DEFINITIONS}
+"""
+
+
+def build_combined_yaml(target_branch, coffea4bees_ref, bbreww_ref):
+    return f"""# Dynamic Child Pipeline for Subprojects
 # Auto-generated by src/tools/generate_subprojects_ci.py
 # Target branch:   {target_branch}
 # coffea4bees ref: {coffea4bees_ref}
@@ -245,13 +327,43 @@ include:
     ref: '{bbreww_ref}'
     file: 'workflows/gitlab-CI/stages_for_barista.yml'
 
-{BASE_DEFINITIONS}
+{VOMS_PROXY_JOB}
+{COFFEA4BEES_BASE_DEFINITIONS}
+{BBREWW_BASE_DEFINITIONS}
 """
 
-    with open(output_path, "w") as f:
-        f.write(content)
 
-    print(f"Generated {output_path} successfully.")
+def main():
+    target_branch = (
+        os.environ.get("CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
+        or os.environ.get("CI_COMMIT_REF_NAME")
+        or "master"
+    )
+    print(f"Resolving subproject branches for target branch: '{target_branch}'")
+
+    coffea4bees_ref = resolve_branch("coffea4bees", target_branch)
+    bbreww_ref = resolve_branch("bbreww", target_branch)
+
+    coffea4bees_yaml = build_coffea4bees_yaml(target_branch, coffea4bees_ref)
+    bbreww_yaml = build_bbreww_yaml(target_branch, bbreww_ref)
+    combined_yaml = build_combined_yaml(target_branch, coffea4bees_ref, bbreww_ref)
+
+    with open("coffea4bees-ci.yml", "w") as f:
+        f.write(coffea4bees_yaml)
+    print("Generated coffea4bees-ci.yml successfully.")
+
+    with open("bbreww-ci.yml", "w") as f:
+        f.write(bbreww_yaml)
+    print("Generated bbreww-ci.yml successfully.")
+
+    with open("subprojects-ci.yml", "w") as f:
+        f.write(combined_yaml)
+    print("Generated subprojects-ci.yml successfully.")
+
+    if len(sys.argv) > 1 and sys.argv[1] not in ("coffea4bees-ci.yml", "bbreww-ci.yml", "subprojects-ci.yml"):
+        with open(sys.argv[1], "w") as f:
+            f.write(combined_yaml)
+        print(f"Generated {sys.argv[1]} successfully.")
 
 
 if __name__ == "__main__":
