@@ -119,6 +119,25 @@ def git(args, cwd) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
 
+# untracked files here count as code: a hot patch applied with `git apply` leaves its new files
+# untracked, and `git diff HEAD` alone would not ship them (a batch job then found no batch_runner.py)
+SOURCE_DIRS = {".": ("bin", "software", "src"), "coffea4bees": ("analysis", "classifier", "workflows")}
+SOURCE_SUFFIXES = (".py", ".sh", ".smk", ".sbatch", ".yml", ".yaml")
+
+
+def worktree_diff(root: Path, sub: str) -> bytes:
+    """`git diff HEAD` of a repository plus its untracked source files (as new-file diffs)."""
+    d = root / sub
+    out = subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout
+    dirs = [x for x in SOURCE_DIRS.get(sub, ()) if (d / x).is_dir()]
+    if dirs:
+        new = git(["ls-files", "--others", "--exclude-standard", "-z", "--", *dirs], d).split("\0")
+        for f in sorted(f for f in new if f.endswith(SOURCE_SUFFIXES) and "__pycache__" not in f):
+            out += subprocess.run(["git", "diff", "--no-index", "--binary", "/dev/null", f], cwd=d,
+                                  capture_output=True).stdout
+    return out
+
+
 def code_key(root: Path, repos) -> str:
     h = hashlib.sha256()
     shas = []
@@ -127,7 +146,7 @@ def code_key(root: Path, repos) -> str:
         sha = git(["rev-parse", "HEAD"], d).strip()
         shas.append(sha[:10])
         h.update(sha.encode())
-        h.update(subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout)
+        h.update(worktree_diff(root, sub))
     return "-".join(shas) + "-" + h.hexdigest()[:8]
 
 
@@ -189,7 +208,7 @@ def _ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) ->
                 continue
             dst = "$C.part" + ("" if sub == "." else f"/{sub}")
             build.append(f"mkdir -p {dst} && git --git-dir=$G/{name}.git archive {sha} | tar -x -C {dst}")
-            diff = subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout
+            diff = worktree_diff(root, sub)
             if diff.strip():
                 Path(f"{tmp}/{name}.diff").write_bytes(diff)
                 rem.put(f"{tmp}/{name}.diff", f"orchard_{name}_{key}.diff")
