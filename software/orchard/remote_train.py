@@ -100,6 +100,20 @@ class Remote:
         raise RuntimeError(f"upload of {local} failed: {r.stderr.strip()[-1500:]}")
 
 
+def run_label(roast_id: str, model_dir: str, task_tag: str) -> str:
+    """Unique, readable ORCHARD run name: <roast>__<model_dir>[__task]. A roast's model_dir usually
+    contains the roast id again; drop that repeat, and if it is still long keep the start and the end
+    (mix_<n>, the task) around a hash, so two models or tasks never share a run directory."""
+    rid = roast_id or "run"
+    md = model_dir.strip("/").replace(rid, "").replace("//", "/")
+    full = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{rid}__{md}{task_tag}")
+    full = re.sub(r"_{3,}", "__", full)
+    if len(full) <= 150:
+        return full
+    h = hashlib.sha1(full.encode()).hexdigest()[:8]
+    return f"{full[:70]}_{h}_{full[-70:]}"
+
+
 def git(args, cwd) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
@@ -265,7 +279,9 @@ def main():
     if not a.max_restarts:
         a.max_restarts = "0" if evaluating else "8"
     task_tag = "" if a.task == "train" else f"__{a.task}"
-    label = a.label or re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{a.roast_id or 'run'}__{a.model_dir.strip('/')}{task_tag}")[:150]
+    label = a.label or run_label(a.roast_id, a.model_dir, task_tag)
+    if state.get("label") and not a.label:
+        label = state["label"]          # keep reattaching to the run this model started with
     wf, common = rel_to_root(a.wf, root), rel_to_root(a.common, root)
     rem = Remote(a)
     proj = a.orchard_project or "/project/community/$USER/barista"
