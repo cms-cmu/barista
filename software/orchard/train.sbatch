@@ -14,6 +14,10 @@
 #   5. shortly before the time limit, or when preempted, stop the training and requeue the job; the
 #      requeued job resumes from the last completed epoch
 #
+# Batch mode (ORCHARD_BATCH=<tasks.json>, from remote_train.py --pack): several tasks run at once on
+# the one GPU under MPS (batch_runner.py), each with its own run directory runs/<task label>; this
+# job's own run directory holds only the job logs. Inputs are read remotely (no staging).
+#
 #SBATCH --job-name=barista-train
 #SBATCH --partition=general
 #SBATCH --qos=general_qos
@@ -64,10 +68,22 @@ in_container() {  # run a command inside the classifier image, in the barista di
         bash -c 'set +u; [ -f /entrypoint.sh ] && source /entrypoint.sh; set -u; ulimit -n 65536 2>/dev/null || true; export PYTHONUNBUFFERED=1; '"$1"
 }
 
-sync_out() {  # mirror the run directory (model, checkpoints, logs) to the bucket
+BATCH="${ORCHARD_BATCH:-}"
+BATCH_DIRS=()
+if [ -n "$BATCH" ]; then
+    mapfile -t BATCH_DIRS < <(python3 -c 'import json,sys; [print(t["run_dir"]) for t in json.load(open(sys.argv[1]))]' "$BATCH")
+    MOUNTS="${MOUNTS},$(dirname "${ORCHARD_RUN_DIR}"):$(dirname "${ORCHARD_RUN_DIR}")"   # runs/: every task's run dir
+fi
+
+sync_out() {  # mirror the run directory (model, checkpoints, logs) to the bucket; in batch mode each task's too
     [ -n "$REMOTE" ] || return 0
     gcloud storage rsync --recursive "${ORCHARD_RUN_DIR}" "${REMOTE}" > "${LOGS}/sync_${TAG}.log" 2>&1 \
         || { log "WARNING: bucket sync failed, see ${LOGS}/sync_${TAG}.log"; return 1; }
+    local d
+    for d in "${BATCH_DIRS[@]:-}"; do
+        [ -n "$d" ] && [ -d "$d" ] && gcloud storage rsync --recursive "$d" "${ORCHARD_BUCKET%/}/runs/$(basename "$d")" >> "${LOGS}/sync_${TAG}.log" 2>&1
+    done
+    return 0
 }
 
 cleanup() {
@@ -123,6 +139,9 @@ done
 
 # ── 2. stage the inputs ──────────────────────────────────────────────────────────────────────────
 TRAIN="${ORCHARD_TRAIN}"; COMMON="${ORCHARD_COMMON}"
+if [ -n "$BATCH" ] && [ "$ORCHARD_SOURCE" != none ]; then
+    log "batch mode reads the inputs remotely: ignoring ORCHARD_SOURCE=${ORCHARD_SOURCE}"; ORCHARD_SOURCE=none
+fi
 if [ "$ORCHARD_SOURCE" != none ]; then
     STAGE="python3 ${HERE}/stage_data.py"
     ARGS="--stage ${LOCAL} --data ${DATA} --source ${ORCHARD_SOURCE}"
@@ -169,6 +188,12 @@ if [ "${ORCHARD_MPS:-1}" = 1 ]; then
     MPS_ON="export CUDA_MPS_PIPE_DIRECTORY='${MPS_DIR}/pipe' CUDA_MPS_LOG_DIRECTORY='${MPS_DIR}/log'; mkdir -p '${MPS_DIR}/pipe' '${MPS_DIR}/log'; nvidia-cuda-mps-control -d && echo '[orchard] MPS daemon started'; "
     MPS_OFF="; rc=\$?; echo quit | nvidia-cuda-mps-control; exit \$rc"
 fi
+if [ -n "$BATCH" ]; then
+    log "batch of ${#BATCH_DIRS[@]} tasks from ${BATCH}"
+    in_container "${MPS_ON}python ${HERE}/batch_runner.py '${BATCH}' --local '${LOCAL}' \
+        --config-paths '${ORCHARD_CLASSIFIER_CONFIG_PATHS}' --extra-args '${ORCHARD_EXTRA_ARGS}'${MPS_OFF}" \
+        >> "${ORCHARD_RUN_DIR}/train.log" 2>&1 &
+else
 log "training: template {${TEMPLATE}} ${TRAIN} -from ${COMMON} ${ORCHARD_EXTRA_ARGS}"
 in_container "${MPS_ON}HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
     CLASSIFIER_CONFIG_PATHS='${ORCHARD_CLASSIFIER_CONFIG_PATHS}' \
@@ -176,6 +201,7 @@ in_container "${MPS_ON}HCR_YIELDS_FILE='${ORCHARD_RUN_DIR}/yields_loaded.json' \
     EVAL_SCRATCH='${LOCAL}/eval_scratch' \
     python -m src.classifier.task.main template '{${TEMPLATE}}' '${TRAIN}' -from '${COMMON}' -flag debug ${ORCHARD_EXTRA_ARGS}${MPS_OFF}" \
     >> "${ORCHARD_RUN_DIR}/train.log" 2>&1 &
+fi
 STEP_PID=$!; wait "$STEP_PID"; RC=$?; STEP_PID=""
 mark trained
 

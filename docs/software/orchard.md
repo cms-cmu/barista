@@ -70,6 +70,17 @@ Optional settings, in the workflow config (or the roast's config) under `orchard
 orchard: {time: "4:00:00", cpus: 16, mem: 160G, preempt: false, poll: 300}
 ```
 
+**Packing** (`orchard: {pack: 4}`): workflows with many models (bkg_syst: 16 subsamples) run up to
+`pack` trainings, or `pack` evaluations, in one ORCHARD job on one GPU under MPS
+(`software/orchard/batch_runner.py`). The rule instances on the driver coordinate through
+`<checkout>/.orchard_pack/`: a task waits up to `pack_wait` (120 s) for others of its kind to fill a
+batch, then one of them submits it. Each task keeps its own run directory, `train.log`, checkpoints and
+`train.done`, so fetching, reattaching and a resubmission after a failure work per task; a requeued
+batch resumes only its unfinished tasks. Resources scale with the batch: `pack_cpus` (8) and
+`pack_mem` (64 GB) per task. Why: ORCHARD's `general` queue runs one job per user, the queue wait
+between jobs was 30–80 min in November 2026, and four FvT fits under MPS on one H100 each ran as fast
+as one fit alone. `eval_pack` sets a different size for the evaluations (they take minutes).
+
 One-time setup on each driver host (falcon, cmslpc), besides the ORCHARD setup below
 (on cmslpc unpack into `~/nobackup` and link `~/google-cloud-sdk` to it: the home quota is 3 GB):
 
