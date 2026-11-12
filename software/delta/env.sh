@@ -18,4 +18,7 @@ DELTA_CPU_ACCOUNT=${_delta_env_cpu:-${DELTA_CPU_ACCOUNT:-${DELTA_PROJECT}-delta-
 # cvmfsexec and grid certificates; point at another project's copy if it is readable to you
 DELTA_SOFTWARE=${_delta_env_sw:-${DELTA_SOFTWARE:-/projects/${DELTA_PROJECT}/software}}
 export DELTA_PROJECT DELTA_GPU_ACCOUNT DELTA_CPU_ACCOUNT DELTA_SOFTWARE
+# pull agent (software/delta/agent.py): the EOS spool the drivers use, and where code and runs live
+[ -n "${DELTA_SPOOL:-}" ] && export DELTA_SPOOL
+[ -n "${DELTA_HOME:-}" ] && export DELTA_HOME
 unset _delta_env_project _delta_env_gpu _delta_env_cpu _delta_env_sw _delta_env_file
