@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pull agent for classifier trainings/evaluations on NCSA Delta (see docs/delta.md).
+"""Pull agent for classifier trainings/evaluations on NCSA Delta (see docs/software/delta.md).
 
 Runs in tmux on a Delta login node, started once by hand (Delta needs Duo for every login, so no
 driver can log in by itself). It only makes outbound calls: XRootD to the EOS spool
@@ -256,7 +256,11 @@ class Agent:
                 if logs:
                     tail = "\n".join(logs[-1].read_text(errors="replace").splitlines()[-30:])
             self.upload(rid, final=True)
-            self.status(rid, "DONE" if done else (s if s != "COMPLETED" else "FAILED"), tail=tail, final=True)
+            state = "DONE" if done else (s if s != "COMPLETED" else "FAILED")
+            # a worker killed by the cgroup leaves the batch step FAILED, not OUT_OF_MEMORY
+            if not done and "oom" in (tail + sh(["sacct", "-j", rec["job"], "-n", "-P", "-o", "State"]).stdout).lower():
+                state = "OUT_OF_MEMORY"
+            self.status(rid, state, tail=tail, final=True)
             return
         if s != rec.get("state"):
             self.status(rid, s)

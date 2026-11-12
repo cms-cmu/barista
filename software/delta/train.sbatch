@@ -1,7 +1,7 @@
 #!/bin/bash
 # Single-GPU classifier training or evaluation on NCSA Delta, submitted by the pull agent
 # (software/delta/agent.py), which sets the DELTA_* variables and the account, partition and size.
-# See docs/delta.md. Modelled on software/orchard/train.sbatch, without staging (inputs are read over
+# See docs/software/delta.md. Modelled on software/orchard/train.sbatch, without staging (inputs are read over
 # XRootD, as roast trainings on ORCHARD do) and without a bucket mirror.
 #
 #   1. run the classifier image through apptainer + cvmfsexec (Delta has no /cvmfs)
@@ -43,6 +43,7 @@ done
 in_container() {  # run a command inside the classifier image, in the barista directory
     "$APPTAINER" exec --nv --cleanenv "${BINDS[@]}" --pwd "${DELTA_BARISTA}" \
         --env "X509_USER_PROXY=${X509_USER_PROXY:-}" \
+        --env "USER=${USER}" --env "LOGNAME=${USER}" \
         --env X509_CERT_DIR=/etc/grid-security/certificates \
         "${DELTA_IMAGE}" \
         bash -c 'set +u; [ -f /entrypoint.sh ] && source /entrypoint.sh; set -u; ulimit -n 65536 2>/dev/null || true; export PYTHONUNBUFFERED=1; '"$1"

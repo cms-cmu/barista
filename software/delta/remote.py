@@ -77,7 +77,7 @@ def ship_code(sp: Spool, root: Path, wait: int) -> str:
                     basis = [w[0] for w in (line.split() for line in ok) if len(w) > 1 and w[1] == "commit"]
                     if not basis:
                         sys.exit(f"[delta] the Delta agent has no copy of {name} yet: run once "
-                                 f"`software/delta/remote.py --bootstrap` (see docs/delta.md)")
+                                 f"`software/delta/remote.py --bootstrap` (see docs/software/delta.md)")
                     bundle = f"{tmp}/{name}.bundle"
                     r = subprocess.run(["git", "bundle", "create", "-q", bundle, "HEAD", *[f"^{b}" for b in basis[:50]]],
                                        cwd=d, capture_output=True, text=True)
@@ -187,7 +187,8 @@ def main():
         texts = [Path(wf).read_text(), Path(common).read_text(), a.template]
         extra = sorted(set(rt.referenced_files(texts, root, known)) | {wf, common} - known)
         attempt = state.get("attempt", 0) + 1
-        rid = safe(f"{label}.a{attempt}")
+        # unique per request: a driver whose state file was removed must not reuse a finished id
+        rid = safe(f"{label}.a{attempt}.{int(time.time())}")
         with tempfile.TemporaryDirectory() as tmp:
             log(f"shipping {len(extra)} workflow file(s): {', '.join(extra[:6])}{' ...' if len(extra) > 6 else ''}")
             rt.make_tar(root, extra, f"{tmp}/wf.tgz")

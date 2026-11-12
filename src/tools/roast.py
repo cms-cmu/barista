@@ -1772,7 +1772,7 @@ def _tmux_session(r: dict | None = None) -> str:
 
 
 # orchard: CMU ORCHARD via gcloud (software/orchard); delta: NCSA Delta via an EOS spool and a pull
-# agent on a Delta login node (software/delta, docs/delta.md)
+# agent on a Delta login node (software/delta, docs/software/delta.md)
 TRAIN_HOSTS = ("orchard", "delta")
 # GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
 CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}

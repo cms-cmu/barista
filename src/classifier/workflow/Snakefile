@@ -574,7 +574,7 @@ if EVAL_HOST == "orchard":
 # for every login, so software/delta/remote.py (a local rule here) never logs in: it leaves requests
 # in an EOS spool that a pull agent on a Delta login node (software/delta/agent.py) submits to Slurm.
 # Settings (all optional): delta: {spool, time, partition, cpus, mem, max_restarts, poll, and
-# eval_<key> overrides}. See docs/delta.md.
+# eval_<key> overrides}. See docs/software/delta.md.
 _delta = config.get("delta") or {}
 
 

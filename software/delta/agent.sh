@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the Delta pull agent (software/delta/agent.py) from this barista checkout, in the pixi
-# environment (xrdfs/xrdcp). Run it inside tmux on a Delta login node; see docs/delta.md.
+# environment (xrdfs/xrdcp). Run it inside tmux on a Delta login node; see docs/software/delta.md.
 #
 #   tmux new -s delta-agent 'software/delta/agent.sh'      # options are passed to agent.py
 #

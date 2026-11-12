@@ -1,5 +1,5 @@
 # NCSA Delta: resolve the ACCESS project whose accounts and storage barista uses.
-# Sourced by run_container and software/bin/apptainer; see docs/delta.md.
+# Sourced by run_container and software/bin/apptainer; see docs/software/delta.md.
 #
 # Precedence: environment > ${XDG_CONFIG_HOME:-~/.config}/barista/delta.env > bjsv (the original
 # project, so an unconfigured account behaves exactly as before). Example delta.env:
