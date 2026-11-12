@@ -6,6 +6,11 @@ workflow:
     # Do not run for branches with 'test' in the name
     - if: '$CI_COMMIT_BRANCH =~ /test/'
       when: never
+    # Run for child pipelines
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+      when: always
     # Run for master branch pushes/merges.  Must come BEFORE the markdown rule below:
     # `changes:` matches if ANY listed path changed (there is no "only these changed"
     # operator), so a master push touching one .md file would otherwise skip the whole
@@ -70,12 +75,6 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_classifier.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
-  - project: 'cms-cmu/bbreww'
-    ref: 'master'
-    file: 'workflows/gitlab-CI/stages_for_barista.yml'
-  - project: 'cms-cmu/coffea4bees'
-    ref: 'ci-pipeline-cleanup'
-    file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
@@ -96,6 +95,29 @@ stages:
   - workflows
   - mixeddata
   - pages
+
+generate_subprojects_ci:
+  stage: setup
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
+  tags:
+    - k8s-cvmfs
+  needs: []
+  script:
+    - python3 src/tools/generate_subprojects_ci.py subprojects-ci.yml
+  artifacts:
+    paths:
+      - subprojects-ci.yml
+    expire_in: 1 day
+
+subprojects_pipeline:
+  stage: workflows
+  needs:
+    - generate_subprojects_ci
+  trigger:
+    include:
+      - artifact: subprojects-ci.yml
+        job: generate_subprojects_ci
+    strategy: depend
 
 setup_coffea4bees:
   stage: setup
