@@ -1026,6 +1026,11 @@ run_combine() {
         --env ENV=/srv/apptainer_env.sh
         --env PYTHONHISTFILE=/home/cmsusr/barista/.python_history
     )
+    for _b in /eos /uscms_data /cvmfs /afs; do
+        if [ -d "$_b" ] && ! _bind_listed "$_b"; then
+            FLAGS+=( -B "$_b" )
+        fi
+    done
 
     if [ -z "$*" ]; then
         "${APPTAINER_CMD:-apptainer}" exec "${FLAGS[@]}" "${COMBINE_IMAGE}" /bin/bash
