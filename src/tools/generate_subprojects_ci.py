@@ -223,8 +223,6 @@ variables:
   COFFEA4BEES_BRANCH: '{coffea4bees_ref}'
   BBREWW_BRANCH: '{bbreww_ref}'
   DATASET: coffea4bees/metadata/datasets/
-  CLASSIFIER_WFS: coffea4bees/classifier/test/config/workflow/CI/
-  CLASSIFIER_CONFIG_PATHS: coffea4bees
 
 stages:
   - setup

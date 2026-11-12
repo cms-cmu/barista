@@ -66,7 +66,6 @@ variables:
   MATERIAL_VERSION: '9.5.3'
   RUN_PAGES: "false"  # Control whether to run the pages job
   DATASET: coffea4bees/metadata/datasets/
-  CLASSIFIER_WFS: src/classifier/test/config/workflow/CI/
 
 include:
   - local: 'software/dockerfiles/stages_build.yml'
@@ -111,6 +110,8 @@ generate_subprojects_ci:
 
 subprojects_pipeline:
   stage: workflows
+  inherit:
+    variables: false
   needs:
     - generate_subprojects_ci
   trigger:
@@ -118,6 +119,9 @@ subprojects_pipeline:
       - artifact: subprojects-ci.yml
         job: generate_subprojects_ci
     strategy: depend
+    forward:
+      yaml_variables: false
+      pipeline_variables: false
 
 setup_coffea4bees:
   stage: setup
