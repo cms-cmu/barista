@@ -41,7 +41,7 @@ export ORCHARD_IMAGE="${ORCHARD_IMAGE:-${ORCHARD_PROJECT}/images/barista_classif
 PARTITION="${ORCHARD_PARTITION:-general}"; QOS="${ORCHARD_QOS-general_qos}"
 TIME="12:00:00"; CPUS=24; MEM="200G"; DRY=0; COMMON=""; POS=(); EXTRA=()
 export ORCHARD_SOURCE="${ORCHARD_SOURCE:-xrootd}" ORCHARD_INCLUDE="${ORCHARD_INCLUDE:-}" ORCHARD_EXCLUDE="${ORCHARD_EXCLUDE:-}"
-export ORCHARD_TEMPLATE="${ORCHARD_TEMPLATE:-}" ORCHARD_EXTRA_ARGS="${ORCHARD_EXTRA_ARGS:-}" ORCHARD_MODEL="${ORCHARD_MODEL:-}" ORCHARD_TEMPLATE_FULL="${ORCHARD_TEMPLATE_FULL:-}"
+export ORCHARD_TEMPLATE="${ORCHARD_TEMPLATE:-}" ORCHARD_EXTRA_ARGS="${ORCHARD_EXTRA_ARGS:-}" ORCHARD_MODEL="${ORCHARD_MODEL:-}" ORCHARD_TEMPLATE_FULL="${ORCHARD_TEMPLATE_FULL:-}" ORCHARD_TEMPLATE_SET="${ORCHARD_TEMPLATE_SET:-0}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --preempt)  PARTITION="${ORCHARD_PARTITION:-preempt}"; QOS="${ORCHARD_QOS-preempt_qos}"; shift ;;
@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
         --exclude)  ORCHARD_EXCLUDE="$2"; shift 2 ;;
         --model)    ORCHARD_MODEL="$2"; shift 2 ;;
         --template) ORCHARD_TEMPLATE="$2"; shift 2 ;;
-        --template-full) ORCHARD_TEMPLATE_FULL="$2"; shift 2 ;;
+        --template-full) ORCHARD_TEMPLATE_FULL="$2"; ORCHARD_TEMPLATE_SET=1; shift 2 ;;
         --args)     ORCHARD_EXTRA_ARGS="$2"; shift 2 ;;
         --time)     TIME="$2"; shift 2 ;;
         --cpus)     CPUS="$2"; shift 2 ;;

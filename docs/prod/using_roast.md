@@ -173,8 +173,13 @@ Then `checkout`, `submit`, `status` and `resume` as for any roast. The step's Sn
 rules that run `software/orchard/remote_train.py` on the step's host. That script ships the code,
 submits the job on ORCHARD with the models and friend trees going to the roast's EOS paths, waits,
 and copies `train.log` and `yields_loaded.json` back. Everything after (evaluation if it stays local,
-`analyze`, plots, C4, the next phase) is unchanged. BKG_C cannot use `--cmslpc` (its
-`evaluate_synthetic` is a GPU rule of its own); it can use `--train-on orchard` on falcon.
+`analyze`, plots, C4, the next phase) is unchanged. BKG_C's own GPU rule, `evaluate_synthetic`,
+follows `--eval-on orchard` too (coffea4bees `evaluate_synthetic_orchard`).
+
+**Drive C, D and BKG_C from cmslpc, not from the falcon login node.** Falcon's login node kills any
+process above 60 % CPU (`/usr/local/bin/falcon-watchdog.sh`); a Snakemake driver building a large
+DAG (BKG_C: 16 subsamples) is killed within minutes (exit 137). `--cmslpc` puts these steps on
+cmslpc, which has no such watchdog.
 
 **Before submitting** (each check takes seconds; the rule refuses to start without the first three):
 

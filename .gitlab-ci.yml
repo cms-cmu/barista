@@ -6,6 +6,11 @@ workflow:
     # Do not run for branches with 'test' in the name
     - if: '$CI_COMMIT_BRANCH =~ /test/'
       when: never
+    # Run for child pipelines
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline"'
+      variables:
+        DEFAULT_ANALYSIS_IMAGE_TAG: "latest"
+      when: always
     # Run for master branch pushes/merges.  Must come BEFORE the markdown rule below:
     # `changes:` matches if ANY listed path changed (there is no "only these changed"
     # operator), so a master push touching one .md file would otherwise skip the whole
@@ -61,7 +66,6 @@ variables:
   MATERIAL_VERSION: '9.5.3'
   RUN_PAGES: "false"  # Control whether to run the pages job
   DATASET: coffea4bees/metadata/datasets/
-  CLASSIFIER_WFS: src/classifier/test/config/workflow/CI/
 
 include:
   - local: 'software/dockerfiles/stages_build.yml'
@@ -70,12 +74,6 @@ include:
   - local: 'src/workflows/gitlab-CI/stages_classifier.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
   - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
-  - project: 'cms-cmu/bbreww'
-    ref: 'master'
-    file: 'workflows/gitlab-CI/stages_for_barista.yml'
-  - project: 'cms-cmu/coffea4bees'
-    ref: 'master'
-    file: 'workflows/gitlab-CI/stages_for_barista.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
@@ -96,6 +94,72 @@ stages:
   - workflows
   - mixeddata
   - pages
+
+generate_subprojects_ci:
+  stage: setup
+  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
+  tags:
+    - k8s-cvmfs
+  needs: []
+  script:
+    - python3 src/tools/generate_subprojects_ci.py
+  artifacts:
+    paths:
+      - coffea4bees-ci.yml
+      - bbreww-ci.yml
+      - subprojects-ci.yml
+    expire_in: 1 day
+
+coffea4bees_pipeline:
+  stage: workflows
+  inherit:
+    variables: false
+  needs:
+    - generate_subprojects_ci
+  trigger:
+    include:
+      - artifact: coffea4bees-ci.yml
+        job: generate_subprojects_ci
+    strategy: depend
+    forward:
+      yaml_variables: false
+      pipeline_variables: false
+
+bbreww_pipeline:
+  stage: workflows
+  inherit:
+    variables: false
+  needs:
+    - generate_subprojects_ci
+  trigger:
+    include:
+      - artifact: bbreww-ci.yml
+        job: generate_subprojects_ci
+    strategy: depend
+    forward:
+      yaml_variables: false
+      pipeline_variables: false
+
+.base_analysis_barista:
+  needs:
+    - voms_proxy
+    - job: build_container
+      optional: true
+      artifacts: true
+  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
+  before_script:
+    - echo "Add error handling flags"
+    - set -e
+    - set -o pipefail
+    - export CONTAINER_PYTHON=$(which python)
+    - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - echo "Checking output directory"
+    - ls $CI_PROJECT_PATH/output/ || true
+    - echo "Setting analysis framework"
+    - pwd && ls -la
+  tags:
+    - k8s-cvmfs
+  retry: 2
 
 setup_coffea4bees:
   stage: setup
@@ -123,32 +187,6 @@ setup_coffea4bees:
       - .pixi-bin/
     expire_in: 4 hours
 
-setup_bbreww:
-  stage: setup
-  image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
-  needs:
-    - voms_proxy
-  script:
-    - BBREWW_DEFAULT_BRANCH="master"
-    - echo "Checking for branch '$BBREWW_BRANCH' in bbreww..."
-    - git ls-remote --exit-code --heads https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.cern.ch/cms-cmu/bbreww.git "$BBREWW_BRANCH" || BBREWW_BRANCH="$BBREWW_DEFAULT_BRANCH"
-    - echo "Cloning bbreww from branch '$BBREWW_BRANCH'"
-    - git clone --depth=1 --branch $BBREWW_BRANCH https://${DEPLOY_TOKEN_USERNAME_BBREWW}:${DEPLOY_TOKEN_PASSWORD_BBREWW}@gitlab.cern.ch/cms-cmu/bbreww.git bbreww/
-    - ls bbreww/
-    # Bootstrap Pixi environment
-    - echo "Installing Pixi and dependencies"
-    - export PIXI_NO_PATH_UPDATE=1
-    - curl -fsSL https://pixi.sh/install.sh | PIXI_HOME=$CI_PROJECT_DIR/.pixi-bin bash
-    - export PATH="$CI_PROJECT_DIR/.pixi-bin/bin:$PATH"
-    - pixi install
-  artifacts:
-    paths:
-      - bbreww/
-      - proxy/
-      - .pixi/
-      - .pixi-bin/
-    expire_in: 4 hours
-
 .base_analysis_coffea4bees:
   needs:
     - setup_coffea4bees
@@ -159,51 +197,6 @@ setup_bbreww:
   variables:
     CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
     CLASSIFIER_CONFIG_PATHS: "coffea4bees"
-  before_script:
-    - echo "Add error handling flags"
-    - set -e
-    - set -o pipefail
-    - export CONTAINER_PYTHON=$(which python)
-    - export PATH="$PWD/.pixi-bin/bin:$PATH"
-    - echo "Checking output directory"
-    - ls $CI_PROJECT_PATH/output/ || true
-    - echo "Setting analysis framework"
-    - pwd && ls -la
-  tags:
-    - k8s-cvmfs
-  retry: 2
-
-.base_analysis_bbreww:
-  needs:
-    - setup_bbreww
-    - job: build_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
-  variables:
-    CLASSIFIER_WFS: "bbreww/classifier/test/config/workflow/CI"
-    CLASSIFIER_CONFIG_PATHS: "bbreww"
-  before_script:
-    - echo "Add error handling flags"
-    - set -e
-    - set -o pipefail
-    - export CONTAINER_PYTHON=$(which python)
-    - export PATH="$PWD/.pixi-bin/bin:$PATH"
-    - echo "Checking output directory"
-    - ls $CI_PROJECT_PATH/output/ || true
-    - echo "Setting analysis framework"
-    - pwd && ls -la
-  tags:
-    - k8s-cvmfs
-  retry: 2
-
-.base_analysis_barista:
-  needs:
-    - voms_proxy
-    - job: build_container
-      optional: true
-      artifacts: true
-  image: ${CI_REGISTRY_IMAGE}:${ANALYSIS_IMAGE_TAG}
   before_script:
     - echo "Add error handling flags"
     - set -e
@@ -235,6 +228,7 @@ setup_bbreww:
   tags:
     - k8s-cvmfs
   retry: 2
+
 
 validation:
   before_script:

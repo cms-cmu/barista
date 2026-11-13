@@ -17,8 +17,9 @@ if [ -d "/cvmfs/unpacked.cern.ch" ]; then
     exec /usr/bin/apptainer "$@"
 fi
 
-# Locate shared or user cvmfsexec
-CVMFSEXEC="/projects/bjsv/software/cvmfsexec/cvmfsexec"
+# Locate shared or user cvmfsexec (DELTA_SOFTWARE: /projects/<DELTA_PROJECT>/software, default bjsv)
+[ -n "${DELTA_SOFTWARE:-}" ] || . "$(dirname "$(readlink -f "$0")")/../delta/env.sh"
+CVMFSEXEC="${DELTA_SOFTWARE}/cvmfsexec/cvmfsexec"
 if [ ! -x "$CVMFSEXEC" ]; then
     CVMFSEXEC="${HOME}/workingArea/software/cvmfsexec/cvmfsexec"
 fi

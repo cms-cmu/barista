@@ -93,7 +93,7 @@ if __name__ == '__main__':
                         help='List of histograms to convert. If not provided, automatically detects all histograms.')
     parser.add_argument('-o', '--output', dest="output",
                         default="./histos/histAll.json", help='Output file and directory.')
-    parser.add_argument('-i', '--input_file', dest='input_file',
+    parser.add_argument('-i', '-f', '--input_file', dest='input_file',
                         default="../output/histAll.coffea", help="File with coffea hists")
     parser.add_argument('-s', '--syst_file', dest='systematics_file', action='store_true',
                         default=False, help="File contains systematic variations")

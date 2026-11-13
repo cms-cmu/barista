@@ -78,6 +78,31 @@ The DAG is: `train → evaluate` and `train → analyze` (parallel after trainin
 
 Production analyses and multi-phase pipelines must be executed via `bin/roast` rather than manual ad-hoc scripts. `roast` enforces reproducibility by pinning exact git SHAs (`barista` and `coffea4bees`), capturing merged configurations, creating isolated checkouts per cluster, and running in detached `tmux` sessions.
 
+### Production Workflow Types & Manifest Creation
+
+Roast standardizes three core workflow families defined in `coffea4bees/workflows/workflows.yml`:
+
+1. **Stat-Only (Nominal) Pipeline:**
+   Runs baseline event selection, FvT background estimation, SvB classifier evaluation, data/MC comparison plots, and stat-only Combine datacards.
+   ```bash
+   bin/roast new --config coffea4bees/workflows/config/nominal_run2.yml --phases B,C,C4,D,F --label nominal_run2
+   # or starting from raw nanoAOD skimming: --phases A,B,C,C4,D,F
+   ```
+
+2. **Background Systematics Pipeline (`bkg_syst`):**
+   Generates mixed-data subsamples, calibrates independent JCM transfer functions, trains 16 FvT models on GPUs (Falcon/Bridges-2), executes two-stage background closure (variance, bias, spurious signal), and runs Combine statistical inference.
+   ```bash
+   bin/roast new --config coffea4bees/workflows/config/ttHbb_bkg_syst.yml --phases BKG_C,BKG_F --label ttHbb_bkg_syst
+   # or full chain including subsample slicing: --phases BKG_AB,BKG_C,BKG_F
+   ```
+
+3. **Full Systematics Pipeline (`full_syst`):**
+   Integrates signal systematic variations (`others` friend weights, `jes` PyTorch kinematic shifts) with data-driven background closure models from `bkg_syst`. Validates nominal distributions against upstream stat-only, validates systematic cutflows against reference counts, plots shape variations with interactive HTML galleries, and runs complete Combine inference (limits, significance, likelihood scans, postfit, and impacts).
+   ```bash
+   # Config points to upstream stat-only (inputs.nominal_hists) and bkg_syst (inputs.bkg_syst_file)
+   bin/roast new --config coffea4bees/workflows/config/ttHbb_full_syst.yml --phases FULL_SYST --label ttHbb_full_syst
+   ```
+
 ### Mandatory Roast Sequence:
 1. **Preflight Configuration Validation:**
    ```bash
@@ -86,7 +111,7 @@ Production analyses and multi-phase pipelines must be executed via `bin/roast` r
    Audits for parameter divergence, duplicate key definitions across sections, invalid filesystem paths, and era mismatches. (`bin/roast new` also invokes this check automatically; bypass with `--no-validate` only if strictly needed).
 2. **Create Roast Manifest:**
    ```bash
-   bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F --label <label> [--nautilus | --bridges2]
+   bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases <phases> --label <label> [--nautilus | --bridges2]
    ```
    Pins the current git HEADs, merges any `base:` configs, and records validation status in `roasts/<id>/roast.json`.
    For classifier trainings/evaluations on the CMU ORCHARD H100s add `--train-on orchard --eval-on orchard`

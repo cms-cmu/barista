@@ -84,7 +84,8 @@ class Remote:
         here and an in-cloud copy there. `gcloud compute scp` pushes it through the IAP tunnel
         instead, which is slow and was killed on falcon's 15 GB login node with a 140 MB tarball."""
         if self.bucket:
-            obj = f"{self.bucket}/transfer/{os.path.basename(remote)}"
+            # unique per process: several rule instances upload at once
+            obj = f"{self.bucket}/transfer/{os.getpid()}_{int(time.time())}_{os.path.basename(remote)}"
             r = subprocess.run([self.gcloud, "storage", "cp", "--quiet", local, obj], capture_output=True, text=True)
             if r.returncode == 0:
                 self.run(f"set -e; gcloud storage cp --quiet {obj} ~/{remote} && gcloud storage rm --quiet {obj}",
@@ -100,8 +101,41 @@ class Remote:
         raise RuntimeError(f"upload of {local} failed: {r.stderr.strip()[-1500:]}")
 
 
+def run_label(roast_id: str, model_dir: str, task_tag: str) -> str:
+    """Unique, readable ORCHARD run name: <roast>__<model_dir>[__task]. A roast's model_dir usually
+    contains the roast id again; drop that repeat, and if it is still long keep the start and the end
+    (mix_<n>, the task) around a hash, so two models or tasks never share a run directory."""
+    rid = roast_id or "run"
+    md = model_dir.strip("/").replace(rid, "").replace("//", "/")
+    full = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{rid}__{md}{task_tag}")
+    full = re.sub(r"_{3,}", "__", full)
+    if len(full) <= 150:
+        return full
+    h = hashlib.sha1(full.encode()).hexdigest()[:8]
+    return f"{full[:70]}_{h}_{full[-70:]}"
+
+
 def git(args, cwd) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
+
+
+# untracked files here count as code: a hot patch applied with `git apply` leaves its new files
+# untracked, and `git diff HEAD` alone would not ship them (a batch job then found no batch_runner.py)
+SOURCE_DIRS = {".": ("bin", "software", "src"), "coffea4bees": ("analysis", "classifier", "workflows")}
+SOURCE_SUFFIXES = (".py", ".sh", ".smk", ".sbatch", ".yml", ".yaml")
+
+
+def worktree_diff(root: Path, sub: str) -> bytes:
+    """`git diff HEAD` of a repository plus its untracked source files (as new-file diffs)."""
+    d = root / sub
+    out = subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout
+    dirs = [x for x in SOURCE_DIRS.get(sub, ()) if (d / x).is_dir()]
+    if dirs:
+        new = git(["ls-files", "--others", "--exclude-standard", "-z", "--", *dirs], d).split("\0")
+        for f in sorted(f for f in new if f.endswith(SOURCE_SUFFIXES) and "__pycache__" not in f):
+            out += subprocess.run(["git", "diff", "--no-index", "--binary", "/dev/null", f], cwd=d,
+                                  capture_output=True).stdout
+    return out
 
 
 def code_key(root: Path, repos) -> str:
@@ -112,7 +146,7 @@ def code_key(root: Path, repos) -> str:
         sha = git(["rev-parse", "HEAD"], d).strip()
         shas.append(sha[:10])
         h.update(sha.encode())
-        h.update(subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout)
+        h.update(worktree_diff(root, sub))
     return "-".join(shas) + "-" + h.hexdigest()[:8]
 
 
@@ -121,6 +155,17 @@ REPOS = ((".", "barista"), ("coffea4bees", "coffea4bees"))
 
 
 def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> str:
+    """_ship_code under a lock on the driver host: the rule instances of one workflow start together
+    and would otherwise all ship the same code at once (and collide on the remote bundle names)."""
+    import fcntl
+    lock_dir = root / ".orchard_pack"
+    lock_dir.mkdir(exist_ok=True)
+    with open(lock_dir / "ship.lock", "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        return _ship_code(rem, root, proj, bootstrap)
+
+
+def _ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> str:
     """Make ORCHARD:<proj>/code/<key> hold this checkout's code; return that path.
 
     ORCHARD cannot clone from gitlab.cern.ch without credentials, and falcon's login node kills any
@@ -163,7 +208,7 @@ def ship_code(rem: "Remote", root: Path, proj: str, bootstrap: bool = False) -> 
                 continue
             dst = "$C.part" + ("" if sub == "." else f"/{sub}")
             build.append(f"mkdir -p {dst} && git --git-dir=$G/{name}.git archive {sha} | tar -x -C {dst}")
-            diff = subprocess.run(["git", "diff", "HEAD", "--binary"], cwd=d, capture_output=True).stdout
+            diff = worktree_diff(root, sub)
             if diff.strip():
                 Path(f"{tmp}/{name}.diff").write_bytes(diff)
                 rem.put(f"{tmp}/{name}.diff", f"orchard_{name}_{key}.diff")
@@ -243,6 +288,11 @@ def main():
     ap.add_argument("--time", default="4:00:00"); ap.add_argument("--cpus", default="16"); ap.add_argument("--mem", default="160G")
     ap.add_argument("--preempt", action="store_true"); ap.add_argument("--max-restarts", default="")
     ap.add_argument("--submit-args", default="", help="more software/orchard/submit.sh options, quoted")
+    ap.add_argument("--pack", type=int, default=1, help="run up to N tasks of the same kind (training / evaluation) "
+                                                        "in one ORCHARD job, sharing the GPU under MPS")
+    ap.add_argument("--pack-wait", type=int, default=120, help="seconds a task waits for others to fill its batch")
+    ap.add_argument("--pack-cpus", type=int, default=8, help="CPUs per task in a batch")
+    ap.add_argument("--pack-mem", type=int, default=64, help="GB of memory per task in a batch")
     ap.add_argument("--poll", type=int, default=300, help="seconds between status checks")
     ap.add_argument("--max-unreachable", type=int, default=7200, help="seconds without contact before giving up")
     a = ap.parse_args()
@@ -254,7 +304,7 @@ def main():
         ship_code(rem, root, a.orchard_project or "/project/community/$USER/barista", bootstrap=True)
         return
     for k in ("model_dir", "wf", "common", "template", "log"):
-        if not getattr(a, k):
+        if getattr(a, k) is None:   # an empty --template is fine: a staged workflow may need none
             ap.error(f"--{k.replace('_', '-')} is required")
 
     model_dir = Path(a.model_dir)
@@ -265,7 +315,9 @@ def main():
     if not a.max_restarts:
         a.max_restarts = "0" if evaluating else "8"
     task_tag = "" if a.task == "train" else f"__{a.task}"
-    label = a.label or re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{a.roast_id or 'run'}__{a.model_dir.strip('/')}{task_tag}")[:150]
+    label = a.label or run_label(a.roast_id, a.model_dir, task_tag)
+    if state.get("label") and not a.label:
+        label = state["label"]          # keep reattaching to the run this model started with
     wf, common = rel_to_root(a.wf, root), rel_to_root(a.common, root)
     rem = Remote(a)
     proj = a.orchard_project or "/project/community/$USER/barista"
@@ -323,6 +375,94 @@ def main():
             return "UNREACHABLE"
         return ("TRAIN_DONE " if "TRAIN_DONE" in r.stdout else "") + (r.stdout.split()[0] if r.stdout.split() else "UNKNOWN")
 
+    def sbatch(cmd: str) -> str:
+        """Run a submit.sh command on ORCHARD; wait while the per-user submit limit is reached."""
+        while True:
+            r = rem.run(cmd, check=False)
+            # ORCHARD's QOS caps a user at a few submitted jobs (general: 5). A workflow with more models
+            # than that (bkg_syst subsamples) waits here for a slot instead of failing the rule.
+            if re.search(r"QOSMaxSubmitJob|AssocMaxSubmitJob|MaxSubmitJobs", r.stdout + r.stderr):
+                log(f"ORCHARD queue full for this user (submit limit); retrying in {a.poll} s")
+                time.sleep(a.poll)
+                continue
+            m = re.search(r"Submitted batch job (\d+)", r.stdout)
+            if not m:
+                sys.exit(f"[orchard] submission failed:\n{r.stdout}\n{r.stderr}")
+            return m.group(1)
+
+    def submit_packed(key: str, code_dir: str) -> dict:
+        """Join a batch of up to --pack tasks of the same kind and code, run as one ORCHARD job.
+
+        The rule instances of one driver coordinate through <checkout>/.orchard_pack: each writes its
+        task to pending/, and whichever holds the lock when a batch is full (or its oldest task has
+        waited --pack-wait seconds) submits it and writes assigned/<label>.json for every member.
+        Each instance then waits for its own task as for a single job: the batch job id with its
+        own run directory and train.done.
+        """
+        import fcntl
+        kind = "evaluate" if evaluating else "train"
+        lit = lambda p: p.replace("$USER", ruser)   # paths inside the batch file are used verbatim
+        pack_dir = root / ".orchard_pack"
+        for sub in ("pending", "assigned"):
+            (pack_dir / sub).mkdir(parents=True, exist_ok=True)
+        me = {"label": label, "run_dir": lit(run_dir), "wf": f"{lit(code_dir)}/{wf}",
+              "common": f"{lit(code_dir)}/{common}", "wf_rel": wf, "common_rel": common,
+              "template": a.template, "key": key, "kind": kind, "t": time.time()}
+        assigned = pack_dir / "assigned" / f"{label}.json"
+        assigned.unlink(missing_ok=True)
+        tmp = pack_dir / "pending" / f".{label}.tmp"
+        tmp.write_text(json.dumps(me))
+        tmp.rename(pack_dir / "pending" / f"{label}.json")
+        log(f"waiting to be packed (up to {a.pack} {kind} tasks per ORCHARD job)")
+        while True:
+            with open(pack_dir / "lock", "w") as lk:
+                fcntl.flock(lk, fcntl.LOCK_EX)
+                if assigned.exists():
+                    info = json.loads(assigned.read_text())
+                    assigned.unlink()
+                    break
+                group = []
+                for p in (pack_dir / "pending").glob("*.json"):
+                    try:
+                        t = json.loads(p.read_text())
+                    except (OSError, ValueError):
+                        continue
+                    if t.get("key") == key and t.get("kind") == kind:
+                        group.append(t)
+                group.sort(key=lambda t: t["t"])
+                if group and (len(group) >= a.pack or time.time() - group[0]["t"] >= a.pack_wait):
+                    batch = group[:a.pack]
+                    names = "".join(t["label"] for t in batch)
+                    blabel = run_label(a.roast_id, f"batch_{kind}_{hashlib.sha1(names.encode()).hexdigest()[:8]}", "")
+                    bfile = f"{code_dir}/.orchard_batches/{blabel}.json"
+                    rem.run(f"mkdir -p {code_dir}/.orchard_batches && cat > {bfile} <<'ORCHARD_EOF'\n"
+                            f"{json.dumps(batch, indent=1)}\nORCHARD_EOF")
+                    n = len(batch)
+                    opts = ["--source", "none", "--time", a.time, "--cpus", str(n * a.pack_cpus),
+                            "--mem", f"{n * a.pack_mem}G", "--template-full", "", "--common", batch[0]["common_rel"]]
+                    if a.preempt:
+                        opts.insert(0, "--preempt")
+                    job = sbatch(f"cd {code_dir} && ORCHARD_BATCH={bfile} ORCHARD_MAX_RESTARTS={shlex.quote(a.max_restarts)} "
+                                 f"ORCHARD_CLASSIFIER_CONFIG_PATHS={shlex.quote(a.config_paths)} "
+                                 + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
+                                 + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
+                                 + (f" {a.submit_args}" if a.submit_args else "")
+                                 + f" {shlex.quote(blabel)} {shlex.quote(batch[0]['wf_rel'])}")
+                    brun = f"{proj}/runs/{blabel}"
+                    for t in batch:
+                        (pack_dir / "assigned" / f"{t['label']}.json").write_text(
+                            json.dumps({"job": job, "batch": blabel, "batch_run_dir": brun, "size": n}))
+                        (pack_dir / "pending" / f"{t['label']}.json").unlink(missing_ok=True)
+                    log(f"submitted ORCHARD job {job}: batch {blabel} of {n} {kind} task(s)")
+                    continue
+            time.sleep(10)
+        st = {"job": info["job"], "label": label, "key": key, "code_dir": code_dir, "run_dir": run_dir,
+              "batch": info["batch"], "batch_run_dir": info["batch_run_dir"],
+              "submitted": time.strftime("%F %T"), "attempt": state.get("attempt", 0) + 1}
+        state_file.write_text(json.dumps(st, indent=1))
+        log(f"in ORCHARD job {st['job']} (batch {info['batch']}, {info['size']} tasks; attempt {st['attempt']})")
+        return st
+
     def submit():
         key = code_key(root, [d for d, _ in REPOS])
         code_dir = ship_code(rem, root, proj)
@@ -333,7 +473,13 @@ def main():
             log(f"shipping {len(extra)} workflow file(s): {', '.join(extra[:6])}{' ...' if len(extra) > 6 else ''}")
             make_tar(root, extra, f"{tmp}/wf.tgz")
             rem.put(f"{tmp}/wf.tgz", f"orchard_wf_{label}.tgz")
-            rem.run(f"set -e; tar xzf ~/orchard_wf_{label}.tgz -C {code_dir} && rm -f ~/orchard_wf_{label}.tgz")
+            # concurrent tasks extract overlapping files (shared metadata) into the same code_dir; GNU tar's
+            # unlink+O_EXCL create then races ("Cannot open: File exists"), so retry a few times
+            rem.run(f"f=~/orchard_wf_{label}.tgz; ok=0; for i in 1 2 3 4 5; do "
+                    f"if tar xzf $f -C {code_dir}; then ok=1; break; fi; sleep $((RANDOM % 5 + 1)); done; "
+                    f"rm -f $f; [ $ok = 1 ]")
+        if a.pack > 1:
+            return submit_packed(key, code_dir)
         opts = ["--source", "none", "--time", a.time, "--cpus", a.cpus, "--mem", a.mem,
                 "--template-full", a.template, "--common", common]
         if a.preempt:
@@ -343,22 +489,11 @@ def main():
                + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
                + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
                + (f" {a.submit_args}" if a.submit_args else "") + f" {shlex.quote(label)} {shlex.quote(wf)}")
-        while True:
-            r = rem.run(cmd, check=False)
-            # ORCHARD's QOS caps a user at a few submitted jobs (general: 5). A workflow with more models
-            # than that (bkg_syst subsamples) waits here for a slot instead of failing the rule.
-            if re.search(r"QOSMaxSubmitJob|AssocMaxSubmitJob|MaxSubmitJobs", r.stdout + r.stderr):
-                log(f"ORCHARD queue full for this user (submit limit); retrying in {a.poll} s")
-                time.sleep(a.poll)
-                continue
-            break
-        m = re.search(r"Submitted batch job (\d+)", r.stdout)
-        if not m:
-            sys.exit(f"[orchard] submission failed:\n{r.stdout}\n{r.stderr}")
-        st = {"job": m.group(1), "label": label, "key": key, "code_dir": code_dir, "run_dir": run_dir,
+        job = sbatch(cmd)
+        st = {"job": job, "label": label, "key": key, "code_dir": code_dir, "run_dir": run_dir,
               "submitted": time.strftime("%F %T"), "attempt": state.get("attempt", 0) + 1}
         state_file.write_text(json.dumps(st, indent=1))
-        log(f"submitted ORCHARD job {st['job']} (attempt {st['attempt']}): {r.stdout.strip().splitlines()[0]}")
+        log(f"submitted ORCHARD job {st['job']} (attempt {st['attempt']})")
         return st
 
     if state.get("job"):
@@ -392,7 +527,8 @@ def main():
             sys.exit(0 if ok else 1)
         if any(s.startswith(x) for x in TERMINAL_FAIL):
             fetch_back(False)
-            tail = rem.run(f"tail -30 {run_dir}/logs/slurm-{state['job']}.out", check=False).stdout
+            tail = rem.run(f"tail -30 {state.get('batch_run_dir', run_dir)}/logs/slurm-{state['job']}.out; "
+                           f"tail -15 {run_dir}/train.log", check=False).stdout
             log(f"ORCHARD job {state['job']} ended {s}:\n{tail}")
             if not retried and "OUT_OF_MEMORY" not in s:
                 retried = True
