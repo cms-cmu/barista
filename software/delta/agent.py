@@ -297,7 +297,9 @@ def main():
                     help="code, bare repositories and run directories ($DELTA_HOME)")
     ap.add_argument("--account", default=os.environ.get("DELTA_GPU_ACCOUNT", f"{proj}-delta-gpu"))
     ap.add_argument("--partition", default="gpuA100x4", help="default partition (a request may override)")
-    ap.add_argument("--time", default="4:00:00", help="wall time per job; trainings requeue themselves "
+    # one long job per fit: every requeue re-enters the queue, and on Delta a job start can take many
+    # hours once the account has some usage (docs/software/delta.md: 4 chunks of 1:30 = 16.6 h queued)
+    ap.add_argument("--time", default="8:00:00", help="wall time per job; trainings requeue themselves "
                                                       "15 min before it and resume from the last epoch")
     ap.add_argument("--cpus", default="16"); ap.add_argument("--mem", default="62g")
     ap.add_argument("--max-restarts", default="12")

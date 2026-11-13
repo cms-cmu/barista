@@ -126,7 +126,7 @@ Start the agent (once, and again after a Delta maintenance or login-node reboot)
 ssh delta     # dt-login0N: remember which node; tmux sessions are per node
 cd /projects/bjsy/johnda/workingArea/HH4b/barista
 tmux new -d -s delta-agent 'software/delta/agent.sh 2>&1 | tee -a /projects/bjsy/johnda/barista_delta/agent.log'
-#   options: --partition gpuA40x4 (half price), --time 8:00:00, --cpus/--mem, --max-restarts, --once
+#   options: --partition gpuA40x4 (half price), --time (default 8:00:00), --cpus/--mem, --max-restarts, --once
 ```
 
 Then a roast with trainings and evaluations on Delta and everything else on cmslpc:
@@ -145,6 +145,26 @@ Status: the driver log (`logs/<step>.log` of the roast) prints every state chang
 heartbeat. On Delta, run `tail -f /projects/bjsy/johnda/barista_delta/agent.log` and `squeue --me`. Each
 run directory `$DELTA_HOME/runs/<label>/` holds `train.log`, `logs/slurm-*.out`, the GPU monitor files
 and `summary.txt`.
+
+## Measured (2026-11-12/13): one production FvT fit
+
+The 2025 nominal FvT (22.95 M events, 3 folds × 20 epochs + finetune) on 1 A100 / 16 cores / 62 GB,
+driven from cmslpc with `--train-on delta`:
+
+* **≈ 3.3 A100-h as one job** (~10 min load over XRootD, ~2.9 h training, epochs falling from 35 to
+  4.5 min as the batch size grows). 3.9 GPU-h as run in 4 requeued chunks.
+* GPU utilisation ~49 %, 6.9 GB of GPU memory. Host memory 62.6 GB, right at the quarter-node share,
+  so larger inputs need more memory, and more memory means higher billing (see below).
+* **Queue waits: 0–1 s on a fresh account, then 3.4 h, 6.0 h and 7.3 h** for the next three starts,
+  once ~1.5 GPU-h had been used. The fit took 20.6 h of wall-clock, of which 16.6 h was queue.
+  Ale's `bjsv` jobs, on an account with ~6 GPU-h used, waited > 47 h.
+* Why: priority is dominated by fair-tree fairshare (weight 10000, QOS flag `NoDecay`). A few GPU-h of
+  usage put an account below most of the thousands of pending jobs, and usage is never forgotten. Only
+  age (≤ +1000) and backfill holes for short jobs are left.
+
+So: run each fit as **one long job** (agent default `--time 8:00:00`). The checkpoint and requeue cycle
+works, but each requeue costs another wait. Submit campaigns early, and keep quick iteration on
+falcon/ORCHARD.
 
 ## Accounts, partitions, costs
 
