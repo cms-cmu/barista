@@ -12,6 +12,7 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from coffea.util import save
 from src.tools.compare_coffea_hists import (
     _find_var_axis,
     _project_1d,
@@ -131,11 +132,12 @@ class TestCompareCoffeaHists(unittest.TestCase):
         dict_b = {"hists": {"v4j.mass": h, "selJets.n": h}}
 
         with tempfile.NamedTemporaryFile(suffix=".coffea", delete=False) as f_a:
-            pickle.dump(dict_a, f_a)
             path_a = f_a.name
         with tempfile.NamedTemporaryFile(suffix=".coffea", delete=False) as f_b:
-            pickle.dump(dict_b, f_b)
             path_b = f_b.name
+
+        save(dict_a, path_a)
+        save(dict_b, path_b)
 
         try:
             passed, results, meta = run_comparison(

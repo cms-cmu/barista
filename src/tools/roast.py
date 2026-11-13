@@ -1774,8 +1774,9 @@ def _tmux_session(r: dict | None = None) -> str:
 # orchard: CMU ORCHARD via gcloud (software/orchard); delta: NCSA Delta via an EOS spool and a pull
 # agent on a Delta login node (software/delta, docs/software/delta.md)
 TRAIN_HOSTS = ("orchard", "delta")
-# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD
-CMSLPC_GPU_PHASES_REFUSED = {"BKG_C": "evaluate_synthetic"}
+# GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD (none since
+# coffea4bees' evaluate_synthetic_orchard; a phase with another GPU rule of its own goes here)
+CMSLPC_GPU_PHASES_REFUSED: dict[str, str] = {}
 
 
 def train_host_setting(r: dict) -> str:
@@ -2134,7 +2135,7 @@ def _submit(args, resume: bool) -> None:
         die(f"--train-on/--eval-on {r.get('train_on') or r.get('eval_on')} need a driver that can reach ORCHARD "
             f"(gcloud) or the Delta spool (EOS); step {step['name']} runs on Nautilus. Use falcon or cmslpc for "
             f"this step, or `--train-on host --eval-on host`")
-    if host == "cmslpc" and step["name"] in ("C", "D") and not (r.get("train_on") and r.get("eval_on")):
+    if host == "cmslpc" and step["name"] in ("C", "D", "BKG_C") and not (r.get("train_on") and r.get("eval_on")):
         die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard` "
             f"(or delta)")
     if host not in r["hosts"]:
@@ -5225,7 +5226,7 @@ def main(argv=None) -> None:
                                                           "or NCSA Delta A100s through the pull agent); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")
     s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
-    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D) on cmslpc instead of Falcon, with their "
+    s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D, BKG_C) on cmslpc instead of Falcon, with their "
                                                         "trainings and evaluations on ORCHARD (implies --train-on and "
                                                         "--eval-on orchard; give --train-on/--eval-on delta for Delta)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")

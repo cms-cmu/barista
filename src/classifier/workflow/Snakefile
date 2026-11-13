@@ -269,7 +269,9 @@ rule train:
 # roast's EOS path) is where the models land, so evaluate/analyze/plots run here unchanged.
 # `eval_host: orchard` does the same for the evaluations (friend trees written to EOS), further down.
 # Settings (all optional): orchard: {instance, zone, project, gcloud, project_dir, time, cpus, mem,
-# preempt, poll, submit_args, bucket, and eval_<key> overrides}. See docs/software/orchard.md.
+# preempt, poll, submit_args, bucket, pack, pack_wait, pack_cpus, pack_mem, and eval_<key> overrides}.
+# pack: N runs up to N trainings (or N evaluations) of the workflow in one ORCHARD job under MPS.
+# See docs/software/orchard.md.
 TRAIN_HOST = str(config.get("train_host", "") or "").lower()
 EVAL_HOST  = str(config.get("eval_host", "") or "").lower()
 _orchard   = config.get("orchard") or {}
@@ -283,7 +285,8 @@ def _orchard_opts(task="train"):
                       ("gcloud", "--gcloud"), ("project_dir", "--orchard-project"), ("time", "--time"),
                       ("cpus", "--cpus"), ("mem", "--mem"), ("poll", "--poll"),
                       ("max_restarts", "--max-restarts"), ("submit_args", "--submit-args"),
-                      ("bucket", "--bucket")):
+                      ("bucket", "--bucket"), ("pack", "--pack"), ("pack_wait", "--pack-wait"),
+                      ("pack_cpus", "--pack-cpus"), ("pack_mem", "--pack-mem")):
         val = _orchard.get(f"eval_{key}") if task != "train" and f"eval_{key}" in _orchard else _orchard.get(key)
         if val not in (None, ""):
             o.append(f"{flag} {shlex.quote(str(val))}")

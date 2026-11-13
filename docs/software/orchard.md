@@ -30,8 +30,13 @@ bin/roast new --config <config>.yml --phases B,C,C4,D,F --cmslpc
 
 `--cmslpc` implies `--train-on orchard --eval-on orchard`, because the LPC Snakemake profile runs
 every rule on the interactive node, which has no GPU. The remaining C/D rules (input plots,
-`analyze`, weights, galleries, summaries) are CPU work. BKG_C is refused: its `evaluate_synthetic`
-rule is a GPU rule of its own, so it stays on falcon.
+`analyze`, weights, galleries, summaries) are CPU work. BKG_C's `evaluate_synthetic` has an ORCHARD
+variant too, so BKG_C can also run from cmslpc, and should: falcon's login-node watchdog kills its
+Snakemake driver.
+
+Every ORCHARD job starts an MPS daemon (`ORCHARD_MPS=1`, default) so that the k-fold trainer
+processes share the GPU concurrently instead of taking turns: measured ~1.3x faster per fit, and
+four fits under MPS on one H100 each ran faster than one fit without it.
 
 The step's snakemake gets `--config train_host=orchard` (and `eval_host=orchard`). `src/classifier/workflow/Snakefile` then
 replaces its `train` rule by `train_orchard`, which runs on the falcon driver (a local rule, no GPU)
@@ -64,6 +69,17 @@ Optional settings, in the workflow config (or the roast's config) under `orchard
 ```yaml
 orchard: {time: "4:00:00", cpus: 16, mem: 160G, preempt: false, poll: 300}
 ```
+
+**Packing** (`orchard: {pack: 4}`): workflows with many models (bkg_syst: 16 subsamples) run up to
+`pack` trainings, or `pack` evaluations, in one ORCHARD job on one GPU under MPS
+(`software/orchard/batch_runner.py`). The rule instances on the driver coordinate through
+`<checkout>/.orchard_pack/`: a task waits up to `pack_wait` (120 s) for others of its kind to fill a
+batch, then one of them submits it. Each task keeps its own run directory, `train.log`, checkpoints and
+`train.done`, so fetching, reattaching and a resubmission after a failure work per task; a requeued
+batch resumes only its unfinished tasks. Resources scale with the batch: `pack_cpus` (8) and
+`pack_mem` (64 GB) per task. Why: ORCHARD's `general` queue runs one job per user, the queue wait
+between jobs was 30–80 min in November 2026, and four FvT fits under MPS on one H100 each ran as fast
+as one fit alone. `eval_pack` sets a different size for the evaluations (they take minutes).
 
 One-time setup on each driver host (falcon, cmslpc), besides the ORCHARD setup below
 (on cmslpc unpack into `~/nobackup` and link `~/google-cloud-sdk` to it: the home quota is 3 GB):
