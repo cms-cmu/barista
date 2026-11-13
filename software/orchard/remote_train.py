@@ -473,7 +473,11 @@ def main():
             log(f"shipping {len(extra)} workflow file(s): {', '.join(extra[:6])}{' ...' if len(extra) > 6 else ''}")
             make_tar(root, extra, f"{tmp}/wf.tgz")
             rem.put(f"{tmp}/wf.tgz", f"orchard_wf_{label}.tgz")
-            rem.run(f"set -e; tar xzf ~/orchard_wf_{label}.tgz -C {code_dir} && rm -f ~/orchard_wf_{label}.tgz")
+            # concurrent tasks extract overlapping files (shared metadata) into the same code_dir; GNU tar's
+            # unlink+O_EXCL create then races ("Cannot open: File exists"), so retry a few times
+            rem.run(f"f=~/orchard_wf_{label}.tgz; ok=0; for i in 1 2 3 4 5; do "
+                    f"if tar xzf $f -C {code_dir}; then ok=1; break; fi; sleep $((RANDOM % 5 + 1)); done; "
+                    f"rm -f $f; [ $ok = 1 ]")
         if a.pack > 1:
             return submit_packed(key, code_dir)
         opts = ["--source", "none", "--time", a.time, "--cpus", a.cpus, "--mem", a.mem,
