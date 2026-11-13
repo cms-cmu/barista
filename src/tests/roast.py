@@ -1216,6 +1216,7 @@ class TestCommandLine(unittest.TestCase):
         self.assertIn("--delta", res.stdout)
         res = self.run_roast("init", "--help")
         self.assertIn("--delta-user", res.stdout)
+        self.assertIn("--delta-project", res.stdout)
 
 
 class TestStatusGrouping(unittest.TestCase):

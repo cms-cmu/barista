@@ -30,6 +30,11 @@ if [ -d '/cvmfs' ] || [[ $(hostname) == *delta* ]]; then
     BRILCALC_IMAGE=$(_resolve_cvmfs "$BRILCALC_IMAGE")
 fi
 
+# NCSA Delta: the ACCESS project whose accounts and storage to use (DELTA_PROJECT, DELTA_*_ACCOUNT)
+if [[ $(hostname) == *delta* || $(hostname) == *dt-login* ]]; then
+    . "$(cd "$(dirname "$0")" && pwd)/software/delta/env.sh"
+fi
+
 # --- Helpers ---
 info() { echo -e "\033[1;34m[INFO]\033[0m $1" >&2; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $1" >&2; }
@@ -305,6 +310,26 @@ parse_apptainer_args() {
     fi
 }
 
+# NCSA Delta: profiles/delta names the bjsv project (accounts, QOS, binds). For another project,
+# render a copy into .delta_profile/delta (same basename, so the account-injection check still
+# skips it) and print the directory to use; for bjsv print the checked-in one unchanged.
+render_delta_profile() {
+    local SRC="$1"
+    if [ "${DELTA_PROJECT:-bjsv}" = bjsv ] && [ "${DELTA_GPU_ACCOUNT:-bjsv-delta-gpu}" = bjsv-delta-gpu ] \
+        && [ "${DELTA_CPU_ACCOUNT:-bjsv-delta-cpu}" = bjsv-delta-cpu ]; then
+        echo "$SRC"
+        return
+    fi
+    local DST
+    DST="$(cd "$(dirname "$0")" && pwd)/.delta_profile/delta"
+    mkdir -p "$DST"
+    sed -e "s#bjsv-delta-gpu#${DELTA_GPU_ACCOUNT}#g" \
+        -e "s#bjsv-delta-cpu#${DELTA_CPU_ACCOUNT}#g" \
+        -e "s#\(/projects\|/work/nvme\|/work/hdd\)/bjsv\b#\1/${DELTA_PROJECT}#g" \
+        "$SRC/config.yaml" > "$DST/config.yaml"
+    echo "$DST"
+}
+
 setup_host_env() {
     # Compute workspace hash to isolate Dask schedulers per worktree/workspace
     WORKSPACE_HASH="${BARISTA_WORKSPACE_HASH:-$(python3 -c "import hashlib, os; print(hashlib.md5(os.path.abspath(os.path.dirname('$0')).encode('utf-8')).hexdigest()[:8])")}"
@@ -313,6 +338,7 @@ setup_host_env() {
     HOST=$(hostname)
     CLUSTER_PROFILE=$(detect_cluster_profile)
     local PROFILE_CONFIG="${PROFILE_DIR}/${CLUSTER_PROFILE}/config.yaml"
+    [[ "$CLUSTER_PROFILE" == "delta" ]] && PROFILE_CONFIG="$(render_delta_profile "${PROFILE_DIR}/delta")/config.yaml"
     info "Determining configuration for hostname: $HOST (profile: $CLUSTER_PROFILE)"
 
     # Set default apptainer executable
@@ -382,11 +408,11 @@ setup_host_env() {
             export APPTAINER_IGNORE_PROOT=1
             ;;
         *delta*|*dt-login*)
-            [ -d "/projects/bjsv/${USER}" ] && PIXI_DIR="/projects/bjsv/${USER}/.pixi"
-            [ -d "/work/nvme/bjsv/${USER}" ] && CACHE_BASE="/work/nvme/bjsv/${USER}/barista_cache"
+            [ -d "/projects/${DELTA_PROJECT}/${USER}" ] && PIXI_DIR="/projects/${DELTA_PROJECT}/${USER}/.pixi"
+            [ -d "/work/nvme/${DELTA_PROJECT}/${USER}" ] && CACHE_BASE="/work/nvme/${DELTA_PROJECT}/${USER}/barista_cache"
             mkdir -p "$CACHE_BASE"
             export PATH="${PWD}/software/bin:${PATH}"
-            [ -d "/projects/bjsv/software/grid-security/certificates" ] && export X509_CERT_DIR="/projects/bjsv/software/grid-security/certificates"
+            [ -d "${DELTA_SOFTWARE}/grid-security/certificates" ] && export X509_CERT_DIR="${DELTA_SOFTWARE}/grid-security/certificates"
             [ -s "${PWD}/proxy/x509_proxy" ] && export X509_USER_PROXY="${PWD}/proxy/x509_proxy"
             ;;
         *falcon*|*rogue*)
@@ -731,9 +757,9 @@ exit(1)
                 --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
                 --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
                 --env X509_VOMSES=/cvmfs/grid.cern.ch/etc/grid-security/vomses
-                -B /projects/bjsv
-                -B /work/nvme/bjsv
-                -B /work/hdd/bjsv
+                -B "/projects/${DELTA_PROJECT}"
+                -B "/work/nvme/${DELTA_PROJECT}"
+                -B "/work/hdd/${DELTA_PROJECT}"
                 -B /etc/passwd -B /etc/group
             )
         fi
@@ -763,7 +789,7 @@ exit(1)
                 PARTITION="${SLURM_PARTITION:-cpu}"
                 MEM="${SLURM_MEM:-8G}"
                 CPUS="${SLURM_CPUS:-4}"
-                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" )
+                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-$DELTA_CPU_ACCOUNT}" )
             else
                 PARTITION="${SLURM_PARTITION:-work}"
                 QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
@@ -812,7 +838,7 @@ exit(1)
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
                 srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" "$@"
             elif [[ $HOST == *delta* ]]; then
-                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" "$@"
+                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-$DELTA_CPU_ACCOUNT}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --cpus-per-task=1 --mem=2G "$0" "$@"
             fi
@@ -933,7 +959,7 @@ run_coffea_dev() {
                 PARTITION="${SLURM_PARTITION:-cpu}"
                 MEM="${SLURM_MEM:-8G}"
                 CPUS="${SLURM_CPUS:-4}"
-                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" )
+                ACCOUNT_ARG=( -A "${SLURM_ACCOUNT:-$DELTA_CPU_ACCOUNT}" )
             else
                 PARTITION="${SLURM_PARTITION:-work}"
                 QOS_ARG=( --qos="${SLURM_QOS:-cpu_light}" )
@@ -982,7 +1008,7 @@ run_coffea_dev() {
                 [ -n "${SLURM_ACCOUNT:-}" ] && ACCOUNT_ARG=( -A "${SLURM_ACCOUNT}" )
                 srun --pty --partition=RM-shared "${ACCOUNT_ARG[@]}" --time=02:00:00 --cpus-per-task=4 --mem=8000M "$0" dev "$@"
             elif [[ $HOST == *delta* ]]; then
-                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-bjsv-delta-cpu}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" dev "$@"
+                srun --pty --partition=cpu-interactive -A "${SLURM_ACCOUNT:-$DELTA_CPU_ACCOUNT}" --time=01:00:00 --cpus-per-task=4 --mem=8G "$0" dev "$@"
             else
                 srun --pty --partition=work --time=04:00:00 --mem=2G "$0" dev "$@"
             fi
@@ -1093,9 +1119,9 @@ run_classifier() {
         FLAGS+=(
             -B /cvmfs
             -B /cvmfs/grid.cern.ch/etc/grid-security:/etc/grid-security
-            -B /projects/bjsv
-            -B /work/nvme/bjsv
-            -B /work/hdd/bjsv
+            -B "/projects/${DELTA_PROJECT}"
+            -B "/work/nvme/${DELTA_PROJECT}"
+            -B "/work/hdd/${DELTA_PROJECT}"
             -B /tmp:/tmp
             --env X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
             --env X509_VOMS_DIR=/cvmfs/grid.cern.ch/etc/grid-security/vomsdir
@@ -1143,7 +1169,7 @@ run_classifier() {
             # Login node - submit interactive GPU job
             if [[ $HOST == *delta* ]]; then
                 info "Not in a job. Launching interactive GPU Slurm session on Delta (gpuA100x4-interactive)..."
-                srun --pty -A bjsv-delta-gpu -p gpuA100x4-interactive --gpus=1 --cpus-per-task=8 --mem=32G -t 01:00:00 "$0" classifier
+                srun --pty -A "$DELTA_GPU_ACCOUNT" -p gpuA100x4-interactive --gpus=1 --cpus-per-task=8 --mem=32G -t 01:00:00 "$0" classifier
             elif [[ $HOST == *bridges2* || $HOST == *psc* ]]; then
                 info "Not in a job. Launching interactive GPU Slurm session with --gres=gpu:1..."
                 local ACCOUNT_ARG=()
@@ -1296,6 +1322,11 @@ run_snakemake() {
     while [ $i -lt ${#ARGS[@]} ]; do
         if [[ "${ARGS[$i]}" == "--profile" ]] && [ $((i+1)) -lt ${#ARGS[@]} ]; then
             ACTIVE_PROFILE_DIR="${ARGS[$((i+1))]}"
+            # NCSA Delta: substitute the configured project into the checked-in profile
+            if [[ "${ACTIVE_PROFILE_DIR%/}" == *profiles/delta ]]; then
+                ACTIVE_PROFILE_DIR=$(render_delta_profile "${ACTIVE_PROFILE_DIR%/}")
+                ARGS[$((i+1))]="$ACTIVE_PROFILE_DIR"
+            fi
             break
         fi
         i=$((i+1))

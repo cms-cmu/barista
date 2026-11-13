@@ -1049,11 +1049,15 @@ def cmd_init(args) -> None:
         cfg["hosts"]["bridges2"]["ssh"] = f"{u}@bridges2.psc.edu"
         cfg["hosts"]["bridges2"]["prod_root"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/prod"
         cfg["hosts"]["bridges2"]["reference"] = f"/ocean/projects/phy260026p/{u}/{{analysis}}/barista"
-    if getattr(args, "delta_user", None):
-        u = args.delta_user
+    if getattr(args, "delta_user", None) or getattr(args, "delta_project", None):
+        u = args.delta_user or "<user>"
+        proj = args.delta_project or "bjsv"
         cfg["hosts"]["delta"]["ssh"] = f"{u}@delta"
-        cfg["hosts"]["delta"]["prod_root"] = f"/projects/bjsv/{u}/workingArea/{{analysis}}/prod"
-        cfg["hosts"]["delta"]["reference"] = f"/projects/bjsv/{u}/workingArea/HH4b/barista"
+        cfg["hosts"]["delta"]["prod_root"] = f"/projects/{proj}/{u}/workingArea/{{analysis}}/prod"
+        cfg["hosts"]["delta"]["reference"] = f"/projects/{proj}/{u}/workingArea/HH4b/barista"
+        if args.delta_project:
+            # exported as DELTA_PROJECT for run_container (accounts, binds, rendered snakemake profile)
+            cfg["hosts"]["delta"]["project"] = proj
     if args.cern_user:
         u = args.cern_user
         cfg["cernbox"]["eos_path"] = f"/eos/user/{u[0]}/{u}/www/{{analysis}}/prod"
@@ -1780,7 +1784,9 @@ def _tmux_session(r: dict | None = None) -> str:
     return f"roast_{clean}"
 
 
-TRAIN_HOSTS = ("orchard",)
+# orchard: CMU ORCHARD via gcloud (software/orchard); delta: NCSA Delta via an EOS spool and a pull
+# agent on a Delta login node (software/delta, docs/software/delta.md)
+TRAIN_HOSTS = ("orchard", "delta")
 # GPU phases that cannot move to cmslpc even with training and evaluation on ORCHARD (none since
 # coffea4bees' evaluate_synthetic_orchard; a phase with another GPU rule of its own goes here)
 CMSLPC_GPU_PHASES_REFUSED: dict[str, str] = {}
@@ -1827,7 +1833,10 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     unlock = f"{base} --unlock || true\n" if resume else ""
     if resume:
         base += " --rerun-incomplete"
-    ref = host_cfg(cfg, step["host"]).get("reference", "")
+    hcfg = host_cfg(cfg, step["host"])
+    ref = hcfg.get("reference", "")
+    # NCSA Delta: which ACCESS project run_container charges and binds (default bjsv)
+    project_env = f"export DELTA_PROJECT={shlex.quote(hcfg['project'])}" if hcfg.get("project") else ""
     ref_proxy = f"{ref}/proxy/x509_proxy" if ref else ""
     proxy_srcs = ['"${X509_USER_PROXY:-}"', '"$HOME/.roast/x509_proxy"']
     if ref_proxy:
@@ -1841,6 +1850,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         # regeneration of this script cannot derail a run that is already in progress.
         main() {{
         cd {rq(ckpt)} || exit 97
+        {project_env}
         LOG=logs/{name}.log
         EXIT=logs/{name}.exit
         rm -f "$EXIT"
@@ -2135,10 +2145,12 @@ def _submit(args, resume: bool) -> None:
     host = step["host"]
     hc = host_cfg(cfg, host)
     if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
-        die(f"--train-on/--eval-on orchard need a driver that can reach ORCHARD with gcloud; step {step['name']} runs "
-            f"on Nautilus. Use falcon or cmslpc for this step, or `--train-on host --eval-on host`")
+        die(f"--train-on/--eval-on {r.get('train_on') or r.get('eval_on')} need a driver that can reach ORCHARD "
+            f"(gcloud) or the Delta spool (EOS); step {step['name']} runs on Nautilus. Use falcon or cmslpc for "
+            f"this step, or `--train-on host --eval-on host`")
     if host == "cmslpc" and step["name"] in ("C", "D", "BKG_C") and not (r.get("train_on") and r.get("eval_on")):
-        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard`")
+        die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard` "
+            f"(or delta)")
     if host not in r["hosts"]:
         die(f"roast not checked out on {host}; run `{TOOL} checkout {r['id']} --host {host}`")
     ckpt = r["hosts"][host]["checkout"]
@@ -5200,7 +5212,10 @@ def main(argv=None) -> None:
     s.add_argument("--cmslpc-user", help="LPC username: sets the ssh target and the EOS archive path")
     s.add_argument("--cmslpc-node", help="pin every roast to one LPC node; by default the "
                    "cmslpc-el9 gateway assigns one per roast and the roast remembers it")
-    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user"); s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
+    s.add_argument("--falcon-user"); s.add_argument("--bridges2-user"); s.add_argument("--delta-user")
+    s.add_argument("--delta-project", help="NCSA Delta ACCESS project (default bjsv): sets the /projects/<project> "
+                   "paths and DELTA_PROJECT for run_container (accounts <project>-delta-gpu/-cpu)")
+    s.add_argument("--cern-user", help="CERN username: sets the CERNBox web area")
     s.add_argument("--owner", help="name shown in the cupping notes")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
@@ -5220,12 +5235,13 @@ def main(argv=None) -> None:
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--delta", action="store_true", help="run GPU phases (C, D, BKG_C) on NCSA Delta instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
-    s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s); "
+    s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s, "
+                                                          "or NCSA Delta A100s through the pull agent); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")
     s.add_argument("--eval-on", choices=TRAIN_HOSTS, help="run the classifier evaluations (friend trees) there too")
     s.add_argument("--cmslpc", action="store_true", help="run GPU phases (C, D, BKG_C) on cmslpc instead of Falcon, with their "
                                                         "trainings and evaluations on ORCHARD (implies --train-on and "
-                                                        "--eval-on orchard)")
+                                                        "--eval-on orchard; give --train-on/--eval-on delta for Delta)")
     s.add_argument("--analysis", help="analysis channel for CERNBox web prod (e.g. HH4b, ttHbb, HH4b_lowpt; default: auto-detected, fallback HH4b)")
     s.add_argument("--no-validate", action="store_true", help="skip automatic preflight configuration validation")
     s.add_argument("--strict", action="store_true", help="treat configuration validation warnings as fatal errors")
@@ -5246,7 +5262,7 @@ def main(argv=None) -> None:
         s.add_argument("-n", "--dry-run", action="store_true", help="snakemake -n: show the plan, run nothing")
         s.add_argument("-t", "--test", action="store_true", help="--config test=true: the workflow's small local test slice")
         s.add_argument("--train-on", choices=(*TRAIN_HOSTS, "host"), help="change where this roast's classifier trainings "
-                                                                        "run (saved): orchard, or host = the step's own host")
+                                                                        "run (saved): orchard, delta, or host = the step's own host")
         s.add_argument("--eval-on", choices=(*TRAIN_HOSTS, "host"), help="same for the classifier evaluations")
         s.set_defaults(func=fn)
 

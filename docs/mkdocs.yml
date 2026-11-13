@@ -99,6 +99,7 @@ nav:
     - Software:
         - Index: software/index.md
         - Orchard: software/orchard.md
+        - Delta: software/delta.md
     - Classifier:
         - Backend: classifier/backend.md
         - Hcr: classifier/hcr.md
