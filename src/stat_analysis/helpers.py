@@ -201,14 +201,12 @@ def get_likelihood_scan_fit_types(wildcards, config=None):
 
     has_sig_systs = has_channel_signal_systematics(wildcards, config)
     groups = get_channel_groups(wildcards, config)
-    has_bkg_systs = ("background" in groups) or ("multijet" in groups) or (not is_stat_only)
+    has_bkg_systs = ("background" in groups) or ("multijet" in groups)
 
-    if has_sig_systs and has_bkg_systs:
+    # Decomposed likelihood scan is performed when both signal and background systematics are present (e.g. full_syst workflow)
+    if has_sig_systs and (has_bkg_systs or not is_stat_only):
         exp_types = ["exp", "exp_bkg", "exp_sig", "exp_stat"]
         obs_types = ["obs", "obs_bkg", "obs_sig", "obs_stat"]
-    elif has_bkg_systs:
-        exp_types = ["exp", "exp_stat"]
-        obs_types = ["obs", "obs_stat"]
     else:
         exp_types = ["exp"]
         obs_types = ["obs"]
