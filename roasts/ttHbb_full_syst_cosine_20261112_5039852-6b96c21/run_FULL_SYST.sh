@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# roast ttHbb_full_syst_cosine_20261112_5039852-6b96c21 step FULL_SYST -- generated 2026-11-12 15:06:19
+# roast ttHbb_full_syst_cosine_20261112_5039852-6b96c21 step FULL_SYST -- generated 2026-11-12 15:55:45
 # Everything lives in main() so bash parses the whole file before executing: a later
 # regeneration of this script cannot derail a run that is already in progress.
 main() {

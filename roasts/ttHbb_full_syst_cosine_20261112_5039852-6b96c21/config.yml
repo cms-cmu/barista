@@ -494,36 +494,42 @@ likelihood_scan_r_max: 2
 likelihood_scan_y_cut: 30
 likelihood_scan_y_max: 30
 channels:
-  ttHbb_SvB_MA_ps:
-    signallabel: ttHbb
-    othersignal: ''
-    variable: SvB_MA.ps
-    signal: ttHbb
-    closure_subdir: ttHbb
-    region: SR
-    cut: sum
-    rebin: 1
-    stat_only: true
-    bkgsyst: coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl
-    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
-  ttHbb_SvB_MA_ps_ttHbb:
-    signallabel: ttHbb
-    othersignal: ''
-    variable: SvB_MA.ps_ttHbb
-    signal: ttHbb
-    closure_subdir: ttHbb
-    region: SR
-    cut: sum
-    rebin: 12
-    stat_only: true
-    bkgsyst: coffea4bees/stats_analysis/files/HIG-24-010/zz/hists_closure_3bDvTMix4bDvT_SvB_MA_ps_zz_rebin1.pkl
-    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
-  ttHbb:
+  inclusive:
     signallabel: ttHbb
     variable: SvB_MA.ps_ttHbb
     signal: ttHbb
     region: SR
     cut: sum
+    rebin: 24
+    stat_only: false
+    metadata: coffea4bees/stats_analysis/metadata/ttHbb.yml
+    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
+  lepton_veto:
+    signallabel: ttHbb
+    variable: SvB_MA.ps_ttHbb
+    signal: ttHbb
+    region: SR
+    cut: passLeptonVeto
+    rebin: 24
+    stat_only: false
+    metadata: coffea4bees/stats_analysis/metadata/ttHbb.yml
+    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
+  jets_gt6:
+    signallabel: ttHbb
+    variable: SvB_MA.ps_ttHbb
+    signal: ttHbb
+    region: SR
+    cut: pass_nSelJets_gt6
+    rebin: 24
+    stat_only: false
+    metadata: coffea4bees/stats_analysis/metadata/ttHbb.yml
+    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
+  jets_gt6_lepton_veto:
+    signallabel: ttHbb
+    variable: SvB_MA.ps_ttHbb
+    signal: ttHbb
+    region: SR
+    cut: pass_nSelJets_gt6_passLeptonVeto
     rebin: 24
     stat_only: false
     metadata: coffea4bees/stats_analysis/metadata/ttHbb.yml

@@ -17,7 +17,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/ttHbb_full_syst.yml",
     "captured": "config.yml",
-    "sha256": "7157758697f23bc3ac7baaf01f680f063214841d0ac5e5e69db0dc59ae39ce89",
+    "sha256": "e498cfb8329f8dd4dabdb486a2538eddc37e8c52e2c587c22d764c18ad49fd95",
     "base": [
       {
         "source": "coffea4bees/workflows/config/ttHbb.yml",
@@ -176,6 +176,32 @@
           "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
           "ssh": "algomez@cmslpc309.fnal.gov",
           "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 15:53:36",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
+        },
+        {
+          "ts": "2026-11-12 15:55:56",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
         }
       ]
     }
@@ -264,6 +290,23 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-12 15:53:36",
+      "event": "config-edited",
+      "sha256": "e498cfb8329f"
+    },
+    {
+      "ts": "2026-11-12 15:53:36",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 15:55:56",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
     }
   ],
   "notes": "",
