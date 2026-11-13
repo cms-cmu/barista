@@ -241,12 +241,26 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     info["observation"] = sum(c["observation"] or 0.0 for c in years.values())
     info["nuisances"] = max((c["nuisances"] for c in years.values()), default=0)
 
-    merged = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}*.root")))
-    info["scan"] = read_scan(merged[0], f"r{signal}") if merged else None
-
     scan_json_path = os.path.join(d, "likelihood_scan", f"datacard_likelihood_scan__{signal}.json")
     if os.path.exists(scan_json_path):
         info["scan_json"] = read_json(scan_json_path)
+
+    sjson = info.get("scan_json")
+    if sjson and isinstance(sjson, dict) and "decomposition" in sjson and "total" in sjson["decomposition"]:
+        tot = sjson["decomposition"]["total"]
+        info["scan"] = {
+            "poi": sjson.get("poi", f"r{signal}"),
+            "bestfit": float(tot.get("best", 1.0)),
+            "err_lo": float(tot.get("lo", 0.0)),
+            "err_hi": float(tot.get("hi", 0.0)),
+        }
+    else:
+        # Prefer nominal/total expected or base scan root file over intermediate fit slices (_bkg, _sig, _stat)
+        merged_exp = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}_exp*.root")))
+        merged_base = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}.*.root")))
+        merged_all = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}*.root")))
+        merged_target = merged_exp or merged_base or merged_all
+        info["scan"] = read_scan(merged_target[0], f"r{signal}") if merged_target else None
 
     impacts_json_path = os.path.join(d, "impacts", f"impacts_combine_datacard__{signal}_exp.json")
     if not os.path.exists(impacts_json_path):
