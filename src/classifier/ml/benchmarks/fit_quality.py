@@ -46,6 +46,7 @@ class FvTFitQuality:
             "t4_sb": np.linspace(0, 1, 21),
             "t3_sr": np.linspace(0, 1, 21),
             "t4_sr": np.linspace(0, 1, 21),
+            "svb_sr": np.linspace(0, 1, 41),       # 40 bins in [0, 1] (bkg_syst mixeddata SR only)
         }
         self.reset()
 
@@ -79,6 +80,7 @@ class FvTFitQuality:
         }
         self.sum_w_target_sb = 0.0
         self.sum_w_model_sb = 0.0
+        self._has_svb = False
 
     def copy(self) -> FvTFitQuality:
         return copy.deepcopy(self)
@@ -166,17 +168,22 @@ class FvTFitQuality:
                 self.sum_loss_sb += float((ce_sb * w_sb).sum())
                 self.sum_w_loss_sb += float(w_sb.sum())
             if torch.any(is_sr):
-                w_sr = weights[is_sr]
                 if d4_idx is not None:
-                    no_d4_idx = [*range(len(MultiClass.trainable_labels))]
-                    no_d4_idx = no_d4_idx[:d4_idx] + no_d4_idx[d4_idx + 1:]
-                    no_d4_y = labels[is_sr]
-                    no_d4_y = torch.where(no_d4_y > d4_idx, no_d4_y - 1, no_d4_y)
-                    ce_sr = F.cross_entropy(c_score[is_sr][:, no_d4_idx], no_d4_y, reduction="none")
+                    valid_sr = is_sr & (labels != d4_idx)
+                    if torch.any(valid_sr):
+                        w_sr = weights[valid_sr]
+                        no_d4_idx = [*range(len(MultiClass.trainable_labels))]
+                        no_d4_idx = no_d4_idx[:d4_idx] + no_d4_idx[d4_idx + 1:]
+                        no_d4_y = labels[valid_sr]
+                        no_d4_y = torch.where(no_d4_y > d4_idx, no_d4_y - 1, no_d4_y)
+                        ce_sr = F.cross_entropy(c_score[valid_sr][:, no_d4_idx], no_d4_y, reduction="none")
+                        self.sum_loss_sr += float((ce_sr * w_sr).sum())
+                        self.sum_w_loss_sr += float(w_sr.sum())
                 else:
+                    w_sr = weights[is_sr]
                     ce_sr = F.cross_entropy(c_score[is_sr], labels[is_sr], reduction="none")
-                self.sum_loss_sr += float((ce_sr * w_sr).sum())
-                self.sum_w_loss_sr += float(w_sr.sum())
+                    self.sum_loss_sr += float((ce_sr * w_sr).sum())
+                    self.sum_w_loss_sr += float(w_sr.sum())
 
         # Component transfer: MC t3 (t4) distribution of p_t3 (p_t4) vs the source x p_t/p_d3
         def np_(mask):
@@ -221,6 +228,21 @@ class FvTFitQuality:
                 else:
                     self.sum_w_model_sb += float(np.sum(ew))
 
+        # Signal-region SvB_MA.ps closure (opt-in for bkg_syst mixeddata only; never loaded in nominal)
+        svb_key = getattr(Input, "svb", None)
+        if svb_key is not None and svb_key in batch and d4_idx is not None and d3_idx is not None:
+            svb_vals = batch[svb_key].detach().float().cpu().numpy().reshape(-1)
+            w = weights.numpy()
+            wf = w_fvt.numpy()
+            for side, mask, ew in (
+                ("target", np_(is_d4 & is_sr), w[np_(is_d4 & is_sr)]),
+                ("model", np_(is_d3 & is_sr), w[np_(is_d3 & is_sr)] * wf[np_(is_d3 & is_sr)]),
+                ("model", np_(is_t4 & is_sr), w[np_(is_t4 & is_sr)]),
+            ):
+                if np.any(mask):
+                    self._fill("svb_sr", side, svb_vals[mask], ew)
+                    self._has_svb = True
+
     @staticmethod
     def _chi2_ndf(target, model):
         """Shape chi2/ndf: model normalised to the target, errors from both sides' sum w^2.
@@ -255,7 +277,16 @@ class FvTFitQuality:
         calib_d4_prob = self.sum_w_d4_pred / max(1e-9, self.sum_w_d4_true)
         calib_d3_prob = self.sum_w_d3_pred / max(1e-9, self.sum_w_d3_true)
 
-        chi2 = {k: self._chi2_ndf(self.h[k]["target"], self.h[k]["model"]) for k in self.HISTS}
+        active_hists = self.HISTS + (("svb_sr",) if self._has_svb else ())
+        chi2 = {k: self._chi2_ndf(self.h[k]["target"], self.h[k]["model"]) for k in active_hists}
+        if self._has_svb:
+            svb_gt0p8 = self.bins["svb_sr"][:-1] >= 0.8 - 1e-9
+            chi2_svb_gt0p8, ndf_svb_gt0p8 = self._chi2_ndf(
+                (self.h["svb_sr"]["target"][0][svb_gt0p8], self.h["svb_sr"]["target"][1][svb_gt0p8]),
+                (self.h["svb_sr"]["model"][0][svb_gt0p8], self.h["svb_sr"]["model"][1][svb_gt0p8]),
+            )
+        else:
+            chi2_svb_gt0p8, ndf_svb_gt0p8 = None, 0
 
         def r(v, n=3):
             return None if v is None else round(v, n)
@@ -271,7 +302,7 @@ class FvTFitQuality:
         gate_ttbar = bool(0.70 <= calib_t4_prob <= 1.30 and 0.70 <= transfer_d3_to_t4 <= 1.30)
 
         def hist_json(k):
-            return {
+            d = {
                 "bin_edges": [round(float(x), 4) for x in self.bins[k]],
                 "target": [round(float(x), 4) for x in self.h[k]["target"][0]],
                 "target_sumw2": [round(float(x), 4) for x in self.h[k]["target"][1]],
@@ -280,6 +311,10 @@ class FvTFitQuality:
                 "chi2_ndf": r(chi2[k][0]),
                 "ndf": chi2[k][1],
             }
+            if k == "svb_sr":
+                d["chi2_ndf_gt0p8"] = r(chi2_svb_gt0p8)
+                d["ndf_gt0p8"] = ndf_svb_gt0p8
+            return d
 
         return {
             "name": self.name,
@@ -294,7 +329,7 @@ class FvTFitQuality:
                 "chi2_t3_sr": r(chi2["t3_sr"][0]),
                 "chi2_t4_sr": r(chi2["t4_sr"][0]),
             },
-            "histograms": {k: hist_json(k) for k in self.HISTS},
+            "histograms": {k: hist_json(k) for k in active_hists},
             "weights": {
                 "neg_fraction": round(neg_frac, 5),
                 "p99": round(w_p99, 3),
@@ -320,6 +355,14 @@ class FvTFitQuality:
                 "chi2_ndf_pt4": r(chi2["pt4_sb"][0]),
                 "chi2_ndf_pt1": r(chi2["pt1_sb"][0]),
                 "chi2_ndf_fvt": r(chi2["fvt_sb"][0]),
+                **(
+                    {
+                        "chi2_ndf_svb_sr": r(chi2["svb_sr"][0]),
+                        "chi2_ndf_svb_sr_gt0p8": r(chi2_svb_gt0p8),
+                    }
+                    if self._has_svb
+                    else {}
+                ),
                 "norm_closure_sb": r(norm_closure_sb, 4),
                 "composite_chi2_ndf": r(composite),
             },
