@@ -136,13 +136,21 @@ def fetch_remote_file(src_url: str, dst_path: Path) -> bool:
 
     # 2. Try xrdcp CLI if available
     xrdcp_bin = shutil.which("xrdcp")
+    if not xrdcp_bin and os.path.exists("/usr/bin/xrdcp"):
+        xrdcp_bin = "/usr/bin/xrdcp"
     if not xrdcp_bin and os.path.exists("/cvmfs/cms.cern.ch/common/xrdcp"):
         xrdcp_bin = "/cvmfs/cms.cern.ch/common/xrdcp"
     if xrdcp_bin:
         try:
             dst_path.parent.mkdir(parents=True, exist_ok=True)
+            env = os.environ.copy()
+            if "X509_USER_PROXY" not in env:
+                for cand_proxy in [Path("proxy/x509_proxy"), Path.cwd() / "proxy/x509_proxy"]:
+                    if cand_proxy.exists():
+                        env["X509_USER_PROXY"] = str(cand_proxy.resolve())
+                        break
             cmd = [xrdcp_bin, "-s", "-f", src_url, str(dst_path)]
-            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, env=env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if dst_path.exists() and dst_path.stat().st_size > 0:
                 return True
         except Exception:
@@ -231,7 +239,7 @@ def parse_fit_quality_json(result_path: Path | None) -> dict:
         "chi2_t4_sr": None,
         "fqs": [],
     }
-    if not result_path.exists():
+    if not result_path or not result_path.exists():
         return data
 
     try:

@@ -205,7 +205,15 @@ WORKFLOWS: dict[str, list[str]] = dict(FALLBACK_WORKFLOWS)
 DASHBOARDS: list[dict[str, Any]] = list(FALLBACK_DASHBOARDS)
 STAGES: list[dict[str, Any]] = list(FALLBACK_STAGES)
 PUBLISH_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
-ARCHIVE_EXTRA: dict[str, list[str]] = {"exclude": ["*/classifier_inputs/classifier_inputs_dataset_*"], "include": []}
+ARCHIVE_EXTRA: dict[str, list[str]] = {
+    "exclude": [
+        "*/classifier_inputs/classifier_inputs_dataset_*",
+        "*paramFit*", "*initialFit*", "*gof_toys*",
+        "*likelihood_scan_chunk*", "*likelihood_scan_snapshot*",
+        "*higgsCombine*", "*fitDiagnostics*", "*FitDiagnostics*", "*diffNuisances*",
+    ],
+    "include": [],
+}
 FALLBACK_PUBLISH_EXTRA = dict(PUBLISH_EXTRA)
 FALLBACK_ARCHIVE_EXTRA = dict(ARCHIVE_EXTRA)
 
@@ -222,10 +230,15 @@ PUBLISH_DEFAULTS = {
 # What `archive` ships to FNAL EOS (heavy, machine-readable products).  Same override mechanism ("archive" key).
 ARCHIVE_DEFAULTS = {
     "include": ["*.coffea", "*.root", "*.yml", "*.yaml", "*.json", "*.pkl"],
-    # merged products only: no per-dataset singlefiles
-    "exclude": ["*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
-                "*/singlefiles", "*/singlefiles/*",
-                "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*"],
+    # merged products only: no per-dataset singlefiles or intermediate combine fit outputs
+    "exclude": [
+        "*_test", "*_test/*", "*dask-report*", "*/performance", "*/performance/*",
+        "*/singlefiles", "*/singlefiles/*",
+        "output/*/logs", "output/*/logs/*", "output/*/*/logs", "output/*/*/logs/*",
+        "*paramFit*", "*initialFit*", "*gof_toys*",
+        "*likelihood_scan_chunk*", "*likelihood_scan_snapshot*",
+        "*higgsCombine*", "*fitDiagnostics*", "*FitDiagnostics*", "*diffNuisances*",
+    ],
     "max_mb": 0,   # 0 = no limit
 }
 
