@@ -129,13 +129,14 @@ tmux new -d -s delta-agent 'software/delta/agent.sh 2>&1 | tee -a /projects/bjsy
 #   options: --partition gpuA40x4 (half price), --time (default 8:00:00), --cpus/--mem, --max-restarts, --once
 ```
 
-Then a roast with trainings and evaluations on Delta and everything else on cmslpc:
+Then a roast with the trainings on Delta, the evaluations on ORCHARD, and everything else on cmslpc
+(see "Measured" below for why evaluations should stay off Delta):
 
 ```bash
 bin/roast new --config coffea4bees/workflows/config/<config>.yml --phases B,C,C4,D,F \
-    --cmslpc --train-on delta --eval-on delta --label <label>
+    --cmslpc --train-on delta --eval-on orchard --label <label>
 bin/roast submit <id> --step C    # on cmslpc; the train/evaluate rules wait for Delta
-# switch an existing roast: bin/roast submit <id> --step C --train-on delta --eval-on delta
+# switch an existing roast: bin/roast submit <id> --step C --train-on delta --eval-on orchard
 ```
 
 Per-workflow settings go in a `delta:` block of the workflow config (all optional): `spool`, `time`,
@@ -161,6 +162,14 @@ driven from cmslpc with `--train-on delta`:
 * Why: priority is dominated by fair-tree fairshare (weight 10000, QOS flag `NoDecay`). A few GPU-h of
   usage put an account below most of the thousands of pending jobs, and usage is never forgotten. Only
   age (≤ +1000) and backfill holes for short jobs are left.
+
+* **Evaluation does not fit Delta.** The FvT evaluation of the same 22.95 M events (`evaluate_delta`, 8 h
+  job, started after a 4 h wait) was OOM-killed at 62 GB after 12 min of processing. The GPU sat at ~2 %:
+  evaluation is I/O- and CPU-bound. More memory raises the MAX_TRES charge (124 GB = 2 GPU-h per hour).
+  `evaluate_delta` works mechanically (submit, run, OOM detected and reported, no wasted retry), but use
+  `--train-on delta --eval-on orchard`, or leave the evaluation on the step's host (falcon, Nautilus).
+  The evaluation also runs on CPU (`--device cpu` in the evaluate workflow), but no CPU route for a
+  cmslpc driver exists yet.
 
 So: run each fit as **one long job** (agent default `--time 8:00:00`). The checkpoint and requeue cycle
 works, but each requeue costs another wait. Submit campaigns early, and keep quick iteration on
