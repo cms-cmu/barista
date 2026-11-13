@@ -572,6 +572,97 @@ if EVAL_HOST == "orchard":
                 _EVAL_ORCHARD_SHELL
 
 
+# ── GPU training / evaluation on NCSA Delta ──────────────────────────────────
+# `train_host: delta` / `eval_host: delta`: as for ORCHARD, only the GPU rules move. Delta needs Duo
+# for every login, so software/delta/remote.py (a local rule here) never logs in: it leaves requests
+# in an EOS spool that a pull agent on a Delta login node (software/delta/agent.py) submits to Slurm.
+# Settings (all optional): delta: {spool, time, partition, cpus, mem, max_restarts, poll, and
+# eval_<key> overrides}. See docs/software/delta.md.
+_delta = config.get("delta") or {}
+
+
+def _delta_opts(task="train"):
+    o = []
+    for key, flag in (("spool", "--spool"), ("time", "--time"), ("partition", "--partition"), ("cpus", "--cpus"),
+                      ("mem", "--mem"), ("max_restarts", "--max-restarts"), ("poll", "--poll")):
+        val = _delta.get(f"eval_{key}") if task != "train" and f"eval_{key}" in _delta else _delta.get(key)
+        if val not in (None, ""):
+            o.append(f"{flag} {shlex.quote(str(val))}")
+    if config.get("roast_id"):
+        o.append(f"--roast-id {shlex.quote(str(config['roast_id']))}")
+    o.append(f"--task {task}")
+    return " ".join(o)
+
+
+_DELTA_SHELL = """
+            python3 software/delta/remote.py \\
+                --model-dir {wildcards.model_dir:q} --wf {input.wf:q} --common {input.common:q} \\
+                --template {params.template_str:q} --log {log:q} \\
+                --config-paths {params.classifier_config_paths:q} {params.opts}
+            touch {output.flag}
+            """
+
+if TRAIN_HOST == "delta":
+    localrules: train_delta
+    ruleorder: train_delta > train
+
+    rule train_delta:
+        input:
+            wf     = _get_train_wf,
+            common = _get_common,
+        output:
+            flag = "{model_dir}/train.done",
+        log:
+            "{model_dir}/train.log",
+        params:
+            template_str            = _get_train_template,
+            classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+            opts                    = lambda wildcards: _delta_opts("train") + f" --yields {shlex.quote(wildcards.model_dir + '/yields_loaded.json')}",
+        shell:
+            _DELTA_SHELL
+
+if EVAL_HOST == "delta":
+    if not EVAL_SPLITS:
+        localrules: evaluate_delta
+        ruleorder: evaluate_delta > evaluate
+
+        rule evaluate_delta:
+            input:
+                train_flag = "{model_dir}/train.done",
+                wf         = _get_eval_wf,
+                common     = _get_common,
+            output:
+                flag = "{model_dir}/evaluate.done",
+            log:
+                "{model_dir}/evaluate.log",
+            params:
+                template_str            = _get_eval_template,
+                classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+                opts                    = _delta_opts("evaluate"),
+            shell:
+                _DELTA_SHELL
+
+    else:
+        localrules: evaluate_split_delta
+        ruleorder: evaluate_split_delta > evaluate_split
+
+        rule evaluate_split_delta:
+            input:
+                train_flag = "{model_dir}/train.done",
+                wf         = "{model_dir}/wfs/evaluate.split_{split}.yml",
+                common     = _get_common,
+            output:
+                flag = "{model_dir}/evaluate.split_{split}.done",
+            log:
+                "{model_dir}/evaluate.split_{split}.log",
+            params:
+                template_str            = _get_eval_template,
+                classifier_config_paths = CLASSIFIER_CONFIG_PATHS,
+                opts                    = lambda wildcards: _delta_opts(f"evaluate_{wildcards.split}"),
+            shell:
+                _DELTA_SHELL
+
+
 rule plot_inputs_raw:
     input:
         "{model_dir}/train.done",
