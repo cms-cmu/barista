@@ -1274,6 +1274,21 @@ def get_postfit_fit_result(wildcards):
 def get_postfit_plot_fit_type(wildcards):
     return "fit_s"
 
+def get_postfit_metadata(wildcards):
+    ch_name = wildcards.path.rstrip('/').split('/')[-1]
+    ch_cfg = config.get("channels", {}).get(ch_name, {})
+    if isinstance(ch_cfg, dict) and ch_cfg.get("metadata"):
+        return ch_cfg["metadata"]
+    template = config.get("metadata_template", config.get("make_combine_inputs", {}).get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml"))
+    for candidate_name in [ch_name, wildcards.signallabel, config.get("analysis", "ttHbb"), ch_name.split('_')[0]]:
+        try:
+            cand = template.format(channel=candidate_name)
+            if os.path.exists(cand):
+                return cand
+        except Exception:
+            pass
+    return template.format(channel=ch_name.split('_')[0])
+
 rule postfit:
     input:
         workspace = "{path}/workspace/datacard__{signallabel}.root",
@@ -1288,7 +1303,7 @@ rule postfit:
         fit_type = get_postfit_plot_fit_type,
         signal_scale = lambda wildcards: config.get("channels", {}).get(wildcards.path.rstrip('/').split('/')[-1], {}).get("signal_scale", 1 if "ttHbb" in wildcards.signallabel else (100 if "HH" in wildcards.signallabel else 1)),
         ylog = lambda wildcards: "--log" if wildcards.path.rstrip('/').split('/')[-1].startswith("HH4b") else "",
-        metadata = lambda wildcards: config.get("metadata_template", config.get("make_combine_inputs", {}).get("metadata_template", "coffea4bees/stats_analysis/metadata/{channel}.yml")).format(channel=wildcards.path.rstrip('/').split('/')[-1].split('_')[0])
+        metadata = get_postfit_metadata
     log: f"{log_dir}/postfit_{{path}}__{{signallabel}}.log"
     shell:
         """
