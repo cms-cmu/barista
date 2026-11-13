@@ -13,6 +13,8 @@ Features:
 
 import os
 import sys
+import json
+import math
 import argparse
 import numpy as np
 
@@ -92,11 +94,114 @@ def load_root_scan(root_path, poi_name=None):
     return poi_name, r_sorted, dnll2_sorted, best_val
 
 
+def compute_uncertainty_breakdown(ranges_path, poi_name):
+    if not ranges_path or not os.path.exists(ranges_path):
+        return
+    try:
+        with open(ranges_path) as f:
+            data = json.load(f)
+
+        components = {}
+        for k, v in data.items():
+            if not isinstance(v, dict) or "uncertainty" not in v:
+                continue
+            unc = v.get("uncertainty", [])
+            if not unc or len(unc) < 1:
+                continue
+            hi, lo = unc[0]
+            hi_val = float(hi) if hi is not None else float("nan")
+            lo_val = abs(float(lo)) if lo is not None else float("nan")
+            best = float(v.get("best_fit", 1.0))
+            components[k] = {"hi": hi_val, "lo": lo_val, "best": best}
+
+        total_info = None
+        bkg_info = None
+        sig_info = None
+        stat_info = None
+        for k, c in components.items():
+            lbl = k.split("__", 1)[-1].lower() if "__" in k else k.lower()
+            if "bkg" in lbl:
+                bkg_info = c
+            elif "sig" in lbl:
+                sig_info = c
+            elif "stat" in lbl:
+                stat_info = c
+            elif "exp" in lbl or "total" in lbl or "obs" in lbl:
+                if total_info is None:
+                    total_info = c
+
+        decomp = {}
+        if total_info:
+            decomp["total"] = {"hi": total_info["hi"], "lo": total_info["lo"], "best": total_info["best"]}
+        if stat_info:
+            decomp["stat"] = {
+                "hi": stat_info["hi"],
+                "lo": stat_info["lo"],
+                "avg": (stat_info["hi"] + stat_info["lo"]) / 2.0,
+            }
+        if bkg_info and stat_info:
+            bkg_hi = math.sqrt(max(0.0, bkg_info["hi"] ** 2 - stat_info["hi"] ** 2))
+            bkg_lo = math.sqrt(max(0.0, bkg_info["lo"] ** 2 - stat_info["lo"] ** 2))
+            decomp["bkg"] = {
+                "hi": bkg_hi,
+                "lo": bkg_lo,
+                "avg": (bkg_hi + bkg_lo) / 2.0,
+                "raw_hi": bkg_info["hi"],
+                "raw_lo": bkg_info["lo"],
+            }
+        elif total_info and stat_info and not sig_info:
+            # For bkg-syst-only workflows where total is bkg+stat
+            bkg_hi = math.sqrt(max(0.0, total_info["hi"] ** 2 - stat_info["hi"] ** 2))
+            bkg_lo = math.sqrt(max(0.0, total_info["lo"] ** 2 - stat_info["lo"] ** 2))
+            decomp["bkg"] = {
+                "hi": bkg_hi,
+                "lo": bkg_lo,
+                "avg": (bkg_hi + bkg_lo) / 2.0,
+                "raw_hi": total_info["hi"],
+                "raw_lo": total_info["lo"],
+            }
+        if sig_info and stat_info:
+            sig_hi = math.sqrt(max(0.0, sig_info["hi"] ** 2 - stat_info["hi"] ** 2))
+            sig_lo = math.sqrt(max(0.0, sig_info["lo"] ** 2 - stat_info["lo"] ** 2))
+            decomp["sig"] = {
+                "hi": sig_hi,
+                "lo": sig_lo,
+                "avg": (sig_hi + sig_lo) / 2.0,
+                "raw_hi": sig_info["hi"],
+                "raw_lo": sig_info["lo"],
+            }
+
+        out_struct = {
+            "poi": poi_name,
+            "ranges": data,
+            "decomposition": decomp,
+        }
+        with open(ranges_path, "w") as f:
+            json.dump(out_struct, f, indent=2)
+
+        if decomp:
+            print("\n" + "=" * 60)
+            print(f" Likelihood Fit Decomposition for {poi_name}:")
+            if "total" in decomp:
+                print(f"   Total uncertainty : +{decomp['total']['hi']:.4f} / -{decomp['total']['lo']:.4f}")
+            if "stat" in decomp:
+                print(f"   Statistical only  : +{decomp['stat']['hi']:.4f} / -{decomp['stat']['lo']:.4f} (avg: ±{decomp['stat']['avg']:.4f})")
+            if "bkg" in decomp:
+                print(f"   Background syst   : +{decomp['bkg']['hi']:.4f} / -{decomp['bkg']['lo']:.4f} (avg: ±{decomp['bkg']['avg']:.4f})")
+            if "sig" in decomp:
+                print(f"   Signal syst       : +{decomp['sig']['hi']:.4f} / -{decomp['sig']['lo']:.4f} (avg: ±{decomp['sig']['avg']:.4f})")
+            print("=" * 60 + "\n")
+    except Exception as e:
+        print(f"Warning: could not compute uncertainty breakdown: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate publication-grade CMS Combine Likelihood Scan plot.")
     parser.add_argument("--obs", default=None, help="Observed MultiDimFit ROOT file")
     parser.add_argument("--exp", default=None, help="Expected MultiDimFit ROOT file")
     parser.add_argument("--others", nargs="*", default=[], help="Other ROOT files in format 'file.root:label'")
+    parser.add_argument("--ranges-path", default=None, help="Save parameter ranges and uncertainties to JSON file")
+    parser.add_argument("--exp-label", default=None, help="Legend label for expected scan curve")
     parser.add_argument("-p", "--poi", default=None, help="POI name (default: auto-detected)")
     parser.add_argument("-o", "--output", required=True, help="Output plot file (.pdf or .png)")
     parser.add_argument("--x-min", type=float, default=None, help="Minimum POI value on x-axis")
@@ -125,13 +230,14 @@ def main():
     if args.exp and os.path.exists(args.exp):
         p_name, r_vals, dnll2_vals, best_pt = load_root_scan(args.exp, poi_name)
         poi_name = p_name
+        exp_lbl = args.exp_label or ("Total (all syst)" if args.others else "Expected")
         data_entries.append({
             "values": {poi_name: r_vals, "dnll2": dnll2_vals},
             "poi_min": best_pt,
-            "name": "Expected",
+            "name": exp_lbl,
         })
 
-    # Add others (e.g. Stat-only)
+    # Add others (e.g. Stat-only, Bkg-only, Sig-only)
     for item in args.others:
         parts = item.split(":")
         fpath = parts[0]
@@ -162,6 +268,7 @@ def main():
         paths=[out_pdf, out_png],
         poi=poi_name,
         data=data_entries,
+        ranges_path=args.ranges_path,
         campaign=args.campaign,
         cms_postfix=args.cms_postfix,
         cms_layout="outside_horizontal",
@@ -173,6 +280,9 @@ def main():
         y_max=args.y_max,
     )
     print(f"Successfully generated: {out_pdf} and {out_png}")
+
+    if args.ranges_path:
+        compute_uncertainty_breakdown(args.ranges_path, poi_name)
 
 
 if __name__ == "__main__":

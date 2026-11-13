@@ -244,6 +244,10 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
     merged = sorted(glob.glob(os.path.join(d, "likelihood_scan", f"higgsCombine_merged_{signal}*.root")))
     info["scan"] = read_scan(merged[0], f"r{signal}") if merged else None
 
+    scan_json_path = os.path.join(d, "likelihood_scan", f"datacard_likelihood_scan__{signal}.json")
+    if os.path.exists(scan_json_path):
+        info["scan_json"] = read_json(scan_json_path)
+
     impacts_json_path = os.path.join(d, "impacts", f"impacts_combine_datacard__{signal}_exp.json")
     if not os.path.exists(impacts_json_path):
         cands = sorted(glob.glob(os.path.join(d, "impacts", "impacts_combine_*.json")))
@@ -267,6 +271,7 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         ("correlation (physics) pdf", "postfit", "plots", "correlation_fit_s.pdf"),
         ("correlation (all) pdf", "postfit", "plots", "correlation_fit_s_all.pdf"),
         ("systematics gallery", "plots_systematics", "index.html"),
+        ("likelihood scan json", "likelihood_scan", f"datacard_likelihood_scan__{signal}.json"),
     ):
         if exists(*p):
             info["links"][label] = rel(*p)
@@ -274,8 +279,10 @@ def collect_channel(stat_dir: str, channel: str, signal: str, variable: str | No
         info["links"][f"datacard {year}"] = rel("datacards", f"datacard_{channel}_{year}.txt")
 
     # figures
-    if exists("likelihood_scan", "scan_plot.png"):
-        info["figures"]["likelihood scan"] = rel("likelihood_scan", "scan_plot.png")
+    for scan_candidate in (f"datacard_likelihood_scan__{signal}.png", "scan_plot.png"):
+        if exists("likelihood_scan", scan_candidate):
+            info["figures"]["likelihood scan"] = rel("likelihood_scan", scan_candidate)
+            break
     for p in sorted(glob.glob(os.path.join(d, "postfit", "plots", f"postfitplots__{signal}__*.png"))):
         info["figures"][f"postfit {os.path.basename(p).split('__')[-1][:-4]}"] = rel("postfit", "plots", os.path.basename(p))
     if exists("postfit", "plots", "correlation_fit_s.png"):
@@ -361,6 +368,25 @@ def fscan(sc: dict | None) -> str:
     elif elo is not None:
         return f"{best:.2f} −{elo:.2f}"
     return f"{best:.2f}"
+
+
+def fscan_decomp(sc: dict | None, sjson: dict | None) -> str:
+    base = fscan(sc)
+    if not sjson or not isinstance(sjson, dict):
+        return f"<b>{html.escape(base)}</b>"
+    decomp = sjson.get("decomposition", {})
+    if not decomp:
+        return f"<b>{html.escape(base)}</b>"
+    parts = []
+    if "stat" in decomp:
+        parts.append(f"stat ±{decomp['stat']['avg']:.2f}")
+    if "bkg" in decomp:
+        parts.append(f"bkg ±{decomp['bkg']['avg']:.2f}")
+    if "sig" in decomp:
+        parts.append(f"sig ±{decomp['sig']['avg']:.2f}")
+    if parts:
+        return f"<b>{html.escape(base)}</b><br><span class='small' style='white-space:nowrap;'>({', '.join(parts)})</span>"
+    return f"<b>{html.escape(base)}</b>"
 
 
 def short_proc(p: str) -> str:
@@ -480,7 +506,7 @@ def render_overview_card(chans: list[dict], blind: bool = True, title: str = "Ov
             f"<tr class='sig'><td>{e(c.get('channel', ''))}</td><td class='l'><code>{e(signal_name)}</code></td><td class='l'>{e(c.get('variable') or '-')}</td>"
             f"<td>{fsig(sig.get('expected'))}</td>" + ("" if blind else f"<td>{fsig(sig.get('observed'))}</td>") +
             f"<td><b>{med}</b></td><td>{one}</td><td>{two}</td>" + ("" if blind else f"<td>{fnum((c.get('limits') or {}).get('obs'), 2)}</td>") +
-            f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td><b>{e(fscan(sc))}</b></td><td>{c.get('nuisances', 0)}</td></tr>"
+            f"<td>{fnum(bkg)}</td><td>{fnum(s, 2)}</td><td>{fnum(soverb, 3)}</td><td>{fscan_decomp(sc, c.get('scan_json'))}</td><td>{c.get('nuisances', 0)}</td></tr>"
         )
     h.append("</table></div>")
     h.append("<p class='small'>Limits: AsymptoticLimits on the signal strength r of the listed signal, other signals fixed to 0. "
@@ -520,6 +546,24 @@ def render_channel_card(c: dict, blind: bool = True, header_prefix: str = "") ->
         h.append(f"<tr><td>observed significance{' (Asimov)' if blind else ''}</td><td>{fsig(sig.get('observed'))}</td></tr>")
         if c.get("scan"):
             h.append(f"<tr><td>likelihood scan (best fit r, 68% CL)</td><td><b>{e(fscan(c['scan']))}</b></td></tr>")
+        h.append("</table></div>")
+
+    sjson = c.get("scan_json", {})
+    decomp = sjson.get("decomposition", {}) if isinstance(sjson, dict) else {}
+    if decomp:
+        h.append("<h3>Likelihood fit &amp; uncertainty decomposition</h3><div class='wrap-table'><table><tr><th class='l'>fit component</th><th>best-fit r</th><th>68% CL interval</th><th>isolated uncertainty</th></tr>")
+        if "total" in decomp:
+            tot = decomp["total"]
+            h.append(f"<tr><td class='l'><b>Total (all systematics)</b></td><td><b>{tot.get('best', 1.0):.2f}</b></td><td><b>+{tot['hi']:.3f} / −{tot['lo']:.3f}</b></td><td>&plusmn;{(tot['hi']+tot['lo'])/2.0:.3f} (total)</td></tr>")
+        if "bkg" in decomp:
+            bkg = decomp["bkg"]
+            h.append(f"<tr><td class='l'>Bkg. syst. + stat</td><td>-</td><td>+{bkg['raw_hi']:.3f} / −{bkg['raw_lo']:.3f}</td><td><b>&plusmn;{bkg['avg']:.3f} (background)</b></td></tr>")
+        if "sig" in decomp:
+            sig = decomp["sig"]
+            h.append(f"<tr><td class='l'>Sig. syst. + stat</td><td>-</td><td>+{sig['raw_hi']:.3f} / −{sig['raw_lo']:.3f}</td><td><b>&plusmn;{sig['avg']:.3f} (signal)</b></td></tr>")
+        if "stat" in decomp:
+            st = decomp["stat"]
+            h.append(f"<tr><td class='l'>Stat. only</td><td>-</td><td>+{st['hi']:.3f} / −{st['lo']:.3f}</td><td><b>&plusmn;{st['avg']:.3f} (statistical)</b></td></tr>")
         h.append("</table></div>")
 
     if c.get("impacts"):

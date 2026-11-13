@@ -1,0 +1,389 @@
+{
+  "id": "ttHbb_full_syst_cosine_20261112_5039852-6b96c21",
+  "label": "ttHbb_full_syst_cosine",
+  "analysis": "ttHbb",
+  "created": "2026-11-12 09:31:39",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "5039852e01a051ea5c0c46530a5c6d71953e8565",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "6b96c2120d2edc1835e5bcd309b66e92370b5cd7",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_full_syst.yml",
+    "captured": "config.yml",
+    "sha256": "e498cfb8329f8dd4dabdb486a2538eddc37e8c52e2c587c22d764c18ad49fd95",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb.yml",
+        "sha256": "5be3629fedfdc369a2870bb9fe398c370f102feb79731e052c64c6ea6dc24657"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 4,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "ttHbb_stat_only_corner_veto_cosine_20261106_0065bef-254b706",
+        "barista": "0065bef6542692641a50cf7eb13769d54f5a5ae3",
+        "coffea4bees": "254b706e84a05e7fec6caad36c7c07ef8d35de68",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_cosine_20261106_0065bef-254b706",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_bkg_syst_cosine_20261107_3d31b54-a52c0a1",
+        "barista": "3d31b5497b42758b4a01c1327d184f323cb44a60",
+        "coffea4bees": "a52c0a1a2ef76d6f5e4addc05b9929f9818e63cc",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_cosine_20261107_3d31b54-a52c0a1",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "barista": "c68b6eff579870c69b16db0f99e9dd41585af5d5",
+        "coffea4bees": "c250a1195c4300bed213dbb420dcfcebbd713241",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "nominal_hists": {
+        "url": "{roast:stat_only}/output/ttHbb/PhaseF_1_analysis/histAll_ttHbb_stat_only_corner_veto_cosine.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_cosine_20261106_0065bef-254b706"
+      },
+      "bkg_syst_file": {
+        "url": "{roast:bkg_syst}/output/ttHbb_bkg_syst_cosine_20261107_3d31b54-a52c0a1/bkg_syst_F_2_run_two_stage_closure/closure_fits/ttHbb_bkg_syst_declib16nc/SvB_MA/rebin24/SR/ttHbb/hists_closure_ttHbb_bkg_syst_declib16nc_SvB_MA_ps_ttHbb_rebin24.pkl",
+        "roast": "ttHbb_bkg_syst_cosine_20261107_3d31b54-a52c0a1"
+      },
+      "SvB_MA": {
+        "url": "{roast:nominal_svb}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "svb_binning": {
+        "url": "{roast:nominal_svb}/handoff/svb_quantiles.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "FULL_SYST",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_full_syst.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-12 09:37:48",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 10:06:43",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 11:45:42",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 11:57:11",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 14:05:53",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 15:01:53",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 15:06:20",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "7157758697f2"
+        },
+        {
+          "ts": "2026-11-12 15:53:36",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
+        },
+        {
+          "ts": "2026-11-12 15:55:56",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
+        },
+        {
+          "ts": "2026-11-13 05:21:59",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
+        },
+        {
+          "ts": "2026-11-13 05:22:56",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_full_syst_cosine_5039852-6b96c21_FULL_SYST",
+          "ssh": "algomez@cmslpc309.fnal.gov",
+          "config_sha256": "e498cfb8329f"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21/barista",
+      "ssh": "algomez@cmslpc309.fnal.gov",
+      "checked_out": "2026-11-12 09:37:30"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21/",
+    "ts": "2026-11-13 12:59:00",
+    "ok": true,
+    "pages": [
+      "output/ttHbb_full_syst_cosine/PhaseF_1_analysis/cutflow_systematics.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_1_analysis/signal_crosscheck.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_2_stats/inclusive/plots_systematics/index.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_2_stats/jets_gt6/plots_systematics/index.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_2_stats/jets_gt6_lepton_veto/plots_systematics/index.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_2_stats/lepton_veto/plots_systematics/index.html",
+      "output/ttHbb_full_syst_cosine/PhaseF_2_stats/summary.html",
+      "roasts/ttHbb_full_syst_cosine_20261112_5039852-6b96c21/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-12 09:31:39",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-12 09:37:30",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 09:37:48",
+      "event": "submit",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 10:06:43",
+      "event": "submit",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 11:45:42",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 11:57:11",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 14:05:53",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 15:01:53",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 15:06:20",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 15:19:22",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-12 15:20:04",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-12 15:53:36",
+      "event": "config-edited",
+      "sha256": "e498cfb8329f"
+    },
+    {
+      "ts": "2026-11-12 15:53:36",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 15:55:56",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 05:21:59",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 05:22:56",
+      "event": "resume",
+      "step": "FULL_SYST",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 05:32:56",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-13 05:33:27",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 09:33:05",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 12:56:38",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 12:59:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21",
+    "ts": "2026-11-13 12:56:38",
+    "ok": true
+  }
+}
