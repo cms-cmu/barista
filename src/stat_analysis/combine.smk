@@ -2,7 +2,15 @@ import os
 import sys
 if os.getcwd() not in sys.path:
     sys.path.insert(0, os.getcwd())
-from src.stat_analysis.helpers import make_poi_maps, get_default_othersignals, get_grid_split_points, get_likelihood_scan_chunks, is_channel_blinded
+from src.stat_analysis.helpers import (
+    make_poi_maps,
+    get_default_othersignals,
+    get_grid_split_points,
+    get_likelihood_scan_chunks,
+    get_likelihood_scan_freeze_params,
+    get_likelihood_scan_freeze_groups,
+    is_channel_blinded,
+)
 
 
 # Resolve combine container image dynamically based on CVMFS availability
@@ -288,7 +296,15 @@ rule limits:
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
-            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            formatted_params=$(for p in {params.freeze_parameters}; do
+                if [ "$p" = "allConstrainedNuisances" ]; then
+                    echo "$p"
+                elif [[ "$p" =~ ^r ]]; then
+                    echo "$p"
+                else
+                    echo "r$p"
+                fi
+            done | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 FREEZE_OPT="--freezeParameters $formatted_params"
             fi
@@ -377,7 +393,15 @@ rule significance:
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
-            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            formatted_params=$(for p in {params.freeze_parameters}; do
+                if [ "$p" = "allConstrainedNuisances" ]; then
+                    echo "$p"
+                elif [[ "$p" =~ ^r ]]; then
+                    echo "$p"
+                else
+                    echo "r$p"
+                fi
+            done | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 FREEZE_OPT="--freezeParameters $formatted_params"
             fi
@@ -480,7 +504,8 @@ rule likelihood_scan_snapshot:
         signallabel = "{signallabel}",
         fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
-        freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        freeze_parameters = lambda wildcards: get_likelihood_scan_freeze_params(wildcards, config),
+        freeze_groups = lambda wildcards: get_likelihood_scan_freeze_groups(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120")
     log: f"{log_dir}/likelihood_scan_snapshot_{{fit_type}}_{{path}}__{{signallabel}}.log"
     shell:
@@ -501,14 +526,27 @@ rule likelihood_scan_snapshot:
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
-            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            formatted_params=$(for p in {params.freeze_parameters}; do
+                if [ "$p" = "allConstrainedNuisances" ]; then
+                    echo "$p"
+                elif [[ "$p" =~ ^r ]]; then
+                    echo "$p"
+                else
+                    echo "r$p"
+                fi
+            done | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 FREEZE_OPT="--freezeParameters $formatted_params"
             fi
         fi
 
+        FREEZE_GRP_OPT=""
+        if [ -n "{params.freeze_groups}" ]; then
+            FREEZE_GRP_OPT="--freezeNuisanceGroups {params.freeze_groups}"
+        fi
+
         SET_OPT=""
-        if [ "{params.fit_type}" = "exp" ]; then
+        if [[ "{params.fit_type}" == exp* ]]; then
             SET_OPT="--setParameters r{params.signallabel}=1"
             if [ -n "{params.set_parameters_zero}" ]; then
                 formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
@@ -533,6 +571,7 @@ rule likelihood_scan_snapshot:
             -n _$(basename {input} .root)_{params.fit_type}_snapshot \
             $SET_OPT \
             $FREEZE_OPT \
+            $FREEZE_GRP_OPT \
             $ASYMOV_OPT \
             --saveWorkspace --robustFit 1 && \
             mv higgsCombine_$(basename {input} .root)_{params.fit_type}_snapshot.MultiDimFit.mH{params.mass}.root $OUT_FILE
@@ -547,7 +586,8 @@ rule likelihood_scan_chunk:
         signallabel = "{signallabel}",
         fit_type = "{fit_type}",
         set_parameters_zero = lambda wildcards: get_default_othersignals(wildcards, config),
-        freeze_parameters = lambda wildcards: get_default_othersignals(wildcards, config),
+        freeze_parameters = lambda wildcards: get_likelihood_scan_freeze_params(wildcards, config),
+        freeze_groups = lambda wildcards: get_likelihood_scan_freeze_groups(wildcards, config),
         mass = lambda wildcards: config.get("mass", "120"),
         points = lambda wildcards: config.get("likelihood_scan_points", "20"),
         r_min = lambda wildcards: config.get("likelihood_scan_r_min", "-10"),
@@ -573,14 +613,27 @@ rule likelihood_scan_chunk:
 
         FREEZE_OPT=""
         if [ -n "{params.freeze_parameters}" ]; then
-            formatted_params=$(echo "{params.freeze_parameters}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | paste -sd, -)
+            formatted_params=$(for p in {params.freeze_parameters}; do
+                if [ "$p" = "allConstrainedNuisances" ]; then
+                    echo "$p"
+                elif [[ "$p" =~ ^r ]]; then
+                    echo "$p"
+                else
+                    echo "r$p"
+                fi
+            done | paste -sd, -)
             if [ -n "$formatted_params" ]; then
                 FREEZE_OPT="--freezeParameters $formatted_params"
             fi
         fi
 
+        FREEZE_GRP_OPT=""
+        if [ -n "{params.freeze_groups}" ]; then
+            FREEZE_GRP_OPT="--freezeNuisanceGroups {params.freeze_groups}"
+        fi
+
         SET_OPT=""
-        if [ "{params.fit_type}" = "exp" ]; then
+        if [[ "{params.fit_type}" == exp* ]]; then
             SET_OPT="--setParameters r{params.signallabel}=1"
             if [ -n "{params.set_parameters_zero}" ]; then
                 formatted_params=$(echo "{params.set_parameters_zero}" | tr ' ' '\n' | sed '/^$/d' | sed 's/^r//' | sed 's/^/r/' | sed 's/$/=0/' | paste -sd, -)
@@ -607,6 +660,7 @@ rule likelihood_scan_chunk:
             -P r{params.signallabel} \
             $SET_OPT \
             $FREEZE_OPT \
+            $FREEZE_GRP_OPT \
             $ASYMOV_OPT \
             --snapshotName MultiDimFit --rMin {params.r_min} --rMax {params.r_max} --algo grid --points {params.points} --firstPoint {params.first_point} --lastPoint {params.last_point} --alignEdges 1 && \
             mv higgsCombine_$(basename {input} .root)_chunk_{wildcards.split_index}.MultiDimFit.mH{params.mass}.root $OUT_FILE
@@ -637,7 +691,13 @@ rule likelihood_scan:
         DATACARD_DIR=$(dirname $OUT_FILE)
         PLOT_SCRIPT=$(realpath {input.plot_script})
         EXP_FILES=""
+        BKG_FILES=""
+        SIG_FILES=""
+        STAT_FILES=""
         OBS_FILES=""
+        OBS_BKG_FILES=""
+        OBS_SIG_FILES=""
+        OBS_STAT_FILES=""
         for f in {input.chunks}; do
             rf=$(realpath $f)
             # The snapshot fit is only the chunks' input: its `limit` tree carries the
@@ -646,9 +706,21 @@ rule likelihood_scan:
             # file's entries. Every chunk already stores the best-fit point, so skip snapshot.
             if [[ "$f" == *"_snapshot_"* ]]; then
                 continue
-            elif [[ "$f" == *"_exp_"* ]]; then
+            elif [[ "$f" == *"_chunk_exp_bkg_"* ]]; then
+                BKG_FILES="$BKG_FILES $rf"
+            elif [[ "$f" == *"_chunk_exp_sig_"* ]]; then
+                SIG_FILES="$SIG_FILES $rf"
+            elif [[ "$f" == *"_chunk_exp_stat_"* ]]; then
+                STAT_FILES="$STAT_FILES $rf"
+            elif [[ "$f" == *"_chunk_exp_"* ]]; then
                 EXP_FILES="$EXP_FILES $rf"
-            elif [[ "$f" == *"_obs_"* ]]; then
+            elif [[ "$f" == *"_chunk_obs_bkg_"* ]]; then
+                OBS_BKG_FILES="$OBS_BKG_FILES $rf"
+            elif [[ "$f" == *"_chunk_obs_sig_"* ]]; then
+                OBS_SIG_FILES="$OBS_SIG_FILES $rf"
+            elif [[ "$f" == *"_chunk_obs_stat_"* ]]; then
+                OBS_STAT_FILES="$OBS_STAT_FILES $rf"
+            elif [[ "$f" == *"_chunk_obs_"* ]]; then
                 OBS_FILES="$OBS_FILES $rf"
             fi
         done
@@ -658,28 +730,56 @@ rule likelihood_scan:
         echo "[$(date)] Merging likelihood scan chunks and plotting"
         cd $DATACARD_DIR
 
-        if [ -n "$OBS_FILES" ] && [ -n "$EXP_FILES" ]; then
-            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES && \
-            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            python3 $PLOT_SCRIPT \
-                --obs $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root \
-                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
-                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
-        elif [ -n "$EXP_FILES" ]; then
-            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES && \
-            python3 $PLOT_SCRIPT \
-                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root \
-                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
-        else
-            INPUT_FILES=""
-            for f in {input.chunks}; do
-                INPUT_FILES="$INPUT_FILES $(realpath $f)"
-            done
-            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root $INPUT_FILES && \
-            python3 $PLOT_SCRIPT \
-                --exp $DATACARD_DIR/higgsCombine_merged_{params.signallabel}.MultiDimFit.mH{params.mass}.root \
-                --poi r{params.signallabel} --y-max {params.y_max} -o $OUT_FILE
+        if [ -n "$EXP_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root $EXP_FILES
         fi
+        if [ -n "$BKG_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_bkg.MultiDimFit.mH{params.mass}.root $BKG_FILES
+        fi
+        if [ -n "$SIG_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_sig.MultiDimFit.mH{params.mass}.root $SIG_FILES
+        fi
+        if [ -n "$STAT_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_stat.MultiDimFit.mH{params.mass}.root $STAT_FILES
+        fi
+        if [ -n "$OBS_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root $OBS_FILES
+        fi
+        if [ -n "$OBS_BKG_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs_bkg.MultiDimFit.mH{params.mass}.root $OBS_BKG_FILES
+        fi
+        if [ -n "$OBS_SIG_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs_sig.MultiDimFit.mH{params.mass}.root $OBS_SIG_FILES
+        fi
+        if [ -n "$OBS_STAT_FILES" ]; then
+            hadd -f $DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs_stat.MultiDimFit.mH{params.mass}.root $OBS_STAT_FILES
+        fi
+
+        OTHERS_ARGS=()
+        if [ -n "$BKG_FILES" ] && [ -f "$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_bkg.MultiDimFit.mH{params.mass}.root" ]; then
+            OTHERS_ARGS+=("$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_bkg.MultiDimFit.mH{params.mass}.root:Bkg. syst. + stat")
+        fi
+        if [ -n "$SIG_FILES" ] && [ -f "$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_sig.MultiDimFit.mH{params.mass}.root" ]; then
+            OTHERS_ARGS+=("$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_sig.MultiDimFit.mH{params.mass}.root:Sig. syst. + stat")
+        fi
+        if [ -n "$STAT_FILES" ] && [ -f "$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_stat.MultiDimFit.mH{params.mass}.root" ]; then
+            OTHERS_ARGS+=("$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_stat.MultiDimFit.mH{params.mass}.root:Stat. only")
+        fi
+
+        RANGES_JSON="$DATACARD_DIR/datacard_likelihood_scan__{params.signallabel}.json"
+        CMD=(python3 "$PLOT_SCRIPT" --poi "r{params.signallabel}" --ranges-path "$RANGES_JSON" --y-max "{params.y_max}" -o "$OUT_FILE")
+        if [ -n "$OBS_FILES" ]; then
+            CMD+=(--obs "$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_obs.MultiDimFit.mH{params.mass}.root")
+        fi
+        if [ -n "$EXP_FILES" ]; then
+            CMD+=(--exp "$DATACARD_DIR/higgsCombine_merged_{params.signallabel}_exp.MultiDimFit.mH{params.mass}.root")
+        fi
+        if [ ${{#OTHERS_ARGS[@]}} -gt 0 ]; then
+            CMD+=(--others "${{OTHERS_ARGS[@]}}")
+        fi
+
+        echo "[$(date)] Executing: ${{CMD[*]}}"
+        "${{CMD[@]}}"
         ) 2>&1 | tee {log}
         """
 
