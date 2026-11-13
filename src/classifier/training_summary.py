@@ -219,6 +219,7 @@ def parse_fit_quality_json(result_path: Path | None) -> dict:
         "chi2_ndf_pt4": None,
         "chi2_ndf_pt1": None,
         "chi2_ndf_fvt": None,
+        "chi2_ndf_svb_sr": None,
         "norm_closure_sb": None,
         "composite_chi2_ndf": None,
         "all_gates_passed": None,
@@ -282,6 +283,12 @@ def parse_fit_quality_json(result_path: Path | None) -> dict:
 
             chi2_fvt_vals = [fq.get("closure", {}).get("chi2_ndf_fvt") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_fvt") is not None]
             data["chi2_ndf_fvt"] = (sum(chi2_fvt_vals) / len(chi2_fvt_vals)) if chi2_fvt_vals else None
+
+            chi2_svb_vals = [fq.get("closure", {}).get("chi2_ndf_svb_sr") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_svb_sr") is not None]
+            data["chi2_ndf_svb_sr"] = (sum(chi2_svb_vals) / len(chi2_svb_vals)) if chi2_svb_vals else None
+
+            chi2_svb_gt0p8_vals = [fq.get("closure", {}).get("chi2_ndf_svb_sr_gt0p8") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_svb_sr_gt0p8") is not None]
+            data["chi2_ndf_svb_sr_gt0p8"] = (sum(chi2_svb_gt0p8_vals) / len(chi2_svb_gt0p8_vals)) if chi2_svb_gt0p8_vals else None
 
             norm_sb_vals = [fq.get("closure", {}).get("norm_closure_sb") for fq in fqs if fq.get("closure", {}).get("norm_closure_sb") is not None]
             data["norm_closure_sb"] = (sum(norm_sb_vals) / len(norm_sb_vals)) if norm_sb_vals else None
@@ -465,6 +472,10 @@ def generate_html(models_data: list[dict], out_path: Path, title: str):
 
     chi2_vals = [m["fit_quality"]["composite_chi2_ndf"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("composite_chi2_ndf") is not None]
     chi2_stat = compute_stats(chi2_vals)
+    svb_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr") is not None]
+    svb_chi2_stat = compute_stats(svb_chi2_vals)
+    svb_gt0p8_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr_gt0p8"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr_gt0p8") is not None]
+    svb_gt0p8_chi2_stat = compute_stats(svb_gt0p8_chi2_vals)
 
     # Compute ensemble pull for each model
     for m in models_data:
@@ -833,6 +844,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <th>AUC (4b vs 3b data)</th>
           <th>AUC (ttbar vs data)</th>
           <th>χ²/ndf (pt4)</th>
+          <th>χ²/ndf (SvB SR)</th>
+          <th>χ²/ndf (SvB &gt; 0.8)</th>
           <th>Score (χ²)</th>
           <th>f(w &lt; 0)</th>
           <th>Quick Links</th>
@@ -871,6 +884,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
         fq = m.get("fit_quality") or {}
         chi2_pt4_str = f_val(fq.get("chi2_ndf_pt4"), fmt=".2f")
+        chi2_svb_str = f_val(fq.get("chi2_ndf_svb_sr"), fmt=".2f")
+        chi2_svb_gt0p8_str = f_val(fq.get("chi2_ndf_svb_sr_gt0p8"), fmt=".2f")
         score_str = f_val(fq.get("composite_chi2_ndf"), fmt=".2f")
         neg_frac = fq.get("neg_fraction")
         neg_str = f"{neg_frac * 100:.2f}%" if neg_frac is not None else "—"
@@ -893,6 +908,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td>{auc_4b_d}</td>
           <td>{auc_tt}</td>
           <td>{chi2_pt4_str}</td>
+          <td>{chi2_svb_str}</td>
+          <td>{chi2_svb_gt0p8_str}</td>
           <td><b>{score_str}</b></td>
           <td>{neg_str}</td>
           <td>
@@ -910,6 +927,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     mean_auc_4b_d = f"{auc_4b_data_stat['mean']:.4f} ± {auc_4b_data_stat['std']:.4f}" if auc_4b_data_stat["mean"] is not None else "—"
     mean_auc_tt = f"{auc_ttbar_stat['mean']:.4f} ± {auc_ttbar_stat['std']:.4f}" if auc_ttbar_stat["mean"] is not None else "—"
     mean_chi2_str = f"{chi2_stat['mean']:.2f} ± {chi2_stat['std']:.2f}" if chi2_stat["mean"] is not None else "—"
+    mean_svb_chi2_str = f"{svb_chi2_stat['mean']:.2f} ± {svb_chi2_stat['std']:.2f}" if svb_chi2_stat["mean"] is not None else "—"
+    mean_svb_gt0p8_chi2_str = f"{svb_gt0p8_chi2_stat['mean']:.2f} ± {svb_gt0p8_chi2_stat['std']:.2f}" if svb_gt0p8_chi2_stat["mean"] is not None else "—"
 
     lines.append(f"""        <tr class="summary-row">
           <td><b>Ensemble Mean ± Std</b></td>
@@ -925,6 +944,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td><b>{mean_auc_4b_d}</b></td>
           <td><b>{mean_auc_tt}</b></td>
           <td>—</td>
+          <td><b>{mean_svb_chi2_str}</b></td>
+          <td><b>{mean_svb_gt0p8_chi2_str}</b></td>
           <td><b>{mean_chi2_str}</b></td>
           <td>—</td>
           <td>—</td>

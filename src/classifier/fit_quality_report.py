@@ -37,6 +37,7 @@ HIST_TITLES = {
     "t4_sb": ("p$_{t4}$ (SB)", "t4 MC", "source x p$_{t4}$/p$_{src}$"),
     "t3_sr": ("p$_{t3}$ (SR)", "t3 MC", "source x p$_{t3}$/p$_{src}$"),
     "t4_sr": ("p$_{t4}$ (SR)", "t4 MC", "source x p$_{t4}$/p$_{src}$"),
+    "svb_sr": ("SvB_MA.ps (SR)", "4b mixed", "model"),
 }
 MODEL_LABEL = {"d3": "3b data x w + 4b ttbar", "mix4": "mixed x w + 4b ttbar"}
 
@@ -132,7 +133,7 @@ def _plot(hname: str, h: dict, source: str, path: str):
     m2 = np.array(h.get("model_sumw2") or np.abs(m))
     k = t.sum() / m.sum() if m.sum() > 0 else 1.0
     title, tl, ml = HIST_TITLES.get(hname, (hname, "target", "model"))
-    if hname in ("pt4_sb", "pt1_sb", "fvt_sb"):
+    if hname in ("pt4_sb", "pt1_sb", "fvt_sb", "svb_sr"):
         ml = MODEL_LABEL.get(source, ml)
     chi2, ndf = _chi2_ndf(h)
 
