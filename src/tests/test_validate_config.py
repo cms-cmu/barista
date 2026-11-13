@@ -219,5 +219,182 @@ class TestFullValidator(unittest.TestCase):
         self.assertIn("Total Configs: 1 | Errors: 1 | Warnings: 1", matrix)
 
 
+def _write_yaml(path: Path, data: dict) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return path
+
+
+def test_upstream_roast_consistency_passing(tmp_path: Path):
+    pre_fvt_id = "pre_fvt_20261029_aaaaaaa-bbbbbbb"
+    nominal_id = "nominal_20261029_ccccccc-ddddddd"
+    declib_id = "declib_20261003_eeeeeee-fffffff"
+    cand_cfg = "analysis/metadata/candidates_selection_thresholds_corner_veto.yml"
+
+    _write_yaml(
+        tmp_path / "roasts" / pre_fvt_id / "config.yml",
+        {
+            "candidates_selection_cfg": cand_cfg,
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": nominal_id,
+                    "declib": declib_id,
+                },
+                "mixeddata_all": "{roast:declib}/handoff/synthetic_data.yml",
+                "jcm_hists": "{roast:nominal}/output/computeJCM/histAll_NoJCM.coffea",
+                "nominal_hists": "{roast:nominal}/output/histAll_nominal.coffea",
+                "classifier_inputs": "{roast:nominal}/handoff/classifier_inputs.json",
+                "SvB": "{roast:nominal}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal}/classifier/SvB/result.json",
+                "SvB_MA": "{roast:nominal}/friend/SvB_MA/result.json",
+                "SvB_MA_model": "{roast:nominal}/classifier/SvB_MA/result.json",
+            },
+        },
+    )
+
+    wf_cfg = _write_yaml(
+        tmp_path / "workflows" / "config" / "bkg_syst_test.yml",
+        {
+            "analysis": "HH4b",
+            "upstream_pre_fvt": "pre_fvt",
+            "candidates_selection_cfg": cand_cfg,
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": nominal_id,
+                    "declib": declib_id,
+                    "pre_fvt": pre_fvt_id,
+                },
+                "input_handoff_eos": "{roast:pre_fvt}/handoff",
+                "mixeddata_all": "{roast:declib}/handoff/synthetic_data.yml",
+                "jcm_hists": "{roast:nominal}/output/computeJCM/histAll_NoJCM.coffea",
+                "nominal_hists": "{roast:nominal}/output/histAll_nominal.coffea",
+                "classifier_inputs": "{roast:nominal}/handoff/classifier_inputs.json",
+                "SvB": "{roast:nominal}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal}/classifier/SvB/result.json",
+                "SvB_MA": "{roast:nominal}/friend/SvB_MA/result.json",
+                "SvB_MA_model": "{roast:nominal}/classifier/SvB_MA/result.json",
+            },
+        },
+    )
+
+    report = validate_config(wf_cfg, repo_root=tmp_path)
+    assert report.is_valid(strict=False), [str(e) for e in report.errors]
+    assert len(report.errors) == 0
+
+
+def test_upstream_roast_transitive_mismatch_errors(tmp_path: Path):
+    pre_fvt_id = "pre_fvt_20261029_aaaaaaa-bbbbbbb"
+    old_nominal_id = "nominal_20261012_1111111-2222222"
+    new_nominal_id = "nominal_20261029_3333333-4444444"
+
+    _write_yaml(
+        tmp_path / "roasts" / pre_fvt_id / "config.yml",
+        {
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": new_nominal_id,
+                    "nominal_baseline": old_nominal_id,
+                },
+                "jcm_hists": "{roast:nominal}/output/computeJCM/histAll_NoJCM.coffea",
+                "nominal_hists": "{roast:nominal_baseline}/output/histAll_nominal.coffea",
+                "SvB": "{roast:nominal_baseline}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal_baseline}/classifier/SvB/result.json",
+                "SvB_MA": "{roast:nominal_baseline}/friend/SvB_MA/result.json",
+                "SvB_MA_model": "{roast:nominal_baseline}/classifier/SvB_MA/result.json",
+            },
+        },
+    )
+
+    wf_cfg = _write_yaml(
+        tmp_path / "workflows" / "config" / "bkg_syst_mismatch.yml",
+        {
+            "analysis": "HH4b",
+            "upstream_pre_fvt": "pre_fvt",
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": new_nominal_id,
+                    "pre_fvt": pre_fvt_id,
+                },
+                "input_handoff_eos": "{roast:pre_fvt}/handoff",
+                "jcm_hists": "{roast:nominal}/output/computeJCM/histAll_NoJCM.coffea",
+                "nominal_hists": "{roast:nominal}/output/histAll_nominal.coffea",
+                "SvB": "{roast:nominal}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal}/classifier/SvB/result.json",
+                "SvB_MA": "{roast:nominal}/friend/SvB_MA/result.json",
+                "SvB_MA_model": "{roast:nominal}/classifier/SvB_MA/result.json",
+            },
+        },
+    )
+
+    report = validate_config(wf_cfg, repo_root=tmp_path)
+    assert not report.is_valid(strict=False)
+    consistency_errs = [e for e in report.errors if e.category == "CONSISTENCY"]
+    assert len(consistency_errs) >= 1
+    msg = consistency_errs[0].message
+    assert pre_fvt_id in msg
+    assert old_nominal_id in msg
+    assert new_nominal_id in msg
+    assert "SvB_MA" in msg
+    assert "SvB_MA_model" in msg
+    assert "nominal_hists" in msg
+
+
+def test_intra_config_svb_model_mismatch_errors(tmp_path: Path):
+    nom_a = "nominal_20261012_1111111-2222222"
+    nom_b = "nominal_20261029_3333333-4444444"
+
+    wf_cfg = _write_yaml(
+        tmp_path / "workflows" / "config" / "intra_mismatch.yml",
+        {
+            "analysis": "HH4b",
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": nom_a,
+                    "nominal_b": nom_b,
+                },
+                "SvB": "{roast:nominal}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal_b}/classifier/SvB/result.json",
+                "SvB_MA": "{roast:nominal}/friend/SvB_MA/result.json",
+                "SvB_MA_model": "{roast:nominal_b}/classifier/SvB_MA/result.json",
+            },
+        },
+    )
+
+    report = validate_config(wf_cfg, repo_root=tmp_path)
+    assert not report.is_valid(strict=False)
+    err_keys = {e.key for e in report.errors if e.category == "CONSISTENCY"}
+    assert "inputs.SvB" in err_keys
+    assert "inputs.SvB_MA" in err_keys
+
+
+def test_missing_upstream_roast_config_graceful(tmp_path: Path):
+    missing_id = "archived_pre_fvt_20260101_0000000-1111111"
+    nominal_id = "nominal_20261029_3333333-4444444"
+
+    wf_cfg = _write_yaml(
+        tmp_path / "workflows" / "config" / "missing_upstream.yml",
+        {
+            "analysis": "HH4b",
+            "upstream_pre_fvt": "pre_fvt",
+            "inputs": {
+                "upstream_roasts": {
+                    "nominal": nominal_id,
+                    "pre_fvt": missing_id,
+                },
+                "input_handoff_eos": "{roast:pre_fvt}/handoff",
+                "SvB": "{roast:nominal}/friend/SvB/result.json",
+                "SvB_model": "{roast:nominal}/classifier/SvB/result.json",
+            },
+        },
+    )
+
+    report = validate_config(wf_cfg, repo_root=tmp_path)
+    assert report.is_valid(strict=False), [str(e) for e in report.errors]
+    assert any(
+        i.severity == "INFO" and i.category == "CONSISTENCY" and missing_id in i.message
+        for i in report.infos
+    )
+
+
 if __name__ == "__main__":
     unittest.main()
