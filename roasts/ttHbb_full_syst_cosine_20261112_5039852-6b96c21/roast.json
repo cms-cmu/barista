@@ -359,8 +359,19 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-13 09:33:05",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21",
+    "ts": "2026-11-13 09:33:05",
+    "ok": true
+  }
 }
