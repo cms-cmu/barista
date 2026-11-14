@@ -1,0 +1,258 @@
+{
+  "id": "trig_weights_ZX4b_run3_2024_20261104_123fe20-6538a88",
+  "label": "trig_weights_ZX4b_run3_2024",
+  "analysis": "ttHbb",
+  "created": "2026-11-04 12:16:01",
+  "owner": "cgbrody",
+  "barista": {
+    "sha": "123fe205ce4dd2c4e8dca44e0cb47e5eae4cfca6",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "6538a88573e917653de596317b08ec0a7e560927",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/trig_weights_ZX4b_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "2ef08333686057b160affe0a8013afb20b1618450ffc5db1adb62f696bb8545e"
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/cgbrody/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/c/cguintob/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "PhaseA_2_trigWeights",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseA_2_trigWeights.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-04 12:18:24",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:38:08",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:41:10",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:45:30",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:49:52",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:51:15",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:57:19",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 12:58:12",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "e39a1a561747"
+        },
+        {
+          "ts": "2026-11-04 13:12:32",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "2ef083336860"
+        },
+        {
+          "ts": "2026-11-04 14:23:51",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "trig_weights_ZX4b_run3_2024_123fe20-6538a88_PhaseA_2_trigWeights",
+          "ssh": "cgbrody@cmslpc349.fnal.gov",
+          "config_sha256": "2ef083336860"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/trig_weights_ZX4b_run3_2024_20261104_123fe20-6538a88/barista",
+      "ssh": "cgbrody@cmslpc349.fnal.gov",
+      "checked_out": "2026-11-04 12:37:57"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-11-04 12:16:01",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-04 12:18:02",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:18:24",
+      "event": "submit",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:37:57",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:38:08",
+      "event": "submit",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:41:10",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:45:30",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:49:52",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:51:15",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:57:19",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 12:58:12",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 13:12:32",
+      "event": "config-edited",
+      "sha256": "2ef083336860"
+    },
+    {
+      "ts": "2026-11-04 13:12:32",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-04 14:23:51",
+      "event": "resume",
+      "step": "PhaseA_2_trigWeights",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "",
+  "category": ""
+}
