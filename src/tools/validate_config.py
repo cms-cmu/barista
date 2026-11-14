@@ -238,6 +238,7 @@ def audit_schema_and_typos(cfg: dict, issues: list[Issue]) -> None:
         "classifier_inputs", "fvt_closure", "jcm", "jcm_datasets",
         "fvt", "svb", "friends", "combine_flags", "weights", "workflow_file",
         "output_path", "test", "plots", "cutflow", "inputs", "upstream_roasts",
+        "upstream_pre_fvt", "upstream_fvt", "candidates_selection_cfg",
         "run_period", "label", "tree", "sample_features", "training_options",
         # Workflow and stage top-level overrides:
         "plot_config", "known_counts", "known_counts_fatal", "known_counts_full",
@@ -490,6 +491,201 @@ def audit_producer_consumer_paths(cfg: dict, issues: list[Issue]) -> None:
                 ))
 
 
+_UPSTREAM_ROAST_REF_RE = re.compile(r"\{roast:([^}:]+)(?::([^}]+))?\}")
+
+
+def _parse_upstream_aliases(upstream: Any) -> dict[str, str]:
+    """Normalize `inputs.upstream_roasts` into an {alias_or_id: roast_id} mapping."""
+    if isinstance(upstream, dict):
+        return {str(k): str(v) for k, v in upstream.items() if v is not None}
+    if isinstance(upstream, str):
+        return {upstream: upstream} if upstream else {}
+    if isinstance(upstream, list):
+        return {str(item): str(item) for item in upstream if item is not None}
+    return {}
+
+
+def _resolve_input_roast_id(val: Any, aliases: dict[str, str]) -> str | None:
+    """Extract the resolved upstream roast ID from an `inputs.<key>` value."""
+    if not isinstance(val, str) or not val.strip():
+        return None
+    m = _UPSTREAM_ROAST_REF_RE.search(val)
+    if m:
+        ref = m.group(1)
+        return aliases.get(ref, ref)
+    for rid in aliases.values():
+        if rid and (val == rid or f"/{rid}/" in val or val.endswith(f"/{rid}")):
+            return rid
+    return None
+
+
+def _extract_candidates_selection_cfg(cfg: dict) -> str | None:
+    """Extract candidates_selection_cfg from top-level, analysis_config, or phaseA_3."""
+    for cand in (
+        cfg.get("candidates_selection_cfg"),
+        ((cfg.get("analysis_config") or {}).get("config") or {}).get("candidates_selection_cfg"),
+        (((cfg.get("phaseA_3") or {}).get("analysis") or {}).get("config") or {}).get("candidates_selection_cfg"),
+    ):
+        if isinstance(cand, str) and cand.strip():
+            return cand.strip()
+    return None
+
+
+def audit_upstream_roasts_consistency(cfg: dict, repo_root: Path, issues: list[Issue]) -> None:
+    """Audit intra-config and transitive upstream roast consistency."""
+    inputs = cfg.get("inputs")
+    if not isinstance(inputs, dict):
+        inputs = {}
+
+    aliases = _parse_upstream_aliases(inputs.get("upstream_roasts"))
+
+    # (a) Intra-config SvB / SvB_MA / nominal consistency
+    if aliases:
+        tracked_keys = (
+            "SvB",
+            "SvB_model",
+            "SvB_MA",
+            "SvB_MA_model",
+            "nominal_hists",
+            "jcm_hists",
+            "classifier_inputs",
+        )
+        resolved: dict[str, str] = {}
+        for k in tracked_keys:
+            rid = _resolve_input_roast_id(inputs.get(k), aliases)
+            if rid:
+                resolved[k] = rid
+
+        if "SvB" in resolved and "SvB_model" in resolved and resolved["SvB"] != resolved["SvB_model"]:
+            issues.append(Issue(
+                severity="ERROR",
+                category="CONSISTENCY",
+                key="inputs.SvB",
+                message=f"inputs.SvB resolves to roast '{resolved['SvB']}' while inputs.SvB_model resolves to '{resolved['SvB_model']}'",
+                suggestion="Align inputs.SvB and inputs.SvB_model to the same nominal roast",
+            ))
+
+        if "SvB_MA" in resolved and "SvB_MA_model" in resolved and resolved["SvB_MA"] != resolved["SvB_MA_model"]:
+            issues.append(Issue(
+                severity="ERROR",
+                category="CONSISTENCY",
+                key="inputs.SvB_MA",
+                message=f"inputs.SvB_MA resolves to roast '{resolved['SvB_MA']}' while inputs.SvB_MA_model resolves to '{resolved['SvB_MA_model']}'",
+                suggestion="Align inputs.SvB_MA and inputs.SvB_MA_model to the same nominal roast",
+            ))
+
+        svb_nominal_keys = [
+            k for k in ("SvB", "SvB_model", "SvB_MA", "SvB_MA_model", "nominal_hists") if k in resolved
+        ]
+        if len({resolved[k] for k in svb_nominal_keys}) > 1:
+            details = ", ".join(f"{k}={resolved[k]}" for k in svb_nominal_keys)
+            issues.append(Issue(
+                severity="ERROR",
+                category="CONSISTENCY",
+                key="inputs.upstream_roasts",
+                message=f"Nominal/SvB inputs resolve to different upstream roasts: {details}",
+                suggestion="Ensure SvB, SvB_MA, and nominal_hists all point to the same nominal roast",
+            ))
+
+        ref_key = next(
+            (k for k in ("nominal_hists", "SvB", "SvB_MA", "SvB_model", "SvB_MA_model") if k in resolved),
+            None,
+        )
+        if ref_key:
+            for extra_key in ("jcm_hists", "classifier_inputs"):
+                if extra_key in resolved and resolved[extra_key] != resolved[ref_key]:
+                    issues.append(Issue(
+                        severity="WARNING",
+                        category="CONSISTENCY",
+                        key=f"inputs.{extra_key}",
+                        message=f"inputs.{extra_key} resolves to roast '{resolved[extra_key]}' while inputs.{ref_key} resolves to '{resolved[ref_key]}'",
+                        suggestion=f"Verify whether {extra_key} is intentionally decoupled from {ref_key}",
+                    ))
+
+    # (b) Transitive upstream_pre_fvt / upstream_fvt / handoff check against roasts/<id>/config.yml
+    upstream_refs: list[tuple[str, str]] = []
+    seen_ids: set[str] = set()
+
+    for top_key in ("upstream_pre_fvt", "upstream_fvt"):
+        raw_val = cfg.get(top_key)
+        if isinstance(raw_val, str) and raw_val.strip():
+            ref = raw_val.strip()
+            up_id = aliases.get(ref, ref)
+            if up_id not in seen_ids:
+                seen_ids.add(up_id)
+                upstream_refs.append((top_key, up_id))
+
+    for handoff_key in ("input_handoff_eos", "fvt_handoff_eos"):
+        up_id = _resolve_input_roast_id(inputs.get(handoff_key), aliases)
+        if up_id and up_id not in seen_ids:
+            seen_ids.add(up_id)
+            upstream_refs.append((f"inputs.{handoff_key}", up_id))
+
+    compare_input_keys = (
+        "SvB",
+        "SvB_model",
+        "SvB_MA",
+        "SvB_MA_model",
+        "nominal_hists",
+        "jcm_hists",
+        "classifier_inputs",
+        "mixeddata_all",
+        "ttbar_psdata",
+    )
+
+    for source_key, up_id in upstream_refs:
+        up_cfg_path = repo_root / "roasts" / up_id / "config.yml"
+        if not up_cfg_path.is_file():
+            issues.append(Issue(
+                severity="INFO",
+                category="CONSISTENCY",
+                key=source_key,
+                message=f"Upstream roast config 'roasts/{up_id}/config.yml' not found locally; skipping transitive consistency check",
+                suggestion="Ensure upstream roast manifest is present if transitive validation is needed",
+            ))
+            continue
+
+        try:
+            up_cfg = yaml.safe_load(up_cfg_path.read_text(encoding="utf-8")) or {}
+        except Exception as e:
+            issues.append(Issue(
+                severity="WARNING",
+                category="CONSISTENCY",
+                key=source_key,
+                message=f"Failed to parse upstream roast config 'roasts/{up_id}/config.yml': {e}",
+            ))
+            continue
+
+        if not isinstance(up_cfg, dict):
+            continue
+
+        up_inputs = up_cfg.get("inputs")
+        if not isinstance(up_inputs, dict):
+            up_inputs = {}
+        up_aliases = _parse_upstream_aliases(up_inputs.get("upstream_roasts"))
+
+        mismatches: list[str] = []
+        for k in compare_input_keys:
+            cur_rid = _resolve_input_roast_id(inputs.get(k), aliases)
+            up_rid = _resolve_input_roast_id(up_inputs.get(k), up_aliases)
+            if cur_rid and up_rid and cur_rid != up_rid:
+                mismatches.append(f"{k}: current='{cur_rid}' vs upstream='{up_rid}'")
+
+        cur_cand = _extract_candidates_selection_cfg(cfg)
+        up_cand = _extract_candidates_selection_cfg(up_cfg)
+        if cur_cand != up_cand and (cur_cand is not None or up_cand is not None):
+            mismatches.append(f"candidates_selection_cfg: current={cur_cand!r} vs upstream={up_cand!r}")
+
+        if mismatches:
+            issues.append(Issue(
+                severity="ERROR",
+                category="CONSISTENCY",
+                key=source_key,
+                message=f"Upstream roast '{up_id}' (referenced by {source_key}) has mismatched inputs/settings: " + "; ".join(mismatches),
+                suggestion=f"Align inputs/settings with roasts/{up_id}/config.yml or regenerate upstream roast '{up_id}'",
+            ))
+
+
 _KNOWN_DATASETS_CACHE: dict[Path, set[str]] = {}
 
 
@@ -624,6 +820,7 @@ def validate_config(config_path: Path | str, repo_root: Path | None = None) -> V
     audit_year_eras_consistency(merged_cfg, issues)
     audit_flags_and_duplicates(merged_cfg, issues)
     audit_producer_consumer_paths(merged_cfg, issues)
+    audit_upstream_roasts_consistency(merged_cfg, root, issues)
     audit_filesystem_references(merged_cfg, root, issues)
 
     for i in issues:
