@@ -390,6 +390,8 @@ def main():
                 sys.exit(f"[orchard] submission failed:\n{r.stdout}\n{r.stderr}")
             return m.group(1)
 
+    key_now, code_dir_now = None, None
+
     def submit_packed(key: str, code_dir: str) -> dict:
         """Join a batch of up to --pack tasks of the same kind and code, run as one ORCHARD job.
 
@@ -400,6 +402,8 @@ def main():
         own run directory and train.done.
         """
         import fcntl
+        nonlocal key_now, code_dir_now
+        key_now, code_dir_now = key, code_dir
         kind = "evaluate" if evaluating else "train"
         lit = lambda p: p.replace("$USER", ruser)   # paths inside the batch file are used verbatim
         pack_dir = root / ".orchard_pack"
@@ -409,6 +413,21 @@ def main():
               "common": f"{lit(code_dir)}/{common}", "wf_rel": wf, "common_rel": common,
               "template": a.template, "key": key, "kind": kind, "t": time.time()}
         assigned = pack_dir / "assigned" / f"{label}.json"
+        if assigned.exists():
+            # A batch was submitted for this task but the instance that waited for it was stopped
+            # before it wrote its state file (driver interrupted and resumed): adopt that batch while
+            # its job is alive, instead of packing the task again into a second job (same run_dir).
+            try:
+                prev = json.loads(assigned.read_text())
+            except (OSError, ValueError):
+                prev = {}
+            alive = ("PENDING", "RUNNING", "REQUEUED", "COMPLETING", "CONFIGURING", "RESIZING", "SUSPENDED")
+            s = job_state(prev["job"]) if prev.get("job") else ""
+            if s.startswith(alive) or s.startswith("TRAIN_DONE"):
+                assigned.unlink(missing_ok=True)
+                (pack_dir / "pending" / f"{label}.json").unlink(missing_ok=True)
+                log(f"adopting ORCHARD job {prev['job']} (batch {prev.get('batch')}) assigned before a restart: {s}")
+                return _packed_state(prev)
         assigned.unlink(missing_ok=True)
         tmp = pack_dir / "pending" / f".{label}.tmp"
         tmp.write_text(json.dumps(me))
@@ -456,11 +475,15 @@ def main():
                     log(f"submitted ORCHARD job {job}: batch {blabel} of {n} {kind} task(s)")
                     continue
             time.sleep(10)
-        st = {"job": info["job"], "label": label, "key": key, "code_dir": code_dir, "run_dir": run_dir,
+        return _packed_state(info)
+
+    def _packed_state(info: dict) -> dict:
+        """Record the batch job this task runs in (state file), as for a single job."""
+        st = {"job": info["job"], "label": label, "key": key_now, "code_dir": code_dir_now, "run_dir": run_dir,
               "batch": info["batch"], "batch_run_dir": info["batch_run_dir"],
               "submitted": time.strftime("%F %T"), "attempt": state.get("attempt", 0) + 1}
         state_file.write_text(json.dumps(st, indent=1))
-        log(f"in ORCHARD job {st['job']} (batch {info['batch']}, {info['size']} tasks; attempt {st['attempt']})")
+        log(f"in ORCHARD job {st['job']} (batch {info['batch']}, {info.get('size', '?')} tasks; attempt {st['attempt']})")
         return st
 
     def submit():
