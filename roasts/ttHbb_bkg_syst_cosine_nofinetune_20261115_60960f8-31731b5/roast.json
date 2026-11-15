@@ -388,8 +388,19 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-15 14:59:47",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": "ttHbb_bkg_syst"
+  "category": "ttHbb_bkg_syst",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_cosine_nofinetune_20261115_60960f8-31731b5",
+    "ts": "2026-11-15 14:59:47",
+    "ok": true
+  }
 }
