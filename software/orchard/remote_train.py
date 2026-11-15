@@ -390,6 +390,8 @@ def main():
                 sys.exit(f"[orchard] submission failed:\n{r.stdout}\n{r.stderr}")
             return m.group(1)
 
+    key_now, code_dir_now = None, None
+
     def submit_packed(key: str, code_dir: str) -> dict:
         """Join a batch of up to --pack tasks of the same kind and code, run as one ORCHARD job.
 
@@ -400,6 +402,8 @@ def main():
         own run directory and train.done.
         """
         import fcntl
+        nonlocal key_now, code_dir_now
+        key_now, code_dir_now = key, code_dir
         kind = "evaluate" if evaluating else "train"
         lit = lambda p: p.replace("$USER", ruser)   # paths inside the batch file are used verbatim
         pack_dir = root / ".orchard_pack"
@@ -409,12 +413,29 @@ def main():
               "common": f"{lit(code_dir)}/{common}", "wf_rel": wf, "common_rel": common,
               "template": a.template, "key": key, "kind": kind, "t": time.time()}
         assigned = pack_dir / "assigned" / f"{label}.json"
+        if assigned.exists():
+            # A batch was submitted for this task but the instance that waited for it was stopped
+            # before it wrote its state file (driver interrupted and resumed): adopt that batch while
+            # its job is alive, instead of packing the task again into a second job (same run_dir).
+            try:
+                prev = json.loads(assigned.read_text())
+            except (OSError, ValueError):
+                prev = {}
+            alive = ("PENDING", "RUNNING", "REQUEUED", "COMPLETING", "CONFIGURING", "RESIZING", "SUSPENDED")
+            s = job_state(prev["job"]) if prev.get("job") else ""
+            if s.startswith(alive) or s.startswith("TRAIN_DONE"):
+                assigned.unlink(missing_ok=True)
+                (pack_dir / "pending" / f"{label}.json").unlink(missing_ok=True)
+                log(f"adopting ORCHARD job {prev['job']} (batch {prev.get('batch')}) assigned before a restart: {s}")
+                return _packed_state(prev)
         assigned.unlink(missing_ok=True)
         tmp = pack_dir / "pending" / f".{label}.tmp"
         tmp.write_text(json.dumps(me))
         tmp.rename(pack_dir / "pending" / f"{label}.json")
         log(f"waiting to be packed (up to {a.pack} {kind} tasks per ORCHARD job)")
+        (pack_dir / "claimed").mkdir(exist_ok=True)
         while True:
+            batch = None
             with open(pack_dir / "lock", "w") as lk:
                 fcntl.flock(lk, fcntl.LOCK_EX)
                 if assigned.exists():
@@ -432,35 +453,55 @@ def main():
                 group.sort(key=lambda t: t["t"])
                 if group and (len(group) >= a.pack or time.time() - group[0]["t"] >= a.pack_wait):
                     batch = group[:a.pack]
-                    names = "".join(t["label"] for t in batch)
-                    blabel = run_label(a.roast_id, f"batch_{kind}_{hashlib.sha1(names.encode()).hexdigest()[:8]}", "")
-                    bfile = f"{code_dir}/.orchard_batches/{blabel}.json"
-                    rem.run(f"mkdir -p {code_dir}/.orchard_batches && cat > {bfile} <<'ORCHARD_EOF'\n"
-                            f"{json.dumps(batch, indent=1)}\nORCHARD_EOF")
-                    n = len(batch)
-                    opts = ["--source", "none", "--time", a.time, "--cpus", str(n * a.pack_cpus),
-                            "--mem", f"{n * a.pack_mem}G", "--template-full", "", "--common", batch[0]["common_rel"]]
-                    if a.preempt:
-                        opts.insert(0, "--preempt")
-                    job = sbatch(f"cd {code_dir} && ORCHARD_BATCH={bfile} ORCHARD_MAX_RESTARTS={shlex.quote(a.max_restarts)} "
-                                 f"ORCHARD_CLASSIFIER_CONFIG_PATHS={shlex.quote(a.config_paths)} "
-                                 + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
-                                 + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
-                                 + (f" {a.submit_args}" if a.submit_args else "")
-                                 + f" {shlex.quote(blabel)} {shlex.quote(batch[0]['wf_rel'])}")
-                    brun = f"{proj}/runs/{blabel}"
+                    # claim the members (out of pending/) so no other instance packs them, then submit
+                    # WITHOUT the lock: sbatch can wait hours for a slot under the per-user submit limit,
+                    # and holding the lock meant no other task could pick up its finished batch meanwhile
                     for t in batch:
-                        (pack_dir / "assigned" / f"{t['label']}.json").write_text(
-                            json.dumps({"job": job, "batch": blabel, "batch_run_dir": brun, "size": n}))
-                        (pack_dir / "pending" / f"{t['label']}.json").unlink(missing_ok=True)
-                    log(f"submitted ORCHARD job {job}: batch {blabel} of {n} {kind} task(s)")
-                    continue
-            time.sleep(10)
-        st = {"job": info["job"], "label": label, "key": key, "code_dir": code_dir, "run_dir": run_dir,
+                        (pack_dir / "pending" / f"{t['label']}.json").replace(pack_dir / "claimed" / f"{t['label']}.json")
+            if batch is None:
+                time.sleep(10)
+                continue
+            names = "".join(t["label"] for t in batch)
+            blabel = run_label(a.roast_id, f"batch_{kind}_{hashlib.sha1(names.encode()).hexdigest()[:8]}", "")
+            bfile = f"{code_dir}/.orchard_batches/{blabel}.json"
+            n = len(batch)
+            try:
+                rem.run(f"mkdir -p {code_dir}/.orchard_batches && cat > {bfile} <<'ORCHARD_EOF'\n"
+                        f"{json.dumps(batch, indent=1)}\nORCHARD_EOF")
+                opts = ["--source", "none", "--time", a.time, "--cpus", str(n * a.pack_cpus),
+                        "--mem", f"{n * a.pack_mem}G", "--template-full", "", "--common", batch[0]["common_rel"]]
+                if a.preempt:
+                    opts.insert(0, "--preempt")
+                job = sbatch(f"cd {code_dir} && ORCHARD_BATCH={bfile} ORCHARD_MAX_RESTARTS={shlex.quote(a.max_restarts)} "
+                             f"ORCHARD_CLASSIFIER_CONFIG_PATHS={shlex.quote(a.config_paths)} "
+                             + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
+                             + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
+                             + (f" {a.submit_args}" if a.submit_args else "")
+                             + f" {shlex.quote(blabel)} {shlex.quote(batch[0]['wf_rel'])}")
+            except BaseException:
+                # give the members back to pending/ for the next packer
+                for t in batch:
+                    c = pack_dir / "claimed" / f"{t['label']}.json"
+                    if c.exists():
+                        c.replace(pack_dir / "pending" / f"{t['label']}.json")
+                raise
+            brun = f"{proj}/runs/{blabel}"
+            with open(pack_dir / "lock", "w") as lk:
+                fcntl.flock(lk, fcntl.LOCK_EX)
+                for t in batch:
+                    (pack_dir / "assigned" / f"{t['label']}.json").write_text(
+                        json.dumps({"job": job, "batch": blabel, "batch_run_dir": brun, "size": n}))
+                    (pack_dir / "claimed" / f"{t['label']}.json").unlink(missing_ok=True)
+            log(f"submitted ORCHARD job {job}: batch {blabel} of {n} {kind} task(s)")
+        return _packed_state(info)
+
+    def _packed_state(info: dict) -> dict:
+        """Record the batch job this task runs in (state file), as for a single job."""
+        st = {"job": info["job"], "label": label, "key": key_now, "code_dir": code_dir_now, "run_dir": run_dir,
               "batch": info["batch"], "batch_run_dir": info["batch_run_dir"],
               "submitted": time.strftime("%F %T"), "attempt": state.get("attempt", 0) + 1}
         state_file.write_text(json.dumps(st, indent=1))
-        log(f"in ORCHARD job {st['job']} (batch {info['batch']}, {info['size']} tasks; attempt {st['attempt']})")
+        log(f"in ORCHARD job {st['job']} (batch {info['batch']}, {info.get('size', '?')} tasks; attempt {st['attempt']})")
         return st
 
     def submit():
