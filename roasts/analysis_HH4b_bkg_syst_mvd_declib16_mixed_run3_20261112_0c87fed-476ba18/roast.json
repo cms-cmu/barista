@@ -1,0 +1,847 @@
+{
+  "id": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18",
+  "label": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3",
+  "analysis": "HH4b",
+  "created": "2026-11-12 23:23:21",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "0c87fed095220ce3de5420c65e68497b71f34002",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "476ba18a82066c8ec00d8483f5e46161ec1cf13d",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3.yml",
+    "captured": "config.yml",
+    "sha256": "7ed326cc5566120a3c9fd48a756ab336f71141e190291cb918a9bc5309eece95",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3.yml",
+        "sha256": "173d53c541ca0b2b5d60c2e6229f79ea6a9ca85d15a76951241e125089fda938"
+      },
+      {
+        "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_declib16_run3_ftfix.yml",
+        "sha256": "52245a622c1e190d0b7677b8f757c3c339da19cfcee127dae2638a699dd065c8"
+      },
+      {
+        "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mixed_run3_ftfix.yml",
+        "sha256": "68f20759b57ba539e7078f95a094dc17c2bc575ab1fe36c0259e715a814e0653"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 19,
+      "infos": 0
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16_run3_20261011_b948dfc-33f3094",
+        "barista": "b948dfc1eb2415a667048072172066b142a98adb",
+        "coffea4bees": "33f3094d441e331d0ca55f491cb00812c8f90eef",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_20261011_b948dfc-33f3094",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+        "barista": "1c7c8db8b8ffa5c4818d6e2aa175f599e12b29a9",
+        "coffea4bees": "d5ec5c4daff4f9059b75bad8dd183b9d1c917a26",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_ftfix_20261106_1c7c8db-d5ec5c4",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "barista": "956d4bf895a8c6e66cc9a6e637dec502ded0edb6",
+        "coffea4bees": "aca8a4e1346a07083b2a8ce9faab575451bab8bb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_20260926_956d4bf-aca8a4e",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_20261008_f839489-a481023",
+        "barista": "f839489ab9eb53565dcd43b6e7f9c1b8160f6248",
+        "coffea4bees": "a481023c6da813c474e6e037f65e2c2cf8b94091",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_20261008_f839489-a481023",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_nontight_20260925_0c53380-193851f",
+        "barista": "0c533803dc05a4f3e85aa29c6644aec1007caad3",
+        "coffea4bees": "193851fe045a93f086da6ee1222f1602161543b7",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_nontight_20260925_0c53380-193851f",
+        "archived": true
+      },
+      {
+        "id": "analysis_HH4b_bkg_syst_mixed_run3_ftfix_20261111_526ece9-e14d68e",
+        "barista": "526ece9a455b40ecde3d780612a6a2f3e361e85e",
+        "coffea4bees": "e14d68e4b4106aaafc86d4431fc12fe9a14c4542",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_mixed_run3_ftfix_20261111_526ece9-e14d68e",
+        "archived": true
+      },
+      {
+        "id": "mvd_run3_declib16_warm_20261108_b02b7c1-7321448",
+        "barista": "b02b7c12c38aea070509845202b2314f63b89448",
+        "coffea4bees": "7321448a5fa6bbdd3966a85392231f9c90fa9e37",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_declib16_warm_20261108_b02b7c1-7321448",
+        "archived": true
+      },
+      {
+        "id": "mvd_declib16_run3_20261011_c41b495-f2d2cf8",
+        "barista": "c41b4957476733548c719de071c6861c7c30109c",
+        "coffea4bees": "f2d2cf8332117998a8cbfe9ac497a9150b61ae47",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_declib16_run3_20261011_c41b495-f2d2cf8",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:mixeddata}/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_20260926_956d4bf-aca8a4e"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      },
+      "nominal_hists": {
+        "url": "{roast:mvd}/{roast:mvd:output_path}V4/histAll_MvD.coffea",
+        "roast": "mvd_run3_declib16_warm_20261108_b02b7c1-7321448"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_b}/handoff/classifier_inputs_{roast:nominal_b:id}.json",
+        "roast": "nominal_run3_20261008_f839489-a481023"
+      },
+      "SvB": {
+        "url": "{roast:mvd}/friend/SvB_MvD/result.json@@analysis.0.merged",
+        "roast": "mvd_run3_declib16_warm_20261108_b02b7c1-7321448"
+      },
+      "SvB_model": {
+        "url": "{roast:mvd}/classifier/SvB_MvD/result.json",
+        "roast": "mvd_run3_declib16_warm_20261108_b02b7c1-7321448"
+      },
+      "analysis_config_noJCM": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/analysis_config_noJCM.yml",
+        "roast": "nominal_run3_nontight_20260925_0c53380-193851f"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-12 23:29:00",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "bc17fc193d88"
+        },
+        {
+          "ts": "2026-11-12 23:36:44",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:37:51",
+          "cores": 8,
+          "extra": "--rerun-triggers params input software-env code -n",
+          "user_extra": "--rerun-triggers params input software-env code",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:39:24",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:40:21",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:41:11",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:53:16",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-12 23:54:08",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_AB",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-13 03:06:12",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_C",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-13 03:07:17",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_C",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-13 09:35:17",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-13 09:36:02",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-13 09:36:44",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "b8554ce21129"
+        },
+        {
+          "ts": "2026-11-13 11:13:32",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 11:14:00",
+          "cores": 8,
+          "extra": "--forcerun run_two_stage_closure -n",
+          "user_extra": "--forcerun run_two_stage_closure",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 11:14:26",
+          "cores": 8,
+          "extra": "--forcerun run_two_stage_closure",
+          "user_extra": "--forcerun run_two_stage_closure",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 15:28:56",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 15:29:45",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 18:08:38",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "7ed326cc5566"
+        },
+        {
+          "ts": "2026-11-13 18:09:29",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_F",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "7ed326cc5566"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4_MVD",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_mvd_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-13 11:36:49",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_C4_MVD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        },
+        {
+          "ts": "2026-11-13 11:37:36",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_0c87fed-476ba18_BKG_C4_MVD",
+          "ssh": "jda102@cmslpc371.fnal.gov",
+          "config_sha256": "4cda9dd2fa7f"
+        }
+      ]
+    }
+  ],
+  "train_on": "orchard",
+  "eval_on": "orchard",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/barista",
+      "ssh": "jda102@cmslpc371.fnal.gov",
+      "checked_out": "2026-11-12 23:28:09"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/",
+    "ts": "2026-11-15 17:02:28",
+    "ok": true,
+    "pages": [
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_A_2_make_subsamples/study/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_4_mvd_closure/cutflow_MvD_closure_v0.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_4_mvd_closure/plots_MvD_closure_v0/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_C_FvT/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin12/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin2/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_3_stats/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin12/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin2/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/bkg_syst_F_4_stats_mixeddata/summary.html",
+      "roasts/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-12 23:23:21",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-12 23:23:28",
+      "event": "edit",
+      "note": "BKG_C4 dropped (FvT-specific C_4 closure); BKG_C on cmslpc (falcon login-node watchdog), GPU work on ORCHARD"
+    },
+    {
+      "ts": "2026-11-12 23:28:09",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:28:53",
+      "event": "hotpatch",
+      "host": "cmslpc",
+      "files": [
+        "software/orchard/*",
+        "src/classifier/workflow/Snakefile",
+        "src/tools/roast.py",
+        "coffea4bees: processor_HH4b, event_weights, filling_histograms, MvD.py, convert_closure_coffea_to_root.py, bkg_syst F_1/C_3/common/c_model_config, new configs"
+      ],
+      "note": "barista orchard-mps-synthetic (aacfa05d) + coffea4bees mvd-bkg-syst (6483ec301) applied as uncommitted changes (new files git add -N)"
+    },
+    {
+      "ts": "2026-11-12 23:29:00",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:36:44",
+      "event": "config-edited",
+      "sha256": "b8554ce21129"
+    },
+    {
+      "ts": "2026-11-12 23:36:44",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:37:51",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:39:24",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:40:21",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:41:11",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:53:16",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-12 23:54:08",
+      "event": "resume",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 03:06:12",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 03:07:17",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 09:35:17",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 09:36:02",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 09:36:44",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 09:43:18",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-13 09:43:43",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 10:00:43",
+      "note": "added step BKG_C4_MVD (MvD kinematic closure of mix_v0; coffea4bees mvd-bkg-syst hot patch), to run after BKG_F",
+      "event": "edit"
+    },
+    {
+      "ts": "2026-11-13 11:13:32",
+      "event": "config-edited",
+      "sha256": "4cda9dd2fa7f"
+    },
+    {
+      "ts": "2026-11-13 11:13:32",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 11:14:00",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 11:14:26",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 11:36:49",
+      "event": "submit",
+      "step": "BKG_C4_MVD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 11:37:36",
+      "event": "submit",
+      "step": "BKG_C4_MVD",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 11:45:53",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-13 11:47:26",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 12:01:50",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-13 12:02:25",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 15:28:56",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 15:29:45",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 17:20:23",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 17:20:36",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 18:08:38",
+      "event": "config-edited",
+      "sha256": "7ed326cc5566"
+    },
+    {
+      "ts": "2026-11-13 18:08:38",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 18:09:29",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 18:41:17",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 18:41:55",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 19:20:57",
+      "event": "note",
+      "note": "F_4 subsample mode rerun; per-era GoF finding"
+    },
+    {
+      "ts": "2026-11-15 17:02:15",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-15 17:02:28",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-15 17:02:45",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-15 17:02:48",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "Run 3 (22+23) bkg_syst of the MvD-declustered background (mvd_run3_declib16_warm) measured with the MvD method on the 16 mixed-data subsamples (analysis_HH4b_bkg_syst_mixed_run3_ftfix_20261111). BKG_C on cmslpc, MvD trainings + evaluations on CMU ORCHARD. Code: hot patches = barista orchard-mps-synthetic + coffea4bees mvd-bkg-syst (6483ec301).\n2026-11-13: F_4 rerun with f4_observation: subsample (mix_v0 vs its own model v0; coffea4bees 8fc37a5bf hot patch). The default F_4 (16-subsample mixed average vs the nominal, which is fitted to real 4b data) gave 7 sigma: mixed is 6 % above real data, 20 % in the SvB tail. Subsample F_4: obs ~ exp limits, 0-0.3 sigma, but saturated GoF p=0 (247 vs toys ~85 at rebin12): per-era normalization of model v0 (2022preEE 0.947, 2022EE 1.002, 2023preBPix 0.947, 2023BPix 1.071; chi2 268 -> 105 with per-era normalization). One JCM per subsample for all eras; next 22+23 MvD iteration: per_year_jcm: true.",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_20261112_0c87fed-476ba18",
+    "ts": "2026-11-15 17:02:48",
+    "ok": true
+  }
+}
