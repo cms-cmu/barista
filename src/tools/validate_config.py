@@ -40,7 +40,6 @@ except ImportError:
 
 # Default configs used in the CI pipeline
 DEFAULT_CI_CONFIGS = [
-    "coffea4bees/workflows/config/nominal_run3_ci.yml",
     "coffea4bees/workflows/config/nominal_run3.yml",
     "coffea4bees/workflows/config/lowpt_run3.yml",
     "coffea4bees/workflows/config/lowpt_run2.yml",
