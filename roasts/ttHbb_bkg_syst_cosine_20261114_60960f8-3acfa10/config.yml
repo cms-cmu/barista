@@ -391,7 +391,7 @@ channels:
     combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
 upstream_pre_fvt: pre_fvt
 stat_analysis_rebins:
-- 24
+- 20
 f3_rebins:
-- 24
+- 20
 closure_extra_args: --ignore_failures

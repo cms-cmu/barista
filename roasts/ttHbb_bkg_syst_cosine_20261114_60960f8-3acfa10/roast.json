@@ -17,7 +17,7 @@
   "config": {
     "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_cosine.yml",
     "captured": "config.yml",
-    "sha256": "a3132f04103a08e4ebda843870bbb924875a41c52c79e220c9f07a272eb9533d",
+    "sha256": "a9328efb665ed8ed4ec530bd7df5ee1c0fee7f56f1e2f5f806e016d206772c07",
     "base": [
       {
         "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc.yml",
@@ -266,6 +266,32 @@
           "window": "ttHbb_bkg_syst_cosine_60960f8-3acfa10_BKG_F",
           "ssh": "algomez@cmslpc324.fnal.gov",
           "config_sha256": "a3132f04103a"
+        },
+        {
+          "ts": "2026-11-16 13:52:21",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_bkg_syst_cosine_60960f8-3acfa10_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "a9328efb665e"
+        },
+        {
+          "ts": "2026-11-16 13:53:23",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "ttHbb_bkg_syst_cosine_60960f8-3acfa10_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "a9328efb665e"
         }
       ]
     }
@@ -285,7 +311,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/",
-    "ts": "2026-11-16 13:27:31",
+    "ts": "2026-11-16 14:13:11",
     "ok": true,
     "pages": [
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
@@ -366,9 +392,9 @@
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html",
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
-      "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_3_stats/summary.html",
-      "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
       "output/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/bkg_syst_F_4_stats_mixeddata/summary.html",
       "roasts/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10/index.html"
     ]
@@ -470,13 +496,54 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-16 13:52:21",
+      "event": "config-edited",
+      "sha256": "a9328efb665e"
+    },
+    {
+      "ts": "2026-11-16 13:52:21",
+      "event": "resume",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 13:53:23",
+      "event": "resume",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 14:12:32",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 14:13:11",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 14:13:47",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 14:14:10",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "CosineAnnealing + FinetuneStep using pre_fvt ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4",
   "category": "ttHbb_bkg_syst",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_cosine_20261114_60960f8-3acfa10",
-    "ts": "2026-11-16 13:48:24",
+    "ts": "2026-11-16 14:14:10",
     "ok": true
   }
 }
