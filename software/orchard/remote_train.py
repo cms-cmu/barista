@@ -434,6 +434,8 @@ def main():
         tmp.rename(pack_dir / "pending" / f"{label}.json")
         log(f"waiting to be packed (up to {a.pack} {kind} tasks per ORCHARD job)")
         (pack_dir / "claimed").mkdir(exist_ok=True)
+        (pack_dir / "stale").mkdir(exist_ok=True)
+        STALE_PENDING_S = 600   # no heartbeat for 10 min (the loop beats every 10 s)
         while True:
             batch = None
             with open(pack_dir / "lock", "w") as lk:
@@ -442,9 +444,22 @@ def main():
                     info = json.loads(assigned.read_text())
                     assigned.unlink()
                     break
+                # heartbeat: a waiting instance keeps its pending entry's mtime fresh; an entry whose
+                # instance died (killed driver, failed upload) goes stale and is set aside, so it can
+                # neither lead nor join a batch (it poisoned every batch while its upload was missing)
+                mine = pack_dir / "pending" / f"{label}.json"
+                if mine.exists():
+                    os.utime(mine)
+                elif (pack_dir / "stale" / mine.name).exists() and not (pack_dir / "claimed" / mine.name).exists():
+                    # set aside (its workflow never reached ORCHARD): fail, so the rule's retry ships it again
+                    (pack_dir / "stale" / mine.name).unlink(missing_ok=True)
+                    sys.exit(f"[orchard] {label}: set aside by a packer (no workflow on ORCHARD); failing for a retry")
                 group = []
                 for p in (pack_dir / "pending").glob("*.json"):
                     try:
+                        if time.time() - p.stat().st_mtime > STALE_PENDING_S:
+                            p.replace(pack_dir / "stale" / p.name)
+                            continue
                         t = json.loads(p.read_text())
                     except (OSError, ValueError):
                         continue
@@ -461,6 +476,21 @@ def main():
             if batch is None:
                 time.sleep(10)
                 continue
+            # every member's workflow must be on ORCHARD (submit.sh reads the first one; a member whose
+            # upload failed made the whole batch fail): set missing ones aside, submit the rest
+            chk = rem.run("; ".join(f"test -f {shlex.quote(t['wf'])} || echo MISSING {t['label']}" for t in batch),
+                          check=False)
+            missing = set(re.findall(r"MISSING (\S+)", chk.stdout))
+            if missing:
+                for t in batch:
+                    if t["label"] in missing:
+                        c = pack_dir / "claimed" / f"{t['label']}.json"
+                        if c.exists():
+                            c.replace(pack_dir / "stale" / c.name)
+                log(f"set aside {len(missing)} batch member(s) without their workflow on ORCHARD: {sorted(missing)}")
+                batch = [t for t in batch if t["label"] not in missing]
+                if not batch:
+                    continue
             names = "".join(t["label"] for t in batch)
             blabel = run_label(a.roast_id, f"batch_{kind}_{hashlib.sha1(names.encode()).hexdigest()[:8]}", "")
             bfile = f"{code_dir}/.orchard_batches/{blabel}.json"
