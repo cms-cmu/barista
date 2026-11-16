@@ -1,0 +1,654 @@
+{
+  "id": "ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4",
+  "label": "ttHbb_bkg_syst_declib16nc",
+  "analysis": "ttHbb",
+  "created": "2026-11-13 22:57:53",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "60960f825cd270a699a8aa87c1542314d3123a95",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "baa2ba42eb4758d804bf0de624fbbab5380c6161",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc.yml",
+    "captured": "config.yml",
+    "sha256": "425fd1cb35bf30fad9a6379482a93ab72884cf5c60a9e93b0ecb5b8e068cb173",
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 10,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "barista": "3ab83026785c9e59203bb5d9fa426e83a828786d",
+        "coffea4bees": "b2d2dec126049807fe4bacb340b34f09022dc49b",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "barista": "c68b6eff579870c69b16db0f99e9dd41585af5d5",
+        "coffea4bees": "c250a1195c4300bed213dbb420dcfcebbd713241",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16nc_multijet.yml",
+        "roast": "declib16nc_run2_20261003_3ab8302-b2d2dec"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "nominal_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}histAll_{roast:nominal:label}.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "SvB_MA": {
+        "url": "{roast:nominal}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      },
+      "SvB_MA_model": {
+        "url": "{roast:nominal}/classifier/SvB_MA_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261029_c68b6ef-c250a11"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-13 23:14:59",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_AB",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-14 01:28:33",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 01:29:56",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 10:41:51",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 10:44:31",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 11:01:54",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 11:04:06",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-bb7db9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "425fd1cb35bf"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-14 10:43:27",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_C4",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 10:43:58",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_C4",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 11:11:17",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_C4",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 11:11:35",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_C4",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-14 13:19:11",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 13:19:29",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 17:45:26",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 17:45:47",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 21:06:19",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-14 21:25:25",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-16 12:47:24",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        },
+        {
+          "ts": "2026-11-16 12:50:16",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_60960f8-baa2ba4_BKG_F",
+          "ssh": "algomez@cmslpc324.fnal.gov",
+          "config_sha256": "425fd1cb35bf"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/barista",
+      "ssh": "algomez@cmslpc324.fnal.gov",
+      "checked_out": "2026-11-13 22:59:45"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/barista",
+      "checked_out": "2026-11-13 23:03:20"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/",
+    "ts": "2026-11-16 13:26:14",
+    "ok": true,
+    "pages": [
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_C_FvT/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_3_stats/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/bkg_syst_F_4_stats_mixeddata/summary.html",
+      "roasts/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-13 22:57:53",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-13 22:59:45",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-13 23:00:27",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-13 23:03:20",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-13 23:14:59",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 01:28:33",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 01:29:56",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 10:41:51",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 10:43:27",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 10:43:58",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 10:44:31",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 11:01:54",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 11:04:06",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-14 11:11:17",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 11:11:35",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 13:19:11",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 13:19:29",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 17:32:15",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-14 17:45:26",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 17:45:47",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 17:47:27",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-14 21:06:19",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 21:25:25",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-14 22:12:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 12:47:24",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 12:50:16",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 13:26:14",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 13:46:25",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 13:46:54",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "FixedStep + FinetuneStep (lr 1e-4) baseline with corner veto (20261029 nominal SvB/SvB_MA)",
+  "category": "ttHbb_bkg_syst",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_declib16nc_20261113_60960f8-baa2ba4",
+    "ts": "2026-11-16 13:46:54",
+    "ok": true
+  }
+}

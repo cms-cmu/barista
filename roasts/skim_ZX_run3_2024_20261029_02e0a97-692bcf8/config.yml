@@ -1,0 +1,78 @@
+label: "skim_ZX_run3_2024"
+output_path: "output/skim_ZX_run3_2024/"
+
+# Single file (the runner auto-wraps a bare dataset yml), so the write-back from
+# merge_yaml_datasets is a drop-in TT.yml rather than a monolith of every dataset.
+dataset_location: "coffea4bees/metadata/datasets/"
+
+dataset:
+  - "ZH4b"
+  - "ZZ4b"
+  - "ggZH4b"
+
+years:
+  - "2024"
+
+skimmer:
+  # skimmer_config is deliberately left at its default,
+  # coffea4bees/skimmer/metadata/HH4b.yml, so the selection (loosePtForSkim, the
+  # skip_collections/skip_branches lists, and genTtbarId's survival) is identical
+  # to the inclusive Run 3 production. Only the destination, the resume key and
+  # the HLT override are set here.
+  runner:
+    condor_cores: 1
+    worker_memory: 8GB
+    # 10000, not HH4b.yml's default 100000: at 100000 with 8GB workers the
+    # TTbb_SemiLeptonic_2023_BPix job died with KilledWorker (4 workers lost on
+    # the same chunk). The Run 2 TTbb skim used 10000 at the same worker_memory
+    # and completed, so this matches a configuration proven on these samples.
+    # picosize stays 100000 so output files are not needlessly fragmented
+    # (chunks accumulate into output files; only processing granularity changes).
+    chunksize: 100000
+    picosize: 100000
+    basketsize: 10000
+    condor: true
+    # false on purpose: each job builds its own condor cluster, which avoids the
+    # shared-dask scheduler-file race. Only 15 jobs, so the extra startup is cheap.
+    shared_dask: false
+    run_performance: true
+    condor_transfer_input_files:
+      - src/
+      - coffea4bees/skimmer/
+      - coffea4bees/analysis/
+      - coffea4bees/metadata/
+    # Site policy set from the measured replica map, not guessed. T1_US_FNAL_Disk
+    # holds a COMPLETE copy of 14 of the 15 TTbb dataset/eras -- the same site as
+    # the workers, so reads are local. The one exception,
+    # TTbb_Hadronic/2023_BPix, is complete at T2_US_Caltech.
+    # T1_US_FNAL_Disk must be listed: without it 10 of 15 fall back to foreign
+    # replicas (CNAF, JINR) or to T1_US_FNAL_Tape, and a first parity test lost
+    # 4 of 5 input files to silent read failures via T2_US_Purdue.
+    allowlist_sites:
+      - T1_US_FNAL_Disk
+      - T3_US_FNALLPC
+      - T2_US_Caltech
+      - T2_US_Wisconsin
+      - T2_US_Nebraska
+      - T2_US_Florida
+      - T2_US_MIT
+      - T3_US_Baylor
+      - T3_US_Rutgers
+  config:
+    base_path: root://cmseos.fnal.gov//store/user/cguintob/XX4b/Run3_2024_skims/
+    # Pinned, not auto-generated: lets a re-run after an eviction resume from the
+    # chunks already written instead of redoing the era.
+    campaign: ZX-skim-run3-2024
+    step: 100000
+    loosePtForSkim: true
+    # Pin the object-selection thresholds to match the inclusive productions: the
+    # default file's era_overrides block sets the 2023 jet selected.pt_min to 25
+    # (added 2026-06-02), but the inclusive 2023 picoAODs were skimmed when it was
+    # hardcoded 30. Measured effect on the nJet>=4 gate: ~+5%. Identical to the
+    # default for 2022 and 2024. See that file's header.
+    object_selection_cfg: coffea4bees/analysis/metadata/object_selection_thresholds_run3_skim_parity.yml
+    # NO config_overrides here, deliberately. The inclusive 2024 picoAOD IS
+    # HLT-filtered (trigger OR passes 100.0%), and today's default for Run 3 MC
+    # is cut_on_HLT_decision=True, so the default already matches this era's
+    # inclusive partner. Adding the 2022/2023 override here would break the
+    # per-era acceptance match in the other direction.
