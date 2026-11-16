@@ -245,8 +245,25 @@
       "event": "publish",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-16 12:49:57",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 12:53:28",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "",
-  "category": ""
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261106_0065bef-0b95131",
+    "ts": "2026-11-16 12:53:28",
+    "ok": true
+  }
 }
