@@ -284,7 +284,7 @@ DEFAULT_CONFIG = {
             "profile": "software/snakemake/profiles/gcp",
             "image": "us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest",
             "enable_cvmfs": False,
-            "eval_mem_gb": 24,
+            "eval_mem_gb": 36,
             "cores": 16,
         },
     },
@@ -632,7 +632,7 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "profile": "software/snakemake/profiles/gcp",
             "image": "us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest",
             "enable_cvmfs": False,
-            "eval_mem_gb": 24,
+            "eval_mem_gb": 36,
             "cores": 16,
         }
     if host == "bridges2" and "bridges2" not in cfg.get("hosts", {}):
