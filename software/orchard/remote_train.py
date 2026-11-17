@@ -375,15 +375,21 @@ def main():
             return "UNREACHABLE"
         return ("TRAIN_DONE " if "TRAIN_DONE" in r.stdout else "") + (r.stdout.split()[0] if r.stdout.split() else "UNKNOWN")
 
-    def sbatch(cmd: str) -> str:
-        """Run a submit.sh command on ORCHARD; wait while the per-user submit limit is reached."""
+    def sbatch(cmd: str, beat=None) -> str:
+        """Run a submit.sh command on ORCHARD; wait while the per-user submit limit is reached
+        (calling beat() meanwhile, e.g. to keep a packed batch's claims alive)."""
         while True:
+            if beat:
+                beat()
             r = rem.run(cmd, check=False)
             # ORCHARD's QOS caps a user at a few submitted jobs (general: 5). A workflow with more models
             # than that (bkg_syst subsamples) waits here for a slot instead of failing the rule.
             if re.search(r"QOSMaxSubmitJob|AssocMaxSubmitJob|MaxSubmitJobs", r.stdout + r.stderr):
                 log(f"ORCHARD queue full for this user (submit limit); retrying in {a.poll} s")
-                time.sleep(a.poll)
+                for _ in range(max(1, int(a.poll // 60))):
+                    if beat:
+                        beat()
+                    time.sleep(min(60, a.poll))
                 continue
             m = re.search(r"Submitted batch job (\d+)", r.stdout)
             if not m:
@@ -436,6 +442,7 @@ def main():
         (pack_dir / "claimed").mkdir(exist_ok=True)
         (pack_dir / "stale").mkdir(exist_ok=True)
         STALE_PENDING_S = 600   # no heartbeat for 10 min (the loop beats every 10 s)
+        STALE_CLAIM_S = 3600    # a packer beats its claims between submit attempts (one ORCHARD call: <= ~30 min)
         while True:
             batch = None
             with open(pack_dir / "lock", "w") as lk:
@@ -454,6 +461,15 @@ def main():
                     # set aside (its workflow never reached ORCHARD): fail, so the rule's retry ships it again
                     (pack_dir / "stale" / mine.name).unlink(missing_ok=True)
                     sys.exit(f"[orchard] {label}: set aside by a packer (no workflow on ORCHARD); failing for a retry")
+                # a claim whose packer died (killed driver) would leave its members waiting forever:
+                # claims carry the packer's heartbeat too; without one for an hour they go back to pending
+                for c in (pack_dir / "claimed").glob("*.json"):
+                    try:
+                        if time.time() - c.stat().st_mtime > STALE_CLAIM_S:
+                            c.replace(pack_dir / "pending" / c.name)
+                            os.utime(pack_dir / "pending" / c.name)
+                    except OSError:
+                        pass
                 group = []
                 for p in (pack_dir / "pending").glob("*.json"):
                     try:
@@ -502,7 +518,12 @@ def main():
                         "--mem", f"{n * a.pack_mem}G", "--template-full", "", "--common", batch[0]["common_rel"]]
                 if a.preempt:
                     opts.insert(0, "--preempt")
-                job = sbatch(f"cd {code_dir} && ORCHARD_BATCH={bfile} ORCHARD_MAX_RESTARTS={shlex.quote(a.max_restarts)} "
+                def _beat_claims():
+                    for t in batch:
+                        c = pack_dir / "claimed" / f"{t['label']}.json"
+                        if c.exists():
+                            os.utime(c)
+                job = sbatch(beat=_beat_claims, cmd=f"cd {code_dir} && ORCHARD_BATCH={bfile} ORCHARD_MAX_RESTARTS={shlex.quote(a.max_restarts)} "
                              f"ORCHARD_CLASSIFIER_CONFIG_PATHS={shlex.quote(a.config_paths)} "
                              + (f"ORCHARD_PROJECT={proj} " if a.orchard_project else "")
                              + "software/orchard/submit.sh " + " ".join(shlex.quote(o) for o in opts)
