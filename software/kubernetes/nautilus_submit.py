@@ -390,7 +390,7 @@ spec:
                 export PATH="/usr/local/nvidia/bin:$PATH"
             fi
             if [ -d /usr/local/nvidia/lib64 ]; then
-                export LD_LIBRARY_PATH="/usr/local/nvidia/lib64:${LD_LIBRARY_PATH:-}"
+                export LD_LIBRARY_PATH="/usr/local/nvidia/lib64:${{LD_LIBRARY_PATH:-}}"
             fi
             export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
             chown "$(id -u):$(id -g)" {WORKDIR}/proxy/x509_proxy 2>/dev/null || true

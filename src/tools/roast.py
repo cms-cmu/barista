@@ -2083,8 +2083,8 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                     cpu: "2"
                     memory: "4Gi"
                   requests:
-                    cpu: "2"
-                    memory: "4Gi"
+                    cpu: "500m"
+                    memory: "2Gi"
                 volumeMounts:
                 - mountPath: /workspace
                   name: ceph-storage
