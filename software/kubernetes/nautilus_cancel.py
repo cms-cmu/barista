@@ -5,6 +5,14 @@ import subprocess
 import sys
 
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
+CONTEXT = os.environ.get("NAUTILUS_CONTEXT", "").strip()
+
+
+def find_kubectl():
+    import shutil
+    if not CONTEXT and os.path.exists("/workspace/shared/bin/kubectl"):
+        return "/workspace/shared/bin/kubectl"
+    return shutil.which("kubectl") or "kubectl"
 
 
 def main():
@@ -16,8 +24,12 @@ def main():
     if jobid.startswith("local_job_"):
         sys.exit(0)
 
+    cmd = [find_kubectl()]
+    if CONTEXT:
+        cmd.extend(["--context", CONTEXT])
+    cmd.extend(["delete", "job", jobid, "-n", NAMESPACE, "--ignore-not-found"])
     subprocess.run(
-        ["kubectl", "delete", "job", jobid, "-n", NAMESPACE, "--ignore-not-found"],
+        cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
