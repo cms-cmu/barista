@@ -241,27 +241,14 @@
   "publish": {
     "eos": "/eos/user/c/cguintob/www/HH4b/prod/nominal_run3_2024_20261111_59c15bc-9825666",
     "url": "https://cguintob.web.cern.ch/HH4b/prod/nominal_run3_2024_20261111_59c15bc-9825666/",
-    "ts": "2026-11-13 21:23:37",
-    "ok": true,
+    "ts": "2026-11-16 14:52:13",
+    "ok": false,
     "pages": [
       "output/FvT_nominal/plots/analyze/HCR/index_group_1.html",
       "output/FvT_nominal/plots/analyze/index.html",
       "output/FvT_nominal/plots/index.html",
       "output/FvT_nominal/training_summary.html",
       "output/FvT_nominal/yields.html",
-      "output/Run3_2024_nominal/FvT_closure/cutflow_FvT_closure.html",
-      "output/Run3_2024_nominal/FvT_closure/plots_FvT_closure/index.html",
-      "output/Run3_2024_nominal/FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
-      "output/Run3_2024_nominal/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
-      "output/Run3_2024_nominal/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
-      "output/Run3_2024_nominal/PhaseB_1_computeJCM/cutflow_NoJCM.html",
-      "output/Run3_2024_nominal/PhaseB_1_computeJCM/cutflow_wJCM.html",
-      "output/Run3_2024_nominal/PhaseB_1_computeJCM/plots_wJCM/index.html",
-      "output/Run3_2024_nominal/PhaseC_4_FvT_closure/cutflow_FvT_closure.html",
-      "output/Run3_2024_nominal/PhaseC_4_FvT_closure/plots_FvT_closure/index.html",
-      "output/Run3_2024_nominal/PhaseC_4_FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
-      "output/Run3_2024_nominal/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
-      "output/Run3_2024_nominal/PhaseC_4_FvT_closure/ttbar_MC_vs_d3_cutflow.html",
       "output/SvB_nominal/plots/analyze/HCR/index_group_1.html",
       "output/SvB_nominal/plots/analyze/index.html",
       "output/SvB_nominal/plots/index.html",
@@ -394,6 +381,42 @@
     },
     {
       "ts": "2026-11-13 21:23:37",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 13:54:16",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 13:55:08",
+      "event": "publish",
+      "host": "falcon",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 14:49:51",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 14:50:02",
+      "event": "publish",
+      "host": "falcon",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-16 14:52:09",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-16 14:52:13",
       "event": "publish",
       "host": "falcon",
       "ok": true
