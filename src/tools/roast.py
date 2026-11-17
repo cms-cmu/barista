@@ -1877,7 +1877,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         {unlock.strip()}
         # 1. Capture visual rulegraph before execution
         echo "=== generating rulegraph SVG ===" | tee -a "$LOG"
-        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | sed -n '/^digraph /,$p' | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
         # 2. Run workflow
         {base} 2>&1 | tee -a "$LOG"
         RC=${{PIPESTATUS[0]}}
@@ -1997,7 +1997,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   rm -rf .snakemake/locks/* 2>/dev/null || true
                   mkdir -p .snakemake/locks
                   {unlock}
-                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | sed -n '/^digraph /,$p' | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
@@ -3455,12 +3455,12 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
             if status_f.get("succeeded", 0) > 0:
                 st = "exit=0"
                 colour = "\033[32m"
-            elif status_f.get("failed", 0) > 0:
-                st = "error"
-                colour = "\033[31m"
             elif status_f.get("active", 0) > 0:
                 st = "running"
                 colour = "\033[33m"
+            elif status_f.get("failed", 0) > 0:
+                st = "error"
+                colour = "\033[31m"
             else:
                 st = "pending"
                 colour = ""
@@ -3842,6 +3842,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         {dry}
         # Discover publishable HTML pages for cupping notes and index summary
         awk '/\\.html$/ && !/dask-report/ && !/_test/ && !/\\/logs\\// && !/\\/singlefiles\\// {{ print "PAGE:" $0 }}' "$LIST"
+        for f in logs/*_rulegraph.svg logs/*_summary.txt; do [ -s "$f" ] && echo "PAGE:$f"; done
         # What is already there (path<TAB>size), so reruns only copy new or changed files.
         xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
         awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
@@ -4671,21 +4672,18 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         has_sum = (pages is None) or (sum_rel in pages)
         if has_svg or has_sum:
             dag_blocks.append(f"""
-            <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc;">
-                <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
-                    <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
-                    <span style="display: flex; gap: 8px;">
-                        {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
-                        {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
-                    </span>
-                </div>
-                {f'<div style="text-align: center; overflow-x: auto; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid var(--line); max-height: 420px;"><object data="{svg_rel}" type="image/svg+xml" style="max-width: 100%; height: auto;"></object></div>' if has_svg else ''}
+            <div style="margin-bottom: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
+                <span style="display: flex; gap: 8px;">
+                    {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
+                    {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
+                </span>
             </div>""")
 
     dags_html = ""
     if dag_blocks:
         dags_html = f"""
-        <details class="card" open style="margin-top: 1rem;">
+        <details class="card" style="margin-top: 1rem;">
             <summary class="card-header" style="cursor: pointer; user-select: none;">
                 <h2>📐 Snakemake Rule Execution Graphs & DAGs</h2>
                 <span class="chip chip-accent">{len(dag_blocks)} Step DAG(s)</span>
@@ -4985,8 +4983,6 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         {featured_html}
 
-        {dags_html}
-
         {galleries_card_html}
 
         {models_html}
@@ -5019,6 +5015,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         </div>
 
         {notes_html}
+
+        {dags_html}
 
         <details class="card" style="margin-top: 1rem;">
             <summary class="card-header">
