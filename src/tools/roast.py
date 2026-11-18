@@ -649,7 +649,16 @@ def roast_ssh(cfg: dict, r: dict, host: str) -> str:
 
 
 def ssh_run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
-    """Run a bash script on a remote host via stdin (no quoting games)."""
+    """Run a bash script on a host via stdin (no quoting games).
+
+    When the target resolves to this node, run it directly instead.  The ssh loopback
+    would otherwise demand a key in ~/.ssh/authorized_keys and an unlocked agent merely
+    to open a shell on the machine we are already running on -- and every caller below
+    (checkout, submit, status, clean) would fail without them.  That is why `roast
+    checkout --host falcon` never worked when driven from falcon itself.
+    """
+    if _is_local(target):
+        return sh(["bash", "-s"], check=check, capture=capture, input=script)
     return sh(["ssh", *ssh_opts(target), target, "bash -s"], check=check, capture=capture, input=script)
 
 
@@ -663,10 +672,26 @@ def _is_local(target: str) -> bool:
         return False
 
 
+def _remote_path(target: str, path: str) -> str:
+    """Address `path` on `target` for scp/rsync/git.
+
+    A bare, ~-expanded local path when the target is this node: the `user@host:/path`
+    form routes scp, rsync and git through the ssh transport, which on a loopback needs
+    credentials that a purely local copy has no business requiring.
+    """
+    return os.path.expanduser(path) if _is_local(target) else f"{target}:{path}"
+
+
+def _rsync_transport(target: str) -> list[str]:
+    """`-e ssh ...` for a remote target, nothing for a local one (rsync ignores it there)."""
+    return [] if _is_local(target) else ["-e", "ssh " + " ".join(ssh_opts(target))]
+
+
 def _run(target: str, script: str, check=True, capture=True) -> subprocess.CompletedProcess:
-    """Run a bash script locally if target is this node, otherwise via SSH."""
-    if _is_local(target):
-        return sh(["bash", "-s"], check=check, capture=capture, input=script)
+    """Run a bash script locally if target is this node, otherwise via SSH.
+
+    Kept for its existing callers; ssh_run now makes the same choice itself.
+    """
     return ssh_run(target, script, check=check, capture=capture)
 
 
@@ -675,6 +700,12 @@ def scp_to(target: str, srcs: list[Path], dst: str) -> None:
     # re-shipping it with a fresh mtime on every submit/resume made snakemake regenerate those
     # configs and rerun every processor job downstream of them.
     # On clusters without scp (e.g. PSC Bridges-2), stream a tar archive over ssh.
+    if _is_local(target):
+        dst_dir = Path(os.path.expanduser(dst))
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for s in srcs:
+            shutil.copy2(s, dst_dir / s.name)  # copy2 keeps mtime, as scp -p does
+        return
     if "bridges2" in target or "psc.edu" in target:
         import io
         import tarfile
@@ -685,7 +716,7 @@ def scp_to(target: str, srcs: list[Path], dst: str) -> None:
         cmd = ["ssh", *ssh_opts(target), target, f"mkdir -p {rq(dst)} && tar -xf - -C {rq(dst)}"]
         subprocess.run(cmd, input=buf.getvalue(), check=True)
         return
-    sh(["scp", "-q", "-p", *ssh_opts(target), *map(str, srcs), f"{target}:{dst}"])
+    sh(["scp", "-q", "-p", *ssh_opts(target), *map(str, srcs), _remote_path(target, dst)])
 
 
 def rq(path: str) -> str:
@@ -1701,8 +1732,10 @@ def cmd_checkout(args) -> None:
         # Ship the exact objects from here: works even if the remote's reference
         # tree never saw these commits and cannot reach GitLab non-interactively.
         info(f"[{host}] pushing pinned commits")
-        sh(["git", "push", "-q", f"{target}:{ckpt}", f"{r['barista']['sha']}:refs/roasts/{r['id']}"], cwd=ROOT)
-        sh(["git", "push", "-q", f"{target}:{ckpt}/coffea4bees", f"{r['coffea4bees']['sha']}:refs/roasts/{r['id']}"],
+        sh(["git", "push", "-q", _remote_path(target, ckpt),
+            f"{r['barista']['sha']}:refs/roasts/{r['id']}"], cwd=ROOT)
+        sh(["git", "push", "-q", _remote_path(target, f"{ckpt}/coffea4bees"),
+            f"{r['coffea4bees']['sha']}:refs/roasts/{r['id']}"],
            cwd=ROOT / "coffea4bees")
         res = ssh_run(target, _finish_checkout_script(r, ckpt))
         print(res.stdout.strip())
@@ -2396,7 +2429,7 @@ def cmd_pull(args) -> None:
                 save_roast(r)
             continue
         target = roast_ssh(cfg, r, host)
-        src = f"{target}:{ckpt}/{rel}/"
+        src = _remote_path(target, f"{ckpt}/{rel}/")
         cmd = ["rsync", "-a", "--progress", "--exclude=*_test", "--exclude=*_test/"]
         if not args.include_test:
             pass
@@ -2411,7 +2444,7 @@ def cmd_pull(args) -> None:
             cmd += ["--include=*/", "--exclude=*"]
         if args.dry_run:
             cmd += ["-n", "-v"]
-        cmd += ["-e", "ssh " + " ".join(ssh_opts(target)), src, str(dst) + "/"]
+        cmd += [*_rsync_transport(target), src, str(dst) + "/"]
         info(f"[{host}] {' '.join(shlex.quote(c) for c in cmd[1:-2])} ...")
         info(f"[{host}] {src} -> {dst}/")
         res = subprocess.run(cmd, text=True)
@@ -2881,7 +2914,7 @@ def _rsync_from(target: str, ckpt: str, rel_paths: list[str], dest_root: Path) -
     a file already present with the same size and mtime is not transferred again."""
     dest_root.mkdir(parents=True, exist_ok=True)
     cmd = ["rsync", "-a", "-v", "--files-from=-",
-           "-e", "ssh " + " ".join(ssh_opts(target)), f"{target}:{ckpt}/", str(dest_root) + "/"]
+           *_rsync_transport(target), _remote_path(target, f"{ckpt}/"), str(dest_root) + "/"]
     res = subprocess.run(cmd, text=True, input="\n".join(rel_paths) + "\n")
     if res.returncode != 0:
         die(f"rsync failed ({res.returncode})")
