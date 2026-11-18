@@ -456,6 +456,14 @@
       "event": "archive",
       "host": "falcon",
       "ok": true
+    },
+    {
+      "ts": "2026-11-18 12:15:55",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "falcon"
+      ]
     }
   ],
   "notes": "",
@@ -464,5 +472,12 @@
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/lowpt_run3_20261112_3e33552-ffbb359",
     "ts": "2026-11-18 12:08:24",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-11-18 12:15:55",
+    "hosts": [
+      "cmslpc",
+      "falcon"
+    ]
   }
 }
