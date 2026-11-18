@@ -93,12 +93,19 @@ def main():
             check=True,
         )
         job_data = json.loads(res.stdout.decode())
-    except subprocess.CalledProcessError:
-        # Job not found in Kubernetes - check if outputs exist before declaring failure
-        if check_outputs_exist(jobid):
-            print("success")
+    except subprocess.CalledProcessError as e:
+        # Only treat as missing/failed if the API server explicitly returned NotFound;
+        # transient API connection/timeout errors must return "running" so Snakemake
+        # does not spawn duplicate pods.
+        stderr = (e.stderr or b"").decode(errors="replace")
+        if "NotFound" in stderr or "not found" in stderr.lower():
+            if check_outputs_exist(jobid):
+                print("success")
+                sys.exit(0)
+            print("failed")
             sys.exit(0)
-        print("failed")
+        print(f"Transient kubectl error querying job {jobid}: {stderr.strip()}", file=sys.stderr)
+        print("running")
         sys.exit(0)
     except Exception as e:
         print(f"Error querying job {jobid}: {e}", file=sys.stderr)
