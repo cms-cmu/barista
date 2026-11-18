@@ -117,6 +117,7 @@ setup_coffea4bees:
     - set -o pipefail
     - export CONTAINER_PYTHON=$(which python)
     - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - if [ -f ./proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; echo "Configured X509_USER_PROXY=$X509_USER_PROXY"; fi
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -187,6 +188,7 @@ setup_bbreww:
     - set -o pipefail
     - export CONTAINER_PYTHON=$(which python)
     - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - if [ -f ./proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; echo "Configured X509_USER_PROXY=$X509_USER_PROXY"; fi
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -223,15 +225,19 @@ variables:
 stages:
   - setup
   - code
-  - classifier
+  - workflows
+  - phaseA
+  - phaseB
+  - phaseC
+  - phaseD
+  - phaseF
   - skimmer
   - friendtree
   - analysis
   - tools
-  - mixeddata
   - plot
   - cutflow
-  - workflows
+  - classifier
 
 include:
   - project: 'cms-cmu/coffea4bees'
@@ -309,15 +315,19 @@ variables:
 stages:
   - setup
   - code
-  - classifier
+  - workflows
+  - phaseA
+  - phaseB
+  - phaseC
+  - phaseD
+  - phaseF
   - skimmer
   - friendtree
   - analysis
   - tools
-  - mixeddata
   - plot
   - cutflow
-  - workflows
+  - classifier
 
 include:
   - project: 'cms-cmu/coffea4bees'
