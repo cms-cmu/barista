@@ -18,6 +18,8 @@ import json
 import math
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,7 +112,105 @@ def parse_yields_json(json_path: Path) -> dict:
     return data
 
 
-def parse_fit_quality_json(result_path: Path) -> dict:
+def fetch_remote_file(src_url: str, dst_path: Path) -> bool:
+    """Fetch a remote file (e.g. root://...) using fsspec or xrdcp."""
+    if not src_url.startswith("root://"):
+        if Path(src_url).exists():
+            if str(dst_path.resolve()) != str(Path(src_url).resolve()):
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_url, dst_path)
+            return True
+        return False
+
+    # 1. Try fsspec (Python-native XRootD)
+    try:
+        import fsspec
+        with fsspec.open(src_url, "rb") as fin:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dst_path, "wb") as fout:
+                fout.write(fin.read())
+        if dst_path.exists() and dst_path.stat().st_size > 0:
+            return True
+    except Exception:
+        pass
+
+    # 2. Try xrdcp CLI if available
+    xrdcp_bin = shutil.which("xrdcp")
+    if not xrdcp_bin and os.path.exists("/usr/bin/xrdcp"):
+        xrdcp_bin = "/usr/bin/xrdcp"
+    if not xrdcp_bin and os.path.exists("/cvmfs/cms.cern.ch/common/xrdcp"):
+        xrdcp_bin = "/cvmfs/cms.cern.ch/common/xrdcp"
+    if xrdcp_bin:
+        try:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            env = os.environ.copy()
+            if "X509_USER_PROXY" not in env:
+                for cand_proxy in [Path("proxy/x509_proxy"), Path.cwd() / "proxy/x509_proxy"]:
+                    if cand_proxy.exists():
+                        env["X509_USER_PROXY"] = str(cand_proxy.resolve())
+                        break
+            cmd = [xrdcp_bin, "-s", "-f", src_url, str(dst_path)]
+            subprocess.run(cmd, env=env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if dst_path.exists() and dst_path.stat().st_size > 0:
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+def locate_or_fetch_result_json(p: Path) -> Path | None:
+    """Locate result.json locally or fetch from remote EOS storage if referenced in train.yml."""
+    if not p.is_dir():
+        return None
+    res_file = p / "result.json"
+    if res_file.exists():
+        return res_file
+    if (p / "models" / "result.json").exists():
+        return p / "models" / "result.json"
+
+    train_yml = p / "wfs" / "train.yml"
+    if train_yml.exists():
+        try:
+            content = train_yml.read_text(encoding="utf-8", errors="replace")
+            m = re.search(r"output:\s*['\"]?(root://[^\s'\"]+|[^\s'\"]+)", content)
+            if m:
+                out_target = m.group(1).rstrip("/")
+                cand = f"{out_target}/result.json"
+                if "{" in out_target:
+                    for cfg_path in (
+                        list(p.glob("../../roasts/*/config.yml"))
+                        + list(p.glob("../../../roasts/*/config.yml"))
+                        + list(Path.cwd().glob("roasts/*/config.yml"))
+                    ):
+                        try:
+                            cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace")
+                            m_fvt = re.search(r"model:\s*['\"]?([^\s'\"]+)", cfg_text)
+                            if m_fvt:
+                                m_tmpl = m_fvt.group(1)
+                                eos_p = "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod"
+                                rid = cfg_path.parent.name
+                                m_url = m_tmpl.replace("{eos_prod}", eos_p)
+                                m_url = m_url.replace("{eos_base}", f"{eos_p}/{rid}")
+                                m_url = m_url.replace("{roast_id}", rid)
+                                m_url = m_url.replace("{label}", p.name)
+                                if m_url.startswith("root://"):
+                                    cand = f"{m_url.rstrip('/')}/result.json"
+                                    break
+                        except Exception:
+                            pass
+                if cand.startswith("root://"):
+                    if fetch_remote_file(cand, p / "result.json"):
+                        return p / "result.json"
+                elif Path(cand).exists():
+                    return Path(cand)
+        except Exception:
+            pass
+
+    return None
+
+
+def parse_fit_quality_json(result_path: Path | None) -> dict:
     """Parse fit quality benchmark (weights health, calibration, closure) from result.json."""
     data = {
         "neg_fraction": None,
@@ -127,6 +227,7 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "chi2_ndf_pt4": None,
         "chi2_ndf_pt1": None,
         "chi2_ndf_fvt": None,
+        "chi2_ndf_svb_sr": None,
         "norm_closure_sb": None,
         "composite_chi2_ndf": None,
         "all_gates_passed": None,
@@ -139,7 +240,7 @@ def parse_fit_quality_json(result_path: Path) -> dict:
         "chi2_t4_sr": None,
         "fqs": [],
     }
-    if not result_path.exists():
+    if not result_path or not result_path.exists():
         return data
 
     try:
@@ -190,6 +291,12 @@ def parse_fit_quality_json(result_path: Path) -> dict:
 
             chi2_fvt_vals = [fq.get("closure", {}).get("chi2_ndf_fvt") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_fvt") is not None]
             data["chi2_ndf_fvt"] = (sum(chi2_fvt_vals) / len(chi2_fvt_vals)) if chi2_fvt_vals else None
+
+            chi2_svb_vals = [fq.get("closure", {}).get("chi2_ndf_svb_sr") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_svb_sr") is not None]
+            data["chi2_ndf_svb_sr"] = (sum(chi2_svb_vals) / len(chi2_svb_vals)) if chi2_svb_vals else None
+
+            chi2_svb_gt0p8_vals = [fq.get("closure", {}).get("chi2_ndf_svb_sr_gt0p8") for fq in fqs if fq.get("closure", {}).get("chi2_ndf_svb_sr_gt0p8") is not None]
+            data["chi2_ndf_svb_sr_gt0p8"] = (sum(chi2_svb_gt0p8_vals) / len(chi2_svb_gt0p8_vals)) if chi2_svb_gt0p8_vals else None
 
             norm_sb_vals = [fq.get("closure", {}).get("norm_closure_sb") for fq in fqs if fq.get("closure", {}).get("norm_closure_sb") is not None]
             data["norm_closure_sb"] = (sum(norm_sb_vals) / len(norm_sb_vals)) if norm_sb_vals else None
@@ -373,6 +480,10 @@ def generate_html(models_data: list[dict], out_path: Path, title: str):
 
     chi2_vals = [m["fit_quality"]["composite_chi2_ndf"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("composite_chi2_ndf") is not None]
     chi2_stat = compute_stats(chi2_vals)
+    svb_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr") is not None]
+    svb_chi2_stat = compute_stats(svb_chi2_vals)
+    svb_gt0p8_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr_gt0p8"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr_gt0p8") is not None]
+    svb_gt0p8_chi2_stat = compute_stats(svb_gt0p8_chi2_vals)
 
     # Compute ensemble pull for each model
     for m in models_data:
@@ -741,6 +852,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <th>AUC (4b vs 3b data)</th>
           <th>AUC (ttbar vs data)</th>
           <th>χ²/ndf (pt4)</th>
+          <th>χ²/ndf (SvB SR)</th>
+          <th>χ²/ndf (SvB &gt; 0.8)</th>
           <th>Score (χ²)</th>
           <th>f(w &lt; 0)</th>
           <th>Quick Links</th>
@@ -779,6 +892,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
         fq = m.get("fit_quality") or {}
         chi2_pt4_str = f_val(fq.get("chi2_ndf_pt4"), fmt=".2f")
+        chi2_svb_str = f_val(fq.get("chi2_ndf_svb_sr"), fmt=".2f")
+        chi2_svb_gt0p8_str = f_val(fq.get("chi2_ndf_svb_sr_gt0p8"), fmt=".2f")
         score_str = f_val(fq.get("composite_chi2_ndf"), fmt=".2f")
         neg_frac = fq.get("neg_fraction")
         neg_str = f"{neg_frac * 100:.2f}%" if neg_frac is not None else "—"
@@ -801,6 +916,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td>{auc_4b_d}</td>
           <td>{auc_tt}</td>
           <td>{chi2_pt4_str}</td>
+          <td>{chi2_svb_str}</td>
+          <td>{chi2_svb_gt0p8_str}</td>
           <td><b>{score_str}</b></td>
           <td>{neg_str}</td>
           <td>
@@ -818,6 +935,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     mean_auc_4b_d = f"{auc_4b_data_stat['mean']:.4f} ± {auc_4b_data_stat['std']:.4f}" if auc_4b_data_stat["mean"] is not None else "—"
     mean_auc_tt = f"{auc_ttbar_stat['mean']:.4f} ± {auc_ttbar_stat['std']:.4f}" if auc_ttbar_stat["mean"] is not None else "—"
     mean_chi2_str = f"{chi2_stat['mean']:.2f} ± {chi2_stat['std']:.2f}" if chi2_stat["mean"] is not None else "—"
+    mean_svb_chi2_str = f"{svb_chi2_stat['mean']:.2f} ± {svb_chi2_stat['std']:.2f}" if svb_chi2_stat["mean"] is not None else "—"
+    mean_svb_gt0p8_chi2_str = f"{svb_gt0p8_chi2_stat['mean']:.2f} ± {svb_gt0p8_chi2_stat['std']:.2f}" if svb_gt0p8_chi2_stat["mean"] is not None else "—"
 
     lines.append(f"""        <tr class="summary-row">
           <td><b>Ensemble Mean ± Std</b></td>
@@ -833,6 +952,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td><b>{mean_auc_4b_d}</b></td>
           <td><b>{mean_auc_tt}</b></td>
           <td>—</td>
+          <td><b>{mean_svb_chi2_str}</b></td>
+          <td><b>{mean_svb_gt0p8_chi2_str}</b></td>
           <td><b>{mean_chi2_str}</b></td>
           <td>—</td>
           <td>—</td>
@@ -1161,51 +1282,7 @@ def main():
         met_log = parse_analyze_log(p / "analyze.log")
         met_html = parse_analyze_html(p / "plots" / "analyze" / "index.html")
 
-        res_file = p / "result.json"
-        if not res_file.exists() and (p / "models" / "result.json").exists():
-            res_file = p / "models" / "result.json"
-        if not res_file.exists():
-            train_yml = p / "wfs" / "train.yml"
-            if train_yml.exists():
-                try:
-                    content = train_yml.read_text(encoding="utf-8", errors="replace")
-                    m = re.search(r"output:\s*['\"]?(root://[^\s'\"]+|[^\s'\"]+)", content)
-                    if m:
-                        out_target = m.group(1).rstrip("/")
-                        cand = f"{out_target}/result.json"
-                        if "{" in out_target:
-                            # Try to resolve from roast config if inside a roast checkout
-                            for cfg_path in (
-                                list(p.glob("../../roasts/*/config.yml"))
-                                + list(p.glob("../../../roasts/*/config.yml"))
-                                + list(Path.cwd().glob("roasts/*/config.yml"))
-                            ):
-                                try:
-                                    cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace")
-                                    m_fvt = re.search(r"model:\s*['\"]?([^\s'\"]+)", cfg_text)
-                                    if m_fvt:
-                                        m_tmpl = m_fvt.group(1)
-                                        eos_p = "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod"
-                                        rid = cfg_path.parent.name
-                                        m_url = m_tmpl.replace("{eos_prod}", eos_p)
-                                        m_url = m_url.replace("{eos_base}", f"{eos_p}/{rid}")
-                                        m_url = m_url.replace("{roast_id}", rid)
-                                        m_url = m_url.replace("{label}", p.name)
-                                        if m_url.startswith("root://"):
-                                            cand = f"{m_url.rstrip('/')}/result.json"
-                                            break
-                                except Exception:
-                                    pass
-                        if cand.startswith("root://"):
-                            import subprocess
-                            cmd = ["xrdcp", "-s", "-f", cand, str(p / "result.json")]
-                            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                            if (p / "result.json").exists():
-                                res_file = p / "result.json"
-                        elif Path(cand).exists():
-                            res_file = Path(cand)
-                except Exception:
-                    pass
+        res_file = locate_or_fetch_result_json(p)
         fq = parse_fit_quality_json(res_file)
         if fq.get("fqs"):
             fq_plot_dir = p / "plots" / "analyze" / "fit_quality"

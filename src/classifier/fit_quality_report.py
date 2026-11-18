@@ -37,6 +37,7 @@ HIST_TITLES = {
     "t4_sb": ("p$_{t4}$ (SB)", "t4 MC", "source x p$_{t4}$/p$_{src}$"),
     "t3_sr": ("p$_{t3}$ (SR)", "t3 MC", "source x p$_{t3}$/p$_{src}$"),
     "t4_sr": ("p$_{t4}$ (SR)", "t4 MC", "source x p$_{t4}$/p$_{src}$"),
+    "svb_sr": ("SvB_MA.ps (SR)", "4b mixed", "model"),
 }
 MODEL_LABEL = {"d3": "3b data x w + 4b ttbar", "mix4": "mixed x w + 4b ttbar"}
 
@@ -132,7 +133,7 @@ def _plot(hname: str, h: dict, source: str, path: str):
     m2 = np.array(h.get("model_sumw2") or np.abs(m))
     k = t.sum() / m.sum() if m.sum() > 0 else 1.0
     title, tl, ml = HIST_TITLES.get(hname, (hname, "target", "model"))
-    if hname in ("pt4_sb", "pt1_sb", "fvt_sb"):
+    if hname in ("pt4_sb", "pt1_sb", "fvt_sb", "svb_sr"):
         ml = MODEL_LABEL.get(source, ml)
     chi2, ndf = _chi2_ndf(h)
 
@@ -207,7 +208,7 @@ def make_entry(args):
         "data_calibration": {k: fold_mean(("data_calibration", k)) for k in
                              ("calib_d4_prob_to_data", "calib_d3_prob_to_data")},
         "closure_fold_mean": {k: fold_mean(("closure", k)) for k in
-                              ("chi2_ndf_pt4", "chi2_ndf_pt1", "chi2_ndf_fvt", "norm_closure_sb")},
+                              ("chi2_ndf_pt4", "chi2_ndf_pt1", "chi2_ndf_fvt", "chi2_ndf_svb_sr", "chi2_ndf_svb_sr_gt0p8", "norm_closure_sb")},
         "regional": {k: (_mean([r["validation"]["metrics"].get(k) for r in folds]),
                          _std([r["validation"]["metrics"].get(k) for r in folds]))
                      for k in names if k.startswith("loss_") or " SB" in k or " SR" in k},
@@ -314,7 +315,7 @@ def make_summary(args):
                       _f(e["floor"])] for e in entries]))
 
     S.append("<h2>Sideband closure and component transfer (χ²/ndf, folds summed)</h2>")
-    hn = ["pt4_sb", "pt1_sb", "fvt_sb", "t3_sb", "t4_sb", "t3_sr", "t4_sr"]
+    hn = ["pt4_sb", "pt1_sb", "fvt_sb", "svb_sr", "t3_sb", "t4_sb", "t3_sr", "t4_sr"]
     S.append(_table(["run", "norm model/data (SB)"] + hn,
                     [[html.escape(e["title"]), _f((e["hists"].get("pt1_sb") or {}).get("norm_model_over_target"))] +
                      [(_f(e["hists"][h]["chi2_ndf"], "{:.2f}") + f" ({e['hists'][h]['ndf']})") if h in e["hists"] else "–"

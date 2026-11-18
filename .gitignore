@@ -235,3 +235,7 @@ roasts/*/index.html
 
 # default output dir of src/tools/repo_activity.py
 repo_activity_output/
+.delta_profile/
+
+# Old Snakemake file
+Snakefile_trigweights.smk

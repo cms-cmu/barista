@@ -18,7 +18,7 @@ repo_root = Path(__file__).resolve().parent.parent.parent
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-from src.classifier.training_summary import parse_fit_quality_json
+from src.classifier.training_summary import locate_or_fetch_result_json, parse_fit_quality_json
 
 
 def parse_args():
@@ -54,25 +54,12 @@ def main():
     models_dir = Path(args.models_dir).resolve()
     token_path = Path(args.output_token).resolve()
 
-    # Locate result.json
-    res_candidates = [
-        models_dir / "result.json",
-        models_dir / "models" / "result.json",
-    ]
-    res_file = None
-    for cand in res_candidates:
-        if cand.exists():
-            res_file = cand
-            break
-
+    # Locate result.json (local or fetch from remote EOS storage if needed)
+    res_file = locate_or_fetch_result_json(models_dir)
     if not res_file:
-        # Check subdirectories if ensemble
         for sub in sorted(models_dir.glob("mix_*")):
-            if (sub / "result.json").exists():
-                res_file = sub / "result.json"
-                break
-            if (sub / "models" / "result.json").exists():
-                res_file = sub / "models" / "result.json"
+            res_file = locate_or_fetch_result_json(sub)
+            if res_file:
                 break
 
     if not res_file:

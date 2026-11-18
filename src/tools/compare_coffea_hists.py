@@ -28,7 +28,7 @@ logger = logging.getLogger("compare_coffea_hists")
 
 def _find_var_axis(hist_obj) -> Optional[str]:
     """Find the primary non-metadata variable axis of a 1D histogram."""
-    meta_axes = {"process", "year", "tag", "region"}
+    meta_axes = {"process", "year", "tag", "region", "variation", "systematic"}
     cand_axes = [
         a.name for a in hist_obj.axes
         if a.name not in meta_axes and type(a).__name__ != "Boolean"
@@ -73,6 +73,14 @@ def _project_1d(hist_obj, proc: str, tag: str, reg: str):
             loc_dict["region"] = reg
         else:
             return None
+    if "variation" in axis_names:
+        vars_list = _get_axis_values(hist_obj, "variation")
+        if "nominal" in vars_list:
+            loc_dict["variation"] = "nominal"
+    if "systematic" in axis_names:
+        systs_list = _get_axis_values(hist_obj, "systematic")
+        if "nominal" in systs_list:
+            loc_dict["systematic"] = "nominal"
 
     try:
         sliced = hist_obj[loc_dict]

@@ -25,6 +25,9 @@ graphviz = ">=14.1.2,<15"
 # Pin to avoid the broken build until upstream fixes it
 libopenblas = "<0.3.30"
 kubernetes-client = ">=1.34.3,<2"
+fsspec = ">=2026.9.0,<2027"
+fsspec-xrootd = ">=0.5.5,<0.6"
+xrootd = ">=6.2.1,<7"
 
 # Additional analysis dependencies (add as needed)
 # numpy = "*"
