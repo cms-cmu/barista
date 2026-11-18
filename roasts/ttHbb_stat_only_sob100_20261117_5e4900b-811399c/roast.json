@@ -410,6 +410,14 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-18 10:31:10",
+      "event": "clean",
+      "hosts": [
+        "cmslpc",
+        "gcp"
+      ]
     }
   ],
   "notes": "",
@@ -418,5 +426,12 @@
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_sob100_20261117_5e4900b-811399c",
     "ts": "2026-11-17 19:39:30",
     "ok": true
+  },
+  "cleaned": {
+    "ts": "2026-11-18 10:31:10",
+    "hosts": [
+      "cmslpc",
+      "gcp"
+    ]
   }
 }
