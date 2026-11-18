@@ -58,6 +58,8 @@ TRAIN_EXTRA_GPU_PRODUCTS = [p for p in os.environ.get(
 ).split(",") if p.strip()]
 
 DEFAULT_PREFERRED_GPUS = [
+    "NVIDIA-A100-SXM4-40GB",
+    "NVIDIA-Tesla-A100",
     "NVIDIA-GeForce-RTX-3090",
     "NVIDIA-GeForce-RTX-4090",
     "NVIDIA-RTX-A5000",
@@ -79,6 +81,8 @@ DEFAULT_PREFERRED_GPUS = [
 ]
 
 DEFAULT_REQUIRED_GPUS = [
+    "NVIDIA-A100-SXM4-40GB",
+    "NVIDIA-Tesla-A100",
     "NVIDIA-A40",
     "NVIDIA-L40S",
     "NVIDIA-L40",
@@ -131,6 +135,23 @@ WORKDIR = os.environ.get(
 )
 CVMFS_CLAIM = os.environ.get("NAUTILUS_CVMFS_CLAIM", "cvmfs")
 ENABLE_CVMFS = os.environ.get("NAUTILUS_ENABLE_CVMFS", "true").lower() in ("true", "1", "yes")
+CONTEXT = os.environ.get("NAUTILUS_CONTEXT", "").strip()
+
+
+def find_kubectl():
+    import shutil
+    if not CONTEXT and os.path.exists("/workspace/shared/bin/kubectl"):
+        return "/workspace/shared/bin/kubectl"
+    return shutil.which("kubectl") or "kubectl"
+
+
+def kubectl_cmd(*args):
+    """Build a kubectl command, honoring NAUTILUS_CONTEXT when set."""
+    cmd = [find_kubectl()]
+    if CONTEXT:
+        cmd.extend(["--context", CONTEXT])
+    cmd.extend(args)
+    return cmd
 
 
 def n_gpus(resources):
@@ -325,6 +346,19 @@ def build_k8s_job_yaml(job_name, jobscript_content, gpus=1, cpus=4, mem_gb=24, l
                 values:
 {required_lines}"""
 
+    cvmfs_mount_block = ""
+    cvmfs_vol_block = ""
+    if ENABLE_CVMFS:
+        cvmfs_mount_block = """
+        - mountPath: /cvmfs
+          name: cvmfs-storage
+          readOnly: true"""
+        cvmfs_vol_block = f"""
+      - name: cvmfs-storage
+        persistentVolumeClaim:
+          claimName: {CVMFS_CLAIM}
+          readOnly: true"""
+
     manifest = f"""apiVersion: batch/v1
 kind: Job
 metadata:
@@ -352,16 +386,32 @@ spec:
           - |
             set -e
             source /entrypoint.sh 2>/dev/null || true
+            if [ -d /usr/local/nvidia/bin ]; then
+                export PATH="/usr/local/nvidia/bin:$PATH"
+            fi
+            if [ -d /usr/local/nvidia/lib64 ]; then
+                export LD_LIBRARY_PATH="/usr/local/nvidia/lib64:${{LD_LIBRARY_PATH:-}}"
+            fi
             export PYTHONPATH=/workspace/shared/lib/python3.11/site-packages:{WORKDIR}:$PYTHONPATH
-            export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
+            chown "$(id -u):$(id -g)" {WORKDIR}/proxy/x509_proxy 2>/dev/null || true
             chmod 600 {WORKDIR}/proxy/x509_proxy 2>/dev/null || true
+            if [ -s "{WORKDIR}/proxy/x509_proxy" ]; then
+                install -m 600 "{WORKDIR}/proxy/x509_proxy" /tmp/x509_proxy
+                export X509_USER_PROXY=/tmp/x509_proxy
+            else
+                export X509_USER_PROXY={WORKDIR}/proxy/x509_proxy
+            fi
             if [ -d /cvmfs/cms.cern.ch/grid/etc/grid-security/certificates ]; then
                 export X509_CERT_DIR=/cvmfs/cms.cern.ch/grid/etc/grid-security/certificates
             elif [ -d /cvmfs/grid.cern.ch/etc/grid-security/certificates ]; then
                 export X509_CERT_DIR=/cvmfs/grid.cern.ch/etc/grid-security/certificates
+            elif [ -d /workspace/shared/certificates ]; then
+                export X509_CERT_DIR=/workspace/shared/certificates
+            elif [ -d /opt/conda/envs/hep/etc/grid-security/certificates ]; then
+                export X509_CERT_DIR=/opt/conda/envs/hep/etc/grid-security/certificates
             fi
             if [ ! -d /etc/grid-security/certificates ] && [ -n "$X509_CERT_DIR" ]; then
-                ln -sf "$X509_CERT_DIR" /etc/grid-security/certificates 2>/dev/null || true
+                mkdir -p /etc/grid-security && ln -sfn "$X509_CERT_DIR" /etc/grid-security/certificates 2>/dev/null || true
             fi
             export CLASSIFIER_CONFIG_PATHS=coffea4bees
             export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -383,21 +433,14 @@ spec:
         - mountPath: /workspace
           name: ceph-storage
         - mountPath: /dev/shm
-          name: dshm
-        - mountPath: /cvmfs
-          name: cvmfs-storage
-          readOnly: true
+          name: dshm{cvmfs_mount_block}
       volumes:
       - name: ceph-storage
         persistentVolumeClaim:
           claimName: {STORAGE_CLAIM}
       - name: dshm
         emptyDir:
-          medium: Memory
-      - name: cvmfs-storage
-        persistentVolumeClaim:
-          claimName: {CVMFS_CLAIM}
-          readOnly: true
+          medium: Memory{cvmfs_vol_block}
 """
     return manifest
 
@@ -474,10 +517,11 @@ def main():
         f.write(manifest_yaml)
 
     env = os.environ.copy()
-    env.pop("KUBECONFIG", None)
+    if not CONTEXT and os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token"):
+        env.pop("KUBECONFIG", None)
     try:
         subprocess.run(
-            ["kubectl", "apply", "--validate=false", "-f", manifest_path],
+            kubectl_cmd("apply", "--validate=false", "-f", manifest_path),
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
