@@ -275,6 +275,18 @@ DEFAULT_CONFIG = {
             "reference": "/workspace/users/<user>/barista",
             "cores": 16,
         },
+        "gcp": {
+            "context": "gke_access-phy260193-607959_us-central1-b_barista-gke",
+            "namespace": "cms-cmu",
+            "user": "<user>",
+            "prod_root": "/workspace/users/<user>/prod",
+            "reference": "/workspace/users/<user>/barista",
+            "profile": "software/snakemake/profiles/gcp",
+            "image": "us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest",
+            "enable_cvmfs": False,
+            "eval_mem_gb": 36,
+            "cores": 16,
+        },
     },
     "cernbox": {
         "eos_path": "/eos/user/<x>/<user>/www/{analysis}/prod",
@@ -596,6 +608,9 @@ def load_config() -> dict:
     return cfg
 
 
+K8S_HOSTS = ("nautilus", "gcp")
+
+
 def host_cfg(cfg: dict, host: str) -> dict:
     if host == "nautilus" and "nautilus" not in cfg.get("hosts", {}):
         user = getpass.getuser()
@@ -604,6 +619,20 @@ def host_cfg(cfg: dict, host: str) -> dict:
             "user": user,
             "prod_root": f"/workspace/users/{user}/prod",
             "reference": f"/workspace/users/{user}/barista",
+            "cores": 16,
+        }
+    if host == "gcp" and "gcp" not in cfg.get("hosts", {}):
+        user = getpass.getuser()
+        return {
+            "context": "gke_access-phy260193-607959_us-central1-b_barista-gke",
+            "namespace": "cms-cmu",
+            "user": user,
+            "prod_root": f"/workspace/users/{user}/prod",
+            "reference": f"/workspace/users/{user}/barista",
+            "profile": "software/snakemake/profiles/gcp",
+            "image": "us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest",
+            "enable_cvmfs": False,
+            "eval_mem_gb": 36,
             "cores": 16,
         }
     if host == "bridges2" and "bridges2" not in cfg.get("hosts", {}):
@@ -628,11 +657,13 @@ def host_cfg(cfg: dict, host: str) -> dict:
         die(f"host '{host}' not in {CONFIG_PATH}")
 
 
-def k8s_cmd(*args) -> list[str]:
+def k8s_cmd(*args, context: str = "") -> list[str]:
     """Return kubectl command vector, using pixi if kubectl is not on host PATH."""
     if "KUBECONFIG" not in os.environ and (Path.home() / ".kube" / "config").exists():
         os.environ["KUBECONFIG"] = str(Path.home() / ".kube" / "config")
     base = ["kubectl"] if shutil.which("kubectl") else ["pixi", "run", "kubectl"]
+    if context:
+        base.extend(["--context", context])
     return [*base, *args]
 
 
@@ -1359,6 +1390,8 @@ def cmd_new(args) -> None:
             host = "bridges2"
         elif getattr(args, "nautilus", False) and host == "falcon":
             host = "nautilus"
+        elif getattr(args, "gcp", False) and host == "falcon":
+            host = "gcp"
         elif getattr(args, "cmslpc", False) and host == "falcon":
             if ph in CMSLPC_GPU_PHASES_REFUSED:
                 die(f"--cmslpc: phase {ph} has GPU rules besides train/evaluate ({CMSLPC_GPU_PHASES_REFUSED[ph]}); "
@@ -1515,21 +1548,21 @@ def _finish_checkout_script(r: dict, ckpt: str) -> str:
     """)
 
 
-def _ensure_storage_helper(ns: str) -> None:
-    """Make sure the storage-helper pod (our only way onto CephFS) is Running.
+def _ensure_storage_helper(ns: str, ctx: str = "", host: str = "nautilus") -> None:
+    """Make sure the storage-helper pod (our only way onto shared cluster storage) is Running.
 
-    It is a bare Pod and NRP kills it after ~6 h. Without it the code sync used to fail with only
-    a warning and the Job then ran the old code, so recreate it from the manifest and wait.
+    It is a bare Pod and clusters may evict/kill idle Pods. Without it the code sync used to fail
+    with only a warning and the Job then ran old code, so recreate it from the manifest and wait.
     """
-    phase = sh(k8s_cmd("get", "pod", "storage-helper", "-n", ns, "-o", "jsonpath={.status.phase}"), check=False)
+    phase = sh(k8s_cmd("get", "pod", "storage-helper", "-n", ns, "-o", "jsonpath={.status.phase}", context=ctx), check=False)
     if phase.returncode == 0 and phase.stdout.strip() == "Running":
         return
-    info(f"[nautilus] storage-helper is {phase.stdout.strip() or 'missing'}; recreating it")
-    sh(k8s_cmd("delete", "pod", "storage-helper", "-n", ns, "--ignore-not-found", "--wait=true"), check=False)
-    res = sh(k8s_cmd("apply", "-n", ns, "-f", str(ROOT / "software/kubernetes/storage_helper.yaml")), check=False)
+    info(f"[{host}] storage-helper is {phase.stdout.strip() or 'missing'}; recreating it")
+    sh(k8s_cmd("delete", "pod", "storage-helper", "-n", ns, "--ignore-not-found", "--wait=true", context=ctx), check=False)
+    res = sh(k8s_cmd("apply", "-n", ns, "-f", str(ROOT / "software/kubernetes/storage_helper.yaml"), context=ctx), check=False)
     if res.returncode != 0:
         die(f"failed to create storage-helper: {res.stderr.strip()}")
-    res = sh(k8s_cmd("wait", "--for=condition=Ready", "pod/storage-helper", "-n", ns, "--timeout=600s"), check=False)
+    res = sh(k8s_cmd("wait", "--for=condition=Ready", "pod/storage-helper", "-n", ns, "--timeout=600s", context=ctx), check=False)
     if res.returncode != 0:
         die(f"storage-helper did not become Ready: {res.stderr.strip() or res.stdout.strip()}")
 
@@ -1546,26 +1579,26 @@ def _proxy_hours_left(pem: bytes) -> float:
     return (end.replace(tzinfo=dt.timezone.utc) - dt.datetime.now(dt.timezone.utc)).total_seconds() / 3600
 
 
-def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 2) -> None:
+def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float = 2, ctx: str = "", host: str = "nautilus") -> None:
     """Make sure the grid proxy the Job will use is valid for at least `min_hours`.
 
     Checkouts hard-link the reference tree's proxy/, which nothing refreshes, so a proxy that
-    expires mid-step makes every pod's EOS read fail. If the one on CephFS is short, take the
-    shared LPC copy (`roast proxy` keeps ~/.roast/x509_proxy fresh) and write it to `paths`.
+    expires mid-step makes every pod's EOS read fail. If the one on cluster storage is short, take
+    the shared LPC copy (`roast proxy` keeps ~/.roast/x509_proxy fresh) and write it to `paths`.
     """
-    cur = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "cat", paths[0]), check=False)
+    cur = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "cat", paths[0], context=ctx), check=False)
     left = _proxy_hours_left(cur.stdout.encode())
     if left >= min_hours:
-        info(f"[nautilus] grid proxy OK ({left:.0f} h left)")
+        info(f"[{host}] grid proxy OK ({left:.0f} h left)")
         return
     lpc = resolve_ssh(host_cfg(cfg, "cmslpc"))
     new = subprocess.run(["ssh", *ssh_opts(lpc), lpc, f"cat {SHARED_PROXY}"], capture_output=True)
     if new.returncode != 0:
-        die(f"grid proxy on Nautilus has {left:.0f} h left and reading {SHARED_PROXY} from {lpc} failed "
+        die(f"grid proxy on {host} has {left:.0f} h left and reading {SHARED_PROXY} from {lpc} failed "
             f"(kinit?): {new.stderr.decode(errors='replace').strip()}")
     new_left = _proxy_hours_left(new.stdout)
     if new_left < min_hours:
-        die(f"grid proxy on Nautilus has {left:.0f} h left and the LPC copy {SHARED_PROXY} {new_left:.0f} h; "
+        die(f"grid proxy on {host} has {left:.0f} h left and the LPC copy {SHARED_PROXY} {new_left:.0f} h; "
             f"run `{TOOL} proxy` first")
     with tempfile.NamedTemporaryFile(prefix="x509_", delete=False) as f:
         f.write(new.stdout)
@@ -1574,37 +1607,39 @@ def _push_nautilus_proxy(cfg: dict, ns: str, paths: list[str], min_hours: float 
         for p in paths:
             # rm first: the checkout's proxy is a hard link into the reference tree
             sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
-                       f"mkdir -p {shlex.quote(os.path.dirname(p))} && rm -f {shlex.quote(p)}"), check=False)
-            res = sh(k8s_cmd("cp", f.name, f"{ns}/storage-helper:{p}"), check=False)
+                       f"mkdir -p {shlex.quote(os.path.dirname(p))} && rm -f {shlex.quote(p)}", context=ctx), check=False)
+            res = sh(k8s_cmd("cp", f.name, f"{ns}/storage-helper:{p}", context=ctx), check=False)
             if res.returncode != 0:
                 die(f"failed to copy the grid proxy to {p}: {res.stderr.strip()}")
-            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", p), check=False)
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
+                       f"chown 0:0 {shlex.quote(p)} && chmod 600 {shlex.quote(p)}", context=ctx), check=False)
     finally:
         os.unlink(f.name)
-    info(f"[nautilus] grid proxy refreshed from LPC ({new_left:.0f} h left)")
+    info(f"[{host}] grid proxy refreshed from LPC ({new_left:.0f} h left)")
 
 
-def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
-    hc = host_cfg(cfg, "nautilus")
+def _checkout_nautilus(cfg: dict, r: dict, ckpt: str, host: str = "nautilus") -> None:
+    hc = host_cfg(cfg, host)
     ns = hc.get("namespace", "cms-cmu")
+    ctx = hc.get("context", "")
     user = hc.get("user", getpass.getuser())
     ref = hc.get("reference", f"/workspace/users/{user}/barista")
 
-    info(f"[nautilus] preparing {ckpt}")
+    info(f"[{host}] preparing {ckpt}")
 
-    # Verify connection to Nautilus
-    check_ns = sh(k8s_cmd("get", "ns", ns), check=False)
+    # Verify connection to Kubernetes namespace
+    check_ns = sh(k8s_cmd("get", "ns", ns, context=ctx), check=False)
     if check_ns.returncode != 0:
-        die(f"cannot reach Nautilus namespace '{ns}': {check_ns.stderr.strip()}")
-    _ensure_storage_helper(ns)
+        die(f"cannot reach {host} namespace '{ns}': {check_ns.stderr.strip()}")
+    _ensure_storage_helper(ns, ctx=ctx, host=host)
 
-    # 1. Create directory structure on CephFS via storage-helper
+    # 1. Create directory structure on shared storage via storage-helper
     setup_cmd = f"mkdir -p {ckpt}/roasts/{r['id']} {ckpt}/logs /workspace/users/{user}/.kube"
-    sh_run = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", setup_cmd), check=False)
+    sh_run = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", setup_cmd, context=ctx), check=False)
     if sh_run.returncode != 0:
-        die(f"failed to create directories on Nautilus CephFS: {sh_run.stderr.strip()}")
+        die(f"failed to create directories on {host} storage: {sh_run.stderr.strip()}")
 
-    # 2. Hardlink reference tree on CephFS (instantaneous cp -al for non-code dirs/files)
+    # 2. Hardlink reference tree on shared storage (instantaneous cp -al for non-code dirs/files)
     copy_script = f"""
     for item in proxy run_container runner.py pixi.toml pixi.lock; do
         if [ -e "{ref}/$item" ] && [ ! -e "{ckpt}/$item" ]; then
@@ -1612,55 +1647,57 @@ def _checkout_nautilus(cfg: dict, r: dict, ckpt: str) -> None:
         fi
     done
     """
-    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", copy_script), check=False)
+    sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c", copy_script, context=ctx), check=False)
 
     # 3. Ship roast files (config.yml, roast.json) via kubectl cp
     rdir = roast_dir(r["id"])
     for f in sorted(p for p in rdir.iterdir() if p.is_file()):
-        sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/{f.name}"), check=False)
+        sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/{f.name}", context=ctx), check=False)
     # Also ship upstream roasts if present locally
     for up in r.get("inputs", {}).get("upstream", []):
         up_id = up.get("id")
         up_dir = roast_dir(up_id)
         if up_dir.is_dir():
-            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/roasts/{up_id}"), check=False)
+            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/roasts/{up_id}", context=ctx), check=False)
             for f in sorted(p for p in up_dir.iterdir() if p.is_file()):
-                sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{up_id}/{f.name}"), check=False)
+                sh(k8s_cmd("cp", str(f), f"{ns}/storage-helper:{ckpt}/roasts/{up_id}/{f.name}", context=ctx), check=False)
 
-    # 4. Stage user's local kubeconfig to CephFS if not already present
-    check_kube = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-f", f"/workspace/users/{user}/.kube/config"), check=False)
-    if check_kube.returncode != 0:
-        local_kube = Path.home() / ".kube" / "config"
-        if local_kube.is_file():
-            sh(k8s_cmd("cp", str(local_kube), f"{ns}/storage-helper:/workspace/users/{user}/.kube/config"), check=False)
-            sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", f"/workspace/users/{user}/.kube/config"), check=False)
+    # 4. Stage user's local kubeconfig to CephFS on Nautilus if not already present
+    if host == "nautilus":
+        check_kube = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-f", f"/workspace/users/{user}/.kube/config", context=ctx), check=False)
+        if check_kube.returncode != 0:
+            local_kube = Path.home() / ".kube" / "config"
+            if local_kube.is_file():
+                sh(k8s_cmd("cp", str(local_kube), f"{ns}/storage-helper:/workspace/users/{user}/.kube/config", context=ctx), check=False)
+                sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "chmod", "600", f"/workspace/users/{user}/.kube/config", context=ctx), check=False)
 
-    r.setdefault("hosts", {})["nautilus"] = {"checkout": ckpt, "checked_out": now()}
-    log_event(r, "checkout", host="nautilus")
+    r.setdefault("hosts", {})[host] = {"checkout": ckpt, "checked_out": now()}
+    log_event(r, "checkout", host=host)
     save_roast(r)
-    _sync_nautilus_code(cfg, r, ckpt)
-    info(f"[nautilus] prepared {ckpt}")
+    _sync_nautilus_code(cfg, r, ckpt, host=host)
+    info(f"[{host}] prepared {ckpt}")
 
 
-def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
-    """Stream clean code from the roast's pinned commit SHAs directly to Nautilus CephFS.
+def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str, host: str = "nautilus") -> None:
+    """Stream clean code from the roast's pinned commit SHAs directly to cluster shared storage.
 
-    Avoids running Git on CephFS while ensuring deleted files (ghosts) are purged and
+    Avoids running Git on shared storage while ensuring deleted files (ghosts) are purged and
     both barista and coffea4bees match the exact committed state for this roast.
     """
-    hc = host_cfg(cfg, "nautilus")
+    hc = host_cfg(cfg, host)
     ns = hc.get("namespace", "cms-cmu")
-    info(f"[nautilus] syncing code to {ckpt}...")
+    ctx = hc.get("context", "")
+    info(f"[{host}] syncing code to {ckpt}...")
 
-    # Quick atomic rename of existing code directories to avoid CephFS rm -rf stalls
+    # Quick atomic rename of existing code directories to avoid rm -rf stalls
     ts = int(time.time())
     for d in [f"{ckpt}/software", f"{ckpt}/src", f"{ckpt}/bin"]:
         sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
-                   f"if [ -d '{d}' ]; then mv '{d}' '{d}.trash_{ts}' && (rm -rf '{d}.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
+                   f"if [ -d '{d}' ]; then mv '{d}' '{d}.trash_{ts}' && (rm -rf '{d}.trash_{ts}' >/dev/null 2>&1 &); fi", context=ctx), check=False)
     c4b_dir = ROOT / "coffea4bees"
     if c4b_dir.is_dir() and "coffea4bees" in r:
         sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "sh", "-c",
-                   f"if [ -d '{ckpt}/coffea4bees' ]; then mv '{ckpt}/coffea4bees' '{ckpt}/coffea4bees.trash_{ts}' && (rm -rf '{ckpt}/coffea4bees.trash_{ts}' >/dev/null 2>&1 &); fi"), check=False)
+                   f"if [ -d '{ckpt}/coffea4bees' ]; then mv '{ckpt}/coffea4bees' '{ckpt}/coffea4bees.trash_{ts}' && (rm -rf '{ckpt}/coffea4bees.trash_{ts}' >/dev/null 2>&1 &); fi", context=ctx), check=False)
 
     # 2. Stream barista code at pinned sha (entire repo excluding roasts metadata and heavy data)
     barista_sha = r.get("barista", {}).get("sha", "HEAD")
@@ -1670,7 +1707,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         stdout=subprocess.PIPE,
     )
     p_tar1 = subprocess.Popen(
-        k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt),
+        k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", ckpt, context=ctx),
         stdin=p_barista.stdout,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -1680,12 +1717,12 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
     p_barista.wait()
     if p_tar1.returncode != 0:
         err = stderr1.decode("utf-8", errors="replace").strip() if stderr1 else ""
-        die(f"[nautilus] barista code sync failed ({p_tar1.returncode}): {err}")
+        die(f"[{host}] barista code sync failed ({p_tar1.returncode}): {err}")
 
     # 3. Stream coffea4bees code at pinned sha (excluding heavy non-code assets not needed for remote execution)
     if c4b_dir.is_dir() and "coffea4bees" in r:
         c4b_sha = r["coffea4bees"]["sha"]
-        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees"), check=False)
+        sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "mkdir", "-p", f"{ckpt}/coffea4bees", context=ctx), check=False)
         p_c4b = subprocess.Popen(
             [
                 "git", "archive", "--format=tar.gz", c4b_sha, "--",
@@ -1700,7 +1737,7 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
             stdout=subprocess.PIPE,
         )
         p_tar2 = subprocess.Popen(
-            k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees"),
+            k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-xzf", "-", "-C", f"{ckpt}/coffea4bees", context=ctx),
             stdin=p_c4b.stdout,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1710,9 +1747,9 @@ def _sync_nautilus_code(cfg: dict, r: dict, ckpt: str) -> None:
         p_c4b.wait()
         if p_tar2.returncode != 0:
             err = stderr2.decode("utf-8", errors="replace").strip() if stderr2 else ""
-            die(f"[nautilus] coffea4bees code sync failed ({p_tar2.returncode}): {err}")
+            die(f"[{host}] coffea4bees code sync failed ({p_tar2.returncode}): {err}")
 
-    info(f"[nautilus] synced code to {ckpt}")
+    info(f"[{host}] synced code to {ckpt}")
 
 
 def cmd_checkout(args) -> None:
@@ -1721,8 +1758,8 @@ def cmd_checkout(args) -> None:
     hosts = [args.host] if args.host else sorted({s["host"] for s in r["steps"]})
     for host in hosts:
         ckpt = checkout_path(cfg, r, host)
-        if host == "nautilus":
-            _checkout_nautilus(cfg, r, ckpt)
+        if host in K8S_HOSTS:
+            _checkout_nautilus(cfg, r, ckpt, host=host)
             continue
         hc = host_cfg(cfg, host)
         target = resolve_ssh(hc)
@@ -1877,7 +1914,7 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
         {unlock.strip()}
         # 1. Capture visual rulegraph before execution
         echo "=== generating rulegraph SVG ===" | tee -a "$LOG"
-        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+        ./run_container snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --config roast_id={r['id']}{settings} 2>/dev/null | sed -n '/^digraph /,$p' | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
         # 2. Run workflow
         {base} 2>&1 | tee -a "$LOG"
         RC=${{PIPESTATUS[0]}}
@@ -1898,26 +1935,29 @@ def _run_script(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, extra: st
     """)
 
 
-def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args, resume: bool, targets: str = "") -> None:
-    hc = host_cfg(cfg, "nautilus")
+def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args, resume: bool, targets: str = "", host: str = "") -> None:
+    host = host or step["host"]
+    hc = host_cfg(cfg, host)
     ns = hc.get("namespace", "cms-cmu")
+    ctx = hc.get("context", "")
+    profile = hc.get("profile", f"software/snakemake/profiles/{host}")
     user = hc.get("user", getpass.getuser())
     jname = _k8s_job_name(r, step)
     ref = hc.get("reference", f"/workspace/users/{user}/barista")
-    _ensure_storage_helper(ns)
-    _push_nautilus_proxy(cfg, ns, [f"{ckpt}/proxy/x509_proxy", f"{ref}/proxy/x509_proxy"])
+    _ensure_storage_helper(ns, ctx=ctx, host=host)
+    _push_nautilus_proxy(cfg, ns, [f"{ckpt}/proxy/x509_proxy", f"{ref}/proxy/x509_proxy"], ctx=ctx, host=host)
 
     # 1. Guard against double-submit
-    jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
+    jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json", context=ctx), check=False)
     if jres.returncode == 0:
         try:
             jinfo = json.loads(jres.stdout)
             if jinfo.get("status", {}).get("active", 0) > 0:
-                die(f"a Kubernetes Job '{jname}' for this roast is still running on Nautilus; refusing to double-submit")
+                die(f"a Kubernetes Job '{jname}' for this roast is still running on {host}; refusing to double-submit")
         except Exception:
             pass
-        sh(k8s_cmd("delete", "job", jname, "-n", ns, "--ignore-not-found"), check=False)
-        info(f"[nautilus] removed previous job {jname}")
+        sh(k8s_cmd("delete", "job", jname, "-n", ns, "--ignore-not-found", context=ctx), check=False)
+        info(f"[{host}] removed previous job {jname}")
 
     name = step["name"]
     smk = step["snakefile"]
@@ -1925,7 +1965,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     tgts = " ".join(t for t in (step.get("targets") or "", targets or "") if t)
     settings = "".join(f" {k}={shlex.quote(v)}" for k, v in sorted(user_paths(cfg, r).items()))
     base = (f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} "
-            f"--profile software/snakemake/profiles/nautilus --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
+            f"--profile {shlex.quote(profile)} --jobs {cores} --printshellcmds --config roast_id={r['id']}{settings}")
     if step.get("extra"):
         base += f" {step['extra']}"
     if args.extra:
@@ -1936,10 +1976,44 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
     if resume:
         base += " --rerun-incomplete"
 
-    unlock = f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus --unlock || true\n" if resume else ""
+    unlock = f"snakemake -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile {shlex.quote(profile)} --unlock || true\n" if resume else ""
+
+    extra_env_lines = [f"                  export NAUTILUS_NAMESPACE={shlex.quote(ns)}"]
+    if hc.get("image"):
+        extra_env_lines.append(f"                  export NAUTILUS_IMAGE={shlex.quote(str(hc['image']))}")
+    if "enable_cvmfs" in hc:
+        extra_env_lines.append(f"                  export NAUTILUS_ENABLE_CVMFS={'true' if hc['enable_cvmfs'] else 'false'}")
+    if hc.get("eval_mem_gb"):
+        extra_env_lines.append(f"                  export NAUTILUS_EVAL_MEM_GB={int(hc['eval_mem_gb'])}")
+    extra_env_block = "\n".join(extra_env_lines)
 
     # RFC 1123 / Kubernetes label value must be at most 63 chars
     roast_label = r["id"] if len(r["id"]) <= 63 else f"{r['id'][:50]}-{hashlib.sha256(r['id'].encode()).hexdigest()[:12]}"
+
+    affinity_yaml = ""
+    if host == "nautilus":
+        affinity_yaml = """\
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                        - tu.gp-engine.greatplains.net
+"""
+
+    orch_image = hc.get("image") or "docker.io/snakemake/snakemake:v9.27.0"
+    if hc.get("image"):
+        orch_setup = (
+            "                  source /entrypoint.sh 2>/dev/null || true\n"
+            "                  if ! command -v snakemake >/dev/null 2>&1 || ! python3 -c \"import snakemake_executor_plugin_cluster_generic\" >/dev/null 2>&1; then\n"
+            "                      pip install --no-cache-dir --quiet snakemake==9.27.0 snakemake-executor-plugin-cluster-generic\n"
+            "                  fi"
+        )
+    else:
+        orch_setup = "                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd"
 
     # 2. Build Job manifest
     manifest = textwrap.dedent(f"""\
@@ -1962,30 +2036,28 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
             spec:
               restartPolicy: Never
               serviceAccountName: roast-runner
-              affinity:
-                nodeAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    nodeSelectorTerms:
-                    - matchExpressions:
-                      - key: kubernetes.io/hostname
-                        operator: NotIn
-                        values:
-                        - tu.gp-engine.greatplains.net
-              containers:
+{affinity_yaml}              containers:
               - name: orchestrator
-                image: docker.io/snakemake/snakemake:v9.27.0
+                image: {orch_image}
                 imagePullPolicy: IfNotPresent
                 workingDir: {ckpt}
                 command: ["bash", "-c"]
                 args:
                 - |
                   set -e
-                  echo "=== roast {r['id']} step {name} start $(date) on Nautilus ==="
-                  pip install --no-cache-dir --quiet snakemake-executor-plugin-cluster-generic fsspec fsspec-xrootd
+                  echo "=== roast {r['id']} step {name} start $(date) on {host} ==="
+{orch_setup}
                   mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
-                  export X509_USER_PROXY="$PWD/proxy/x509_proxy"
+                  export X509_CERT_DIR=/etc/grid-security/certificates
+                  if [ -s "$PWD/proxy/x509_proxy" ]; then
+                      install -m 600 "$PWD/proxy/x509_proxy" /tmp/x509_proxy
+                      export X509_USER_PROXY=/tmp/x509_proxy
+                  else
+                      export X509_USER_PROXY="$PWD/proxy/x509_proxy"
+                  fi
                   export PATH=/workspace/shared/bin:$PATH
                   export NAUTILUS_WORKDIR={ckpt}
+{extra_env_block}
                   export CLASSIFIER_CONFIG_PATHS=coffea4bees
                   export ROAST_ID="{r['id']}"
                   export ROAST_STEP="{name}"
@@ -1997,12 +2069,12 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   rm -rf .snakemake/locks/* 2>/dev/null || true
                   mkdir -p .snakemake/locks
                   {unlock}
-                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus 2>/dev/null | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
+                  snakemake --rulegraph -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile {shlex.quote(profile)} 2>/dev/null | sed -n '/^digraph /,$p' | dot -Tsvg > "logs/{name}_rulegraph.svg" 2>/dev/null || true
                   {base} 2>&1 | tee "$LOG"
                   RC=${{PIPESTATUS[0]}}
                   echo "$RC" > "$EXIT"
                   if [ "$RC" = "0" ]; then
-                      snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile software/snakemake/profiles/nautilus > "logs/{name}_summary.txt" 2>/dev/null || true
+                      snakemake --summary -s {shlex.quote(smk)} {tgts + ' ' if tgts else ''}--configfile {configfile} --profile {shlex.quote(profile)} > "logs/{name}_summary.txt" 2>/dev/null || true
                   fi
                   echo "=== roast {r['id']} step {name} exit $RC $(date) ===" | tee -a "$LOG"
                   exit $RC
@@ -2011,8 +2083,8 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                     cpu: "2"
                     memory: "4Gi"
                   requests:
-                    cpu: "2"
-                    memory: "4Gi"
+                    cpu: "500m"
+                    memory: "2Gi"
                 volumeMounts:
                 - mountPath: /workspace
                   name: ceph-storage
@@ -2022,27 +2094,27 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                   claimName: cms-cmu-storage
     """)
 
-    # Sync code at pinned roast SHAs to CephFS checkout if not already present
-    has_code = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-d", f"{ckpt}/coffea4bees"), check=False)
+    # Sync code at pinned roast SHAs to cluster shared storage if not already present
+    has_code = sh(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "test", "-d", f"{ckpt}/coffea4bees", context=ctx), check=False)
     if has_code.returncode != 0:
-        _sync_nautilus_code(cfg, r, ckpt)
+        _sync_nautilus_code(cfg, r, ckpt, host=host)
 
     manifest_path = roast_dir(r["id"]) / f"job_{name}.yaml"
     manifest_path.write_text(manifest)
 
     # 3. Apply manifest
-    res = sh(k8s_cmd("apply", "--validate=false", "-f", str(manifest_path)), check=False)
+    res = sh(k8s_cmd("apply", "--validate=false", "-f", str(manifest_path), context=ctx), check=False)
     if res.returncode != 0:
-        die(f"failed to submit Kubernetes Job to Nautilus: {res.stderr.strip()}")
+        die(f"failed to submit Kubernetes Job to {host}: {res.stderr.strip()}")
     print(res.stdout.strip())
 
-    # 4. Sync updated config.yml to CephFS if changed
+    # 4. Sync updated config.yml to shared storage if changed
     cfg_sha = sha256_file(roast_dir(r["id"]) / "config.yml")
     if cfg_sha != r["config"]["sha256"]:
         r["config"]["sha256"] = cfg_sha
         log_event(r, "config-edited", sha256=cfg_sha[:12])
         sh(k8s_cmd("cp", str(roast_dir(r["id"]) / "config.yml"),
-                   f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/config.yml"), check=False)
+                   f"{ns}/storage-helper:{ckpt}/roasts/{r['id']}/config.yml", context=ctx), check=False)
 
     step.setdefault("runs", []).append({
         "ts": now(), "cores": cores, "extra": args.extra or "",
@@ -2050,9 +2122,9 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
         "test": bool(args.test), "resume": resume,
         "job_name": jname, "namespace": ns, "config_sha256": cfg_sha[:12]
     })
-    log_event(r, "resume" if resume else "submit", step=name, host="nautilus")
+    log_event(r, "resume" if resume else "submit", step=name, host=host)
     save_roast(r)
-    info(f"[nautilus] launched Kubernetes Job {jname}")
+    info(f"[{host}] launched Kubernetes Job {jname}")
     info(f"attach: {TOOL} attach {r['id']} --step {name}    |    {TOOL} status {r['id']}")
 
 
@@ -2106,11 +2178,12 @@ def _submit(args, resume: bool) -> None:
             c_done = False
             c_runs = [run for run in c_step.get("runs", []) if not run.get("dry_run")]
             if c_runs:
-                if c_host == "nautilus":
-                    hc_n = host_cfg(cfg, "nautilus")
+                if c_host in K8S_HOSTS:
+                    hc_n = host_cfg(cfg, c_host)
                     ns = hc_n.get("namespace", "cms-cmu")
+                    ctx = hc_n.get("context", "")
                     jname = c_runs[-1].get("job_name") or _k8s_job_name(r, c_step)
-                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}"), check=False)
+                    res = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "jsonpath={.status.succeeded}", context=ctx), check=False)
                     if res.returncode == 0 and res.stdout.strip() == "1":
                         c_done = True
                 elif c_host in r.get("hosts", {}):
@@ -2144,9 +2217,9 @@ def _submit(args, resume: bool) -> None:
     step = find_step(r, target_step)
     host = step["host"]
     hc = host_cfg(cfg, host)
-    if (r.get("train_on") or r.get("eval_on")) and host == "nautilus":
+    if (r.get("train_on") or r.get("eval_on")) and host in K8S_HOSTS:
         die(f"--train-on/--eval-on {r.get('train_on') or r.get('eval_on')} need a driver that can reach ORCHARD "
-            f"(gcloud) or the Delta spool (EOS); step {step['name']} runs on Nautilus. Use falcon or cmslpc for "
+            f"(gcloud) or the Delta spool (EOS); step {step['name']} runs on {host}. Use falcon or cmslpc for "
             f"this step, or `--train-on host --eval-on host`")
     if host == "cmslpc" and step["name"] in ("C", "D", "BKG_C") and not (r.get("train_on") and r.get("eval_on")):
         die(f"step {step['name']} on cmslpc has no GPU of its own: it needs `--train-on orchard --eval-on orchard` "
@@ -2165,7 +2238,7 @@ def _submit(args, resume: bool) -> None:
                     check_friend_wiring(r.get("steps", []), captured_wf)
             except Exception as e:
                 pass
-    target = roast_ssh(cfg, r, host) if host != "nautilus" else ""
+    target = roast_ssh(cfg, r, host) if host not in K8S_HOSTS else ""
     cores = args.cores or hc.get("cores", 4)
     extra = args.extra
     targets = getattr(args, "targets", None)
@@ -2204,8 +2277,8 @@ def _submit(args, resume: bool) -> None:
         parts.append("-n")                             # snakemake dry run: plan only, nothing produced
     args.extra = " ".join(x for x in parts if x).strip()
 
-    if host == "nautilus":
-        _submit_nautilus(cfg, r, step, ckpt, cores, args, resume, targets or "")
+    if host in K8S_HOSTS:
+        _submit_nautilus(cfg, r, step, ckpt, cores, args, resume, targets or "", host=host)
         return
 
     if host == "cmslpc":
@@ -2307,15 +2380,16 @@ def cmd_log(args) -> None:
     cfg = load_config()
     r = load_roast(args.id)
     step = find_step(r, args.step)
-    if step["host"] == "nautilus":
-        hc = host_cfg(cfg, "nautilus")
+    if step["host"] in K8S_HOSTS:
+        hc = host_cfg(cfg, step["host"])
         ns = hc.get("namespace", "cms-cmu")
+        ctx = hc.get("context", "")
         jname = _k8s_job_name(r, step)
         if args.follow:
-            info(f"following Nautilus job {jname} in namespace {ns} (ctrl-c to stop)")
-            cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f")
+            info(f"following {step['host']} job {jname} in namespace {ns} (ctrl-c to stop)")
+            cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f", context=ctx)
             os.execvp(cmd[0], cmd)
-        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, f"--tail={int(args.lines)}")
+        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, f"--tail={int(args.lines)}", context=ctx)
         res = sh(cmd, check=False)
         out = (res.stdout or res.stderr or "").strip()
         if out:
@@ -2385,24 +2459,25 @@ def cmd_attach(args) -> None:
     else:
         die("give a roast id, or --host")
 
-    if host == "nautilus":
-        hc = host_cfg(cfg, "nautilus")
+    if host in K8S_HOSTS:
+        hc = host_cfg(cfg, host)
         ns = hc.get("namespace", "cms-cmu")
+        ctx = hc.get("context", "")
         target_step = None
         if args.id and args.step:
             target_step = find_step(r, args.step)
         elif r:
             for s in reversed(r["steps"]):
-                if s["host"] == "nautilus" and s.get("runs"):
+                if s["host"] == host and s.get("runs"):
                     target_step = s
                     break
             if not target_step:
-                target_step = next((s for s in r["steps"] if s["host"] == "nautilus"), None)
+                target_step = next((s for s in r["steps"] if s["host"] == host), None)
         if not target_step:
-            die("no Nautilus step found to attach")
+            die(f"no {host} step found to attach")
         jname = _k8s_job_name(r, target_step)
-        info(f"attaching to Nautilus job {jname} in namespace {ns}")
-        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f")
+        info(f"attaching to {host} job {jname} in namespace {ns}")
+        cmd = k8s_cmd("logs", f"job/{jname}", "-n", ns, "-f", context=ctx)
         os.execvp(cmd[0], cmd)
 
     target = roast_ssh(cfg, r, host) if r else resolve_ssh(host_cfg(cfg, host))
@@ -2463,8 +2538,8 @@ def _proxy_transport(host: str, hc: dict) -> tuple[list[str] | None, list[str]]:
     if "ssh" in hc:
         target = resolve_ssh(hc)
         return ["ssh", *ssh_opts(target), target], ['"$HOME/.roast/x509_proxy"', *ref_proxy]
-    if host == "nautilus" or "namespace" in hc:
-        return [*k8s_cmd("exec", "-i", "storage-helper", "-n", hc.get("namespace", "cms-cmu"), "--", "sh", "-c"), None], ref_proxy
+    if host in K8S_HOSTS or "namespace" in hc:
+        return [*k8s_cmd("exec", "-i", "storage-helper", "-n", hc.get("namespace", "cms-cmu"), "--", "sh", "-c", context=hc.get("context", "")), None], ref_proxy
     return None, []
 
 
@@ -2586,18 +2661,19 @@ def cmd_pull(args) -> None:
         rel = args.path.strip("/")
         dst = ROOT / "output" / "roasts" / r["id"] / rel
         dst.mkdir(parents=True, exist_ok=True)
-        if host == "nautilus":
-            hc = host_cfg(cfg, "nautilus")
+        if host in K8S_HOSTS:
+            hc = host_cfg(cfg, host)
             ns = hc.get("namespace", "cms-cmu")
-            info(f"[nautilus] pulling {rel} -> {dst}/")
+            ctx = hc.get("context", "")
+            info(f"[{host}] pulling {rel} -> {dst}/")
             if not args.dry_run:
-                p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-cf", "-", "-C", ckpt, rel), stdout=subprocess.PIPE)
+                p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-cf", "-", "-C", ckpt, rel, context=ctx), stdout=subprocess.PIPE)
                 p2 = subprocess.Popen(["tar", "-xf", "-", "-C", str(ROOT / "output" / "roasts" / r["id"])], stdin=p1.stdout)
                 p1.stdout.close()
                 p2.communicate()
                 if p2.returncode != 0:
-                    die(f"pull from nautilus failed ({p2.returncode})")
-                log_event(r, "pull", host="nautilus", path=rel)
+                    die(f"pull from {host} failed ({p2.returncode})")
+                log_event(r, "pull", host=host, path=rel)
                 save_roast(r)
             continue
         target = roast_ssh(cfg, r, host)
@@ -2847,6 +2923,9 @@ def _clean_probe(cfg: dict, r: dict) -> dict:
     rid = r["id"]
     parsed = {}
     for host, hinfo in r["hosts"].items():
+        if host in K8S_HOSTS:
+            parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host], host=host)
+            continue
         target = roast_ssh(cfg, r, host)
         res = ssh_run(target, _status_script(r, hinfo["checkout"],
                                              [s for s in r["steps"] if s["host"] == host], host), check=False)
@@ -2955,11 +3034,18 @@ def cmd_clean(args) -> None:
         # Both hosts at once, and the files inside one host in parallel too: deleting a checkout
         # is tens of thousands of unlinks on NFS, where latency rather than bandwidth is the cost.
         ok = True
+        def _clean_one(ht):
+            h, top = ht
+            if h in K8S_HOSTS:
+                hc = host_cfg(cfg, h)
+                ns = hc.get("namespace", "cms-cmu")
+                ctx = hc.get("context", "")
+                _ensure_storage_helper(ns, ctx=ctx, host=h)
+                return sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top, context=ctx), check=False)
+            return ssh_run(roast_ssh(cfg, r, h), _rm_tree_script(top), check=False)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(tops))) as pool:
-            for (host, top), res in zip(tops.items(),
-                                        pool.map(lambda ht: ssh_run(roast_ssh(cfg, r, ht[0]),
-                                                                    _rm_tree_script(ht[1]), check=False),
-                                                 list(tops.items()))):
+            for (host, top), res in zip(tops.items(), pool.map(_clean_one, list(tops.items()))):
                 print((res.stdout + res.stderr).strip() or f"  removed {host}: {top}")
                 ok &= res.returncode == 0
         if not ok:
@@ -3005,12 +3091,13 @@ def cmd_rm(args) -> None:
     # refuse while a step is running
     if not args.keep_hosts:
         for host, h in r.get("hosts", {}).items():
-            if host == "nautilus":
-                hc = host_cfg(cfg, "nautilus")
+            if host in K8S_HOSTS:
+                hc = host_cfg(cfg, host)
                 ns = hc.get("namespace", "cms-cmu")
-                chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running"), check=False)
+                ctx = hc.get("context", "")
+                chk = sh(k8s_cmd("get", "pods", "-n", ns, "-l", f"roast={rid}", "--field-selector=status.phase=Running", context=ctx), check=False)
                 if chk.returncode == 0 and "Running" in (chk.stdout or ""):
-                    die(f"a Kubernetes pod for this roast is still running on Nautilus; cancel it first")
+                    die(f"a Kubernetes pod for this roast is still running on {host}; cancel it first")
                 continue
             target = roast_ssh(cfg, r, host)
             session = _tmux_session(r)
@@ -3032,13 +3119,14 @@ def cmd_rm(args) -> None:
         print((res.stdout + res.stderr).strip()); ok &= res.returncode == 0
     for host, h in r.get("hosts", {}).items():
         if not args.keep_hosts:
-            if host == "nautilus":
-                hc = host_cfg(cfg, "nautilus")
+            if host in K8S_HOSTS:
+                hc = host_cfg(cfg, host)
                 ns = hc.get("namespace", "cms-cmu")
-                sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found"), check=False)
+                ctx = hc.get("context", "")
+                sh(k8s_cmd("delete", "jobs,pods", "-n", ns, "-l", f"roast={rid}", "--ignore-not-found", context=ctx), check=False)
                 top = h["checkout"].rsplit("/", 1)[0]
-                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top), check=False)
-                print(f"  removed {top} on Nautilus")
+                sh(k8s_cmd("exec", "storage-helper", "-n", ns, "--", "rm", "-rf", top, context=ctx), check=False)
+                print(f"  removed {top} on {host}")
                 continue
             top = h["checkout"].rsplit("/", 1)[0]
             res = ssh_run(roast_ssh(cfg, r, host), _rm_tree_script(top), check=False)
@@ -3421,13 +3509,14 @@ def _is_step_worker(pod: dict, r: dict, step_name: str, jname: str) -> bool:
     return pname.startswith(f"smk-{h}-")
 
 
-def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
-    hc = host_cfg(cfg, "nautilus")
+def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict], host: str = "nautilus") -> dict:
+    hc = host_cfg(cfg, host)
     ns = hc.get("namespace", "cms-cmu")
+    ctx = hc.get("context", "")
     out = {"steps": [], "live": {}, "done": {}, "condor": {}, "k8s_pods": {}, "extra": [], "nocheckout": False, "error": None}
 
     # Query all pods in namespace to catch both labeled orchestrator and worker jobs
-    res = sh(k8s_cmd("get", "pods", "-n", ns, "-o", "json"), check=False)
+    res = sh(k8s_cmd("get", "pods", "-n", ns, "-o", "json", context=ctx), check=False)
     all_pods = []
     if res.returncode == 0 and res.stdout.strip():
         try:
@@ -3438,7 +3527,7 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
     for s in steps:
         name = s["name"]
         jname = _k8s_job_name(r, s)
-        jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json"), check=False)
+        jres = sh(k8s_cmd("get", "job", jname, "-n", ns, "-o", "json", context=ctx), check=False)
         job_info = {}
         if jres.returncode == 0 and jres.stdout.strip():
             try:
@@ -3455,12 +3544,12 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
             if status_f.get("succeeded", 0) > 0:
                 st = "exit=0"
                 colour = "\033[32m"
-            elif status_f.get("failed", 0) > 0:
-                st = "error"
-                colour = "\033[31m"
             elif status_f.get("active", 0) > 0:
                 st = "running"
                 colour = "\033[33m"
+            elif status_f.get("failed", 0) > 0:
+                st = "error"
+                colour = "\033[31m"
             else:
                 st = "pending"
                 colour = ""
@@ -3506,12 +3595,12 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
                     n_run += 1
                     pcol = "\033[36m"
 
-                rows.append(f"nautilus {pname[:28]:28s} {pcol}{state_desc:14s}\033[0m node={node}")
+                rows.append(f"{host:8s} {pname[:28]:28s} {pcol}{state_desc:14s}\033[0m node={node}")
             out["k8s_pods"][name] = rows
 
             # Extract any Snakemake step completion from orchestrator log
             smk_prog = ""
-            log_res = sh(k8s_cmd("logs", "-n", ns, f"job/{jname}", "--tail=60"), check=False)
+            log_res = sh(k8s_cmd("logs", "-n", ns, f"job/{jname}", "--tail=60", context=ctx), check=False)
             if log_res.returncode == 0 and log_res.stdout:
                 m = re.findall(r"(\d+ of \d+ steps \(\d+%\) done)", log_res.stdout)
                 if m:
@@ -3532,7 +3621,7 @@ def _parse_nautilus_status(cfg: dict, r: dict, steps: list[dict]) -> dict:
         out["steps"].append((name, f"{colour}{st:12s}\033[0m {prog}".rstrip()))
 
     if all_pods:
-        out["extra"].append(f"nautilus {len(all_pods)} pod(s) in namespace {ns}")
+        out["extra"].append(f"{host} {len(all_pods)} pod(s) in namespace {ns}")
 
     return out
 
@@ -3541,8 +3630,8 @@ def _gather_status(cfg: dict, r: dict) -> dict:
     """{host: parsed status} for every host a roast has a checkout on (one ssh/kubectl round per host)."""
     parsed = {}
     for host, hinfo in r["hosts"].items():
-        if host == "nautilus":
-            parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host])
+        if host in K8S_HOSTS:
+            parsed[host] = _parse_nautilus_status(cfg, r, [s for s in r["steps"] if s["host"] == host], host=host)
             continue
         target = roast_ssh(cfg, r, host)
         res = ssh_run(target, _status_script(r, hinfo["checkout"], [s for s in r["steps"] if s["host"] == host], host), check=False)
@@ -3842,6 +3931,7 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         {dry}
         # Discover publishable HTML pages for cupping notes and index summary
         awk '/\\.html$/ && !/dask-report/ && !/_test/ && !/\\/logs\\// && !/\\/singlefiles\\// {{ print "PAGE:" $0 }}' "$LIST"
+        for f in logs/*_rulegraph.svg logs/*_summary.txt; do [ -s "$f" ] && echo "PAGE:$f"; done
         # What is already there (path<TAB>size), so reruns only copy new or changed files.
         xrdfs $EOS ls -l -R {dst_dir} 2>/dev/null > "$RAW_HAVE" || true
         awk -v b="{dst_dir}/" '$1 !~ /^d/ {{ p=$NF; sub(b,"",p); print p "\\t" $4 }}' "$RAW_HAVE" | sort > "$HAVE"
@@ -3934,28 +4024,29 @@ def _refresh_cernbox_analysis_index(eos_base: str, url_base: str) -> None:
         os.unlink(tmp)
 
 
-def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publish_mode: bool = False) -> None:
-    if "nautilus" not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
+def _sync_nautilus_to_host(cfg: dict, r: dict, target_host: str = "cmslpc", publish_mode: bool = False, source_host: str = "nautilus") -> None:
+    if source_host not in r.get("hosts", {}) or target_host not in r.get("hosts", {}):
         return
-    hc = host_cfg(cfg, "nautilus")
+    hc = host_cfg(cfg, source_host)
     ns = hc.get("namespace", "cms-cmu")
-    _ensure_storage_helper(ns)
-    nautilus_ck = r["hosts"]["nautilus"]["checkout"]
+    ctx = hc.get("context", "")
+    _ensure_storage_helper(ns, ctx=ctx, host=source_host)
+    nautilus_ck = r["hosts"][source_host]["checkout"]
     target_ck = r["hosts"][target_host]["checkout"]
     target_ssh = roast_ssh(cfg, r, target_host)
-    info(f"[nautilus] syncing outputs to [{target_host}]...")
+    info(f"[{source_host}] syncing outputs to [{target_host}]...")
     extra_tar_args = []
     if publish_mode:
         for pat in ("*.pt", "*.root", "*.parquet", "*.coffea", "*.tar.gz", "*.bin", "*.pkl", "*/performance/*", "*/classifier_inputs/*"):
             extra_tar_args.extend(["--exclude", pat])
-    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-czf", "-", *extra_tar_args, "-C", nautilus_ck, "output", "logs"), stdout=subprocess.PIPE)
+    p1 = subprocess.Popen(k8s_cmd("exec", "-i", "storage-helper", "-n", ns, "--", "tar", "-czf", "-", *extra_tar_args, "-C", nautilus_ck, "output", "logs", context=ctx), stdout=subprocess.PIPE)
     p2 = subprocess.Popen(["ssh", *ssh_opts(target_ssh), target_ssh, f"tar -xzf - -C {rq(target_ck)}"], stdin=p1.stdout)
     p1.stdout.close()
     p2.communicate()
     if p2.returncode == 0:
-        info(f"[nautilus] synced outputs to [{target_host}]")
+        info(f"[{source_host}] synced outputs to [{target_host}]")
     else:
-        info(f"[nautilus] sync to [{target_host}] returned code {p2.returncode}")
+        info(f"[{source_host}] sync to [{target_host}] returned code {p2.returncode}")
 
 
 def cmd_publish(args) -> None:
@@ -3977,10 +4068,12 @@ def cmd_publish(args) -> None:
     if not args.docs_only:
         if not args.host:
             pages = set()   # full publish: rebuild the list from what the hosts have now
-        if not args.dry_run and "nautilus" in hosts and "cmslpc" in r.get("hosts", {}):
-            _sync_nautilus_to_host(cfg, r, "cmslpc", publish_mode=True)
+        if not args.dry_run and "cmslpc" in r.get("hosts", {}):
+            for kh in K8S_HOSTS:
+                if kh in hosts:
+                    _sync_nautilus_to_host(cfg, r, "cmslpc", publish_mode=True, source_host=kh)
         for host in hosts:
-            if host == "nautilus":
+            if host in K8S_HOSTS:
                 continue
             hinfo = r["hosts"][host]
             info(f"[{host}] publishing to {eos_dir}")
@@ -4024,7 +4117,7 @@ def cmd_publish(args) -> None:
     if not args.dry_run and ok:
         pub_host = None
         for h in hosts:
-            if h != "nautilus" and h in r.get("hosts", {}):
+            if h not in K8S_HOSTS and h in r.get("hosts", {}):
                 pub_host = h
                 break
         if pub_host:
@@ -4077,10 +4170,12 @@ def cmd_archive(args) -> None:
         info("archive rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb'] or 'none'}")
     hosts = [args.host] if args.host else list(r["hosts"])
     ok = True
-    if not args.dry_run and "nautilus" in hosts and "cmslpc" in r.get("hosts", {}):
-        _sync_nautilus_to_host(cfg, r, "cmslpc")
+    if not args.dry_run and "cmslpc" in r.get("hosts", {}):
+        for kh in K8S_HOSTS:
+            if kh in hosts:
+                _sync_nautilus_to_host(cfg, r, "cmslpc", source_host=kh)
     for host in hosts:
-        if host == "nautilus":
+        if host in K8S_HOSTS:
             continue
         hinfo = r["hosts"][host]
         info(f"[{host}] archiving to {eos_url}/{dst_dir}")
@@ -4671,21 +4766,18 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         has_sum = (pages is None) or (sum_rel in pages)
         if has_svg or has_sum:
             dag_blocks.append(f"""
-            <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc;">
-                <div style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
-                    <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
-                    <span style="display: flex; gap: 8px;">
-                        {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
-                        {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
-                    </span>
-                </div>
-                {f'<div style="text-align: center; overflow-x: auto; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid var(--line); max-height: 420px;"><object data="{svg_rel}" type="image/svg+xml" style="max-width: 100%; height: auto;"></object></div>' if has_svg else ''}
+            <div style="margin-bottom: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfc; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span>Step <strong>{sname}</strong> (<code>{html.escape(str(s.get('snakefile', '')))}</code>)</span>
+                <span style="display: flex; gap: 8px;">
+                    {f'<a href="{svg_rel}" class="pill-link" target="_blank">📊 Open Full SVG</a>' if has_svg else ''}
+                    {f'<a href="{sum_rel}" class="pill-link" target="_blank">📋 Open Execution Summary</a>' if has_sum else ''}
+                </span>
             </div>""")
 
     dags_html = ""
     if dag_blocks:
         dags_html = f"""
-        <details class="card" open style="margin-top: 1rem;">
+        <details class="card" style="margin-top: 1rem;">
             <summary class="card-header" style="cursor: pointer; user-select: none;">
                 <h2>📐 Snakemake Rule Execution Graphs & DAGs</h2>
                 <span class="chip chip-accent">{len(dag_blocks)} Step DAG(s)</span>
@@ -4985,8 +5077,6 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         {featured_html}
 
-        {dags_html}
-
         {galleries_card_html}
 
         {models_html}
@@ -5019,6 +5109,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         </div>
 
         {notes_html}
+
+        {dags_html}
 
         <details class="card" style="margin-top: 1rem;">
             <summary class="card-header">
@@ -5235,6 +5327,7 @@ def main(argv=None) -> None:
     s.add_argument("--bridges2", action="store_true", help="run GPU phases (C, D, BKG_C) on PSC Bridges-2 instead of Falcon")
     s.add_argument("--delta", action="store_true", help="run GPU phases (C, D, BKG_C) on NCSA Delta instead of Falcon")
     s.add_argument("--nautilus", action="store_true", help="run GPU phases (C, D, BKG_C) on NRP Nautilus instead of Falcon")
+    s.add_argument("--gcp", action="store_true", help="run GPU phases (C, D, BKG_C) on Google Cloud GKE instead of Falcon")
     s.add_argument("--train-on", choices=TRAIN_HOSTS, help="run only the classifier trainings there (CMU ORCHARD H100s, "
                                                           "or NCSA Delta A100s through the pull agent); "
                                                           "the rest of each step stays on its host (falcon/cmslpc)")

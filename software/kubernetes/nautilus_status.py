@@ -8,17 +8,23 @@ import subprocess
 import sys
 
 NAMESPACE = os.environ.get("NAUTILUS_NAMESPACE", "cms-cmu")
+CONTEXT = os.environ.get("NAUTILUS_CONTEXT", "").strip()
 LOG_DIR = "k8s_logs"
 
 
 def find_kubectl():
     import shutil
-    k = shutil.which("kubectl")
-    if k:
-        return k
-    if os.path.exists("/workspace/shared/bin/kubectl"):
+    if not CONTEXT and os.path.exists("/workspace/shared/bin/kubectl"):
         return "/workspace/shared/bin/kubectl"
-    return "kubectl"
+    return shutil.which("kubectl") or "kubectl"
+
+
+def kubectl_cmd(*args):
+    cmd = [find_kubectl()]
+    if CONTEXT:
+        cmd.extend(["--context", CONTEXT])
+    cmd.extend(args)
+    return cmd
 
 
 def check_outputs_exist(jobid):
@@ -55,14 +61,12 @@ def main():
         print("success")
         sys.exit(0)
 
-    kubectl_bin = find_kubectl()
-
     # First check: if the output files already exist on disk, mark success!
     if check_outputs_exist(jobid):
         # Clean up k8s job if it is still lingering/pending
         try:
             subprocess.run(
-                [kubectl_bin, "delete", "job", jobid, "-n", NAMESPACE, "--ignore-not-found=true"],
+                kubectl_cmd("delete", "job", jobid, "-n", NAMESPACE, "--ignore-not-found=true"),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -71,8 +75,7 @@ def main():
         print("success")
         sys.exit(0)
 
-    cmd = [
-        kubectl_bin,
+    cmd = kubectl_cmd(
         "get",
         "job",
         jobid,
@@ -80,7 +83,7 @@ def main():
         NAMESPACE,
         "-o",
         "json",
-    ]
+    )
 
     try:
         res = subprocess.run(
