@@ -85,7 +85,6 @@ class SliceLoaderLite(Generic[_BatchT]):
         self.drop_last = drop_last
         self.seed = seed if seed is None else _seed(seed)
         self.kwargs = kwargs
-        self._epoch = 0
 
     def __iter__(self) -> Generator[_BatchT, None, None]:
         data = self.dataset
@@ -93,13 +92,7 @@ class SliceLoaderLite(Generic[_BatchT]):
         nbatch = self.batch_size
         indices = None
         if self.shuffle:
-            # seed=None -> OS entropy, a fresh order every epoch (the default).
-            # seed set   -> (seed, epoch), so the order still differs between epochs
-            # but is reproducible across runs; a bare fixed seed would replay the
-            # SAME permutation every epoch.
-            seed = self.seed if self.seed is None else _seed(self.seed, self._epoch)
-            rng = np.random.Generator(np.random.PCG64(seed))
-            self._epoch += 1
+            rng = np.random.Generator(np.random.PCG64(self.seed))
             indices = torch.from_numpy(rng.permutation(ndata))
         for i in range(0, ndata, nbatch):
             if self.drop_last and (i + nbatch) > ndata:
