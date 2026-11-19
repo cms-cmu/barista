@@ -1,4 +1,4 @@
-"""Barista training / evaluation wrapper for the CoReNet network (``src.classifier.nn.corenet``).
+"""Barista training / evaluation wrapper for the CoReNet network (the ``corenet`` package, https://github.com/cms-cmu/CoReNet, installed in the container).
 
 One-to-one counterpart of ``src.classifier.ml.models.HCR``: the same stages, schedules, ghost-batch
 schedule (``GBNSchedule``), benchmarks (``HCRBenchmarks``) and output columns, with the hard-coded HCR
@@ -67,8 +67,8 @@ from src.classifier.config.state.label import MultiClass
 from torch import Tensor
 
 from ...algorithm.utils import Selector, map_batch, to_num
-from ...nn.corenet import CoReNet
-from ...nn.corenet.config import NetworkSpec, parse_config
+from corenet.models.config import NetworkSpec, parse_config
+from corenet.models.network import CoReNet
 from ...nn.schedule import Schedule
 from ...utils import MemoryViewIO
 from .. import BatchType
