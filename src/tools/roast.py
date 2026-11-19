@@ -2002,6 +2002,7 @@ def _submit_nautilus(cfg: dict, r: dict, step: dict, ckpt: str, cores: int, args
                         operator: NotIn
                         values:
                         - tu.gp-engine.greatplains.net
+                        - k8s-chase-ci-03.calit2.optiputer.net
 """
 
     orch_image = hc.get("image") or "docker.io/snakemake/snakemake:v9.27.0"
