@@ -71,9 +71,7 @@ include:
   - local: 'software/dockerfiles/stages_build.yml'
   - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
-  - local: 'src/workflows/gitlab-CI/stages_classifier.yml'
   - local: 'src/workflows/gitlab-CI/stages_skimmer.yml'
-  - local: 'src/workflows/gitlab-CI/stages_friendtree.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
@@ -92,7 +90,6 @@ stages:
   - deploy
   - validation
   - workflows
-  - mixeddata
   - pages
 
 generate_subprojects_ci:
@@ -153,6 +150,7 @@ bbreww_pipeline:
     - set -o pipefail
     - export CONTAINER_PYTHON=$(which python)
     - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - if [ -f ./proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; echo "Configured X509_USER_PROXY=$X509_USER_PROXY"; fi
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
@@ -203,6 +201,7 @@ setup_coffea4bees:
     - set -o pipefail
     - export CONTAINER_PYTHON=$(which python)
     - export PATH="$PWD/.pixi-bin/bin:$PATH"
+    - if [ -f ./proxy/x509_proxy ]; then export X509_USER_PROXY="$PWD/proxy/x509_proxy"; echo "Configured X509_USER_PROXY=$X509_USER_PROXY"; fi
     - echo "Checking output directory"
     - ls $CI_PROJECT_PATH/output/ || true
     - echo "Setting analysis framework"
