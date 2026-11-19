@@ -60,6 +60,10 @@ def apply_btag_sf( jets,
                     ):
     '''
     Can be replace with coffea.btag_tools when btag_tools accept jsonpog files
+
+    `dataset` and `btagSF_norm_file` are unused and kept only for backward compatibility. The
+    normalization of the b-tag SF is handled by the (Njet, HT) calibration in
+    src/physics/btag_calibration.py.
     '''
 
     btagSF = correctionlib.CorrectionSet.from_file(correction_file)[correction_type]
@@ -97,15 +101,6 @@ def apply_btag_sf( jets,
     jets_c = jets[jets.hadronFlavour == 4]
     SF_c = get_sf(jets_c, sys_value)
 
-    ### btag norm
-    try:
-        with open(btagSF_norm_file, 'rb') as f:
-            btagSF_norm = pickle.load(f)[dataset]
-            logging.info(f'btagSF_norm {btagSF_norm}')
-    except FileNotFoundError:
-        btagSF_norm = 1.0
-
-
     btag_var = [sys_value]
     if btag_uncertainties:
         btag_var += [f'{updown}_{btagvar}' for updown in ['up', 'down'] for btagvar in btag_uncertainties]
@@ -120,7 +115,7 @@ def apply_btag_sf( jets,
             SF = SF_c * SF  # use central value for charm jets
         else:
             SF = get_sf(jets, sf)
-        weights[f'btagSF_{sf}'] = SF * btagSF_norm
+        weights[f'btagSF_{sf}'] = SF
 
 
 
