@@ -409,10 +409,13 @@ class HCRModel(Model):
         fit_qualities = [f.copy() for f in (self._benchmarks.fit_quality or [])]
         for batch in batches:
             inputs = self._inputs(batch)
-            if fit_qualities and self._corenet is None:
+            if fit_qualities:
                 # HCR.dataPrep rewrites the jet tensors in place (log(1+pt), eta sign); the
                 # fit-quality benchmark reads the original kinematics from the batch
-                inputs = [i.clone() for i in inputs]
+                if self._corenet is None:
+                    inputs = [i.clone() for i in inputs]
+                else:
+                    inputs = {k: v.clone() for k, v in inputs.items()}
             with _amp_autocast(self._device):
                 c, q = self._forward(inputs)
             c = c.float()
