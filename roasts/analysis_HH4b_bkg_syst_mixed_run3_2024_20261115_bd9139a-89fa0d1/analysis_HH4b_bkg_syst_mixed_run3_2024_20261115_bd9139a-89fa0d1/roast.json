@@ -1,0 +1,506 @@
+{
+  "id": "analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1",
+  "label": "analysis_HH4b_bkg_syst_mixed_run3_2024",
+  "analysis": "HH4b",
+  "created": "2026-11-15 17:13:12",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "bd9139a9e02230041a4809e528042f3bdcbb7bf2",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "89fa0d12f3308b4fc153ba9c232cbdcca4ef62fb",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mixed_run3_2024.yml",
+    "captured": "config.yml",
+    "sha256": "978f5fc1787ae7533a60738a361eb99ae7cafe54ffc71fd0411fedd50ff122b3"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "nominal_run3_2024_ftfix_20261106_1c7c8db-d5ec5c4",
+        "barista": "1c7c8db8b8ffa5c4818d6e2aa175f599e12b29a9",
+        "coffea4bees": "d5ec5c4daff4f9059b75bad8dd183b9d1c917a26",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_ftfix_20261106_1c7c8db-d5ec5c4",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_2024_20261021_975a18e-e176976",
+        "barista": "975a18ef16cf64d1599acaaee86c7405a7e4b9f0",
+        "coffea4bees": "e17697669490d1e6dde39c2776c60c94d3268164",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_20261021_975a18e-e176976",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run3_2024_20261022_d7a35ab-8470e14",
+        "barista": "d7a35ab6c1d52e30624830337613f18be63f7124",
+        "coffea4bees": "8470e1460e6b22cb1853c36fcba29872656194fd",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2024_20261022_d7a35ab-8470e14",
+        "archived": true
+      },
+      {
+        "id": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2024_20261113_0bccaff-89fa0d1",
+        "barista": "0bccaffe8349a14cdaa2352751c6e1832f1373d8",
+        "coffea4bees": "89fa0d12f3308b4fc153ba9c232cbdcca4ef62fb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2024_20261113_0bccaff-89fa0d1",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_2024_nontight_20261021_975a18e-e176976",
+        "barista": "975a18ef16cf64d1599acaaee86c7405a7e4b9f0",
+        "coffea4bees": "e17697669490d1e6dde39c2776c60c94d3268164",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2024_nontight_20261021_975a18e-e176976",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:mixeddata}/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_2024_20261022_d7a35ab-8470e14"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_2024_20261022_d7a35ab-8470e14"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2024_nontight_20261021_975a18e-e176976"
+      },
+      "nominal_hists": {
+        "url": "{roast:nominal}/{roast:nominal:output_path}histAll_{roast:nominal:label}.coffea",
+        "roast": "nominal_run3_2024_ftfix_20261106_1c7c8db-d5ec5c4"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_b}/handoff/classifier_inputs_{roast:nominal_b:id}.json",
+        "roast": "nominal_run3_2024_20261021_975a18e-e176976"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_nominal/result.json@@analysis.0.merged",
+        "roast": "nominal_run3_2024_ftfix_20261106_1c7c8db-d5ec5c4"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_nominal/result.json",
+        "roast": "nominal_run3_2024_ftfix_20261106_1c7c8db-d5ec5c4"
+      },
+      "analysis_config_noJCM": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/analysis_config_noJCM.yml",
+        "roast": "nominal_run3_2024_nontight_20261021_975a18e-e176976"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-15 17:20:53",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_AB",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-15 17:27:43",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_AB",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-16 00:12:20",
+          "cores": 32,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-16 00:12:53",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-16 09:29:37",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-16 09:50:59",
+          "cores": 32,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-16 09:51:18",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-16 15:15:39",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-17 22:35:17",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C4",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-17 22:36:20",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_C4",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-17 20:12:43",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_F",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        },
+        {
+          "ts": "2026-11-17 20:13:26",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mixed_run3_2024_bd9139a-89fa0d1_BKG_F",
+          "ssh": "jda102@cmslpc367.fnal.gov",
+          "config_sha256": "978f5fc1787a"
+        }
+      ]
+    }
+  ],
+  "train_on": "orchard",
+  "eval_on": "orchard",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/barista",
+      "ssh": "jda102@cmslpc367.fnal.gov",
+      "checked_out": "2026-11-15 17:16:30"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/j/johnda/www/HH4b/prod/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1",
+    "url": "https://johnda.web.cern.ch/johnda/HH4b/prod/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/",
+    "ts": "2026-11-18 15:16:59",
+    "ok": true,
+    "pages": [
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_A_2_make_subsamples/study/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_C_FvT/training_summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_3_stats/stat_analysis_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_3_stats/stat_analysis_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_3_stats/stat_analysis_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_3_stats/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin15/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin16/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin20/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1/bkg_syst_F_4_stats_mixeddata/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-15 17:13:12",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-15 17:16:30",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-15 17:20:53",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-15 17:27:43",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 00:12:20",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 00:12:53",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 09:29:37",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 09:50:59",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 09:51:18",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 15:15:39",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-17 20:12:43",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-17 20:13:26",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-17 22:35:17",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-17 22:36:20",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-18 07:32:24",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-18 15:16:59",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-21 08:09:57",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "2024 FvT nominal (nominal_run3_2024_ftfix), bkg systematic on the 2024 mixed subsamples (A_1/A_2 linked from the 2024 MvD-declustered-on-mixed roast). GPU on CMU ORCHARD, compute on cmslpc. Pinned at origin/master; hot patches = coffea4bees bkg-syst-mixed-2024-2025 (cc67888df). Created with --no-validate: the upstream consistency check (93b52d60) flags SvB/SvB_model/nominal_hists vs the MvD upstream, which upstream_link_stages [A_1, A_2, inputs] does not use.",
+  "category": "",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_mixed_run3_2024_20261115_bd9139a-89fa0d1",
+    "ts": "2026-11-21 08:09:57",
+    "ok": true
+  }
+}
