@@ -69,26 +69,17 @@ variables:
 
 include:
   - local: 'software/dockerfiles/stages_build.yml'
-  - local: 'src/workflows/gitlab-CI/stages_proxy.yml'
   - local: 'src/workflows/gitlab-CI/stages_code.yml'
   - project: 'authoring/documentation/mkdocs-ci'
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
-stages:  
+stages:
   - build
   - setup
-  - code 
-  - classifier
-  - skimmer
-  - friendtree
-  - analysis
-  - tools
-  - mixeddata
-  - plot
-  - cutflow
+  - code
+  - workflows
   - deploy
   - validation
-  - workflows
   - pages
 
 generate_subprojects_ci:
@@ -138,7 +129,6 @@ bbreww_pipeline:
 
 .base_analysis_barista:
   needs:
-    - voms_proxy
     - job: build_container
       optional: true
       artifacts: true
@@ -161,8 +151,7 @@ bbreww_pipeline:
 setup_coffea4bees:
   stage: setup
   image: gitlab-registry.cern.ch/cms-cmu/barista:${ANALYSIS_IMAGE_TAG}
-  needs:
-    - voms_proxy
+  needs: []
   script:
     - COFFEA4BEES_DEFAULT_BRANCH="master"
     - echo "Checking for branch '$COFFEA4BEES_BRANCH' in coffea4bees..."
@@ -179,7 +168,6 @@ setup_coffea4bees:
   artifacts:
     paths:
       - coffea4bees/
-      - proxy/
       - .pixi/
       - .pixi-bin/
     expire_in: 4 hours
@@ -211,8 +199,7 @@ setup_coffea4bees:
 
 .base_combine_coffea4bees:
   image: gitlab-registry.cern.ch/cms-analysis/general/combine-container:CMSSW_11_3_4-combine_v9.1.0-harvester_v2.1.0
-  needs:
-    - setup_coffea4bees
+  needs: []
   before_script:
     - echo "Checking output directory"
     - ls $CI_PROJECT_DIR/output/ || true
@@ -222,7 +209,6 @@ setup_coffea4bees:
     - cmsenv || true
     - cd $CI_PROJECT_DIR/
     - pwd && ls -la
-    - ls -la coffea4bees/
   tags:
     - k8s-cvmfs
   retry: 2
