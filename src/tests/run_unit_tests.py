@@ -41,6 +41,11 @@ def main():
         "src/tests/test_compare_coffea_hists.py",
         "src/tests/test_picoaod_splitting.py",
         "src/tests/test_validate_config.py",
+        "src/tests/test_lxplus_condor_submit.py",
+        "src/tests/test_eos.py",
+        "src/tests/test_physics.py",
+        "src/plotting/tests/test_helpers_make_plot_dict.py",
+        "src/plotting/tests/test_ratio_stack_key.py",
     ]
     # Filter to existing files
     existing_runner_tests = [f for f in runner_tests if os.path.exists(f)]

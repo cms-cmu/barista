@@ -30,6 +30,16 @@ class DummyMultiStreamSkimmer(PicoAOD):
         }
 
 
+class DummyBranchModifySkimmer(PicoAOD):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def select(self, events):
+        mask = events.event < 20
+        added = ak.zip({"Custom_flag": (events.event % 2 == 0)[mask]}, depth_limit=1)
+        return mask, added, {}
+
+
 class TestPicoAODSplitting(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -117,6 +127,44 @@ class TestPicoAODSplitting(unittest.TestCase):
             self.assertEqual(tree_odd.num_entries, 50)
             events_odd = tree_odd["event"].array()
             self.assertTrue(np.all(events_odd % 2 == 1))
+
+    def test_branch_modification_and_skipping(self):
+        """Verify skip_collections, skip_branches, and added branches in PicoAOD."""
+        output_dir = os.path.join(self.temp_dir.name, "output_modify")
+        skimmer = DummyBranchModifySkimmer(
+            base_path=output_dir,
+            step=50,
+            skip_collections=["Jet"],
+            skip_branches=["luminosityBlock"],
+        )
+
+        from coffea.nanoevents import NanoEventsFactory, BaseSchema
+
+        factory = NanoEventsFactory.from_root(
+            {self.root_file: "Events"},
+            schemaclass=BaseSchema,
+            metadata={
+                "dataset": "TestDataset",
+                "filename": self.root_file,
+                "fileuuid": "12345678-1234-5678-1234-567812345678",
+                "entrystart": 0,
+                "entrystop": 100,
+                "treename": "Events",
+            },
+        )
+        res = skimmer.process(factory.events())
+        self.assertEqual(res["TestDataset"]["saved_events"], 20)
+
+        out_file = res["TestDataset"]["files"][0].path
+        with uproot.open(out_file) as f_out:
+            tree = f_out["Events"]
+            self.assertEqual(tree.num_entries, 20)
+            keys = set(tree.keys())
+            self.assertIn("event", keys)
+            self.assertIn("run", keys)
+            self.assertIn("Custom_flag", keys)
+            self.assertNotIn("luminosityBlock", keys)
+            self.assertFalse(any(k.startswith("Jet_") for k in keys))
 
 
 if __name__ == "__main__":
