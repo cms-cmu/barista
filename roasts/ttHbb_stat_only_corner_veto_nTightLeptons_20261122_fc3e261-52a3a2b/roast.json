@@ -335,13 +335,19 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": true
+    },
+    {
+      "ts": "2026-11-23 11:35:10",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "Closure test adding nTightLeptons as FvT ancillary feature; reusing Phase D (SvB, SvB_MA, quantiles) from ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569",
   "category": "",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b",
-    "ts": "2026-11-22 13:37:48",
+    "ts": "2026-11-23 11:35:10",
     "ok": true
   }
 }
