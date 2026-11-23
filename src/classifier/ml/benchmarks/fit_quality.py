@@ -112,19 +112,27 @@ class FvTFitQuality:
         d4_idx = MultiClass.index("d4") if "d4" in MultiClass.labels else None
         # "d3" below is the reweighted source class: 3b data (FvT) or mixed data (MvD)
         d3_idx = MultiClass.index(self.source) if self.source in MultiClass.labels else None
-        t4_idx = MultiClass.index("t4") if "t4" in MultiClass.labels else None
-        t3_idx = MultiClass.index("t3") if "t3" in MultiClass.labels else None
+        t4_indices = [MultiClass.index(l) for l in MultiClass.labels if l == "t4" or l.startswith("t4_")]
+        t3_indices = [MultiClass.index(l) for l in MultiClass.labels if l == "t3" or l.startswith("t3_")]
+        has_t4 = bool(t4_indices)
+        has_t3 = bool(t3_indices)
 
         zeros = torch.zeros(len(probs))
         pd4 = probs[:, d4_idx] if d4_idx is not None else zeros
         pd3 = probs[:, d3_idx] if d3_idx is not None else zeros
-        pt4 = probs[:, t4_idx] if t4_idx is not None else zeros
-        pt3 = probs[:, t3_idx] if t3_idx is not None else zeros
+        pt4 = probs[:, t4_indices].sum(dim=1) if has_t4 else zeros
+        pt3 = probs[:, t3_indices].sum(dim=1) if has_t3 else zeros
 
         def is_label(idx):
             return (labels == idx) if idx is not None else torch.zeros(len(labels), dtype=torch.bool)
 
-        is_d4, is_d3, is_t4, is_t3 = is_label(d4_idx), is_label(d3_idx), is_label(t4_idx), is_label(t3_idx)
+        def is_any_label(indices):
+            if not indices:
+                return torch.zeros(len(labels), dtype=torch.bool)
+            return torch.isin(labels, labels.new(indices))
+
+        is_d4, is_d3 = is_label(d4_idx), is_label(d3_idx)
+        is_t4, is_t3 = is_any_label(t4_indices), is_any_label(t3_indices)
 
         # True MC and Data yields
         self.sum_w_t4_true += float(weights[is_t4].sum())
@@ -140,7 +148,7 @@ class FvTFitQuality:
 
         # Transfer weight for the source: (pd4 - pt4) / pd3
         denom = torch.clamp(pd3, min=self.source_floor)
-        num = pd4 - pt4 if t4_idx is not None else pd4
+        num = pd4 - pt4 if has_t4 else pd4
         w_fvt = num / denom
 
         # Data-driven ttbar components from the source: w_i * (pt4 / pd3) and w_i * (pt3 / pd3)
@@ -193,12 +201,12 @@ class FvTFitQuality:
             return mask.numpy()
 
         for reg, in_reg in (("sb", is_sb), ("sr", is_sr)):
-            if d3_idx is not None and t3_idx is not None:
+            if d3_idx is not None and has_t3:
                 m_t, m_s = np_(is_t3 & in_reg), np_(is_d3 & in_reg)
                 self._fill(f"t3_{reg}", "target", pt3.numpy()[m_t], weights.numpy()[m_t])
                 self._fill(f"t3_{reg}", "model", pt3.numpy()[m_s],
                            weights.numpy()[m_s] * (pt3.numpy()[m_s] / denom.numpy()[m_s]))
-            if d3_idx is not None and t4_idx is not None:
+            if d3_idx is not None and has_t4:
                 m_t, m_s = np_(is_t4 & in_reg), np_(is_d3 & in_reg)
                 self._fill(f"t4_{reg}", "target", pt4.numpy()[m_t], weights.numpy()[m_t])
                 self._fill(f"t4_{reg}", "model", pt4.numpy()[m_s],
@@ -239,7 +247,7 @@ class FvTFitQuality:
             valid_svb = np.isfinite(svb_vals) & (svb_vals >= 0.01)
             w = weights.numpy()
             wf = w_fvt.numpy()
-            w_d3_to_t4 = (pt4 / denom).numpy() if t4_idx is not None else np.zeros_like(wf)
+            w_d3_to_t4 = (pt4 / denom).numpy() if has_t4 else np.zeros_like(wf)
             m_d4 = np_(is_d4 & is_sr) & valid_svb
             m_d3 = np_(is_d3 & is_sr) & valid_svb
             m_t4 = np_(is_t4 & is_sr) & valid_svb

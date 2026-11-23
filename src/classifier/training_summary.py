@@ -102,10 +102,15 @@ def parse_yields_json(json_path: Path) -> dict:
             # sum over years if SB not at top level
             pass
         if sb:
-            for cls in ("d4", "d3", "t4", "t3"):
+            for cls in ("d4", "d3"):
                 if cls in sb:
                     data[f"{cls}_count"] = sb[cls].get("count")
                     data[f"{cls}_weight"] = sb[cls].get("weight")
+            for cls in ("t4", "t3"):
+                matching = [k for k in sb if k == cls or k.startswith(f"{cls}_")]
+                if matching:
+                    data[f"{cls}_count"] = sum(sb[k].get("count", 0) for k in matching)
+                    data[f"{cls}_weight"] = sum(sb[k].get("weight", 0.0) for k in matching)
     except Exception as e:
         print(f"Warning: Failed to parse {json_path}: {e}", file=sys.stderr)
 

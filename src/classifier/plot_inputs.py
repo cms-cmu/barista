@@ -55,6 +55,12 @@ BUILTIN_LABEL_MAPS = {
         (r"^data_",              ["d4", "d3"]),
         (r"^TTTo",               ["t4", "t3"]),
     ],
+    "FvT_split_ttbar": [
+        (r"^data_",              ["d4", "d3"]),
+        (r"^TTTo2L2Nu",          ["t4_2L", "t3_2L"]),
+        (r"^TTToSemiLeptonic",   ["t4_1L", "t3_1L"]),
+        (r"^TTToHadronic",       ["t4_0L", "t3_0L"]),
+    ],
 }
 
 
@@ -591,12 +597,12 @@ def read_branches(file_paths, branches, label=None, n_canjet=4, n_notcanjet=8):
                 mask = ncanjet >= n_canjet
 
                 # Event-level selection for FvT / SvB sub-classes
-                if label in ("t4", "d4"):
+                if label in ("t4", "d4") or label.startswith("t4_"):
                     if "fourTag" in tree:
                         mask = mask & (tree["fourTag"].array(library="np") != 0)
                     if label == "d4" and "SB" in tree:
                         mask = mask & (tree["SB"].array(library="np") != 0)
-                elif label in ("t3", "d3", "multijet"):
+                elif label in ("t3", "d3", "multijet") or label.startswith("t3_"):
                     if "threeTag" in tree:
                         mask = mask & (tree["threeTag"].array(library="np") != 0)
                 elif label in ("ttbar", "ttHbb", "ggF", "ZH", "ZZ"):
@@ -799,12 +805,12 @@ def _build_tensors(file_paths, input_cfg, label=None):
                 mask = ncanjet >= n_canjet
 
                 # Event-level selection for FvT / SvB sub-classes
-                if label in ("t4", "d4"):
+                if label in ("t4", "d4") or label.startswith("t4_"):
                     if "fourTag" in tree:
                         mask = mask & (tree["fourTag"].array(library="np") != 0)
                     if label == "d4" and "SB" in tree:
                         mask = mask & (tree["SB"].array(library="np") != 0)
-                elif label in ("t3", "d3", "multijet"):
+                elif label in ("t3", "d3", "multijet") or label.startswith("t3_"):
                     if "threeTag" in tree:
                         mask = mask & (tree["threeTag"].array(library="np") != 0)
                 elif label in ("ttbar", "ttHbb", "ggF", "ZH", "ZZ"):
