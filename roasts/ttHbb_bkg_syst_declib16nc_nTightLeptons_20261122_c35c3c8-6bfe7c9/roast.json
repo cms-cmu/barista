@@ -532,13 +532,19 @@
       "event": "archive",
       "host": "cmslpc",
       "ok": false
+    },
+    {
+      "ts": "2026-11-23 11:43:27",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
     }
   ],
   "notes": "declib16nc bkg_syst with nTightLeptons FvT ancillary feature (nominal: ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b, SvB/SvB_MA: ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569)",
   "category": "ttHbb_bkg_syst",
   "archive": {
     "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9",
-    "ts": "2026-11-23 11:41:37",
-    "ok": false
+    "ts": "2026-11-23 11:43:27",
+    "ok": true
   }
 }
