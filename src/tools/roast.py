@@ -4292,6 +4292,39 @@ def _step_state(r: dict, step: dict) -> str:
     return f"submitted {runs[-1]['ts'][:10]}" + (" (resumed)" if runs[-1].get("resume") else "")
 
 
+def upstream_published(r: dict) -> list[dict]:
+    """The roasts `r` took inputs from -- directly or through an upstream's own upstreams -- with
+    where each one is published: [{id, url, pages, refs, via}]. `refs` are the `inputs:` keys `r`
+    read from that roast; `via` is the roast that pulled in an indirect one ("" when direct).
+    url/pages come from the local manifest and are empty when it is missing or unpublished."""
+    refs: dict[str, list[str]] = {}
+    for key, ref in (r.get("inputs", {}).get("refs") or {}).items():
+        if isinstance(ref, dict) and ref.get("roast"):
+            refs.setdefault(ref["roast"], []).append(key)
+    out, seen = [], {r.get("id")}
+    queue = [(up.get("id"), "") for up in r.get("inputs", {}).get("upstream") or []]
+    while queue:
+        uid, via = queue.pop(0)
+        if not uid or uid in seen:
+            continue
+        seen.add(uid)
+        manifest = roast_dir(uid) / "roast.json"
+        up = json.loads(manifest.read_text()) if manifest.exists() else {}
+        pub = up.get("publish") or {}
+        out.append({"id": uid, "url": pub.get("url", ""), "refs": refs.get(uid, []), "via": via,
+                    "pages": [p for p in pub.get("pages", []) if not p.startswith("roasts/")]})
+        queue += [(u.get("id"), uid) for u in up.get("inputs", {}).get("upstream") or []]
+    return out
+
+
+def _page_label(p: str) -> str:
+    """Short name for a published page: `<dir> gallery` for an index.html, else the file stem."""
+    parts = p.split("/")
+    if parts[-1] == "index.html" and len(parts) > 1:
+        return f"{parts[-2]} gallery"
+    return parts[-1].removesuffix(".html")
+
+
 def write_docs(r: dict) -> None:
     DOCS_PROD.mkdir(parents=True, exist_ok=True)
     b, c = r["barista"], r["coffea4bees"]
@@ -4344,6 +4377,13 @@ def write_docs(r: dict) -> None:
                 wf = parts[2] if len(parts) > 3 else parts[-2]          # output/<label>/<workflow>/...
                 name = parts[-2] + " gallery" if parts[-1] == "index.html" else parts[-1].removesuffix(".html")
             lines.append(f"| {wf} | [{name}]({url}{p}) |")
+    ups = upstream_published(r)
+    if ups:
+        lines += ["", "## Upstream roasts", "", "| roast | inputs taken | results |", "|---|---|---|"]
+        for up in ups:
+            taken = ", ".join(f"`{k}`" for k in up["refs"]) or (f"via `{up['via']}`" if up["via"] else "")
+            res = f"[{len(up['pages'])} pages]({up['url']})" if up["url"] else "not published"
+            lines.append(f"| `{up['id']}` | {taken} | {res} |")
     if r.get("notes"):
         lines += ["", "## Notes", "", r["notes"]]
     lines += ["", "## History", ""]
@@ -4788,6 +4828,58 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             </div>
         </details>"""
 
+    # Results of the roasts this one took its inputs from: they are published in their own folders,
+    # so link them here (absolute URLs) rather than leaving the reader to find them.
+    upstream_html = ""
+    ups = upstream_published(r)
+    if ups:
+        up_blocks = []
+        for up in ups:
+            uid = html.escape(up["id"])
+            base = html.escape(up["url"])
+            if up["refs"]:
+                taken = "Inputs taken: " + " ".join(f"<code>{html.escape(k)}</code>" for k in up["refs"])
+            elif up["via"]:
+                taken = f"Indirect: upstream of <code>{html.escape(up['via'])}</code>"
+            else:
+                taken = ""
+            if not base:
+                up_blocks.append(f"""
+                <div class="upstream-block">
+                    <div class="upstream-head"><strong><code>{uid}</code></strong>
+                        <span class="badge badge-warning">not published</span></div>
+                    <div class="muted">{taken}</div>
+                </div>""")
+                continue
+            items = "".join(f"""
+                        <div class="page-item" data-search="{html.escape((up['id'] + ' ' + p).lower())}">
+                            <a href="{base}{html.escape(p)}" class="page-link" target="_blank">
+                                <span class="page-title">{html.escape(_page_label(p))}</span>
+                                <span class="page-icon">↗</span>
+                            </a>
+                            <span class="page-path">{html.escape(p)}</span>
+                        </div>""" for p in up["pages"]) or '<div class="empty-state">No pages recorded</div>'
+            up_blocks.append(f"""
+                <details class="upstream-block">
+                    <summary class="upstream-head">
+                        <span><strong><code>{uid}</code></strong> <span class="muted">{len(up['pages'])} pages</span></span>
+                        <a href="{base}" class="pill-link" target="_blank">Open roast page ↗</a>
+                    </summary>
+                    <div class="muted" style="margin: 6px 0 10px;">{taken}</div>
+                    <div class="page-list">{items}
+                    </div>
+                </details>""")
+        upstream_html = f"""
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>🔗 Upstream Roasts — Inputs & Their Results</h2>
+                <span class="chip chip-accent">{len(ups)} roast{"s" if len(ups) != 1 else ""}</span>
+            </div>
+            <div class="card-body">
+                {"".join(up_blocks)}
+            </div>
+        </div>"""
+
     galleries_html = make_page_items(galleries)
     cutflows_html = make_page_items(cutflows)
     others_html = make_page_items(others)
@@ -4995,6 +5087,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         .page-icon {{ font-size: 12px; opacity: 0.8; }}
         .page-path {{ font-family: var(--mono); font-size: 12px; color: var(--muted); }}
         .empty-state {{ color: var(--muted); font-style: italic; padding: 6px 0; font-size: 13px; }}
+        .upstream-block {{ border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; background: #fafbfc; }}
+        .upstream-head {{ display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }}
         .muted {{ color: var(--muted); }}
         .notes-block {{ white-space: pre-wrap; font-family: inherit; font-size: 13px; }}
         details summary {{ cursor: pointer; color: var(--fg); font-weight: 600; user-select: none; }}
@@ -5083,6 +5177,8 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
         {models_html}
 
         {stages_html}
+
+        {upstream_html}
 
         <div class="card" style="margin-top: 1rem;">
             <div class="card-header">

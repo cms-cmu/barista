@@ -248,7 +248,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/HH4b_lowpt/prod/lowpt_run3_20261119_ebe2baa-8a8a764",
     "url": "https://plotsalgomez.webtest.cern.ch/HH4b_lowpt/prod/lowpt_run3_20261119_ebe2baa-8a8a764/",
-    "ts": "2026-11-21 11:46:34",
+    "ts": "2026-11-23 16:26:14",
     "ok": true,
     "pages": [
       "logs/B_rulegraph.svg",
@@ -383,6 +383,12 @@
     {
       "ts": "2026-11-23 16:25:43",
       "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-23 16:26:14",
+      "event": "publish",
       "host": "cmslpc",
       "ok": true
     }
