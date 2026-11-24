@@ -1,0 +1,362 @@
+# ==============================================================================
+# HH4b Run 3 2025 BACKGROUND SYSTEMATIC of the MvD-DECLUSTERED background, on MIXED data
+# ==============================================================================
+# analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2024.yml for 2025: nominal mvd_run3_2025_declib16_warm
+# (V.1 inputs mvd_declib16_run3_2025_20261028; library mixeddata_all_declib16_2025 of declib16_run3_2025_20261028),
+# eras B01..G11, evaluations split BC/D/E/F/G, HH4b_run3_2025.yml. A_1/A_2 LINKED from the 2025 FvT-on-mixed
+# roast (same 16 mixed subsamples): set inputs.upstream_roasts.mixed_bkgsyst to that roast's id.
+#
+#   bin/roast new --config coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025.yml \
+#       --phases BKG_AB,BKG_C,BKG_C4_MVD,BKG_F --cmslpc --train-on orchard --eval-on orchard
+# ==============================================================================
+label: HH4b_bkg_syst_mvd_declib16_mixed_run3_2025
+output_path: output/{roast_id}/
+per_year_jcm: false
+unify_background: false
+match_closure_normalization: false
+fourTag_use_tight: true
+publish_base: '{eos_prod}/{roast_id}'
+handoff:
+  eos_base: '{eos_prod}/{roast_id}/handoff'
+channel: HH4b
+mix_name: HH4b_bkg_syst_mvd_declib16_mixed_run3_2025
+dataset_location: coffea4bees/metadata/datasets/
+weights_file: coffea4bees/metadata/weights/weights_HH4b.yml
+years:
+- '2025'
+year_eras:
+  '2025':
+  - B01
+  - B11
+  - C01
+  - C02
+  - C11
+  - C12
+  - D01
+  - D11
+  - E01
+  - E11
+  - F01
+  - F02
+  - F11
+  - F12
+  - G01
+  - G11
+phase_f_output_path: inputs/
+phase_f_label: Run3_2025_nominal
+ttbar_processes:
+- TTTo2L2Nu
+- TTToSemiLeptonic
+- TTToHadronic
+inputs:
+  upstream_roasts:
+    mixed_bkgsyst: analysis_HH4b_bkg_syst_mixed_run3_2025_20261115_bd9139a-89fa0d1
+    mixeddata: mixeddata_run3_2025_20261027_cea2f98-6c5c9c3
+    nominal_nt: nominal_run3_2025_nontight_20261027_1809191-df306da
+    nominal_b: nominal_run3_2025_20261027_1809191-df306da
+    declib: declib16_run3_2025_20261028_69809f5-6e827c1
+    mvd: mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448
+    mvd_v1: mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04
+  mixeddata_all: '{roast:mixeddata}/handoff/mixeddata_all.yml'
+  ttbar_psdata: '{roast:mixeddata}/handoff/ttbar_PSData.yml'
+  jcm_hists: '{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/histAll_NoJCM.coffea'
+  analysis_config_noJCM: '{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/analysis_config_noJCM.yml'
+  classifier_inputs: '{roast:nominal_b}/handoff/classifier_inputs_{roast:nominal_b:id}.json'
+  nominal_hists: '{roast:mvd}/{roast:mvd:output_path}V4/histAll_MvD.coffea'
+  SvB: '{roast:mvd}/friend/SvB_MvD/result.json@@analysis.0.merged'
+  SvB_model: '{roast:mvd}/classifier/SvB_MvD/result.json'
+worker_memory: 8GB
+subsamples:
+  source: split
+  n: 16
+  dataset_name: mixeddata_4b
+  split_template: coffea4bees/skimmer/metadata/split_mixeddata_Run3.yml
+  study_template: coffea4bees/analysis/metadata/study_mixed_data_Run3.yml
+  runner:
+    condor: true
+    shared_dask: true
+    worker_memory: 8GB
+subsample_processor_config: coffea4bees/workflows/config/analysis_config_bkg_syst_subsamples_HH4b_run3.yml
+phaseA_3:
+  runner:
+    workers: 4
+    min_workers: 25
+    max_workers: 200
+validation:
+  plot_template: coffea4bees/plots/metadata/plots_bkg_syst_mixed_validation_HH4b.yml
+  hists:
+  - SvB_MA.ps_hh
+  - SvB_MA.ps
+  - SvB_MA.tt_vs_mj
+  - selJets.n
+  - tagJets.n
+  model_ttbar:
+  - TTbar4b_from_d3
+  model_ttbar_tag: threeTag
+  subsample: 0
+phaseB_1:
+  per_year_jcm: false
+  jcm:
+    config: coffea4bees/analysis/jcm_tools/metadata/mixeddata_declib16_subsample_jcm_config_Run3_2025.yml
+    plot_config: coffea4bees/plots/metadata/plotsJCM.yml
+    region: SB
+    year: Run3
+    data_coffea: '{roast:mvd_v1}/{roast:mvd_v1:output_path}V1/histAll_mixed_noJCM.coffea'
+  validation:
+    subsample: 0
+    processor_config: coffea4bees/workflows/config/analysis_config_bkg_syst_test_subsample_HH4b_run3.yml
+    plot_config: coffea4bees/plots/metadata/plots_subsample_v0_closure_HH4b.yml
+    runner:
+      workers: 4
+      worker_memory: 6GB
+      condor: true
+      shared_dask: true
+    config:
+      blind: false
+      apply_FvT: false
+      apply_JCM: true
+      apply_trigWeight: false
+      apply_btagSF: true
+      apply_boosted_veto: false
+      run_SvB: false
+      top_reconstruction: fast
+      fill_histograms: kinematics
+      fourTag_use_tight: true
+classifier_setting:
+- module: ml.DataLoader
+  option:
+  - optimize_sliceable_dataset: true
+  - num_workers: 2
+  - batch_eval: 65536
+- module: ROOT
+  option:
+  - friend_allow_missing: false
+- module: cms.CollisionData
+  option:
+  - eras:
+      '2025':
+      - B01
+      - B11
+      - C01
+      - C02
+      - C11
+      - C12
+      - D01
+      - D11
+      - E01
+      - E11
+      - F01
+      - F02
+      - F11
+      - F12
+      - G01
+      - G11
+- module: HCR.InputBranch
+  option:
+  - feature_ancillary:
+    - xW
+    - nSelJets
+    - xbW
+  - mass_regions:
+    - SR
+    - SB
+- module: ml.Training
+  option:
+  - precision: fp16
+fvt_train_workflow:
+  main:
+    module: train
+    option:
+    - --max-loaders 2
+    - --max-trainers 3
+    - --device cuda cpu
+  dataset:
+  - module: HCR.MvD.TrainBaseline
+    option:
+    - --metadata {metadata}
+    - --max-workers 20
+    - --data-source mixed_all mixed
+    - --data-mixed-all-name mixeddata_all_declib16_2025
+    - --data-mixed-name {mixed_name}
+    - --data-mixed-samples {mix}
+    - --JCM-weight "source:mixed_all,year:2025" {jcm_2025}@@JCM_weights
+    - --friends "" {nominal_ci}@@HCR_input {mixed_ci}@@HCR_input
+  model:
+  - module: HCR.MvD.baseline.Train
+    option:
+    - --kfolds 3
+    - --kfold-seed MvD random
+    - --kfold-seed-offsets 0
+    - --training FixedStep
+    - epoch: 20
+      bs_init: 1024
+    - --finetuning FinetuneStep
+    - epoch: 1
+      bs_init: 16384
+  setting:
+  - module: IO
+    option:
+    - output: '{model}'
+fvt_eval_workflow:
+  main:
+    module: evaluate
+    option:
+    - --max-evaluators 3
+    - --device cuda cpu
+  dataset:
+  - module: HCR.MvD.Eval
+    option:
+    - --metadata {metadata}
+    - --max-workers 8
+    - --data-source mixed_all
+    - --data-mixed-all-name mixeddata_all_declib16_2025
+    - --friends "" {nominal_ci}@@HCR_input
+  model:
+  - module: HCR.MvD.baseline.Eval
+    option:
+    - --models
+    - Final
+    - '{model}/result.json'
+  analysis:
+  - module: kfold.Merge
+    option:
+    - --name MvD
+    - --step 100000
+    - --workers 4
+    - --clean
+  setting:
+  - module: IO
+    option:
+    - output: '{FvT}'
+  - module: ml.DataLoader
+    option:
+    - num_workers: 8
+phase_e_fvt:
+  channel: HH4b
+  mix_name: HH4b_bkg_syst_mvd_declib16_mixed_run3_2025
+  n_models: 16
+  plot_base: '{web_prod}/{roast_id}/classifier_plots'
+  precision: fp16
+  gpu_gres: mps:25
+  plot_inputs: false
+  plot_weights: false
+  analyze: false
+  evaluate: true
+  nominal_classifier_inputs: '{roast:mvd_v1}/handoff/classifier_inputs_MvD.json'
+analysis_config:
+  processor: coffea4bees/analysis/processors/processor_HH4b.py
+  weights_file: coffea4bees/metadata/weights/weights_HH4b.yml
+  runner:
+    workers: 8
+    chunksize: 100000
+    condor: false
+    shared_dask: false
+    run_performance: false
+analysis_config_mixeddata_bkgs: coffea4bees/workflows/config/analysis_config_mvd_bkgs_HH4b_run3.yml
+closure_plot_config: coffea4bees/plots/metadata/plots_bkg_syst_closure_HH4b.yml
+trigweights_file: coffea4bees/metadata/friends/trigweights_Run3_v6.json@@trigWeight
+classifier: SvB_MA
+variable: SvB_MA_ps_hh_fine
+variable_substem: ps_hh_fine
+signal_processes:
+- GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+closure_rebin_candidates:
+- 2
+- 12
+- 15
+- 16
+- 20
+- 24
+max_basis: 5
+rebin: 12
+no_sqrt_n_priors: false
+convert_hist_to_json:
+  histos:
+  - SvB_MA.ps_hh_fine
+  - SvB_MA.ps_hh
+combine_outdir: bkg_syst_F_3_stats/datacards/
+make_combine_inputs:
+  stat_only: ''
+  metadata_template: coffea4bees/stats_analysis/metadata/HH4b_run3_2025.yml
+  multijet_process: mixeddata_all_declib16_2025
+  unify_background: false
+  tt_processes:
+  - TTbar4b_from_MvD
+combine_flags: --three_tag threeTag --four_tag fourTag --region sum --blind
+likelihood_scan_points: 40
+likelihood_scan_r_min: 0
+likelihood_scan_r_max: 2
+likelihood_scan_y_cut: 30
+likelihood_scan_y_max: 30
+channels:
+  HH4b:
+    signallabel: ggHH_kl_1_kt_1_13p0TeV_hbbhbb
+    othersignal: ''
+    variable: SvB_MA.ps_hh_fine
+    signal: GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00
+    closure_subdir: HH4b
+    region: SR
+    cut: sum
+    combine_flags: --three_tag threeTag --four_tag fourTag --region SR --blind
+fvt_closure:
+  config:
+    fourTag_use_tight: true
+eval_splits:
+  BC:
+    --data-eras:
+    - B01
+    - B11
+    - C01
+    - C02
+    - C11
+    - C12
+  D:
+    --data-eras:
+    - D01
+    - D11
+  E:
+    --data-eras:
+    - E01
+    - E11
+  F:
+    --data-eras:
+    - F01
+    - F02
+    - F11
+    - F12
+  G:
+    --data-eras:
+    - G01
+    - G11
+orchard:
+  time: '4:00:00'
+  pack: 2
+  pack_cpus: 16
+  pack_mem: 180
+  pack_wait: 900
+  eval_time: '8:00:00'
+  eval_pack: 4
+  eval_pack_cpus: 8
+  eval_pack_mem: 96
+  eval_pack_wait: 900
+pilot_gate: false
+bkg_model: mvd
+mixed_jcm:
+  config: coffea4bees/analysis/jcm_tools/metadata/mixeddata_all_config_Run3.yml
+  region: SB
+  float_t: true
+classifier_metadata_extra:
+- '{roast:declib}/handoff/mixeddata_all_declib16_2025.yml'
+yields_ratio:
+- d4 / t4 + mix4
+fvt_max_chi2_ndf: 20.0
+f1_dataset: mixeddata_all_declib16_2025
+f1_dataset_location:
+- '{roast:declib}/handoff/mixeddata_all_declib16_2025.yml'
+closure_convert_args: --bkg_process mixeddata_all_declib16_2025 --bkg_tag fourTag --tt_process TTbar4b_from_MvD --tt_tag fourTag
+f4_observation: subsample
+upstream_pre_fvt: mixed_bkgsyst
+upstream_link_stages:
+- A_1
+- A_2
+- inputs
