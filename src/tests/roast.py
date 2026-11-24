@@ -1619,10 +1619,15 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
         self.assertIn("Key Visual Plot Galleries", html_out)
         self.assertIn("FvT Closure Gallery", html_out)
         self.assertIn("ttbar MC vs d3 (4b) Gallery", html_out)
-        self.assertIn("Analysis &amp; SvB Gallery", html_out)
-        # Featured cross-checks
+        # Featured Primary Analysis Results (Analysis & SvB Plots Gallery replaces Cutflow Cross-Check)
+        self.assertIn("Analysis &amp; SvB Plots Gallery", html_out)
+        self.assertIn("Open Gallery ↗", html_out)
         self.assertIn("Histogram Cross-Check (F vs C.4)", html_out)
-        self.assertIn("Cutflow Cross-Check (F vs C.4)", html_out)
+        self.assertNotIn("Cutflow Cross-Check (F vs C.4)", html_out)
+        primary_block = html_out.split("Primary Analysis Results", 1)[1].split("Key Visual Plot Galleries", 1)[0]
+        self.assertIn("plots_SvB_MA/index.html", primary_block)
+        self.assertNotIn("cutflow_crosscheck_ttHbb.html", primary_block)
+        self.assertIn("cutflow_crosscheck_ttHbb.html", html_out)
         # Open by default details
         self.assertIn('<details class="card" open style="margin-top: 1rem;">', html_out)
         self.assertIn("roast.json", html_out)
@@ -1670,6 +1675,7 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
             "output/ttHbb/PhaseC_FvT/plots/analyze/HCR/index_group_1.html",
             "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
             "output/ttHbb/PhaseD_SvB/plots/index.html",
+            "output/ttHbb/PhaseD_SvB/plots/analyze/index.html",
             "output/ttHbb/PhaseD_SvB_MA/plots/index.html",
             "output/ttHbb/PhaseF_1_analysis/plots_ttbar_MC_vs_d3/index.html",
             "output/ttHbb/PhaseF_1_analysis/plots_ttbar3b_MC_vs_d3/index.html",
@@ -1678,7 +1684,8 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
         self.assertIn("FvT Training &amp; Input Plots Gallery", html_out)
         self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB)", html_out)
         self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB_MA)", html_out)
-        self.assertIn("PhaseC_FvT Loss &amp; ROC Report", html_out)
+        self.assertNotIn("PhaseC_FvT Loss &amp; ROC Report", html_out)
+        self.assertIn("PhaseD_SvB Loss &amp; ROC Report", html_out)
         self.assertIn("PhaseC_FvT diagnostic plots gallery", html_out)
         self.assertNotIn("index_group_1.html", html_out)
         self.assertIn('<div class="featured-tag">Phase F.1</div>', html_out)

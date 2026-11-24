@@ -51,7 +51,16 @@ BUILTIN_LABEL_MAPS = {
         (r"^GluGluToHHTo4B",     "ggF"),
         (r"^ttH",                "ttHbb"),
     ],
+    "FvT": [
+        (r"^data_", "d3"),
+        (r"^data_", "d4"),
+        (r"^TTTo",  "t3"),
+        (r"^TTTo",  "t4"),
+    ],
 }
+
+FVT_LABELS = {"d3", "d4", "t3", "t4"}
+THREETAG_LABELS = {"d3", "t3", "multijet"}
 
 
 def _load_label_patterns(label_map_path, checkpoint_labels):
@@ -78,11 +87,14 @@ def _load_label_patterns(label_map_path, checkpoint_labels):
     return []
 
 
+def sample_to_labels(sample_name, patterns):
+    """Return all labels whose regex pattern matches ``sample_name``."""
+    return [label for pattern, label in patterns if pattern.search(sample_name)]
+
+
 def sample_to_label(sample_name, patterns):
-    for pattern, label in patterns:
-        if pattern.search(sample_name):
-            return label
-    return None
+    labels = sample_to_labels(sample_name, patterns)
+    return labels[0] if labels else None
 
 
 # --------------------------------------------------------------------------- #
@@ -197,11 +209,12 @@ def load_friend_files_by_label(metadata_path, meta_key, labels, max_files, label
         if len(parts) < 3:
             continue
         sample_name = parts[-2]
-        label = sample_to_label(sample_name, label_patterns)
-        if label is None or label not in label_set:
-            continue
-        for chunk_info in entry[1]:
-            files[label].append(chunk_info["chunk"]["path"])
+        matched_labels = sample_to_labels(sample_name, label_patterns)
+        for label in matched_labels:
+            if label not in label_set:
+                continue
+            for chunk_info in entry[1]:
+                files[label].append(chunk_info["chunk"]["path"])
 
     import random
     rng = random.Random(42)
@@ -265,17 +278,17 @@ def matches_group(label, group):
 
 
 def load_train_yaml(wfs_base, template_str, friend_path):
-    """Load train.yml, format it, and extract friends and JCM-weight options."""
+    """Load train.yml, format it, and extract friends, JCM-weight, and --no-SR options."""
     train_yml_path = os.path.join(wfs_base, "train.yml")
     if not os.path.exists(train_yml_path):
         print(f"Warning: train.yml not found at {train_yml_path}")
-        return [], []
-        
+        return [], [], False
+
     print(f"Automatically parsing training configuration from {train_yml_path}...")
     import yaml
     with open(train_yml_path, "r") as f:
         content = f.read()
-        
+
     format_dict = {}
     if template_str:
         # Parse template_str like "model: path, FvT: path"
@@ -284,35 +297,38 @@ def load_train_yaml(wfs_base, template_str, friend_path):
             if ":" in part:
                 k, v = part.split(":", 1)
                 format_dict[k.strip()] = v.strip()
-    
-    if friend_path:
+
+    if friend_path and "FvT" not in format_dict:
         format_dict["FvT"] = friend_path
-        
+
     if format_dict:
         try:
             content = content.format(**format_dict)
         except Exception as e:
             print(f"Warning: could not format train.yml with templates: {e}")
-            
+
     train_data = yaml.safe_load(content)
     datasets = train_data.get("dataset", [])
-    
+
     friends_args = []
     jcm_args = []
-    
+    no_sr = False
+
     for ds in datasets:
         opts = ds.get("option", [])
         i = 0
         while i < len(opts):
             opt = opts[i]
-            if opt.startswith("--friends"):
+            if opt == "--no-SR" or (isinstance(opt, str) and "--no-SR" in opt.split()):
+                no_sr = True
+            elif isinstance(opt, str) and opt.startswith("--friends"):
                 parts = opt.split(maxsplit=1)
                 if len(parts) > 1:
                     friends_args.append(parts[1])
                 elif i + 1 < len(opts):
                     friends_args.append(opts[i+1])
                     i += 1
-            elif opt.startswith("--JCM-weight"):
+            elif isinstance(opt, str) and opt.startswith("--JCM-weight"):
                 parts = opt.split(maxsplit=1)
                 if len(parts) > 1:
                     jcm_args.append(parts[1])
@@ -320,59 +336,97 @@ def load_train_yaml(wfs_base, template_str, friend_path):
                     jcm_args.append(opts[i+1])
                     i += 1
             i += 1
-            
-    return friends_args, jcm_args
+
+    return friends_args, jcm_args, no_sr
 
 
 # --------------------------------------------------------------------------- #
 # Reading Data
 # --------------------------------------------------------------------------- #
-def read_data(file_paths, label, friend_obj, jcm_processor, n_canjet=4):
-    """Read branches and apply JCM, FvT reweighting, and outlier removal."""
+def _build_label_mask(label, ntags3, ntags4, sb, sr, pass_hlt=None, no_sr=False):
+    """Build per-class event mask matching FvT/SvB dataset definitions.
+
+    Enforces strict blinding for four-tag data (``d4``): Signal Region (``SR``)
+    events are always excluded from ``d4`` regardless of ``no_sr``.
+    """
+    if label == "d4":
+        region = sb
+    elif label in ("d3", "t3", "t4"):
+        region = sb if no_sr else (sb | sr)
+    else:
+        region = sb | sr
+
+    tag_mask = ntags3 if label in THREETAG_LABELS else ntags4
+    sel = np.asarray(region, dtype=bool) & np.asarray(tag_mask, dtype=bool)
+    if label in ("d3", "d4", "multijet") and pass_hlt is not None:
+        sel = sel & np.asarray(pass_hlt, dtype=bool)
+    return sel
+
+
+def _match_jcm_for_path(path, jcm_by_year, default_jcm=None):
+    """Return the JCM processor matching ``path``'s year, else ``default_jcm``."""
+    if jcm_by_year:
+        for year in sorted(jcm_by_year, key=len, reverse=True):
+            if year in path:
+                return jcm_by_year[year]
+    return default_jcm
+
+
+def read_data(file_paths, label, friend_obj, jcm_processor, n_canjet=4, jcm_by_year=None, no_sr=False):
+    """Read branches and apply label selection, JCM, FvT reweighting, and outlier removal."""
     import uproot
     import awkward as ak
     import pandas as pd
-    
+
     if not file_paths:
         return None
-        
+
     data = {
         "pt": [],
         "pt4": [],
         "njets": [],
         "weight": []
     }
-    
+
     for path in file_paths:
         try:
             # Create target Chunk object to match friend tree
             target_chunk = Chunk(source=path, name="Events", fetch=True)
             num_entries = target_chunk.num_entries
-            
+
             with uproot.open(path + ":Events") as tree:
                 keys = list(tree.keys())
-                
-                # Filter: nCanJet >= 4
-                ncanjet = tree["nCanJet"].array(library="np")
-                mask = ncanjet >= n_canjet
-                if np.sum(mask) == 0:
-                    continue
-                
-                # Select variables
+
+                # Select variable column names (standard vs lowpt)
                 if "nSelJets_lowpt" in keys:
                     nseljets_col = "nSelJets_lowpt"
                     selected_col = "lowpt_threeTag"
+                    fourtag_col = "lowpt_fourTag"
                 else:
                     nseljets_col = "nSelJets"
                     selected_col = "threeTag"
-                
+                    fourtag_col = "fourTag"
+
+                ncanjet = tree["nCanJet"].array(library="np")
+                ntags3 = tree[selected_col].array(library="np").astype(bool)
+                ntags4 = tree[fourtag_col].array(library="np").astype(bool) if fourtag_col in keys else ~ntags3
+                sb = tree["SB"].array(library="np").astype(bool) if "SB" in keys else np.ones(len(ncanjet), dtype=bool)
+                sr = tree["SR"].array(library="np").astype(bool) if "SR" in keys else np.zeros(len(ncanjet), dtype=bool)
+                pass_hlt = tree["passHLT"].array(library="np").astype(bool) if "passHLT" in keys else None
+
+                mask = (ncanjet >= n_canjet) & _build_label_mask(
+                    label, ntags3, ntags4, sb, sr, pass_hlt=pass_hlt, no_sr=no_sr
+                )
+                if np.sum(mask) == 0:
+                    continue
+
                 # Build pandas DataFrame for preprocessing
                 df_data = {
                     "weight": tree["weight"].array(library="np"),
                     nseljets_col: tree[nseljets_col].array(library="np"),
-                    selected_col: tree[selected_col].array(library="np"),
+                    selected_col: ntags3,
                 }
-                
+
                 # Check for FvT branch from friend tree
                 if friend_obj is not None:
                     try:
@@ -386,27 +440,27 @@ def read_data(file_paths, label, friend_obj, jcm_processor, n_canjet=4):
                         df_data["FvT"] = np.ones(num_entries, dtype=np.float32)
                 else:
                     df_data["FvT"] = np.ones(num_entries, dtype=np.float32)
-                
-                df = pd.DataFrame(df_data)
-                
-                # Apply JCM weight if processor exists
-                if jcm_processor is not None:
-                    df = jcm_processor(df)
-                    
+
+                df = pd.DataFrame(df_data).loc[mask].copy()
+
+                # Apply JCM weight for threeTag background labels
+                active_jcm = _match_jcm_for_path(path, jcm_by_year, jcm_processor) if label in THREETAG_LABELS else None
+                if active_jcm is not None:
+                    df = active_jcm(df)
+
                 # Apply FvT reweighting if friends loaded
                 if friend_obj is not None:
                     df["weight"] *= df["FvT"]
-                    
-                # Apply outlier and negative weight removal (which logs counts!)
-                df = _remove_outlier(df)
-                
-                # Mask to keep events passing nCanJet selection
-                passing_idx = df.index[mask[df.index]]
-                df = df.loc[passing_idx]
-                
+
+                # Apply SvB outlier and negative weight removal (skipped for FvT, where d4 data has weight == 1.0)
+                if label not in FVT_LABELS:
+                    df = _remove_outlier(df)
+
                 if len(df) == 0:
                     continue
-                
+
+                passing_idx = df.index.to_numpy()
+
                 # Read CanJet_pt and get CanJet_pt[0] and CanJet_pt[3] for the remaining events
                 if "CanJet_pt" in keys:
                     pt_arr = tree["CanJet_pt"].array(library="ak")[passing_idx]
@@ -418,7 +472,7 @@ def read_data(file_paths, label, friend_obj, jcm_processor, n_canjet=4):
                 else:
                     data["pt"].append(np.full(len(df), np.nan))
                     data["pt4"].append(np.full(len(df), np.nan))
-                
+
                 data["njets"].append(df[nseljets_col].to_numpy())
                 data["weight"].append(df["weight"].to_numpy())
                 
@@ -516,12 +570,13 @@ def main():
         print(f"  {label}: {len(paths)} files")
 
     # Determine friends & JCM arguments (CLI override or auto-load from YAML)
-    friends_list = args.friends
-    jcm_list = args.JCM_weight
-    if not friends_list and not jcm_list and args.wfs_base:
-        friends_list, jcm_list = load_train_yaml(
+    yaml_friends, yaml_jcm, no_sr = ([], [], False)
+    if args.wfs_base:
+        yaml_friends, yaml_jcm, no_sr = load_train_yaml(
             args.wfs_base, args.template_str, args.friend_path
         )
+    friends_list = args.friends or yaml_friends
+    jcm_list = args.JCM_weight or yaml_jcm
 
     # Parse configurations
     friends_map = parse_friend_args(friends_list)
@@ -529,17 +584,25 @@ def main():
 
     # Diagnostics loop
     summary_data = []
-    
+
     for label in labels:
         paths = files_by_label.get(label, [])
         if not paths:
             print(f"No files for label: {label}, skipping diagnostics")
             continue
-            
-        # 1. Load Friend Trees if configured
+
+        # 1. Load FvT Friend Tree if configured (skipped for FvT models themselves and HCR_input manifests)
         friend_obj = None
-        for group, (json_path, key_path) in friends_map.items():
-            if matches_group(label, group):
+        if label not in FVT_LABELS:
+            candidate_friends = [
+                (group, info) for group, info in friends_map.items()
+                if matches_group(label, group)
+                and info[0] != meta_path
+                and info[1] != ["HCR_input"]
+            ]
+            # Prefer explicit label: groups over wildcard "" / "all"
+            candidate_friends.sort(key=lambda item: (item[0] in ("", '""', "all"), item[0]))
+            for group, (json_path, key_path) in candidate_friends:
                 print(f"Loading friend tree for group {group} from {json_path}@@{'.'.join(key_path)}...")
                 with fsspec.open(json_path, "r") as f:
                     res = json.load(f)
@@ -550,28 +613,44 @@ def main():
                         res = res[k]
                 friend_obj = Friend.from_json(res)
                 break
-                
-        # 2. Load JCM weights if configured
+
+        # 2. Load JCM weights for threeTag background labels (handles year:<YEAR> and label/generic keys)
         jcm_processor = None
-        for group, (json_path, key_path) in jcm_map.items():
-            if matches_group(label, group):
-                print(f"Loading JCM weights for group {group} from {json_path}@@{'.'.join(key_path)}...")
-                from coffea4bees.classifier.compatibility.JCM.fit import apply_JCM_from_list
-                jcm_processor = apply_JCM_from_list(
+        jcm_by_year = {}
+        if label in THREETAG_LABELS:
+            from coffea4bees.classifier.compatibility.JCM.fit import apply_JCM_from_list
+
+            for group, (json_path, key_path) in jcm_map.items():
+                tokens = [t.strip() for t in group.split(",") if t.strip()]
+                year_val = next((t.split(":", 1)[1].strip() for t in tokens if t.startswith("year:")), None)
+                non_year_tokens = [t for t in tokens if not t.startswith("year:")]
+                if non_year_tokens and not all(matches_group(label, t) for t in non_year_tokens):
+                    continue
+                if year_val is None and not matches_group(label, group):
+                    continue
+                jcm_proc = apply_JCM_from_list(
                     path=json_path + f"@@{'.'.join(key_path)}",
                     n_jets_col="nSelJets_lowpt" if "lowpt" in json_path else "nSelJets",
                     selected_col="lowpt_threeTag" if "lowpt" in json_path else "threeTag",
-                    start=1,
+                    start=1 if "lowpt" in json_path else 4,
                 )
-                break
+                if year_val is not None:
+                    print(f"Loading JCM weights for {group} from {json_path}@@{'.'.join(key_path)}...")
+                    jcm_by_year[year_val] = jcm_proc
+                elif jcm_processor is None:
+                    print(f"Loading JCM weights for group {group} from {json_path}@@{'.'.join(key_path)}...")
+                    jcm_processor = jcm_proc
 
         # Read and preprocess the data
         print(f"Reading and preprocessing files for {label}...")
-        data = read_data(paths, label, friend_obj, jcm_processor)
+        data = read_data(
+            paths, label, friend_obj, jcm_processor,
+            jcm_by_year=jcm_by_year, no_sr=no_sr,
+        )
         if not data:
             print(f"No data parsed for label: {label}, skipping")
             continue
-            
+
         w = data["weight"]
         N = len(w)
         if N > 0:
@@ -585,10 +664,11 @@ def main():
             ratio = neff / N if N > 0 else 0.0
         else:
             w_min = w_max = w_mean = w_std = neff = ratio = 0.0
-            
+
+        has_jcm = (label in THREETAG_LABELS) and (jcm_processor is not None or bool(jcm_by_year))
         summary_data.append({
             "label": label,
-            "branch": "weight_reweighted" if (friend_obj or jcm_processor) else "weight_raw",
+            "branch": "weight_reweighted" if (friend_obj is not None or has_jcm) else "weight_raw",
             "nraw": N,
             "min": w_min,
             "max": w_max,

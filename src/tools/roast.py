@@ -118,6 +118,14 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
         "desc_bkg": "Cross-sample AUCs, loss curves, and overtraining evaluation metrics",
     },
     {
+        "match": "index.html",
+        "path_contains": ["phasef_1_analysis/plots_", "phasef/plots_"],
+        "path_excludes": ["plots_ttbar_mc_vs_d3", "plots_ttbar3b_mc_vs_d3", "bkg_syst"],
+        "tag": "Phase F.1",
+        "title": "Analysis & SvB Plots Gallery",
+        "desc": "Final analysis distributions, SvB discriminants, and control kinematics",
+    },
+    {
         "match": "closure_summary.html",
         "tag": "Stage F.2",
         "title": "Two-Stage Closure Summary (SvB_MA)",
@@ -160,13 +168,6 @@ FALLBACK_DASHBOARDS: list[dict[str, Any]] = [
         "title": "Histogram Cross-Check (F vs C.4)",
         "desc": "Direct validation that selJets.n and m4j (v4j.mass) match Phase C.4",
     },
-    {
-        "match": "cutflow_crosscheck*.html",
-        "tag": "Phase F.1",
-        "tag_bkg": "Stage F.1",
-        "title": "Cutflow Cross-Check (F vs C.4)",
-        "desc": "Cut-by-cut event yield cross-check against Phase C.4",
-    },
 ]
 
 FALLBACK_STAGES: list[dict[str, Any]] = [
@@ -175,6 +176,12 @@ FALLBACK_STAGES: list[dict[str, Any]] = [
         "title": "📊 Stage F — Statistical Inference & Closure",
         "patterns": ["bkg_syst_f", "phasef", "closure_summary", "summary_svb", "stat_analysis"],
         "badge_cls": "chip-accent",
+    },
+    {
+        "id": "stage_d",
+        "title": "🧠 Stage D — SvB Classifier",
+        "patterns": ["phased", "svb_", "v3_svb"],
+        "badge_cls": "chip-neutral",
     },
     {
         "id": "stage_c",
@@ -4554,6 +4561,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             ):
                 continue
 
+        # Skip per-model Classifier Benchmark Report when Phase C training_summary.html exists
+        if lower_p.endswith("/plots/analyze/index.html"):
+            sibling_summary = p[: -len("/plots/analyze/index.html")] + "/training_summary.html"
+            if sibling_summary in pages:
+                continue
+
         # Check for featured key dashboards from DASHBOARDS registry
         is_featured = False
         stage_prefix = "Stage" if is_bkg_roast else "Phase"
@@ -4597,7 +4610,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             break
 
         # Check for featured visual plot galleries (also kept in stage listings)
-        if (filename in ("index.html", "gallery.html") or p.endswith("/plots/")) and p_esc not in seen_gallery_urls:
+        if (filename in ("index.html", "gallery.html") or p.endswith("/plots/")) and not is_featured and p_esc not in seen_gallery_urls:
             parent_dir = parts[-2] if len(parts) > 1 else ""
             parent_lower = parent_dir.lower()
             is_phase_f = "phasef" in lower_p or "bkg_syst_f" in lower_p
@@ -4707,7 +4720,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 })
                 seen_gallery_urls.add(p_esc)
 
-        if is_featured:
+        if is_featured and filename != "index.html":
             continue
 
         # Skip redundant single-region or redundant primary classifier summaries if closure_summary.html exists
@@ -4722,7 +4735,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             continue
 
         # Auto-discovery safety net: any unmapped *summary*.html or *dashboard*.html or *crosscheck*.html
-        if filename.endswith(".html") and any(k in lower_p for k in ("summary", "dashboard", "crosscheck")) and not filename.startswith("dask-report") and p_esc not in seen_gallery_urls:
+        if filename.endswith(".html") and any(k in lower_p for k in ("summary", "dashboard", "crosscheck")) and "cutflow_crosscheck" not in filename.lower() and not filename.startswith("dask-report") and p_esc not in seen_gallery_urls:
             clean_title = filename.removesuffix(".html").replace("_", " ").title()
             parent_dir = parts[-2] if len(parts) > 1 else "output"
             tag_name = f"{stage_prefix} Summary"
@@ -4790,6 +4803,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
     if featured_cards:
         cards_html = []
         for fc in featured_cards:
+            action_label = "Open Gallery ↗" if fc["url"].endswith("index.html") else "Open Dashboard ↗"
             cards_html.append(f"""
             <a href="{fc['url']}" class="featured-box">
                 <div>
@@ -4797,7 +4811,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                     <div class="featured-title">{html.escape(fc['title'])}</div>
                     <div class="featured-desc">{html.escape(fc['desc'])}</div>
                 </div>
-                <div class="featured-action">Open Dashboard ↗</div>
+                <div class="featured-action">{action_label}</div>
             </a>""")
         featured_html = f"""
         <div class="card">
