@@ -49,6 +49,7 @@ BUILTIN_LABEL_MAPS = {
         (r"^ZZ4b",               "ZZ"),
         (r"^(ZH4b|ggZH4b)",     "ZH"),
         (r"^GluGluToHHTo4B",     "ggF"),
+        (r"^ttH",                "ttHbb"),
     ],
 }
 

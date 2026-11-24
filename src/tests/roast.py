@@ -1630,6 +1630,98 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
         self.assertIn("badge-success", html_out)
         self.assertIn("Published", html_out)
 
+    def test_generate_roast_index_html_jcm_galleries(self):
+        r = fake_roast()
+        r["analysis"] = "ttHbb"
+        r["publish"] = {"ok": True, "ts": "2026-11-24 12:00:00"}
+        pages = [
+            "output/ttHbb/PhaseB_1_computeJCM/JCM_2024_v2/index.html",
+            "output/ttHbb/PhaseB_1_computeJCM/plots_wJCM/index.html",
+            "output/ttHbb/computeJCM/JCM_2024_v2/index.html",
+            "output/ttHbb/computeJCM/plots_noJCM/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_A_1_mixed_jcm/JCM_mixeddata/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_B_1_computeJCM/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+            "output/mix/M3/JCM_mixeddata/index.html",
+            "output/mvd/V1/JCM_mixeddata_tight/index.html",
+            "output/Run3/jcm/index.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn("JCM Fit Plots Gallery", html_out)
+        self.assertIn("JCM Validation Gallery (wJCM)", html_out)
+        self.assertIn("Pre-JCM Plots Gallery (noJCM)", html_out)
+        self.assertIn("JCM Fit Plots Gallery (JCM_mixeddata)", html_out)
+        self.assertIn("Subsample JCM Fit Plots Gallery", html_out)
+        self.assertIn("Subsample JCM Closure Gallery", html_out)
+        self.assertIn("JCM Fit Plots Gallery (JCM_mixeddata_tight)", html_out)
+        for tag in ("Phase B.1", "Stage A.1", "Stage B.1", "Stage M.3", "Stage V.1"):
+            self.assertIn(tag, html_out)
+        for p in pages:
+            self.assertIn(p, html_out)
+
+    def test_generate_roast_index_html_phase_cd_and_f_cleanup(self):
+        r = fake_roast()
+        r["analysis"] = "ttHbb"
+        r["publish"] = {"ok": True, "ts": "2026-11-24 12:00:00"}
+        pages = [
+            "output/ttHbb/PhaseC_FvT/training_summary.html",
+            "output/ttHbb/PhaseC_FvT/plots/index.html",
+            "output/ttHbb/PhaseC_FvT/plots/analyze/index.html",
+            "output/ttHbb/PhaseC_FvT/plots/analyze/HCR/index_group_1.html",
+            "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+            "output/ttHbb/PhaseD_SvB/plots/index.html",
+            "output/ttHbb/PhaseD_SvB_MA/plots/index.html",
+            "output/ttHbb/PhaseF_1_analysis/plots_ttbar_MC_vs_d3/index.html",
+            "output/ttHbb/PhaseF_1_analysis/plots_ttbar3b_MC_vs_d3/index.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn("FvT Training &amp; Input Plots Gallery", html_out)
+        self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB)", html_out)
+        self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB_MA)", html_out)
+        self.assertIn("PhaseC_FvT Loss &amp; ROC Report", html_out)
+        self.assertIn("PhaseC_FvT diagnostic plots gallery", html_out)
+        self.assertNotIn("index_group_1.html", html_out)
+        self.assertIn('<div class="featured-tag">Phase F.1</div>', html_out)
+
+    def test_copy_script_dedups_intra_output_symlinks_only(self):
+        import re
+        import subprocess
+
+        r = fake_roast()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ext = root / "external_stage"
+            ext.mkdir(parents=True)
+            (ext / "ext.html").write_text("ext")
+            canon_dir = root / "output" / "ttHbb" / "PhaseC_4_FvT_closure"
+            canon_dir.mkdir(parents=True)
+            (canon_dir / "a.html").write_text("canon")
+            os.symlink("PhaseC_4_FvT_closure", root / "output" / "ttHbb" / "FvT_closure")
+            os.symlink(str(ext), root / "output" / "ttHbb" / "linked_ext")
+
+            ps = {"include": ["*.html"], "exclude": [], "max_mb": 0}
+            script = roast._copy_script(
+                r, str(root), "root://eosuser.cern.ch", "/eos/user/u/www/r", ps, dry_run=True
+            )
+            m = re.search(r"python3 -c '(\nimport os, sys.*?)' \"\$LIST\"", script, re.S)
+            self.assertIsNotNone(m)
+            dedup_py = m.group(1)
+            list_file = root / "files.txt"
+            res = subprocess.check_output(
+                ["bash", "-c", 'find -L output -type f -name "*.html" -print | sort -u > "$1"', "_", str(list_file)],
+                cwd=root,
+                text=True,
+            )
+            subprocess.check_call(["python3", "-c", dedup_py, str(list_file)], cwd=root)
+            kept = set(list_file.read_text().splitlines())
+            self.assertEqual(
+                kept,
+                {
+                    "output/ttHbb/PhaseC_4_FvT_closure/a.html",
+                    "output/ttHbb/linked_ext/ext.html",
+                },
+            )
+
 
 class TestSyncNautilusPublishMode(unittest.TestCase):
     @patch.object(roast, "_ensure_storage_helper")

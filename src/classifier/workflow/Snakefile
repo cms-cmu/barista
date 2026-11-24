@@ -679,7 +679,7 @@ rule plot_inputs_raw:
         init     = INIT,
         model    = _get_model_path,
         metadata = METADATA,
-        plot     = lambda wildcards: _get_plot_target(wildcards, "inputs_raw"),
+        plot     = lambda wildcards: _get_plot_target(wildcards, ""),
     shell:
         """
         {params.init} && \
@@ -709,7 +709,7 @@ rule plot_inputs_dataprep:
         init     = INIT,
         model    = _get_model_path,
         metadata = METADATA,
-        plot     = lambda wildcards: _get_plot_target(wildcards, "inputs_dataprep"),
+        plot     = lambda wildcards: _get_plot_target(wildcards, ""),
     shell:
         """
         {params.init} && \
@@ -765,10 +765,12 @@ if EVAL_SPLITS:
 
 def _gallery_inputs(wildcards):
     deps = [f"{wildcards.model_dir}/analyze.done"]
-    if PLOT_INPUTS:
+    want_inputs = (config.get("plot_inputs_dict") or {}).get(wildcards.model_dir, PLOT_INPUTS)
+    want_weights = (config.get("plot_weights_dict") or {}).get(wildcards.model_dir, PLOT_WEIGHTS)
+    if want_inputs:
         deps.append(f"{wildcards.model_dir}/plot_inputs_raw.done")
         deps.append(f"{wildcards.model_dir}/plot_inputs_dataprep.done")
-    if PLOT_WEIGHTS:
+    if want_weights:
         deps.append(f"{wildcards.model_dir}/plot_weights.done")
     return deps
 

@@ -47,7 +47,14 @@ def _norm(name: str) -> str:
     return name.replace(".", "_").lower()
 
 
-def scan(root: Path, output_name: str) -> list:
+def scan(
+    root: Path,
+    output_name: str,
+    include_prefixes: list[str] | None = None,
+    exclude_prefixes: list[str] | None = None,
+) -> list:
+    inc = [p for p in (include_prefixes or []) if p]
+    exc = [p for p in (exclude_prefixes or []) if p]
     items = []
     for p in sorted(root.rglob("*")):
         if not p.is_file() or p.name == output_name:
@@ -60,6 +67,10 @@ def scan(root: Path, output_name: str) -> list:
         else:
             continue
         rel = p.relative_to(root)
+        if inc and not any(rel.parts[0].startswith(pref) for pref in inc):
+            continue
+        if exc and any(any(part.startswith(pref) for pref in exc) for part in rel.parts):
+            continue
         group = rel.parent.as_posix()
         items.append({
             "path": rel.as_posix(),
@@ -272,6 +283,18 @@ def main(argv=None) -> int:
     ap.add_argument("--title", default=None, help="page title (default: directory name)")
     ap.add_argument("-m", "--metadata", default=None, help="plot metadata yaml; its `summary:` list pins key plots at the top")
     ap.add_argument("--summary", nargs="*", default=[], help="additional summary plot names (e.g. canJet0.pt m4j)")
+    ap.add_argument(
+        "--include-prefix",
+        nargs="*",
+        default=[],
+        help="only include files under top-level entries starting with these prefixes (e.g. plots_v)",
+    )
+    ap.add_argument(
+        "--exclude-prefix",
+        nargs="*",
+        default=[],
+        help="exclude files with any path component starting with these prefixes (e.g. test_)",
+    )
     ap.add_argument("-o", "--output", default="index.html", help="output file name, relative to plots_dir unless absolute")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -285,7 +308,12 @@ def main(argv=None) -> int:
     if not output.is_absolute():
         output = root / output
 
-    items = scan(root, output.name)
+    items = scan(
+        root,
+        output.name,
+        include_prefixes=args.include_prefix,
+        exclude_prefixes=args.exclude_prefix,
+    )
     if not items:
         logger.warning(f"no images found under {root}")
     n_summary = mark_summary(items, load_summary_names(args.metadata, args.summary))

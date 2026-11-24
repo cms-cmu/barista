@@ -3928,6 +3928,29 @@ def _copy_script(r: dict, ckpt: str, eos_url: str, dst_dir: str, ps: dict, jobs:
         {{ [ -d output ] && find -L output {prune} -type f \\( {exts} \\) {size} -print; \\
            {extra_dirs} \\
            [ -f index.html ] && echo "index.html"; }} | sort -u > "$LIST"
+        # Drop legacy intra-output symlink aliases (e.g. output/ttHbb/FvT_closure -> PhaseC_4_FvT_closure)
+        # when the canonical target file inside output/ is also selected, while keeping symlinks that
+        # point outside output/ (such as upstream_link_stages).
+        python3 -c '
+import os, sys
+list_path = sys.argv[1]
+out_real = os.path.realpath("output") if os.path.exists("output") else ""
+with open(list_path, "r", errors="replace") as f:
+    lines = [ln.rstrip("\\n") for ln in f if ln.strip()]
+path_set = set(lines)
+kept = []
+for p in lines:
+    if out_real and p.startswith("output/"):
+        rp = os.path.realpath(p)
+        if rp == out_real or rp.startswith(out_real + os.sep):
+            canon = "output/" + os.path.relpath(rp, out_real)
+            if canon != p and canon in path_set:
+                continue
+    kept.append(p)
+with open(list_path, "w") as f:
+    for p in kept:
+        print(p, file=f)
+' "$LIST" || {{ echo "python symlink dedup failed" >&2; exit 1; }}
         N=$(wc -l < "$LIST")
         {dry}
         # Discover publishable HTML pages for cupping notes and index summary
@@ -4523,6 +4546,14 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 models_dict[idx]["plots"] = p
             continue
 
+        # Skip redundant single-group HCR index_group_*.html when plots/analyze/index.html exists
+        if re.fullmatch(r"index_group_\d+\.html", filename):
+            analyze_index = p.rsplit("/HCR/", 1)[0] + "/index.html" if "/HCR/" in p else ""
+            if (analyze_index and analyze_index in pages) or (
+                filename == "index_group_1.html" and p.replace("/HCR/index_group_1.html", "/index.html") in pages
+            ):
+                continue
+
         # Check for featured key dashboards from DASHBOARDS registry
         is_featured = False
         stage_prefix = "Stage" if is_bkg_roast else "Phase"
@@ -4567,9 +4598,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
 
         # Check for featured visual plot galleries (also kept in stage listings)
         if (filename in ("index.html", "gallery.html") or p.endswith("/plots/")) and p_esc not in seen_gallery_urls:
+            parent_dir = parts[-2] if len(parts) > 1 else ""
+            parent_lower = parent_dir.lower()
+            is_phase_f = "phasef" in lower_p or "bkg_syst_f" in lower_p
             if "plots_ttbar_mc_vs_d3" in lower_p:
                 gallery_cards.append({
-                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "tag": ("Stage F.1" if is_bkg_roast else "Phase F.1") if is_phase_f else ("Stage C.4" if is_bkg_roast else "Phase C.4"),
                     "title": "ttbar MC vs d3 (4b) Gallery",
                     "desc": "ttbar MC validation vs 3b data with d3_to_t4 reweighting",
                     "url": p_esc,
@@ -4577,7 +4611,7 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                 seen_gallery_urls.add(p_esc)
             elif "plots_ttbar3b_mc_vs_d3" in lower_p:
                 gallery_cards.append({
-                    "tag": "Stage C.4" if is_bkg_roast else "Phase C.4",
+                    "tag": ("Stage F.1" if is_bkg_roast else "Phase F.1") if is_phase_f else ("Stage C.4" if is_bkg_roast else "Phase C.4"),
                     "title": "ttbar MC vs d3 (3b) Gallery",
                     "desc": "ttbar MC validation vs 3b data with d3_to_t3 reweighting",
                     "url": p_esc,
@@ -4591,11 +4625,75 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
                     "url": p_esc,
                 })
                 seen_gallery_urls.add(p_esc)
-            elif "phaseb" in lower_p or "bkg_syst_b" in lower_p or "plots_wjcm" in lower_p or "test_v0_closure" in lower_p:
+            elif "/jcm_" in lower_p or "/jcm/" in lower_p or parent_lower.startswith("jcm_") or parent_lower == "jcm" or parent_lower == "bkg_syst_b_1_computejcm":
+                if "bkg_syst_a_1" in lower_p:
+                    jcm_tag = "Stage A.1"
+                elif "bkg_syst_b_1" in lower_p:
+                    jcm_tag = "Stage B.1"
+                elif "/m3/" in lower_p:
+                    jcm_tag = "Stage M.3"
+                elif "/v1/" in lower_p:
+                    jcm_tag = "Stage V.1"
+                else:
+                    jcm_tag = "Stage B" if is_bkg_roast else "Phase B.1"
+                if parent_lower == "bkg_syst_b_1_computejcm":
+                    jcm_title = "Subsample JCM Fit Plots Gallery"
+                    jcm_desc = "Per-subsample Jet Combinatoric Model fit distributions (nJets & nTagJets)"
+                elif "mixeddata" in parent_lower or parent_lower.startswith("jcm_1_") or parent_lower.startswith("jcm_2_"):
+                    jcm_title = f"JCM Fit Plots Gallery ({parent_dir})"
+                    jcm_desc = "Jet Combinatoric Model fit distributions (nJets & nTagJets)"
+                else:
+                    jcm_title = "JCM Fit Plots Gallery"
+                    jcm_desc = "Jet Combinatoric Model fit distributions (nJets & nTagJets)"
+                gallery_cards.append({
+                    "tag": jcm_tag,
+                    "title": jcm_title,
+                    "desc": jcm_desc,
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif "phaseb" in lower_p or "bkg_syst_b" in lower_p or "plots_wjcm" in lower_p or "plots_nojcm" in lower_p or "test_v0_closure" in lower_p:
+                if "plots_nojcm" in lower_p:
+                    val_title = "Pre-JCM Plots Gallery (noJCM)"
+                elif "test_v" in lower_p and "closure" in lower_p:
+                    val_title = "Subsample JCM Closure Gallery"
+                else:
+                    val_title = "JCM Validation Gallery (wJCM)"
                 gallery_cards.append({
                     "tag": "Stage B" if is_bkg_roast else "Phase B.1",
-                    "title": "JCM Validation Gallery",
+                    "title": val_title,
                     "desc": "Jet Combinatoric Model weights, transfer factors & closure plots",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif parent_lower == "plots" and not lower_p.endswith("analyze/index.html") and (
+                "phasec" in lower_p or "/fvt" in lower_p or "_fvt/" in lower_p
+            ):
+                gallery_cards.append({
+                    "tag": "Stage C" if is_bkg_roast else "Phase C",
+                    "title": "FvT Training & Input Plots Gallery",
+                    "desc": "Classifier ROC, loss divergence, and input feature distributions",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif parent_lower == "plots" and not lower_p.endswith("analyze/index.html") and (
+                "phased" in lower_p or "/svb" in lower_p or "_svb" in lower_p or "/v3_svb" in lower_p
+            ):
+                model_name = parts[-3] if len(parts) > 2 else "SvB"
+                gallery_cards.append({
+                    "tag": "Stage V.3" if "/v3_" in lower_p else "Phase D",
+                    "title": f"SvB Training & Input Plots Gallery ({model_name})",
+                    "desc": "Classifier ROC, loss divergence, and input feature distributions",
+                    "url": p_esc,
+                })
+                seen_gallery_urls.add(p_esc)
+            elif parent_lower == "plots" and not lower_p.endswith("analyze/index.html") and (
+                "/v2_mvd" in lower_p or "/mvd" in lower_p
+            ):
+                gallery_cards.append({
+                    "tag": "Stage V.2",
+                    "title": "MvD Training & Input Plots Gallery",
+                    "desc": "Classifier ROC, loss divergence, and input feature distributions",
                     "url": p_esc,
                 })
                 seen_gallery_urls.add(p_esc)
@@ -4644,7 +4742,12 @@ def generate_roast_index_html(r: dict, pages: list[str] | None = None) -> str:
             if any(pat in lower_p for pat in pats):
                 title = filename.removesuffix(".html").replace("_", " ").title()
                 if filename.endswith("index.html"):
-                    title = f"{parts[-2]} gallery" if len(parts) > 1 else "Plots"
+                    if lower_p.endswith("/plots/analyze/index.html") and len(parts) > 3:
+                        title = f"{parts[-4]} Loss & ROC Report"
+                    elif lower_p.endswith("/plots/index.html") and len(parts) > 2:
+                        title = f"{parts[-3]} diagnostic plots gallery"
+                    else:
+                        title = f"{parts[-2]} gallery" if len(parts) > 1 else "Plots"
                 if sid in stage_items:
                     stage_items[sid].append((title, p_esc, p))
                 else:
