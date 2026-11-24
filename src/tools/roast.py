@@ -3944,7 +3944,7 @@ for p in lines:
         rp = os.path.realpath(p)
         if rp == out_real or rp.startswith(out_real + os.sep):
             canon = "output/" + os.path.relpath(rp, out_real)
-            if canon != p and canon in path_set:
+            if canon != p and canon in path_set and not os.path.islink(p):
                 continue
     kept.append(p)
 with open(list_path, "w") as f:
@@ -4090,8 +4090,8 @@ def cmd_publish(args) -> None:
         info("publish rules: include=" + " ".join(ps["include"]) + "  exclude=" + " ".join(ps["exclude"]) + f"  max_mb={ps['max_mb']}")
     pages = set(r.get("publish", {}).get("pages", []))
     if not args.docs_only:
-        if not args.host:
-            pages = set()   # full publish: rebuild the list from what the hosts have now
+        if not args.host or all(h == args.host or h in K8S_HOSTS for h in r.get("hosts", {})):
+            pages = set()   # full publish (or sole publishing host): rebuild from what the host has now
         if not args.dry_run and "cmslpc" in r.get("hosts", {}):
             for kh in K8S_HOSTS:
                 if kh in hosts:

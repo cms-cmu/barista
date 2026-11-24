@@ -1694,12 +1694,17 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
             ext.mkdir(parents=True)
             (ext / "ext.html").write_text("ext")
             canon_dir = root / "output" / "ttHbb" / "PhaseC_4_FvT_closure"
-            canon_dir.mkdir(parents=True)
+            (canon_dir / "plots").mkdir(parents=True)
             (canon_dir / "a.html").write_text("canon")
+            (canon_dir / "plots" / "a.png").write_text("canon-png")
             os.symlink("PhaseC_4_FvT_closure", root / "output" / "ttHbb" / "FvT_closure")
             os.symlink(str(ext), root / "output" / "ttHbb" / "linked_ext")
+            impacts_dir = root / "output" / "ttHbb" / "PhaseF_2_stats" / "impacts"
+            impacts_dir.mkdir(parents=True)
+            (impacts_dir / "datacard_impacts_page1.png").write_text("impacts")
+            os.symlink("datacard_impacts_page1.png", impacts_dir / "datacard_impacts.png")
 
-            ps = {"include": ["*.html"], "exclude": [], "max_mb": 0}
+            ps = {"include": ["*.html", "*.png"], "exclude": [], "max_mb": 0}
             script = roast._copy_script(
                 r, str(root), "root://eosuser.cern.ch", "/eos/user/u/www/r", ps, dry_run=True
             )
@@ -1708,7 +1713,7 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
             dedup_py = m.group(1)
             list_file = root / "files.txt"
             res = subprocess.check_output(
-                ["bash", "-c", 'find -L output -type f -name "*.html" -print | sort -u > "$1"', "_", str(list_file)],
+                ["bash", "-c", 'find -L output -type f \\( -name "*.html" -o -name "*.png" \\) -print | sort -u > "$1"', "_", str(list_file)],
                 cwd=root,
                 text=True,
             )
@@ -1718,7 +1723,10 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
                 kept,
                 {
                     "output/ttHbb/PhaseC_4_FvT_closure/a.html",
+                    "output/ttHbb/PhaseC_4_FvT_closure/plots/a.png",
                     "output/ttHbb/linked_ext/ext.html",
+                    "output/ttHbb/PhaseF_2_stats/impacts/datacard_impacts_page1.png",
+                    "output/ttHbb/PhaseF_2_stats/impacts/datacard_impacts.png",
                 },
             )
 
