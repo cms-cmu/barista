@@ -1,0 +1,175 @@
+# GKE Cluster Setup Manifests for Barista (namespace: cms-cmu)
+#
+# Provides:
+#   1. Namespace `cms-cmu` and `roast-runner` ServiceAccount (in-cluster `kubectl` auth
+#      uses the GCE metadata server via `/workspace/shared/bin/kubectl`, since CloudBank
+#      `roles/editor` omits `container.roles.create`)
+#   2. In-cluster RWX NFSv4 server backed by a 100Gi GCE persistent disk (`standard-rwo`)
+#   3. ReadWriteMany PV/PVC `cms-cmu-storage` (and optional `cvmfs` placeholder PVC)
+#
+# Note: Replace <NFS_SERVER_CLUSTER_IP> with `kubectl get svc nfs-server -n cms-cmu -o jsonpath='{.spec.clusterIP}'`
+# before applying the PersistentVolume definitions.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cms-cmu
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: roast-runner
+  namespace: cms-cmu
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-backing-pvc
+  namespace: cms-cmu
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-server
+  namespace: cms-cmu
+  labels:
+    app: nfs-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-server
+  template:
+    metadata:
+      labels:
+        app: nfs-server
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: default-pool
+      initContainers:
+      - name: init-exports
+        image: busybox:1.36
+        command: ["sh", "-c", "mkdir -p /exports/workspace /exports/cvmfs && chmod 777 /exports /exports/workspace /exports/cvmfs"]
+        volumeMounts:
+        - name: exports
+          mountPath: /exports
+      containers:
+      - name: nfs-server
+        image: itsthenetwork/nfs-server-alpine:12
+        env:
+        - name: SHARED_DIRECTORY
+          value: /exports
+        ports:
+        - name: nfs
+          containerPort: 2049
+        - name: mountd
+          containerPort: 20048
+        - name: rpcbind
+          containerPort: 111
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+        volumeMounts:
+        - name: exports
+          mountPath: /exports
+      volumes:
+      - name: exports
+        persistentVolumeClaim:
+          claimName: nfs-backing-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nfs-server
+  namespace: cms-cmu
+spec:
+  selector:
+    app: nfs-server
+  ports:
+  - name: nfs
+    port: 2049
+    targetPort: 2049
+  - name: mountd
+    port: 20048
+    targetPort: 20048
+  - name: rpcbind
+    port: 111
+    targetPort: 111
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: barista-workspace-pv
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+  - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+  - nfsvers=4.1
+  - hard
+  - timeo=600
+  - retrans=2
+  nfs:
+    server: <NFS_SERVER_CLUSTER_IP>
+    path: /workspace
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cms-cmu-storage
+  namespace: cms-cmu
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: ""
+  volumeName: barista-workspace-pv
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: barista-cvmfs-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+  - ReadOnlyMany
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+  - nfsvers=4.1
+  nfs:
+    server: <NFS_SERVER_CLUSTER_IP>
+    path: /cvmfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cvmfs
+  namespace: cms-cmu
+spec:
+  accessModes:
+  - ReadOnlyMany
+  storageClassName: ""
+  volumeName: barista-cvmfs-pv
+  resources:
+    requests:
+      storage: 1Gi

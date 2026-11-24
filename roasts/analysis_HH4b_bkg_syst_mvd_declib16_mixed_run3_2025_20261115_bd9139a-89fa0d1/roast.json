@@ -1,0 +1,343 @@
+{
+  "id": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_20261115_bd9139a-89fa0d1",
+  "label": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025",
+  "analysis": "HH4b",
+  "created": "2026-11-15 23:30:07",
+  "owner": "John Alison",
+  "barista": {
+    "sha": "bd9139a9e02230041a4809e528042f3bdcbb7bf2",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "89fa0d12f3308b4fc153ba9c232cbdcca4ef62fb",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025.yml",
+    "captured": "config.yml",
+    "sha256": "07ba5d03e4948d0a26e436865f8c25bf289e92d6611a6b3917c200dc6674b092"
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "analysis_HH4b_bkg_syst_mixed_run3_2025_20261115_bd9139a-89fa0d1",
+        "barista": "bd9139a9e02230041a4809e528042f3bdcbb7bf2",
+        "coffea4bees": "89fa0d12f3308b4fc153ba9c232cbdcca4ef62fb",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/analysis_HH4b_bkg_syst_mixed_run3_2025_20261115_bd9139a-89fa0d1",
+        "archived": false
+      },
+      {
+        "id": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+        "barista": "cea2f984b4ad0c30b130f2afe98ca7577776a784",
+        "coffea4bees": "6c5c9c3bc1d928ffc7b5f3437d2246565895bec8",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run3_2025_20261027_cea2f98-6c5c9c3",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_2025_nontight_20261027_1809191-df306da",
+        "barista": "180919122d0a8351625c13e77a75cb57d855873e",
+        "coffea4bees": "df306da384fda0f3100be2087541b4fc6684d3cd",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_nontight_20261027_1809191-df306da",
+        "archived": true
+      },
+      {
+        "id": "nominal_run3_2025_20261027_1809191-df306da",
+        "barista": "180919122d0a8351625c13e77a75cb57d855873e",
+        "coffea4bees": "df306da384fda0f3100be2087541b4fc6684d3cd",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/nominal_run3_2025_20261027_1809191-df306da",
+        "archived": true
+      },
+      {
+        "id": "declib16_run3_2025_20261028_69809f5-6e827c1",
+        "barista": "69809f591d7d51ca23b041ae678d2bacce2e8468",
+        "coffea4bees": "6e827c1632a3fd8a18751c70749127e424d227c0",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16_run3_2025_20261028_69809f5-6e827c1",
+        "archived": true
+      },
+      {
+        "id": "mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448",
+        "barista": "b02b7c12c38aea070509845202b2314f63b89448",
+        "coffea4bees": "7321448a5fa6bbdd3966a85392231f9c90fa9e37",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448",
+        "archived": true
+      },
+      {
+        "id": "mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04",
+        "barista": "c96a8ce5a1a07a7c2f2fe1e7b233736fdea7a0be",
+        "coffea4bees": "a4b6e040244fa4615a1793cdbcf5935af1509f98",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:mixeddata}/handoff/mixeddata_all.yml",
+        "roast": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run3_2025_20261027_cea2f98-6c5c9c3"
+      },
+      "jcm_hists": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/histAll_NoJCM.coffea",
+        "roast": "nominal_run3_2025_nontight_20261027_1809191-df306da"
+      },
+      "analysis_config_noJCM": {
+        "url": "{roast:nominal_nt}/{roast:nominal_nt:output_path}computeJCM/analysis_config_noJCM.yml",
+        "roast": "nominal_run3_2025_nontight_20261027_1809191-df306da"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal_b}/handoff/classifier_inputs_{roast:nominal_b:id}.json",
+        "roast": "nominal_run3_2025_20261027_1809191-df306da"
+      },
+      "nominal_hists": {
+        "url": "{roast:mvd}/{roast:mvd:output_path}V4/histAll_MvD.coffea",
+        "roast": "mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448"
+      },
+      "SvB": {
+        "url": "{roast:mvd}/friend/SvB_MvD/result.json@@analysis.0.merged",
+        "roast": "mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448"
+      },
+      "SvB_model": {
+        "url": "{roast:mvd}/classifier/SvB_MvD/result.json",
+        "roast": "mvd_run3_2025_declib16_warm_20261108_b02b7c1-7321448"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/j/johnda/www/HH4b/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-15 23:53:50",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_AB",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-16 00:08:02",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_AB",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-16 06:06:34",
+          "cores": 32,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-16 06:07:01",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-16 09:30:16",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-16 15:09:19",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-17 22:06:38",
+          "cores": 32,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": true,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_C",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4_MVD",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_mvd_closure.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-18 07:16:25",
+          "cores": 8,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_F",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        },
+        {
+          "ts": "2026-11-18 07:17:05",
+          "cores": 8,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_bd9139a-89fa0d1_BKG_F",
+          "ssh": "jda102@cmslpc370.fnal.gov",
+          "config_sha256": "07ba5d03e494"
+        }
+      ]
+    }
+  ],
+  "train_on": "orchard",
+  "eval_on": "orchard",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "~/nobackup/HH4b/prod/analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_20261115_bd9139a-89fa0d1/barista",
+      "ssh": "jda102@cmslpc370.fnal.gov",
+      "checked_out": "2026-11-15 23:51:30"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-11-15 23:30:07",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-15 23:51:30",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-15 23:53:50",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 00:08:02",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 06:06:34",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 06:07:01",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 09:30:16",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-16 15:09:19",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-17 22:06:38",
+      "event": "resume",
+      "step": "BKG_C",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-18 07:16:25",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-18 07:17:05",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    }
+  ],
+  "notes": "INVALID / SUPERSEDED by analysis_HH4b_bkg_syst_mvd_declib16_mixed_run3_2025_20261119_21aa0bf-309f726: A_1/A_2/F_1 ran on only 6 of the 16 2025 sub-eras (runner --eras allowlist bug, fixed in barista runner-all-eras). Do not use these results. 2025 MvD-declustered nominal (mvd_run3_2025_declib16_warm), bkg systematic on the 2025 mixed subsamples (A_1/A_2 linked from analysis_HH4b_bkg_syst_mixed_run3_2025_20261115_bd9139a-89fa0d1). GPU on CMU ORCHARD, compute on cmslpc. Pinned at origin/master; hot patches = coffea4bees bkg-syst-mixed-2024-2025 (2025 JCM config, F_4 subsample mode, synthetic-eval fix). --no-validate: master's upstream check ignores upstream_link_stages (fix: barista validate-upstream-link-stages).",
+  "category": ""
+}

@@ -72,6 +72,12 @@ class LoadRoot(ABC, Dataset):
         help="limit to N files per group for quick testing",
     )
     argparser.add_argument(
+        "--test-entries",
+        type=converter.int_pos,
+        default=None,
+        help="limit to N entries per file for quick testing",
+    )
+    argparser.add_argument(
         "--train-chunksize",
         type=converter.int_pos,
         default=1_000_000,
@@ -160,6 +166,7 @@ class LoadRoot(ABC, Dataset):
             chunksize=self.opts.train_chunksize,
             tree=self.opts.tree,
             preserve_order=self.opts.preserve_order,
+            max_entries=self.opts.test_entries,
         )
         loader.to_tensor = self.to_tensor
         loader.postprocessors = self.postprocessors
@@ -192,7 +199,7 @@ class LoadRoot(ABC, Dataset):
                         from_root,
                         pool.map_async(
                             executor,
-                            _fetch(tree=self.opts.tree),
+                            _fetch(tree=self.opts.tree, max_entries=self.opts.test_entries),
                             files,
                             callbacks=[lambda _: progress_advance(progress)],
                             preserve_order=self.opts.preserve_order,
@@ -290,15 +297,19 @@ class LoadGroupedRoot(LoadRoot):
 
 
 class _fetch:
-    def __init__(self, tree: str):
+    def __init__(self, tree: str, max_entries: int = None):
         self._tree = tree
+        self._max_entries = max_entries
 
     def __call__(self, path: str | Chunk):
         from src.data_formats.root import Chunk
 
         if isinstance(path, Chunk):
-            return path
-        chunk = Chunk(source=path, name=self._tree, fetch=True)
+            chunk = path
+        else:
+            chunk = Chunk(source=path, name=self._tree, fetch=True)
+        if self._max_entries is not None and len(chunk) > self._max_entries:
+            chunk = chunk.slice(0, self._max_entries)
         return chunk
 
 
@@ -313,12 +324,14 @@ class _load_root:
         chunksize: int,
         tree: str,
         preserve_order: bool,
+        max_entries: int = None,
     ):
         self._from_root = from_root
         self._max_workers = max_workers
         self._chunksize = chunksize
         self._tree = tree
         self._preserve_order = preserve_order
+        self._max_entries = max_entries
 
     def __call__(self):
         data = self.load()
@@ -354,7 +367,7 @@ class _load_root:
                     list(
                         pool.map_async(
                             executor,
-                            _fetch(tree=self._tree),
+                            _fetch(tree=self._tree, max_entries=self._max_entries),
                             files,
                             callbacks=[lambda _: progress_advance(progress)],
                             preserve_order=self._preserve_order,

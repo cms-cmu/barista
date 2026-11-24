@@ -1,0 +1,550 @@
+{
+  "id": "ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9",
+  "label": "ttHbb_bkg_syst_declib16nc_nTightLeptons",
+  "analysis": "ttHbb",
+  "created": "2026-11-22 13:39:54",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "c35c3c8136758ad78123a02a289e6477c85e8ab0",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "6bfe7c90851fc6edc3932b83e1c4cc344baef577",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc_nTightLeptons.yml",
+    "captured": "config.yml",
+    "sha256": "2ab090352f5d65bcf0c2f86f2249b85a29af774c1ee66c1404d77997524d67dd",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc.yml",
+        "sha256": "425fd1cb35bf30fad9a6379482a93ab72884cf5c60a9e93b0ecb5b8e068cb173"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 9,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "barista": "3ab83026785c9e59203bb5d9fa426e83a828786d",
+        "coffea4bees": "b2d2dec126049807fe4bacb340b34f09022dc49b",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b",
+        "barista": "fc3e2610c024354cec7f78f77a921d74d97cd96b",
+        "coffea4bees": "52a3a2b477d87188500fdcf1c99721cc707e0895",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569",
+        "barista": "fc3e2610c024354cec7f78f77a921d74d97cd96b",
+        "coffea4bees": "9177569707c315aaf0e8c139d171a301c17dbf20",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569",
+        "archived": false
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16nc_multijet.yml",
+        "roast": "declib16nc_run2_20261003_3ab8302-b2d2dec"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b/output/ttHbb/PhaseB_1_computeJCM/histAll_NoJCM.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b"
+      },
+      "nominal_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b/output/ttHbb/PhaseF_1_analysis/histAll_ttHbb_stat_only_corner_veto_nTightLeptons.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b"
+      },
+      "classifier_inputs": {
+        "url": "{roast:nominal}/handoff/classifier_inputs_{roast:nominal:id}.json",
+        "roast": "ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b"
+      },
+      "SvB": {
+        "url": "{roast:svb_upstream}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "SvB_model": {
+        "url": "{roast:svb_upstream}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "SvB_MA": {
+        "url": "{roast:svb_upstream}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "SvB_MA_model": {
+        "url": "{roast:svb_upstream}/classifier/SvB_MA_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-22 13:44:46",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_AB",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-22 13:50:42",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_AB",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-22 23:33:06",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_AB",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "gcp",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-22 16:13:25",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-ntightlep-e656b9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-22 16:15:17",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-ntightlep-e656b9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-22 18:02:49",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-ntightlep-e656b9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-22 18:04:36",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-ntightlep-e656b9-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "993193a39d8e"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-22 18:04:04",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_C4",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-23 05:00:20",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_C4",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-23 05:01:07",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_C4",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        }
+      ]
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-23 05:47:21",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_F",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-23 05:48:24",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_F",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "993193a39d8e"
+        },
+        {
+          "ts": "2026-11-23 06:10:20",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_nTightLeptons_c35c3c8-6bfe7c9_BKG_F",
+          "ssh": "algomez@cmslpc305.fnal.gov",
+          "config_sha256": "2ab090352f5d"
+        }
+      ]
+    }
+  ],
+  "workflow": "bkg_syst_full",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/barista",
+      "ssh": "algomez@cmslpc305.fnal.gov",
+      "checked_out": "2026-11-22 13:40:51"
+    },
+    "gcp": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/barista",
+      "checked_out": "2026-11-22 18:02:28"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/",
+    "ts": "2026-11-23 07:19:13",
+    "ok": true,
+    "pages": [
+      "logs/BKG_AB_rulegraph.svg",
+      "logs/BKG_AB_summary.txt",
+      "logs/BKG_C4_rulegraph.svg",
+      "logs/BKG_C4_summary.txt",
+      "logs/BKG_C_rulegraph.svg",
+      "logs/BKG_C_summary.txt",
+      "logs/BKG_F_summary.txt",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_0/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_0/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_2.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_1/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_1/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_10/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_10/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_11/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_11/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_12/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_12/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_13/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_13/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_14/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_14/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_15/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_15/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_2/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_2/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_3/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_3/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_4/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_4/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_5/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_5/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_6/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_6/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_7/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_7/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_8/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_8/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_9/plots/index.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/models/mix_9/yields.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_C_FvT/training_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_1_analysis/plots/gallery.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_2_run_two_stage_closure/summary_SvB_MA.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_3_stats/stat_analysis_rebin12/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_3_stats/stat_analysis_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_3_stats/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin12/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_4_stats_mixeddata/stat_analysis_unblinded_mixeddata_rebin24/summary.html",
+      "output/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9/bkg_syst_F_4_stats_mixeddata/summary.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-22 13:39:54",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-22 13:40:51",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-22 13:42:05",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-22 13:44:46",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-22 13:50:42",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-22 16:13:25",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-22 16:15:17",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-22 18:02:28",
+      "event": "checkout",
+      "host": "gcp"
+    },
+    {
+      "ts": "2026-11-22 18:02:49",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "gcp"
+    },
+    {
+      "ts": "2026-11-22 18:04:04",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-22 18:04:36",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "gcp"
+    },
+    {
+      "ts": "2026-11-22 23:33:06",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 05:00:20",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 05:01:07",
+      "event": "submit",
+      "step": "BKG_C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 05:47:21",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 05:48:24",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 06:10:20",
+      "event": "config-edited",
+      "sha256": "2ab090352f5d"
+    },
+    {
+      "ts": "2026-11-23 06:10:20",
+      "event": "submit",
+      "step": "BKG_F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 07:19:13",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-23 11:41:37",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": false
+    },
+    {
+      "ts": "2026-11-23 11:43:27",
+      "event": "archive",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "declib16nc bkg_syst with nTightLeptons FvT ancillary feature (nominal: ttHbb_stat_only_corner_veto_nTightLeptons_20261122_fc3e261-52a3a2b, SvB/SvB_MA: ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569)",
+  "category": "ttHbb_bkg_syst",
+  "archive": {
+    "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_bkg_syst_declib16nc_nTightLeptons_20261122_c35c3c8-6bfe7c9",
+    "ts": "2026-11-23 11:43:27",
+    "ok": true
+  }
+}
