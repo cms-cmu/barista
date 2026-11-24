@@ -1,0 +1,301 @@
+{
+  "id": "ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0",
+  "label": "ttHbb_stat_only_corner_veto_split_ttbar",
+  "analysis": "ttHbb",
+  "created": "2026-11-23 11:38:21",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "ffb2e9b184b1481b6ba8b81b31d21fc039b79c07",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "da351f0b2f19a2f841928084d99d847dcce4e0eb",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_stat_only_corner_veto_split_ttbar.yml",
+    "captured": "config.yml",
+    "sha256": "e8d9694578c3178dca524053f49c8258f3cf22237cdca32a50b90c57d0e36d4e",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb.yml",
+        "sha256": "88d1af26afc272c5ac49c7f9c37495b921bf154c2caf072bd79a48d907fcefe3"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 3,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569",
+        "barista": "fc3e2610c024354cec7f78f77a921d74d97cd96b",
+        "coffea4bees": "9177569707c315aaf0e8c139d171a301c17dbf20",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "classifier_inputs": {
+        "url": "{roast:upstream}/handoff/classifier_inputs_ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "JCM.UL16_preVFP": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL16_preVFP.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "JCM.UL16_postVFP": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL16_postVFP.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "JCM.UL17": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL17.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "JCM.UL18": {
+        "url": "{roast:upstream}/handoff/jetCombinatoricModel_SB_2024_v2_UL18.yml",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "SvB": {
+        "url": "{roast:upstream}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "SvB_MA": {
+        "url": "{roast:upstream}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      },
+      "svb_binning": {
+        "url": "{roast:upstream}/handoff/svb_quantiles.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261121_fc3e261-9177569"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-23 11:41:59",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-stat-only-corner-veto-split-t-a89904-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "ffc1d15502b5"
+        },
+        {
+          "ts": "2026-11-23 11:42:53",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-stat-only-corner-veto-split-t-a89904-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "ffc1d15502b5"
+        }
+      ]
+    },
+    {
+      "name": "C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseC_4_FvT_closure.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-23 11:42:20",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_split_ttbar_ffb2e9b-da351f0_C4",
+          "ssh": "algomez@cmslpc303.fnal.gov",
+          "config_sha256": "ffc1d15502b5"
+        },
+        {
+          "ts": "2026-11-23 14:46:49",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_split_ttbar_ffb2e9b-da351f0_C4",
+          "ssh": "algomez@cmslpc303.fnal.gov",
+          "config_sha256": "ffc1d15502b5"
+        }
+      ]
+    },
+    {
+      "name": "F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_PhaseF.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-23 15:34:01",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_split_ttbar_ffb2e9b-da351f0_F",
+          "ssh": "algomez@cmslpc303.fnal.gov",
+          "config_sha256": "ffc1d15502b5"
+        },
+        {
+          "ts": "2026-11-23 16:50:27",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_stat_only_corner_veto_split_ttbar_ffb2e9b-da351f0_F",
+          "ssh": "algomez@cmslpc303.fnal.gov",
+          "config_sha256": "e8d9694578c3"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0/barista",
+      "ssh": "algomez@cmslpc303.fnal.gov",
+      "checked_out": "2026-11-23 11:38:59"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0/barista",
+      "checked_out": "2026-11-23 11:40:55"
+    }
+  },
+  "publish": {
+    "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0",
+    "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0/",
+    "ts": "2026-11-23 17:59:22",
+    "ok": true,
+    "pages": [
+      "logs/C4_rulegraph.svg",
+      "logs/C4_summary.txt",
+      "logs/C_summary.txt",
+      "logs/F_rulegraph.svg",
+      "logs/F_summary.txt",
+      "output/FvT_ttHbb_stitched/plots/analyze/HCR/index_group_1.html",
+      "output/FvT_ttHbb_stitched/plots/analyze/index.html",
+      "output/FvT_ttHbb_stitched/plots/index.html",
+      "output/FvT_ttHbb_stitched/training_summary.html",
+      "output/FvT_ttHbb_stitched/yields.html",
+      "output/ttHbb/FvT_closure/cutflow_FvT_closure.html",
+      "output/ttHbb/FvT_closure/plots_FvT_closure/index.html",
+      "output/ttHbb/FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb/FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/cutflow_FvT_closure.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_FvT_closure/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseC_4_FvT_closure/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/PhaseF_1_analysis/cutflow_crosscheck_ttHbb_stat_only_corner_veto_split_ttbar.html",
+      "output/ttHbb/PhaseF_1_analysis/cutflow_ttHbb_stat_only_corner_veto_split_ttbar.html",
+      "output/ttHbb/PhaseF_1_analysis/plots_ttHbb_stat_only_corner_veto_split_ttbar/index.html",
+      "output/ttHbb/PhaseF_1_analysis/plots_ttbar3b_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseF_1_analysis/plots_ttbar_MC_vs_d3/index.html",
+      "output/ttHbb/PhaseF_1_analysis/ttbar_MC_vs_d3_cutflow.html",
+      "output/ttHbb/PhaseF_2_stats/summary.html",
+      "roasts/ttHbb_stat_only_corner_veto_split_ttbar_20261123_ffb2e9b-da351f0/index.html"
+    ]
+  },
+  "history": [
+    {
+      "ts": "2026-11-23 11:38:21",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-23 11:38:59",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 11:41:59",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-23 11:42:20",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 11:42:53",
+      "event": "submit",
+      "step": "C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-23 14:46:49",
+      "event": "submit",
+      "step": "C4",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 15:34:01",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 16:39:08",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-23 16:50:27",
+      "event": "config-edited",
+      "sha256": "e8d9694578c3"
+    },
+    {
+      "ts": "2026-11-23 16:50:27",
+      "event": "submit",
+      "step": "F",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-23 17:59:22",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    }
+  ],
+  "notes": "",
+  "category": ""
+}
