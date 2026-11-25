@@ -334,8 +334,12 @@ def generate_fit_quality_plots(fqs: list[dict], out_dir: Path, source: str = "d3
         return {}
 
     try:
+        repo_root = str(Path(__file__).resolve().parents[2])
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
         from src.classifier.fit_quality_report import _plot
-    except Exception:
+    except Exception as e:
+        print(f"Warning: Failed to import fit_quality_report._plot: {e}", file=sys.stderr)
         return {}
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -478,12 +482,23 @@ def generate_html(models_data: list[dict], out_path: Path, title: str):
     auc_4b_data_stat = compute_stats(aucs_4b_data)
     auc_ttbar_stat = compute_stats(aucs_ttbar)
 
-    chi2_vals = [m["fit_quality"]["composite_chi2_ndf"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("composite_chi2_ndf") is not None]
+    def _fq_vals(key: str) -> list[float]:
+        return [
+            m["fit_quality"][key]
+            for m in models_data
+            if m.get("fit_quality") and m["fit_quality"].get(key) is not None
+        ]
+
+    chi2_vals = _fq_vals("composite_chi2_ndf")
     chi2_stat = compute_stats(chi2_vals)
-    svb_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr") is not None]
+    pt4_chi2_stat = compute_stats(_fq_vals("chi2_ndf_pt4"))
+    pt1_chi2_stat = compute_stats(_fq_vals("chi2_ndf_pt1"))
+    fvt_chi2_stat = compute_stats(_fq_vals("chi2_ndf_fvt"))
+    svb_chi2_vals = _fq_vals("chi2_ndf_svb_sr")
     svb_chi2_stat = compute_stats(svb_chi2_vals)
-    svb_gt0p8_chi2_vals = [m["fit_quality"]["chi2_ndf_svb_sr_gt0p8"] for m in models_data if m.get("fit_quality") and m["fit_quality"].get("chi2_ndf_svb_sr_gt0p8") is not None]
+    svb_gt0p8_chi2_vals = _fq_vals("chi2_ndf_svb_sr_gt0p8")
     svb_gt0p8_chi2_stat = compute_stats(svb_gt0p8_chi2_vals)
+    neg_frac_stat = compute_stats(_fq_vals("neg_fraction"))
 
     # Compute ensemble pull for each model
     for m in models_data:
@@ -633,7 +648,7 @@ main {{ max-width: 1500px; margin: 0 auto; padding: 24px; }}
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
   margin-bottom: 32px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }}
@@ -803,7 +818,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     
     <div class="metric-card">
       <div class="title">Generalization Gap ⟨ΔL⟩</div>
-      <div class="val">{f_val(gap_stat['mean'], prefix='+')} {f'<span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(gap_stat["std"])}</span>' if n_total > 1 else ''}</div>
+      <div class="val">{f_val(gap_stat['mean'], prefix='+' if (gap_stat['mean'] or 0) > 0 else '')} {f'<span style="font-size:14px; font-weight:400; color:var(--muted)">± {f_val(gap_stat["std"])}</span>' if n_total > 1 else ''}</div>
       <div class="sub">{"⟨L_val⟩ - ⟨L_train⟩ across " + str(n_total) + " models" if n_total > 1 else "L_val - L_train"}</div>
     </div>
     
@@ -826,7 +841,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     <div class="metric-card">
       <div class="title">Kinematic Closure ⟨χ²/ndf⟩</div>
       <div class="val">{f_val(chi2_stat['mean'], fmt='.2f') if chi2_stat['mean'] is not None else '—'} <span style="font-size:14px; font-weight:400; color:var(--muted)">{f"± {f_val(chi2_stat['std'], fmt='.2f')}" if (chi2_stat['std'] and n_total > 1) else ''}</span></div>
-      <div class="sub">{f"Min: {f_val(chi2_stat['min'], fmt='.2f')} · Max: {f_val(chi2_stat['max'], fmt='.2f')}" if (chi2_stat['min'] is not None and n_total > 1) else "Target: → 1.00 (pt4 & pt1)"}</div>
+      <div class="sub">{f"Min: {f_val(chi2_stat['min'], fmt='.2f')} · Max: {f_val(chi2_stat['max'], fmt='.2f')}" if (chi2_stat['min'] is not None and n_total > 1) else "Target: → 1.00 (pt4, pt1, FvT)"}</div>
     </div>
   </div>
 
@@ -852,6 +867,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <th>AUC (4b vs 3b data)</th>
           <th>AUC (ttbar vs data)</th>
           <th>χ²/ndf (pt4)</th>
+          <th>χ²/ndf (pt1)</th>
+          <th>χ²/ndf (FvT)</th>
           <th>χ²/ndf (SvB SR)</th>
           <th>χ²/ndf (SvB &gt; 0.8)</th>
           <th>Score (χ²)</th>
@@ -892,6 +909,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
 
         fq = m.get("fit_quality") or {}
         chi2_pt4_str = f_val(fq.get("chi2_ndf_pt4"), fmt=".2f")
+        chi2_pt1_str = f_val(fq.get("chi2_ndf_pt1"), fmt=".2f")
+        chi2_fvt_str = f_val(fq.get("chi2_ndf_fvt"), fmt=".2f")
         chi2_svb_str = f_val(fq.get("chi2_ndf_svb_sr"), fmt=".2f")
         chi2_svb_gt0p8_str = f_val(fq.get("chi2_ndf_svb_sr_gt0p8"), fmt=".2f")
         score_str = f_val(fq.get("composite_chi2_ndf"), fmt=".2f")
@@ -916,6 +935,8 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td>{auc_4b_d}</td>
           <td>{auc_tt}</td>
           <td>{chi2_pt4_str}</td>
+          <td>{chi2_pt1_str}</td>
+          <td>{chi2_fvt_str}</td>
           <td>{chi2_svb_str}</td>
           <td>{chi2_svb_gt0p8_str}</td>
           <td><b>{score_str}</b></td>
@@ -934,9 +955,18 @@ a.link-subtle:hover {{ text-decoration: underline; }}
     mean_auc_4b = f"{auc_4b_stat['mean']:.4f} ± {auc_4b_stat['std']:.4f}" if auc_4b_stat["mean"] is not None else "—"
     mean_auc_4b_d = f"{auc_4b_data_stat['mean']:.4f} ± {auc_4b_data_stat['std']:.4f}" if auc_4b_data_stat["mean"] is not None else "—"
     mean_auc_tt = f"{auc_ttbar_stat['mean']:.4f} ± {auc_ttbar_stat['std']:.4f}" if auc_ttbar_stat["mean"] is not None else "—"
-    mean_chi2_str = f"{chi2_stat['mean']:.2f} ± {chi2_stat['std']:.2f}" if chi2_stat["mean"] is not None else "—"
-    mean_svb_chi2_str = f"{svb_chi2_stat['mean']:.2f} ± {svb_chi2_stat['std']:.2f}" if svb_chi2_stat["mean"] is not None else "—"
-    mean_svb_gt0p8_chi2_str = f"{svb_gt0p8_chi2_stat['mean']:.2f} ± {svb_gt0p8_chi2_stat['std']:.2f}" if svb_gt0p8_chi2_stat["mean"] is not None else "—"
+    def _mean_pm_std(stat: dict, fmt: str = ".2f", scale: float = 1.0, suffix: str = "") -> str:
+        if stat["mean"] is None:
+            return "—"
+        return f"{stat['mean'] * scale:{fmt}}{suffix} ± {stat['std'] * scale:{fmt}}{suffix}"
+
+    mean_chi2_str = _mean_pm_std(chi2_stat)
+    mean_pt4_chi2_str = _mean_pm_std(pt4_chi2_stat)
+    mean_pt1_chi2_str = _mean_pm_std(pt1_chi2_stat)
+    mean_fvt_chi2_str = _mean_pm_std(fvt_chi2_stat)
+    mean_svb_chi2_str = _mean_pm_std(svb_chi2_stat)
+    mean_svb_gt0p8_chi2_str = _mean_pm_std(svb_gt0p8_chi2_stat)
+    mean_neg_str = _mean_pm_std(neg_frac_stat, scale=100.0, suffix="%")
 
     lines.append(f"""        <tr class="summary-row">
           <td><b>Ensemble Mean ± Std</b></td>
@@ -951,11 +981,13 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td><b>{mean_auc_4b}</b></td>
           <td><b>{mean_auc_4b_d}</b></td>
           <td><b>{mean_auc_tt}</b></td>
-          <td>—</td>
+          <td><b>{mean_pt4_chi2_str}</b></td>
+          <td><b>{mean_pt1_chi2_str}</b></td>
+          <td><b>{mean_fvt_chi2_str}</b></td>
           <td><b>{mean_svb_chi2_str}</b></td>
           <td><b>{mean_svb_gt0p8_chi2_str}</b></td>
           <td><b>{mean_chi2_str}</b></td>
-          <td>—</td>
+          <td><b>{mean_neg_str}</b></td>
           <td>—</td>
         </tr>
       </tbody>
@@ -1025,7 +1057,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
           <td><b>{t_ratio}</b></td>
         </tr>""")
 
-    lines.append("""      </tbody>
+    lines.append(f"""      </tbody>
     </table>
   </div>
 
@@ -1043,6 +1075,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
                 ("plots/analyze/HCR/closure-evolution-fvt_sb-1.png", "Closure Evolution: FvT Weight (SB)", "χ²/ndf: fvt_sb"),
                 ("plots/analyze/HCR/closure-evolution-pt4_sb-1.png", "Closure Evolution: 4th Jet pT (SB)", "χ²/ndf: pt4_sb"),
                 ("plots/analyze/HCR/closure-evolution-pt1_sb-1.png", "Closure Evolution: Leading Jet pT (SB)", "χ²/ndf: pt1_sb"),
+                ("plots/analyze/HCR/closure-evolution-svb_sr-1.png", "Closure Evolution: SvB_MA.ps (SR)", "χ²/ndf: svb_sr"),
             ],
         },
         {
@@ -1052,6 +1085,7 @@ a.link-subtle:hover {{ text-decoration: underline; }}
                 ("plots/analyze/fit_quality/pt4_sb.png", "4th Jet pT (SB) [Data vs Model]", "pt4_sb"),
                 ("plots/analyze/fit_quality/pt1_sb.png", "Leading Jet pT (SB) [Data vs Model]", "pt1_sb"),
                 ("plots/analyze/fit_quality/fvt_sb.png", "Transfer Weight w (SB) [Data vs Model]", "fvt_sb"),
+                ("plots/analyze/fit_quality/svb_sr.png", "SvB_MA.ps (SR) [Data vs Model]", "svb_sr"),
                 ("plots/analyze/fit_quality/t3_sb.png", "pt3 (SB) [ttbar MC vs Source x Prob]", "t3_sb"),
                 ("plots/analyze/fit_quality/t4_sb.png", "pt4 (SB) [ttbar MC vs Source x Prob]", "t4_sb"),
                 ("plots/analyze/fit_quality/t3_sr.png", "pt3 (SR) [ttbar MC vs Source x Prob]", "t3_sr"),

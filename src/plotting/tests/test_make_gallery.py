@@ -62,6 +62,19 @@ class TestMakeGallery(unittest.TestCase):
             self.assertIn("plots_v1/tagJets_noJCM_n.png", html_out)
             self.assertNotIn("test_v0_closure", html_out)
 
+    def test_format_stage_title(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._touch(root / "m4j.png")
+            rc = make_gallery.main([
+                str(root),
+                "--title", "Stage_F_1_Mixed-Data_Background_Systematics",
+            ])
+            self.assertEqual(rc, 0)
+            html_out = (root / "index.html").read_text()
+            self.assertIn("<title>Stage F.1 Mixed-Data Background Systematics</title>", html_out)
+            self.assertIn("<h1>Stage F.1 Mixed-Data Background Systematics</h1>", html_out)
+
 
 if __name__ == "__main__":
     unittest.main()
