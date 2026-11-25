@@ -37,6 +37,12 @@ import os
 import sys
 from pathlib import Path
 
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from src.utils.string import format_stage_title
+
 IMG_EXT = {".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"}
 LINK_EXT = {".pdf"}
 
@@ -317,7 +323,7 @@ def main(argv=None) -> int:
     if not items:
         logger.warning(f"no images found under {root}")
     n_summary = mark_summary(items, load_summary_names(args.metadata, args.summary))
-    title = args.title or root.resolve().name
+    title = format_stage_title(args.title or root.resolve().name)
     write_gallery(root, items, title, output)
     logger.info(f"wrote {output}: {len(items)} plots, {n_summary} in summary")
     return 0
