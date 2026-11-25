@@ -659,18 +659,6 @@ class _generate_group_diagnostics_and_gallery:
         env = Environment(loader=FileSystemLoader(str(template_dir)))
         tpl = env.get_template("classifier_report.html")
 
-        gallery_html = tpl.render(
-            title=f"Classifier Benchmark Report - Group {self._group}",
-            summary_cards=summary_cards,
-            summary_table=summary_table,
-            items_json=json.dumps(gallery_items),
-        )
-
-        index_html_path = report_dir / f"index_group_{self._group}.html"
-        with fsspec.open(index_html_path, "wt") as f:
-            f.write(gallery_html)
-
-        # Also write directly as main index.html in the report root for single-group runs
         if self._group == 1:
             root_items = [
                 dict(it, path=f"HCR/{it['path']}") for it in gallery_items
@@ -681,8 +669,19 @@ class _generate_group_diagnostics_and_gallery:
                 summary_table=summary_table,
                 items_json=json.dumps(root_items),
             )
-            with fsspec.open(IO.report / "index.html", "wt") as f:
+            root_index_path = IO.report / "index.html"
+            with fsspec.open(root_index_path, "wt") as f:
                 f.write(root_html)
-
-        # Register in central Monitor Index
-        Index.add("Classifier Reports", f"Group {self._group} Benchmark Gallery", index_html_path)
+            Index.add("Classifier Reports", f"Group {self._group} Benchmark Gallery", root_index_path)
+        else:
+            gallery_html = tpl.render(
+                title=f"Classifier Benchmark Report - Group {self._group}",
+                summary_cards=summary_cards,
+                summary_table=summary_table,
+                items_json=json.dumps(gallery_items),
+            )
+            index_html_path = report_dir / f"index_group_{self._group}.html"
+            with fsspec.open(index_html_path, "wt") as f:
+                f.write(gallery_html)
+            # Register in central Monitor Index
+            Index.add("Classifier Reports", f"Group {self._group} Benchmark Gallery", index_html_path)

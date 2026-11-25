@@ -104,6 +104,7 @@ class RenderOptions:
     zlim: Tuple = (None, None)
     full: bool = False
     plot_contour: bool = False
+    hh4b_sr_params: Optional[Dict] = None
     plot_leadst_lines: bool = False
     plot_sublst_lines: bool = False
     plot_ttHbb_sr: bool = False

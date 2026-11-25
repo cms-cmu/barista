@@ -130,12 +130,19 @@ def _apply_intcategory_compat(
         for axis in hist_obj.axes:
             if axis.name == "tag" and isinstance(axis, hist.axis.IntCategory):
                 hist_opts['tag'] = hist.loc(cfg.plotConfig["codes"]["tag"][config["tag"]])
-            if axis.name == "region" and isinstance(axis, hist.axis.IntCategory):
+            if axis.name == "region":
+                codes_region = (cfg.plotConfig.get("codes") or {}).get("region") or {}
                 region_val = axis_opts.get('region', None)
-                if isinstance(region_val, list):
-                    hist_opts['region'] = [hist.loc(cfg.plotConfig["codes"]["region"][i]) for i in hist_opts['region']]
-                elif region_val and region_val not in ("sum", sum):
-                    hist_opts['region'] = hist.loc(cfg.plotConfig["codes"]["region"][region_val])
+                if isinstance(axis, hist.axis.IntCategory):
+                    if isinstance(region_val, list):
+                        hist_opts['region'] = [hist.loc(codes_region[i]) for i in hist_opts['region']]
+                    elif region_val and region_val not in ("sum", sum):
+                        code = codes_region[region_val]
+                        hist_opts['region'] = [hist.loc(c) for c in code] if isinstance(code, list) else hist.loc(code)
+                elif isinstance(region_val, str) and region_val not in ("sum", "inclusive") and region_val not in axis:
+                    code = codes_region.get(region_val)
+                    if isinstance(code, list):
+                        hist_opts['region'] = [k for k, v in codes_region.items() if isinstance(v, int) and v in code and k in axis]
         
         # Convert any "sum" value in hist_opts to the built-in sum to project over the axis
         for axis in hist_obj.axes:
