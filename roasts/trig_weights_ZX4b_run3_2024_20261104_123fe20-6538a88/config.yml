@@ -1,0 +1,22 @@
+output_path: "output/trig_weights_ZX4b_run3_2024/"
+
+dataset:
+  - "ZZ4b"
+  - "ZH4b"
+  - "ggZH4b"
+
+years:
+  - "2024"
+
+dataset_location: "coffea4bees/metadata/datasets/"
+
+trigger_weights:
+  runner:
+    condor_cores: 2
+    worker_memory: 6GB
+    write_coffea_output: false
+    dashboard_address: 10200
+  config:
+    use_vectorized: true
+    tagger: PNet
+    make_classifier_input: "root://cmseos.fnal.gov//store/user/cguintob/XX4b/Run3_2024_skims" 

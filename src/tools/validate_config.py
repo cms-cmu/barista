@@ -40,8 +40,8 @@ except ImportError:
 
 # Default configs used in the CI pipeline
 DEFAULT_CI_CONFIGS = [
-    "coffea4bees/workflows/config/nominal_run3_ci.yml",
     "coffea4bees/workflows/config/nominal_run3.yml",
+    "coffea4bees/workflows/config/lowpt_run3.yml",
     "coffea4bees/workflows/config/lowpt_run2.yml",
     "coffea4bees/workflows/config/ttHbb.yml",
     "coffea4bees/workflows/config/nominal_run2.yml",
@@ -531,6 +531,32 @@ def _extract_candidates_selection_cfg(cfg: dict) -> str | None:
     return None
 
 
+def _resolve_transitive_roast_input(
+    repo_root: Path, rid: str, key: str, seen: frozenset[str] = frozenset()
+) -> str:
+    """Follow `inputs.<key>` through `roasts/<rid>/config.yml` to find the originating roast ID."""
+    if rid in seen:
+        return rid
+    cfg_path = repo_root / "roasts" / rid / "config.yml"
+    if not cfg_path.is_file():
+        return rid
+    try:
+        up_cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return rid
+    if not isinstance(up_cfg, dict):
+        return rid
+    up_inputs = up_cfg.get("inputs")
+    if not isinstance(up_inputs, dict):
+        return rid
+    up_aliases = _parse_upstream_aliases(up_inputs.get("upstream_roasts"))
+    lookup_key = key if key in up_inputs else (key[:-6] if key.endswith("_model") and key[:-6] in up_inputs else key)
+    up_rid = _resolve_input_roast_id(up_inputs.get(lookup_key), up_aliases)
+    if up_rid and up_rid != rid:
+        return _resolve_transitive_roast_input(repo_root, up_rid, key, seen | {rid})
+    return rid
+
+
 def audit_upstream_roasts_consistency(cfg: dict, repo_root: Path, issues: list[Issue]) -> None:
     """Audit intra-config and transitive upstream roast consistency."""
     inputs = cfg.get("inputs")
@@ -578,14 +604,23 @@ def audit_upstream_roasts_consistency(cfg: dict, repo_root: Path, issues: list[I
             k for k in ("SvB", "SvB_model", "SvB_MA", "SvB_MA_model", "nominal_hists") if k in resolved
         ]
         if len({resolved[k] for k in svb_nominal_keys}) > 1:
-            details = ", ".join(f"{k}={resolved[k]}" for k in svb_nominal_keys)
-            issues.append(Issue(
-                severity="ERROR",
-                category="CONSISTENCY",
-                key="inputs.upstream_roasts",
-                message=f"Nominal/SvB inputs resolve to different upstream roasts: {details}",
-                suggestion="Ensure SvB, SvB_MA, and nominal_hists all point to the same nominal roast",
-            ))
+            svb_keys = [k for k in ("SvB", "SvB_model", "SvB_MA", "SvB_MA_model") if k in resolved]
+            consistent = False
+            if "nominal_hists" in resolved and svb_keys:
+                nom_rid = resolved["nominal_hists"]
+                svb_origins = {k: _resolve_transitive_roast_input(repo_root, resolved[k], k) for k in svb_keys}
+                nom_origins = {k: _resolve_transitive_roast_input(repo_root, nom_rid, k) for k in svb_keys}
+                if len(set(svb_origins.values())) == 1 and svb_origins == nom_origins:
+                    consistent = True
+            if not consistent:
+                details = ", ".join(f"{k}={resolved[k]}" for k in svb_nominal_keys)
+                issues.append(Issue(
+                    severity="ERROR",
+                    category="CONSISTENCY",
+                    key="inputs.upstream_roasts",
+                    message=f"Nominal/SvB inputs resolve to different upstream roasts: {details}",
+                    suggestion="Ensure SvB, SvB_MA, and nominal_hists all point to the same nominal roast",
+                ))
 
         ref_key = next(
             (k for k in ("nominal_hists", "SvB", "SvB_MA", "SvB_model", "SvB_MA_model") if k in resolved),

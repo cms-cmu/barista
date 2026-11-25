@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: roast-tthbb-bkg-syst-declib16nc-kvgate-813cd5-bkg-c
+  namespace: cms-cmu
+  labels:
+    roast: "ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee"
+    step: "BKG_C"
+    app: "roast-runner"
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        roast: "ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee"
+        step: "BKG_C"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: roast-runner
+      containers:
+      - name: orchestrator
+        image: us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest
+        imagePullPolicy: IfNotPresent
+        workingDir: /workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/barista
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "=== roast ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee step BKG_C start $(date) on gcp ==="
+          source /entrypoint.sh 2>/dev/null || true
+          if ! command -v snakemake >/dev/null 2>&1 || ! python3 -c "import snakemake_executor_plugin_cluster_generic" >/dev/null 2>&1; then
+              pip install --no-cache-dir --quiet snakemake==9.27.0 snakemake-executor-plugin-cluster-generic
+          fi
+          mkdir -p /etc/grid-security && ln -sfn /workspace/shared/certificates /etc/grid-security/certificates
+          export X509_CERT_DIR=/etc/grid-security/certificates
+          if [ -s "$PWD/proxy/x509_proxy" ]; then
+              install -m 600 "$PWD/proxy/x509_proxy" /tmp/x509_proxy
+              export X509_USER_PROXY=/tmp/x509_proxy
+          else
+              export X509_USER_PROXY="$PWD/proxy/x509_proxy"
+          fi
+          export PATH=/workspace/shared/bin:$PATH
+          export NAUTILUS_WORKDIR=/workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/barista
+          export NAUTILUS_NAMESPACE=cms-cmu
+          export NAUTILUS_IMAGE=us-central1-docker.pkg.dev/access-phy260193-607959/barista/barista:classifier_latest
+          export NAUTILUS_ENABLE_CVMFS=false
+          export NAUTILUS_EVAL_MEM_GB=36
+          export CLASSIFIER_CONFIG_PATHS=coffea4bees
+          export ROAST_ID="ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee"
+          export ROAST_STEP="BKG_C"
+          cd /workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/barista
+          mkdir -p logs
+          LOG=logs/BKG_C.log
+          EXIT=logs/BKG_C.exit
+          rm -f "$EXIT"
+          rm -rf .snakemake/locks/* 2>/dev/null || true
+          mkdir -p .snakemake/locks
+
+          snakemake --rulegraph -s coffea4bees/workflows/Snakefile_bkg_syst_C.smk --configfile roasts/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/config.yml --profile software/snakemake/profiles/gcp 2>/dev/null | sed -n '/^digraph /,$p' | dot -Tsvg > "logs/BKG_C_rulegraph.svg" 2>/dev/null || true
+          snakemake -s coffea4bees/workflows/Snakefile_bkg_syst_C.smk --configfile roasts/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/config.yml --profile software/snakemake/profiles/gcp --jobs 16 --printshellcmds --config roast_id=ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee eos_prod=root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod web_prod=root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod gpu_whitelist=NVIDIA-L4 2>&1 | tee "$LOG"
+          RC=${PIPESTATUS[0]}
+          echo "$RC" > "$EXIT"
+          if [ "$RC" = "0" ]; then
+              snakemake --summary -s coffea4bees/workflows/Snakefile_bkg_syst_C.smk --configfile roasts/ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee/config.yml --profile software/snakemake/profiles/gcp > "logs/BKG_C_summary.txt" 2>/dev/null || true
+          fi
+          echo "=== roast ttHbb_bkg_syst_declib16nc_kvgate_20261119_ebe2baa-6aa3cee step BKG_C exit $RC $(date) ===" | tee -a "$LOG"
+          exit $RC
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+        volumeMounts:
+        - mountPath: /workspace
+          name: ceph-storage
+      volumes:
+      - name: ceph-storage
+        persistentVolumeClaim:
+          claimName: cms-cmu-storage

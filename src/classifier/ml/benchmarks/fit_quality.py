@@ -81,6 +81,9 @@ class FvTFitQuality:
         self.sum_w_target_sb = 0.0
         self.sum_w_model_sb = 0.0
         self._has_svb = False
+        self._has_svb_t4 = False
+        n_svb = len(self.bins["svb_sr"]) - 1
+        self._svb_sr_model_tot = [np.zeros(n_svb), np.zeros(n_svb)]
 
     def copy(self) -> FvTFitQuality:
         return copy.deepcopy(self)
@@ -232,16 +235,31 @@ class FvTFitQuality:
         svb_key = getattr(Input, "svb", None)
         if svb_key is not None and svb_key in batch and d4_idx is not None and d3_idx is not None:
             svb_vals = batch[svb_key].detach().float().cpu().numpy().reshape(-1)
+            # Apply svb >= 0.01 threshold consistently across target and model (Stage A_3 maps ps < 0.01 -> -2.0)
+            valid_svb = np.isfinite(svb_vals) & (svb_vals >= 0.01)
             w = weights.numpy()
             wf = w_fvt.numpy()
-            for side, mask, ew in (
-                ("target", np_(is_d4 & is_sr), w[np_(is_d4 & is_sr)]),
-                ("model", np_(is_d3 & is_sr), w[np_(is_d3 & is_sr)] * wf[np_(is_d3 & is_sr)]),
-                ("model", np_(is_t4 & is_sr), w[np_(is_t4 & is_sr)]),
-            ):
-                if np.any(mask):
-                    self._fill("svb_sr", side, svb_vals[mask], ew)
-                    self._has_svb = True
+            w_d3_to_t4 = (pt4 / denom).numpy() if t4_idx is not None else np.zeros_like(wf)
+            m_d4 = np_(is_d4 & is_sr) & valid_svb
+            m_d3 = np_(is_d3 & is_sr) & valid_svb
+            m_t4 = np_(is_t4 & is_sr) & valid_svb
+            if np.any(m_d4):
+                self._fill("svb_sr", "target", svb_vals[m_d4], w[m_d4])
+                self._has_svb = True
+            if np.any(m_d3):
+                self._fill("svb_sr", "model", svb_vals[m_d3], w[m_d3] * wf[m_d3])
+                # Also accumulate d3 * (wf + pt4/pd3) for when 4b ttbar MC has no SvB friend entries
+                edges = self.bins["svb_sr"]
+                ew_tot = w[m_d3] * (wf[m_d3] + w_d3_to_t4[m_d3])
+                s_tot, _ = np.histogram(svb_vals[m_d3], bins=edges, weights=ew_tot)
+                s2_tot, _ = np.histogram(svb_vals[m_d3], bins=edges, weights=ew_tot**2)
+                self._svb_sr_model_tot[0] += s_tot
+                self._svb_sr_model_tot[1] += s2_tot
+                self._has_svb = True
+            if np.any(m_t4):
+                self._fill("svb_sr", "model", svb_vals[m_t4], w[m_t4])
+                self._has_svb = True
+                self._has_svb_t4 = True
 
     @staticmethod
     def _chi2_ndf(target, model):
@@ -278,12 +296,19 @@ class FvTFitQuality:
         calib_d3_prob = self.sum_w_d3_pred / max(1e-9, self.sum_w_d3_true)
 
         active_hists = self.HISTS + (("svb_sr",) if self._has_svb else ())
-        chi2 = {k: self._chi2_ndf(self.h[k]["target"], self.h[k]["model"]) for k in active_hists}
+        svb_model = self.h["svb_sr"]["model"] if self._has_svb_t4 else self._svb_sr_model_tot
+        chi2 = {
+            k: self._chi2_ndf(
+                self.h[k]["target"],
+                svb_model if k == "svb_sr" else self.h[k]["model"],
+            )
+            for k in active_hists
+        }
         if self._has_svb:
             svb_gt0p8 = self.bins["svb_sr"][:-1] >= 0.8 - 1e-9
             chi2_svb_gt0p8, ndf_svb_gt0p8 = self._chi2_ndf(
                 (self.h["svb_sr"]["target"][0][svb_gt0p8], self.h["svb_sr"]["target"][1][svb_gt0p8]),
-                (self.h["svb_sr"]["model"][0][svb_gt0p8], self.h["svb_sr"]["model"][1][svb_gt0p8]),
+                (svb_model[0][svb_gt0p8], svb_model[1][svb_gt0p8]),
             )
         else:
             chi2_svb_gt0p8, ndf_svb_gt0p8 = None, 0
@@ -302,12 +327,13 @@ class FvTFitQuality:
         gate_ttbar = bool(0.70 <= calib_t4_prob <= 1.30 and 0.70 <= transfer_d3_to_t4 <= 1.30)
 
         def hist_json(k):
+            m_hist = svb_model if k == "svb_sr" else self.h[k]["model"]
             d = {
                 "bin_edges": [round(float(x), 4) for x in self.bins[k]],
                 "target": [round(float(x), 4) for x in self.h[k]["target"][0]],
                 "target_sumw2": [round(float(x), 4) for x in self.h[k]["target"][1]],
-                "model": [round(float(x), 4) for x in self.h[k]["model"][0]],
-                "model_sumw2": [round(float(x), 4) for x in self.h[k]["model"][1]],
+                "model": [round(float(x), 4) for x in m_hist[0]],
+                "model_sumw2": [round(float(x), 4) for x in m_hist[1]],
                 "chi2_ndf": r(chi2[k][0]),
                 "ndf": chi2[k][1],
             }

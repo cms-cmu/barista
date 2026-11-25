@@ -242,7 +242,7 @@
   "publish": {
     "eos": "/eos/user/a/algomez/www/ttHbb/prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21",
     "url": "https://plotsalgomez.webtest.cern.ch/ttHbb/prod/ttHbb_full_syst_cosine_20261112_5039852-6b96c21/",
-    "ts": "2026-11-13 12:59:00",
+    "ts": "2026-11-13 14:43:03",
     "ok": true,
     "pages": [
       "output/ttHbb_full_syst_cosine/PhaseF_1_analysis/cutflow_systematics.html",
@@ -374,6 +374,12 @@
     },
     {
       "ts": "2026-11-13 12:59:00",
+      "event": "publish",
+      "host": "cmslpc",
+      "ok": true
+    },
+    {
+      "ts": "2026-11-13 14:43:03",
       "event": "publish",
       "host": "cmslpc",
       "ok": true
