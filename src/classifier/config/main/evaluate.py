@@ -111,6 +111,7 @@ class Main(SelectDevice, main.Main):
                         _eval_model(self.device, dataset),
                         evaluators,
                         callbacks=[lambda _: progress_advance(progress)],
+                        preserve_order=True,
                     )
                 ]
         logging.info(f"Evaluated {len(evaluators)} models in {datetime.now() - timer}")

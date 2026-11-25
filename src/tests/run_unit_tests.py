@@ -51,7 +51,7 @@ def main():
     existing_runner_tests = [f for f in runner_tests if os.path.exists(f)]
     if existing_runner_tests:
         cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short"] + existing_runner_tests
-        success, elapsed = run_command("1/6: Core Runner & Configuration Tests", cmd)
+        success, elapsed = run_command("1/7: Core Runner & Configuration Tests", cmd)
         all_results.append(("Core Runner Tests (pytest)", success, elapsed))
         if not success:
             overall_success = False
@@ -59,7 +59,7 @@ def main():
     # 2. Histogram Collection Module
     if os.path.exists("src/tests/hist_collection.py"):
         cmd = [sys.executable, "-m", "src.tests.hist_collection"]
-        success, elapsed = run_command("2/6: Histogram Collection", cmd)
+        success, elapsed = run_command("2/7: Histogram Collection", cmd)
         all_results.append(("Histogram Collection", success, elapsed))
         if not success:
             overall_success = False
@@ -67,7 +67,7 @@ def main():
     # 3. Kappa Framework
     if os.path.exists("src/tests/kappa_framework.py"):
         cmd = [sys.executable, "-m", "src.tests.kappa_framework"]
-        success, elapsed = run_command("3/6: Kappa Framework", cmd)
+        success, elapsed = run_command("3/7: Kappa Framework", cmd)
         all_results.append(("Kappa Framework", success, elapsed))
         if not success:
             overall_success = False
@@ -75,7 +75,7 @@ def main():
     # 4. Friend Tree Merge
     if os.path.exists("src/tests/friendtree_merge.py"):
         cmd = [sys.executable, "-m", "src.tests.friendtree_merge"]
-        success, elapsed = run_command("4/6: Friend Tree Merge", cmd)
+        success, elapsed = run_command("4/7: Friend Tree Merge", cmd)
         all_results.append(("Friend Tree Merge", success, elapsed))
         if not success:
             overall_success = False
@@ -83,7 +83,7 @@ def main():
     # 5. Classifier Config Dependencies
     if os.path.exists("src/classifier/test/check_configs.py"):
         cmd = [sys.executable, "-m", "src.classifier.test.check_configs"]
-        success, elapsed = run_command("5/6: Classifier Config Dependencies", cmd)
+        success, elapsed = run_command("5/7: Classifier Config Dependencies", cmd)
         all_results.append(("Classifier Configs", success, elapsed))
         if not success:
             overall_success = False
@@ -91,8 +91,16 @@ def main():
     # 6. Classifier Deterministic Seeds
     if os.path.exists("src/classifier/test/test_deterministic_seeds.py"):
         cmd = [sys.executable, "-m", "pytest", "-v", "--tb=short", "src/classifier/test/test_deterministic_seeds.py"]
-        success, elapsed = run_command("6/6: Classifier Deterministic Seeds", cmd)
+        success, elapsed = run_command("6/7: Classifier Deterministic Seeds", cmd)
         all_results.append(("Classifier Deterministic Seeds", success, elapsed))
+        if not success:
+            overall_success = False
+
+    # 7. b-tagging SF Calibration
+    if os.path.exists("src/tests/btag_calibration.py"):
+        cmd = [sys.executable, "-m", "src.tests.btag_calibration"]
+        success, elapsed = run_command("7/7: b-tagging SF Calibration", cmd)
+        all_results.append(("b-tagging SF Calibration", success, elapsed))
         if not success:
             overall_success = False
 
