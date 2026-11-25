@@ -120,8 +120,11 @@ def make_parser() -> argparse.ArgumentParser:
         '-e', '--eras',
         nargs='+',
         dest='era',
-        default=['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'C01', 'C02', 'C03', 'C04', 'C11', 'C12', 'C13', 'C14', 'C3', 'C4', 'D1', 'D2', 'D01', 'D02', 'D11', 'D12', 'F1', 'F2', 'F3', 'G1', 'G2', 'I2', 'I3' ],
-        help='Data era(s) to process (data only). Examples: --eras A B C.'
+        # Default None = every era the datasets metadata lists. The old hard-coded allowlist silently
+        # dropped eras missing from it (2025 B01/B11/E01/E11/F01/F02/F11/F12/G01/G11).
+        default=None,
+        help='Data era(s) to process (data only; default: all eras in the datasets metadata). '
+             'Examples: --eras A B C.'
     )
     data_group.add_argument(
         '--samples',

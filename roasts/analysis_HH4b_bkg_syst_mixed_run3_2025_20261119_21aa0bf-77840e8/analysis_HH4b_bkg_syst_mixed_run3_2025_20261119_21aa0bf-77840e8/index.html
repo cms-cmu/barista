@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roast analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8 — Summary</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --fg: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --line: #e2e8f0;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --pass-bg: #dcfce7;
+            --pass-fg: #15803d;
+            --pass-border: #bbf7d0;
+            --danger-bg: #fee2e2;
+            --danger-fg: #b91c1c;
+            --danger-border: #fecaca;
+            --warn-bg: #fef3c7;
+            --warn-fg: #b45309;
+            --warn-border: #fde68a;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--fg);
+            font-family: var(--sans);
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 24px 32px 64px;
+        }
+        .container { max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+        header {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .header-main h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--mono);
+        }
+        .header-sub { color: var(--muted); margin-top: 4px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+        .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            color: var(--fg);
+            background: var(--card);
+            border: 1px solid var(--line);
+            transition: all 0.15s ease;
+        }
+        .btn:hover {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafbfc;
+        }
+        .card-header h2 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .card-body { padding: 18px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+        .grid-featured { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+        .featured-box {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+            background: #ffffff;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.15s ease;
+        }
+        .featured-box:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+            transform: translateY(-2px);
+        }
+        .featured-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+        .featured-title { font-size: 14.5px; font-weight: 600; color: var(--fg); margin-bottom: 6px; }
+        .featured-desc { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; flex-grow: 1; }
+        .featured-action { font-size: 12px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; }
+        .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+        .chip-pass { background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }
+        .chip-neutral { background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); }
+        .chip-accent { background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; }
+        .pill-link { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; text-decoration: none; color: var(--accent); background: var(--accent-soft); border: 1px solid #bfdbfe; }
+        .pill-link:hover { background: var(--accent); color: #fff; }
+        .pill-disabled { color: #cbd5e1; font-size: 12px; }
+        .meta-table { width: 100%; border-collapse: collapse; }
+        .meta-table td { padding: 6px 8px; vertical-align: top; }
+        .meta-label { color: var(--muted); width: 120px; font-weight: 500; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .badge-success { background: var(--pass-bg); color: var(--pass-fg); border: 1px solid var(--pass-border); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border); }
+        .badge-warning { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
+        .badge-host { background: #f1f5f9; color: var(--fg); border: 1px solid var(--line); font-family: var(--mono); text-transform: none; }
+        .badge-analysis { background: var(--accent-soft); color: var(--accent); border: 1px solid #bfdbfe; text-transform: none; font-family: var(--mono); }
+        .badge-secondary { background: #f1f5f9; color: var(--muted); border: 1px solid var(--line); text-transform: none; }
+        code { font-family: var(--mono); font-size: 0.88em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+        a.code-link { font-family: var(--mono); color: var(--accent); text-decoration: none; font-weight: 600; }
+        a.code-link:hover { text-decoration: underline; }
+        a.file-link { color: var(--accent); text-decoration: none; }
+        a.file-link:hover { text-decoration: underline; }
+        table.data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        table.data-table th, table.data-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+        table.data-table th { background: #f8fafc; color: var(--muted); font-size: 11.5px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.03em; }
+        table.data-table tr:hover td { background: #f8fafc; }
+        .search-box {
+            width: 100%;
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: var(--fg);
+            font-size: 13px;
+            outline: none;
+            margin-bottom: 14px;
+        }
+        .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+        .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin: 16px 0 8px 0; letter-spacing: 0.04em; }
+        .page-list { display: flex; flex-direction: column; gap: 6px; }
+        .page-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            transition: all 0.15s ease;
+        }
+        .page-item:hover { background: var(--accent-soft); border-color: #bfdbfe; }
+        .page-link { color: var(--accent); text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+        .page-icon { font-size: 12px; opacity: 0.8; }
+        .page-path { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+        .empty-state { color: var(--muted); font-style: italic; padding: 6px 0; font-size: 13px; }
+        .muted { color: var(--muted); }
+        .notes-block { white-space: pre-wrap; font-family: inherit; font-size: 13px; }
+        details summary { cursor: pointer; color: var(--fg); font-weight: 600; user-select: none; }
+        .history-list { list-style: none; padding-left: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+        footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0 12px; border-top: 1px solid var(--line); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-main">
+                <span class="badge badge-analysis">HH4b</span>
+                <h1>analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8</h1>
+                <span class="badge badge-success">● Published</span>
+                <div class="header-sub">
+                    <span><strong>analysis_HH4b_bkg_syst_mixed_run3_2025</strong></span> &bull;
+                    <span>Roasted by John Alison on 2026-11-19 09:22:27</span>
+                     &bull; <span>Published 2026-11-21 08:08:17</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="output/" class="btn">📁 Browse output/</a>
+                <a href="roasts/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/roast.json" class="btn">⚙️ roast.json</a>
+                <a href="roasts/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/config.yml" class="btn">📝 config.yml</a>
+            </div>
+        </header>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Configuration & Provenance</h2>
+                </div>
+                <div class="card-body">
+                    <table class="meta-table">
+                        <tr>
+                            <td class="meta-label">barista</td>
+                            <td><a href="https://gitlab.cern.ch/cms-cmu/barista/-/commit/21aa0bfeea2510311ae0a0e3cee129a30a6a4bdb" target="_blank" class="code-link">21aa0bfe</a></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">coffea4bees</td>
+                            <td><a href="https://gitlab.cern.ch/cms-cmu/coffea4bees/-/commit/77840e8f250a595e235f6bd01fb700f97dae5b86" target="_blank" class="code-link">77840e8f</a></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">config</td>
+                            <td><code>../barista-runner-eras/coffea4bees/workflows/config/analysis_HH4b_bkg_syst_mixed_run3_2025.yml</code> <span class="muted">(sha256 16365768e36c)</span></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">validation</td>
+                            <td><span class="badge badge-success">VALID</span> <span class="muted">(16 warnings)</span></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">hosts</td>
+                            <td><span class="badge badge-host">cmslpc</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Pipeline Steps</h2>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>Host</th>
+                                <th>Snakefile</th>
+                                <th>State</th>
+                                <th>Log & Artifacts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            
+        <tr>
+            <td><strong>BKG_AB</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_bkg_syst_AB.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-11-21</span></td>
+            <td><a href="logs/BKG_AB.log" class="file-link">BKG_AB.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>BKG_C</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_bkg_syst_C.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-11-19</span></td>
+            <td><a href="logs/BKG_C.log" class="file-link">BKG_C.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>BKG_C4</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-11-21</span></td>
+            <td><a href="logs/BKG_C4.log" class="file-link">BKG_C4.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>BKG_C4</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk</code></td>
+            <td><span class="badge badge-secondary">not submitted</span></td>
+            <td><a href="logs/BKG_C4.log" class="file-link">BKG_C4.log</a></td>
+        </tr>
+
+        <tr>
+            <td><strong>BKG_F</strong></td>
+            <td><span class="badge badge-host">cmslpc</span></td>
+            <td><code>coffea4bees/workflows/Snakefile_bkg_syst_F.smk</code></td>
+            <td><span class="badge badge-secondary">submitted 2026-11-21</span></td>
+            <td><a href="logs/BKG_F.log" class="file-link">BKG_F.log</a></td>
+        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="card">
+            <div class="card-header">
+                <h2>🌟 Primary Analysis Results & Master Dashboards</h2>
+                <span class="chip chip-neutral">Key Syntheses</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/training_summary.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Phase C</div>
+                    <div class="featured-title">FvT Training Summary</div>
+                    <div class="featured-desc">Model AUCs, loss curves, and training evaluation metrics</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Phase F.1</div>
+                    <div class="featured-title">Histogram Cross-Check (F vs C.4)</div>
+                    <div class="featured-desc">Direct validation that selJets.n and m4j (v4j.mass) match Phase C.4</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_2_run_two_stage_closure/closure_summary.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage F.2</div>
+                    <div class="featured-title">Two-Stage Closure Summary (SvB_MA)</div>
+                    <div class="featured-desc">Master closure verdict dashboard with interactive SR/SB toggle (SvB_MA)</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_3_stats/summary.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage F.3</div>
+                    <div class="featured-title">Standard Stats Summary</div>
+                    <div class="featured-desc">Master multi-rebin statistical inference on standard dataset</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_4_stats_mixeddata/summary.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage F.4</div>
+                    <div class="featured-title">MixedData Unblinded Stats Summary</div>
+                    <div class="featured-desc">Statistical inference &amp; limits on unblinded mixed data</div>
+                </div>
+                <div class="featured-action">Open Dashboard ↗</div>
+            </a>
+                </div>
+            </div>
+        </div>
+
+        
+
+        
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>🖼️ Key Visual Plot Galleries</h2>
+                <span class="chip chip-accent">6 Galleries</span>
+            </div>
+            <div class="card-body">
+                <div class="grid-featured">
+                    
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_A_3_process_subsamples/validation/plots/index.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage F.1</div>
+                    <div class="featured-title">Analysis &amp; SvB Gallery</div>
+                    <div class="featured-desc">Final analysis distributions, SvB discriminants, and control kinematics</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage B</div>
+                    <div class="featured-title">JCM Validation Gallery</div>
+                    <div class="featured-desc">Jet Combinatoric Model weights, transfer factors &amp; closure plots</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_FvT_closure/index.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage C.4</div>
+                    <div class="featured-title">FvT Closure Gallery</div>
+                    <div class="featured-desc">Multijet FvT reweighting closure plots &amp; data comparisons</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage C.4</div>
+                    <div class="featured-title">ttbar MC vs d3 (3b) Gallery</div>
+                    <div class="featured-desc">ttbar MC validation vs 3b data with d3_to_t3 reweighting</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage C.4</div>
+                    <div class="featured-title">ttbar MC vs d3 (4b) Gallery</div>
+                    <div class="featured-desc">ttbar MC validation vs 3b data with d3_to_t4 reweighting</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+            <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_1_analysis/plots/gallery.html" class="featured-box">
+                <div>
+                    <div class="featured-tag">Stage F.1</div>
+                    <div class="featured-title">Analysis &amp; SvB Gallery</div>
+                    <div class="featured-desc">Final analysis distributions, SvB discriminants, and control kinematics</div>
+                </div>
+                <div class="featured-action">Open Gallery ↗</div>
+            </a>
+                </div>
+            </div>
+        </div>
+
+        
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>🤖 Stage C — FvT Subsample Models (16 Models)</h2>
+                <span class="chip chip-neutral">16 Models Matrix</span>
+            </summary>
+            <div class="card-body" style="padding: 0; overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Subsample</th>
+                            <th>Yields Report</th>
+                            <th>Training Plots</th>
+                            <th>Loss & ROC Analysis</th>
+                            <th>Group Breakdown</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+            <tr>
+                <td><strong><code>mix_0</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_0/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_0/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_1</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_1/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_1/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_1/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_1/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_2</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_2/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_2/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_2/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_2/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_3</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_3/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_3/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_3/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_3/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_4</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_4/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_4/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_4/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_4/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_5</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_5/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_5/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_5/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_5/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_6</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_6/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_6/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_6/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_6/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_7</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_7/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_7/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_7/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_7/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_8</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_8/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_8/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_8/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_8/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_9</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_9/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_9/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_9/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_9/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_10</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_10/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_10/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_10/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_10/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_11</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_11/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_11/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_11/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_11/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_12</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_12/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_12/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_12/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_12/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_13</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_13/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_13/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_13/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_13/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_14</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_14/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_14/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_14/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_14/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+            <tr>
+                <td><strong><code>mix_15</code></strong></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_15/yields.html" class="pill-link">Yields ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_15/plots/index.html" class="pill-link">Plots ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_15/plots/analyze/index.html" class="pill-link">Loss & ROC ↗</a></td>
+                <td><a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_FvT/models/mix_15/plots/analyze/HCR/index_group_1.html" class="pill-link">HCR Group ↗</a></td>
+            </tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+
+        
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📊 Stage F — Statistical Inference &amp; Closure</h2>
+                <span class="chip chip-accent">1 items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_f_1_analysis/plots/gallery.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_1_analysis/plots/gallery.html" class="page-link">
+                    <span class="page-title">Gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_F_1_analysis/plots/gallery.html</span>
+            </div>
+                </div>
+            </div>
+        </details>
+
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>🎯 Stage C — FvT Classifier &amp; Closure</h2>
+                <span class="chip chip-neutral">5 items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_c_4_closure/cutflow_fvt_closure.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/cutflow_FvT_closure.html" class="page-link">
+                    <span class="page-title">Cutflow Fvt Closure</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/cutflow_FvT_closure.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_c_4_closure/plots_fvt_closure/index.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_FvT_closure/index.html" class="page-link">
+                    <span class="page-title">plots_FvT_closure gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_FvT_closure/index.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_c_4_closure/plots_ttbar3b_mc_vs_d3/index.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html" class="page-link">
+                    <span class="page-title">plots_ttbar3b_MC_vs_d3 gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar3b_MC_vs_d3/index.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_c_4_closure/plots_ttbar_mc_vs_d3/index.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html" class="page-link">
+                    <span class="page-title">plots_ttbar_MC_vs_d3 gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/plots_ttbar_MC_vs_d3/index.html</span>
+            </div>
+
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_c_4_closure/ttbar_mc_vs_d3_cutflow.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html" class="page-link">
+                    <span class="page-title">Ttbar Mc Vs D3 Cutflow</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html</span>
+            </div>
+                </div>
+            </div>
+        </details>
+
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📈 Stage B — JCM Computation &amp; Validation</h2>
+                <span class="chip chip-neutral">1 items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_b_1_computejcm/test_v0_closure/plots/index.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html" class="page-link">
+                    <span class="page-title">plots gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html</span>
+            </div>
+                </div>
+            </div>
+        </details>
+
+        <details class="card" open style="margin-top: 1rem;">
+            <summary class="card-header" style="cursor: pointer; user-select: none;">
+                <h2>📁 Stage A — Subsamples &amp; PicoAOD Validation</h2>
+                <span class="chip chip-neutral">1 items</span>
+            </summary>
+            <div class="card-body">
+                <div class="page-list">
+                    
+            <div class="page-item" data-search="output/analysis_hh4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_a_3_process_subsamples/validation/plots/index.html">
+                <a href="output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_A_3_process_subsamples/validation/plots/index.html" class="page-link">
+                    <span class="page-title">plots gallery</span>
+                    <span class="page-icon">↗</span>
+                </a>
+                <span class="page-path">output/analysis_HH4b_bkg_syst_mixed_run3_2025_20261119_21aa0bf-77840e8/bkg_syst_A_3_process_subsamples/validation/plots/index.html</span>
+            </div>
+                </div>
+            </div>
+        </details>
+
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>Interactive Results & Galleries</h2>
+                <span class="muted">89 pages available</span>
+            </div>
+            <div class="card-body">
+                <input type="text" id="pageSearch" class="search-box" placeholder="Filter pages by name, workflow, or dataset (e.g. cutflow, signal, 4b)...">
+
+                <div class="section-title">📊 Plot Galleries</div>
+                <div class="page-list" id="galleriesList">
+                    <div class="empty-state">None found</div>
+                </div>
+
+                <div class="section-title">📈 Cutflow & Closure Tables</div>
+                <div class="page-list" id="cutflowsList">
+                    <div class="empty-state">None found</div>
+                </div>
+
+                <div class="section-title">📑 Other Pages & Reports</div>
+                <div class="page-list" id="othersList">
+                    <div class="empty-state">None found</div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="card" style="margin-top: 1rem;">
+            <div class="card-header">
+                <h2>Notes</h2>
+            </div>
+            <div class="card-body">
+                <pre class="notes-block">2025 FvT on mixed, RERUN with all 16 2025 sub-eras. Supersedes analysis_HH4b_bkg_syst_mixed_run3_2025_20261115_bd9139a-89fa0d1, whose A_1/A_2/F_1 ran on only C01/C02/C11/C12/D01/D11 (runner --eras allowlist bug). Pinned at barista bkg-syst-2025-rerun (origin/master + runner-all-eras + orchard-adopt-assigned + validate-upstream-link-stages) and coffea4bees bkg-syst-2025-rerun (origin/master + bkg-syst-mixed-2024-2025). GPU on CMU ORCHARD, compute on cmslpc.</pre>
+            </div>
+        </div>
+
+        <details class="card" style="margin-top: 1rem;">
+            <summary class="card-header">
+                <h2>Execution History & Timeline (16 events)</h2>
+            </summary>
+            <div class="card-body">
+                <ul class="history-list">
+                    <li><span class='muted'>2026-11-21 08:08:17</span> <strong>publish</strong> host=cmslpc ok=True</li>
+<li><span class='muted'>2026-11-21 08:07:52</span> <strong>publish</strong> host=cmslpc ok=False</li>
+<li><span class='muted'>2026-11-21 04:51:22</span> <strong>submit</strong> step=BKG_AB host=cmslpc</li>
+<li><span class='muted'>2026-11-21 04:50:57</span> <strong>submit</strong> step=BKG_AB host=cmslpc</li>
+<li><span class='muted'>2026-11-21 04:50:21</span> <strong>submit</strong> step=BKG_AB host=cmslpc</li>
+<li><span class='muted'>2026-11-21 04:50:21</span> <strong>config-edited</strong> sha256=16365768e36c</li>
+<li><span class='muted'>2026-11-21 04:09:35</span> <strong>submit</strong> step=BKG_C4 host=cmslpc</li>
+<li><span class='muted'>2026-11-21 04:09:10</span> <strong>submit</strong> step=BKG_C4 host=cmslpc</li>
+<li><span class='muted'>2026-11-21 00:34:21</span> <strong>submit</strong> step=BKG_F host=cmslpc</li>
+<li><span class='muted'>2026-11-21 00:33:55</span> <strong>submit</strong> step=BKG_F host=cmslpc</li>
+<li><span class='muted'>2026-11-19 17:54:29</span> <strong>submit</strong> step=BKG_C host=cmslpc</li>
+<li><span class='muted'>2026-11-19 17:54:10</span> <strong>submit</strong> step=BKG_C host=cmslpc</li>
+<li><span class='muted'>2026-11-19 09:32:00</span> <strong>submit</strong> step=BKG_AB host=cmslpc</li>
+<li><span class='muted'>2026-11-19 09:27:08</span> <strong>submit</strong> step=BKG_AB host=cmslpc</li>
+<li><span class='muted'>2026-11-19 09:26:56</span> <strong>checkout</strong> host=cmslpc</li>
+<li><span class='muted'>2026-11-19 09:22:27</span> <strong>new</strong> </li>
+                </ul>
+            </div>
+        </details>
+
+        <footer>
+            Roast published with barista &bull; CERNBox Web Distribution
+        </footer>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('pageSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const q = this.value.toLowerCase().trim();
+                document.querySelectorAll('.page-item').forEach(item => {
+                    const s = item.getAttribute('data-search') || '';
+                    item.style.display = s.includes(q) ? '' : 'none';
+                });
+            });
+        }
+    </script>
+</body>
+</html>

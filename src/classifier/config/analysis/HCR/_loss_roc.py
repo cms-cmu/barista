@@ -493,10 +493,16 @@ class _generate_group_diagnostics_and_gallery:
             if not v_rows:
                 continue
             v_mat, t_mat, tn_mat = np.array(v_rows), np.array(t_rows), np.array(tn_rows)
-            m_v, m_t, m_tn = np.nanmean(v_mat, axis=0), np.nanmean(t_mat, axis=0), np.nanmean(tn_mat, axis=0)
+            if not np.any(np.isfinite(v_mat)) or not np.any(np.isfinite(t_mat)):
+                continue
+            with np.errstate(invalid="ignore"):
+                m_v, m_t, m_tn = np.nanmean(v_mat, axis=0), np.nanmean(t_mat, axis=0), np.nanmean(tn_mat, axis=0)
+            if not np.any(np.isfinite(m_v)):
+                continue
             nf = len(v_rows)
-            s_v = np.nanstd(v_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_v)
-            s_tn = np.nanstd(tn_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_tn)
+            with np.errstate(invalid="ignore"):
+                s_v = np.nanstd(v_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_v)
+                s_tn = np.nanstd(tn_mat, axis=0, ddof=1) if nf > 1 else np.zeros_like(m_tn)
             chi_best = int(np.nanargmin(m_v))
 
             fig, ax = plt.subplots(figsize=(9, 5))
@@ -523,7 +529,7 @@ class _generate_group_diagnostics_and_gallery:
             ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel(f"SB closure χ²/ndf ({hname})", fontsize=12)
             ax.set_title(f"Closure Evolution: {hname}", fontsize=13, fontweight="bold")
-            if np.nanmax(m_t) > 20 * max(np.nanmin(m_v), 1e-3):
+            if np.any(np.isfinite(m_t)) and np.any(np.isfinite(m_v)) and np.nanmax(m_t) > 20 * max(np.nanmin(m_v), 1e-3):
                 ax.set_yscale("log")
             ax.grid(True, linestyle="--", alpha=0.5)
             ax.legend(loc="upper right", fontsize=9, framealpha=0.95)

@@ -1700,6 +1700,36 @@ class TestAutoDiscoveryDashboardSafetyNet(unittest.TestCase):
         self.assertIn("Custom Fvt Divergence Summary", html_out)
         self.assertIn("Auto-discovered", html_out)
 
+    def test_upstream_roasts_are_linked(self):
+        """Upstream roasts' published pages are linked, including an upstream's own upstream."""
+        saved, tmp = roast.ROASTS, Path(tempfile.mkdtemp())
+        roast.ROASTS = tmp
+        self.addCleanup(lambda: (setattr(roast, "ROASTS", saved), shutil.rmtree(tmp)))
+
+        def manifest(rid, pages, upstream=()):
+            (tmp / rid).mkdir()
+            (tmp / rid / "roast.json").write_text(json.dumps({
+                "id": rid, "inputs": {"upstream": [{"id": u} for u in upstream]},
+                "publish": {"url": f"https://web.example/prod/{rid}/", "pages": pages}}))
+
+        manifest("up_jcm", ["output/x/computeJCM/plots_wJCM/index.html", "roasts/up_jcm/index.html"])
+        manifest("up_fvt", ["output/x/FvT_closure/cutflow_FvT_closure.html"], upstream=["up_jcm"])
+        r = fake_roast()
+        r["inputs"] = {"upstream": [{"id": "up_fvt"}, {"id": "not_here"}],
+                       "refs": {"FvT": {"url": "u", "roast": "up_fvt"}}}
+
+        ups = roast.upstream_published(r)
+        self.assertEqual([u["id"] for u in ups], ["up_fvt", "not_here", "up_jcm"])
+        self.assertEqual((ups[0]["refs"], ups[2]["via"]), (["FvT"], "up_fvt"))
+        self.assertEqual(ups[2]["pages"], ["output/x/computeJCM/plots_wJCM/index.html"])
+
+        html_out = roast.generate_roast_index_html(r, [])
+        self.assertIn("Upstream Roasts", html_out)
+        self.assertIn('href="https://web.example/prod/up_fvt/output/x/FvT_closure/cutflow_FvT_closure.html"', html_out)
+        self.assertIn('href="https://web.example/prod/up_jcm/output/x/computeJCM/plots_wJCM/index.html"', html_out)
+        self.assertIn("not published", html_out)
+        self.assertNotIn("Upstream Roasts", roast.generate_roast_index_html(fake_roast(), []))
+
 
 class TestRegistryCopySettings(unittest.TestCase):
     def test_publish_settings_incorporate_registry_extras(self):

@@ -312,7 +312,7 @@ def extract_benchmark(result_path: str, stage: str = "final") -> dict:
         }
 
         # Closure metrics
-        for cl_key in ["chi2_ndf_pt4", "chi2_ndf_pt1", "chi2_ndf_fvt", "norm_closure_sb", "composite_chi2_ndf"]:
+        for cl_key in ["chi2_ndf_pt4", "chi2_ndf_pt1", "chi2_ndf_fvt", "chi2_ndf_svb_sr", "chi2_ndf_svb_sr_gt0p8", "norm_closure_sb", "composite_chi2_ndf"]:
             vals = [fq.get("closure", {}).get(cl_key) for fq in fit_qualities if fq.get("closure", {}).get(cl_key) is not None]
             if vals:
                 avg_fq["closure"][cl_key] = sum(vals) / len(vals)
@@ -450,6 +450,10 @@ def print_table(summary: dict, ref_summary: dict = None):
     row("  chi2/ndf: pt1 (Lead jet pt)", closure.get("chi2_ndf_pt1", "-"), ref_closure.get("chi2_ndf_pt1", "-"))
     if "chi2_ndf_fvt" in closure or "chi2_ndf_fvt" in ref_closure:
         row("  chi2/ndf: FvT (Sideband)", closure.get("chi2_ndf_fvt", "-"), ref_closure.get("chi2_ndf_fvt", "-"))
+    if "chi2_ndf_svb_sr" in closure or "chi2_ndf_svb_sr" in ref_closure:
+        row("  chi2/ndf: SvB (SR)", closure.get("chi2_ndf_svb_sr", "-"), ref_closure.get("chi2_ndf_svb_sr", "-"))
+    if "chi2_ndf_svb_sr_gt0p8" in closure or "chi2_ndf_svb_sr_gt0p8" in ref_closure:
+        row("  chi2/ndf: SvB > 0.8 (SR)", closure.get("chi2_ndf_svb_sr_gt0p8", "-"), ref_closure.get("chi2_ndf_svb_sr_gt0p8", "-"))
     if "norm_closure_sb" in closure or "norm_closure_sb" in ref_closure:
         row("  Sideband Norm (3b*w/4b)", closure.get("norm_closure_sb", "-"), ref_closure.get("norm_closure_sb", "-"))
     row("  Composite chi2/ndf (Score)", closure.get("composite_chi2_ndf", "-"), ref_closure.get("composite_chi2_ndf", "-"))
