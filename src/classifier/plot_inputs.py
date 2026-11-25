@@ -615,6 +615,12 @@ def read_branches(file_paths, branches, label=None, n_canjet=4, n_notcanjet=8):
                         n_events = np.sum(mask)
                         arr = np.full(n_events, y_val, dtype=np.float32)
                         arrays[branch].append(arr)
+                    elif branch.startswith("year_"):
+                        era_tag = branch[len("year_"):]
+                        n_events = int(np.sum(mask))
+                        val = 1.0 if re.search(rf"(?<![A-Za-z0-9]){re.escape(era_tag)}(?![A-Za-z0-9])", path) else 0.0
+                        arr = np.full(n_events, val, dtype=np.float32)
+                        arrays[branch].append(arr)
                     else:
                         arr = tree[branch].array(library="ak")[mask]
                         if "CanJet" in branch and "NotCanJet" not in branch:
@@ -840,6 +846,11 @@ def _build_tensors(file_paths, input_cfg, label=None):
                             raise ValueError(f"Could not parse year from path: {path}")
                         n_events = np.sum(mask)
                         arr = np.full((n_events, 1), y_val, dtype=np.float32)
+                    elif b.startswith("year_"):
+                        era_tag = b[len("year_"):]
+                        n_events = int(np.sum(mask))
+                        val = 1.0 if re.search(rf"(?<![A-Za-z0-9]){re.escape(era_tag)}(?![A-Za-z0-9])", path) else 0.0
+                        arr = np.full((n_events, 1), val, dtype=np.float32)
                     else:
                         arr = ak.to_numpy(tree[b].array(library="ak")[mask])
                         if arr.ndim == 1:
