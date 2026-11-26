@@ -1,6 +1,7 @@
 # CI voms proxy setup
 voms_proxy:
   stage: setup
+  needs: []
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest
   tags:
     - k8s-cvmfs

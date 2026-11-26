@@ -56,6 +56,7 @@ def resolve_branch(repo_name, target_branch):
 VOMS_PROXY_JOB = """
 voms_proxy:
   stage: setup
+  needs: []
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest
   tags:
     - k8s-cvmfs
@@ -238,6 +239,7 @@ stages:
   - skimmer  # kept until coffea4bees retires stages_skimmer.yml
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
 
@@ -330,6 +332,7 @@ stages:
   - skimmer
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
   - classifier

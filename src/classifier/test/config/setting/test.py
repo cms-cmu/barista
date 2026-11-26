@@ -14,6 +14,8 @@ class Randomness(GlobalSetting):
     def set__seed(cls, value: int):
         if value is ...:
             return None
+        if value is None and DefaultSetting.seed is ...:
+            return None
 
         import numpy as np
         import torch
@@ -30,6 +32,8 @@ class Randomness(GlobalSetting):
     def set__n_threads(cls, value: int):
         if value is ...:
             return None
+        if value is None and DefaultSetting.n_threads is ...:
+            return None
 
         import torch
 
@@ -42,13 +46,17 @@ class Randomness(GlobalSetting):
             DefaultSetting.n_threads if value is None else (value, value)
         )
         torch.set_num_threads(intraop)
-        torch.set_num_interop_threads(interop)
+        if torch.get_num_interop_threads() != interop:
+            try:
+                torch.set_num_interop_threads(interop)
+            except RuntimeError:
+                pass
         return value
 
     @classmethod
     def set__deterministic_algorithm(cls, value: bool):
-        if value is ...:
-            return False
+        if value is ... or value is None:
+            return None
 
         import torch
 
