@@ -239,6 +239,7 @@ stages:
   - skimmer  # kept until coffea4bees retires stages_skimmer.yml
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
 
@@ -331,6 +332,7 @@ stages:
   - skimmer
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
   - classifier
