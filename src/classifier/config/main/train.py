@@ -79,6 +79,7 @@ class Main(SelectDevice, LoadTrainingSets):
                         _train_model(self.device, datasets),
                         trainers,
                         callbacks=[lambda _: progress_advance(progress)],
+                        preserve_order=True,
                     )
                 ]
         logging.info(f"Trained {len(results)} models in {datetime.now() - timer}")
