@@ -25,6 +25,23 @@ class _train_model:
         return trainer(device=self._device, dataset=self._dataset)
 
 
+def _share_dataset_memory(obj) -> None:
+    """Move CPU dataset tensors into shared memory once so parallel trainer workers avoid copying."""
+    import torch
+
+    if isinstance(obj, torch.Tensor):
+        if obj.device.type == "cpu":
+            obj.share_memory_()
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _share_dataset_memory(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            _share_dataset_memory(v)
+    elif hasattr(obj, "datasets"):
+        _share_dataset_memory(obj.datasets)
+
+
 class Main(SelectDevice, LoadTrainingSets):
     argparser = ArgParser(
         prog="train",
@@ -65,6 +82,7 @@ class Main(SelectDevice, LoadTrainingSets):
                     results.append(trainer_func(trainer))
                     progress_advance(progress)(None)
         else:
+            _share_dataset_memory(datasets)
             with (
                 ProcessPoolExecutor(
                     max_workers=self.opts.max_trainers,
