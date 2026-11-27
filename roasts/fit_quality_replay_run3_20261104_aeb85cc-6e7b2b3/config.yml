@@ -1,0 +1,80 @@
+# ==============================================================================
+# FIT-QUALITY REPLAY — Run 3 background-model classifiers (FvT, MvD mixed, MvD declustered)
+# ==============================================================================
+# Computes the FvT/MvD fit-quality benchmarks (src/classifier/ml/benchmarks/fit_quality.py) for
+# classifiers that were trained before the benchmark existed, WITHOUT retraining: each fold's saved
+# model is loaded (--pretrained-weights), zero epochs are run, and the pre-training "Baseline"
+# benchmark evaluates it on its own training/validation split (src/classifier/fit_quality_replay.py).
+# Workflow: Snakefile_FitQualityReplay.smk. GPU rules run as NRP Jobs (nautilus profile).
+#
+#   roast new --config coffea4bees/workflows/config/fit_quality_replay_run3.yml \
+#       --step nautilus:coffea4bees/workflows/Snakefile_FitQualityReplay.smk
+#   roast submit <id> --step FitQualityReplay --targets fitq_validate   # 22+23 FvT only: faithfulness check
+#   roast submit <id> --step FitQualityReplay                           # all 9 + summary
+#
+# Reads only (never writes) the upstream roasts: their saved models and result.json on EOS, and
+# their captured configs (roasts/<id>/config.yml), from which each training workflow (train.yml,
+# common.yml) is regenerated with the same code Phase C / MvD V.2 use. Where the upstream archived
+# its train.yml (6 of 9), the regenerated one is compared with it (train_wf_check.json).
+#
+# Faithfulness: the replay recomputes the input mean/std over the same training split, and reads the
+# dataset metadata of THIS checkout (FvT: coffea4bees/metadata/datasets/; the MvD reads its pinned
+# EOS handoff). Each fold's replayed loss/AUCs are compared with the original final epoch
+# (consistency.json; tolerance 2e-3). Look at that before reading any fit-quality number.
+# Checked when this config was written (2026-11-04): the regenerated train.yml + common.yml equal the
+# originals for all 8 upstreams that kept one (EOS archive or NRP checkout; 2025 FvT kept none), and
+# the dataset metadata changed since the pinned SHAs only in 2023_preBPix nanoAOD source paths
+# (data.yml) and a TT.yml comment.
+#
+# Outputs (all under output_path): <name>/fit_quality.json, <name>/replay/{result.json,
+# consistency.json, train_wf_check.json, replay.log}, summary.md / summary.json.
+
+label: "fit_quality_replay_run3"
+output_path: "output/fit_quality_replay_run3/"
+
+inputs:
+  upstream_roasts:
+    fvt_2223: nominal_run3_20261008_f839489-a481023
+    fvt_2024: nominal_run3_2024_20261021_975a18e-e176976
+    fvt_2025: nominal_run3_2025_20261027_1809191-df306da
+    mixed_2223: mvd_run3_20260927_91be0e9-f18c44b
+    mixed_2024: mvd_run3_2024_20261023_c1e0fcf-788068e
+    mixed_2025: mvd_run3_2025_20261028_4187034-e2edb1d
+    declust_2223: mvd_declib16_run3_20261011_c41b495-f2d2cf8
+    declust_2024: mvd_declib16_run3_2024_20261026_e9a4dd4-e85d346
+    declust_2025: mvd_declib16_run3_2025_20261028_c96a8ce-a4b6e04
+    # added 2026-11-05: diagnostic 2025 FvT retrain with --kfold-seed-offsets 1 (same B inputs)
+    fvt_2025_seed1: nominal_run3_2025_fvtseed1_20261027_34839d6-a56870a
+  # the saved fold models (+ their result.json); the Snakefile asserts each equals the regenerated
+  # <eos_base>/classifier/<label> of the upstream's own config
+  models:
+    fvt_2223: "{roast:fvt_2223}/classifier/FvT_nominal"
+    fvt_2024: "{roast:fvt_2024}/classifier/FvT_nominal"
+    fvt_2025: "{roast:fvt_2025}/classifier/FvT_nominal"
+    mixed_2223: "{roast:mixed_2223}/classifier/MvD"
+    mixed_2024: "{roast:mixed_2024}/classifier/MvD"
+    mixed_2025: "{roast:mixed_2025}/classifier/MvD"
+    declust_2223: "{roast:declust_2223}/classifier/MvD"
+    declust_2024: "{roast:declust_2024}/classifier/MvD"
+    declust_2025: "{roast:declust_2025}/classifier/MvD"
+    fvt_2025_seed1: "{roast:fvt_2025_seed1}/classifier/FvT_nominal"
+
+# One entry per replay. block: the upstream config block that defined the training (fvt / mvd).
+# floor: the analysis floor on the source probability (FvT_pd3_floor / mvd_pmix4_floor of that
+# roast; only the 2025 roasts set one), so the weight metrics describe the weights the analysis
+# applies. mem_mb (optional): GPU pod memory; default 64000, what every upstream training used
+# (it loads the same training + validation data).
+fit_quality_replay:
+  fvt_2223:     {upstream: fvt_2223,     block: fvt, era: "2022+2023", method: "FvT"}
+  fvt_2024:     {upstream: fvt_2024,     block: fvt, era: "2024",      method: "FvT"}
+  fvt_2025:     {upstream: fvt_2025,     block: fvt, era: "2025",      method: "FvT", floor: 0.01}
+  mixed_2223:   {upstream: mixed_2223,   block: mvd, era: "2022+2023", method: "MvD mixed"}
+  mixed_2024:   {upstream: mixed_2024,   block: mvd, era: "2024",      method: "MvD mixed"}
+  mixed_2025:   {upstream: mixed_2025,   block: mvd, era: "2025",      method: "MvD mixed", floor: 0.01, mem_mb: 160000}
+  declust_2223: {upstream: declust_2223, block: mvd, era: "2022+2023", method: "MvD declust."}
+  declust_2024: {upstream: declust_2024, block: mvd, era: "2024",      method: "MvD declust.", mem_mb: 160000}
+  declust_2025: {upstream: declust_2025, block: mvd, era: "2025",      method: "MvD declust.", floor: 0.01, mem_mb: 160000}
+  fvt_2025_seed1: {upstream: fvt_2025_seed1, block: fvt, era: "2025 (k-fold seed 1)", method: "FvT", floor: 0.01}
+
+# per-fold |replay - original| allowed on the validation loss and AUCs
+fit_quality_tolerance: 0.002
