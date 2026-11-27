@@ -3,7 +3,7 @@
 # to the NRP Nautilus cluster using the shared CephFS volume.
 # All other rules execute locally on the submit machine.
 executor: cluster-generic
-cluster-generic-submit-cmd: "NAUTILUS_GPU_BLACKLIST=Tesla-V100-SXM2-16GB,Tesla-V100-PCIE-16GB,Tesla-V100-SXM2-32GB,Tesla-T4 python software/kubernetes/nautilus_submit.py"
+cluster-generic-submit-cmd: "python software/kubernetes/nautilus_submit.py"
 cluster-generic-status-cmd: "python software/kubernetes/nautilus_status.py"
 cluster-generic-cancel-cmd: "python software/kubernetes/nautilus_cancel.py"
 jobs: 16
@@ -17,13 +17,13 @@ default-resources:
   - "cpu=1"
 
 set-threads:
-  train: 8
+  train: 4
   evaluate: 2
 
 set-resources:
   train:
     gpus: 1
-    cpu: 8
+    cpu: 4
   evaluate:
     gpus: 1
     cpu: 2

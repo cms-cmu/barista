@@ -60,6 +60,12 @@ def _r(val):
     return val
 
 
+def _csv_opt(val):
+    if isinstance(val, (list, tuple)):
+        return ",".join(str(x) for x in val if str(x).strip())
+    return str(val or "")
+
+
 CLASSIFIER_CONFIG_PATHS = config.get("classifier_config_paths", "coffea4bees")
 WFS_BASE                = config.get("wfs_base", "")
 OUTPUT_DIR              = _r(config.get("output_dir", f"output/{LABEL}")).rstrip("/")
@@ -233,6 +239,8 @@ rule train:
         qos             = config.get("train_qos", default_gpu_qos),
         slurm_partition = config.get("train_partition", default_gpu_partition),
         slurm_account   = config.get("slurm_account", default_gpu_account),
+        gpu_blacklist   = _csv_opt(config.get("gpu_blacklist", "")),
+        gpu_whitelist   = _csv_opt(config.get("gpu_whitelist", "")),
     threads: config.get("train_threads", 8)
     params:
         init                    = INIT,
@@ -421,6 +429,8 @@ if not EVAL_SPLITS:
             qos             = config.get("eval_qos", default_gpu_qos),
             slurm_partition = config.get("eval_partition", default_gpu_partition),
             slurm_account   = config.get("slurm_account", default_gpu_account),
+            gpu_blacklist   = _csv_opt(config.get("gpu_blacklist", "")),
+            gpu_whitelist   = _csv_opt(config.get("gpu_whitelist", "")),
         threads: config.get("eval_threads", 8)
         params:
             init                    = INIT,
@@ -477,6 +487,8 @@ else:
             qos             = config.get("eval_qos", default_gpu_qos),
             slurm_partition = config.get("eval_partition", default_gpu_partition),
             slurm_account   = config.get("slurm_account", default_gpu_account),
+            gpu_blacklist   = _csv_opt(config.get("gpu_blacklist", "")),
+            gpu_whitelist   = _csv_opt(config.get("gpu_whitelist", "")),
         threads: config.get("eval_threads", 8)
         params:
             init                    = INIT,

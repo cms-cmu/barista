@@ -24,7 +24,7 @@ from ..nn.schedule import Schedule
 from ..process.device import Device
 from ..task.special import interface
 from ..typetools import WithUUID, filename
-from ..utils import MemoryViewIO
+from ..utils import MemoryViewIO, noop
 from . import BatchType, clear_cache
 
 if TYPE_CHECKING:
@@ -348,10 +348,12 @@ class TrainingStage(BenchmarkStage):
             trainer.cleanup()
             Usage.checkpoint(self.name, f"epoch{epoch}", "optimize")
             self.model.nn.train()
-            if len(bs.dataloader) > 0:
-                p_batch = Progress.new(len(bs.dataloader), "batch")
+            p_batch = noop
+            n_batches = len(bs.dataloader)
+            if n_batches > 0:
+                p_batch = Progress.new(n_batches, "batch")
             for i, batch in enumerate(bs.dataloader):
-                opt.zero_grad()
+                opt.zero_grad(set_to_none=True)
                 loss = self.model.train(batch)
                 if scaler.is_enabled() and isinstance(loss, torch.Tensor):
                     scaler.scale(loss).backward()
@@ -362,11 +364,12 @@ class TrainingStage(BenchmarkStage):
                     opt.step()
                 if average is not None:
                     average.on_step(epoch)
-                if isinstance(loss, torch.Tensor):
-                    loss_val = loss.item()
-                    p_batch.update(i + 1, ("batch", "training", f"loss={loss_val:.4g}"))
-                else:
-                    p_batch.update(i + 1, ("batch", "training", "skim"))
+                if p_batch is not noop and ((i + 1) % 100 == 0 or (i + 1) == n_batches):
+                    if isinstance(loss, torch.Tensor):
+                        loss_val = loss.item()
+                        p_batch.update(i + 1, ("batch", "training", f"loss={loss_val:.4g}"))
+                    else:
+                        p_batch.update(i + 1, ("batch", "training", "skim"))
             if average is not None and average.on_epoch_end(epoch):
                 logging.info(
                     f"{self.name}: epoch {epoch}: averaged weights ({average}, {average.n} "

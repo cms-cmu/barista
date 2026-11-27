@@ -58,7 +58,9 @@ TRAIN_EXTRA_GPU_PRODUCTS = [p for p in os.environ.get(
 ).split(",") if p.strip()]
 
 DEFAULT_PREFERRED_GPUS = [
+    "NVIDIA-A100-SXM4-80GB",
     "NVIDIA-A100-SXM4-40GB",
+    "NVIDIA-A100-PCIE-40GB",
     "NVIDIA-Tesla-A100",
     "NVIDIA-GeForce-RTX-3090",
     "NVIDIA-GeForce-RTX-4090",
@@ -81,7 +83,9 @@ DEFAULT_PREFERRED_GPUS = [
 ]
 
 DEFAULT_REQUIRED_GPUS = [
+    "NVIDIA-A100-SXM4-80GB",
     "NVIDIA-A100-SXM4-40GB",
+    "NVIDIA-A100-PCIE-40GB",
     "NVIDIA-Tesla-A100",
     "NVIDIA-A40",
     "NVIDIA-L40S",
@@ -105,6 +109,7 @@ DEFAULT_REQUIRED_GPUS = [
     "NVIDIA-GeForce-RTX-3080-Ti",
     "NVIDIA-GeForce-RTX-4080",
     "NVIDIA-RTX-A4000",
+    "NVIDIA-GeForce-RTX-2080-Ti",
 ]
 
 
