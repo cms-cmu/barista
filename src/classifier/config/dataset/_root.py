@@ -412,9 +412,7 @@ class _load_root:
                                     common_branches=True,
                                 ),
                                 callbacks=[
-                                    lambda x: progress_advance(
-                                        progress, x[0] if x is not None else 0
-                                    )
+                                    lambda x: progress_advance(progress, len(x))
                                 ],
                                 preserve_order=self._preserve_order,
                             )

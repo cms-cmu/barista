@@ -1,0 +1,293 @@
+{
+  "id": "ttHbb_bkg_syst_declib16nc_corner_veto_cat_year_20261126_16931c6-30e18e7",
+  "label": "ttHbb_bkg_syst_declib16nc_corner_veto_cat_year",
+  "analysis": "ttHbb",
+  "created": "2026-11-26 18:42:03",
+  "owner": "Alejandro Gomez",
+  "barista": {
+    "sha": "16931c6c3240dc20ade310a55f6c5ad5958cbc31",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/barista.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/barista"
+  },
+  "coffea4bees": {
+    "sha": "30e18e77d2704d1266966f5ee8e59f952f9748bf",
+    "origin": "ssh://git@gitlab.cern.ch:7999/cms-cmu/coffea4bees.git",
+    "web": "https://gitlab.cern.ch/cms-cmu/coffea4bees"
+  },
+  "config": {
+    "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc_corner_veto_cat_year.yml",
+    "captured": "config.yml",
+    "sha256": "448b444deaeb16e45f965888452f9daa14b6021cd16cb15f5daac6db8ab9c7a7",
+    "base": [
+      {
+        "source": "coffea4bees/workflows/config/ttHbb_bkg_syst_declib16nc.yml",
+        "sha256": "425fd1cb35bf30fad9a6379482a93ab72884cf5c60a9e93b0ecb5b8e068cb173"
+      }
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 11,
+      "infos": 1
+    }
+  },
+  "inputs": {
+    "upstream": [
+      {
+        "id": "declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "barista": "3ab83026785c9e59203bb5d9fa426e83a828786d",
+        "coffea4bees": "b2d2dec126049807fe4bacb340b34f09022dc49b",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/declib16nc_run2_20261003_3ab8302-b2d2dec",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400",
+        "barista": "d095fd09945d48a664458109e820fd4da0f18c11",
+        "coffea4bees": "32d54006fc0d40f8e04c82dc68673575e5abc654",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400",
+        "archived": true
+      },
+      {
+        "id": "mixeddata_run2_20260927_c39c264-0ce4d59",
+        "barista": "c39c264132cecf172f8266c7917a24ccc0ae9eb0",
+        "coffea4bees": "0ce4d592ed826ea9587e517bd233482e9004c4ad",
+        "eos": "root://cmseos.fnal.gov//store/user/jda102/HH4b_prod/mixeddata_run2_20260927_c39c264-0ce4d59",
+        "archived": true
+      },
+      {
+        "id": "ttHbb_stat_only_corner_veto_20261124_2426411-ea08b10",
+        "barista": "2426411dec263a67a9ac817cdb451e6017671417",
+        "coffea4bees": "ea08b10d20d71ea9b6703eabe2514627cbe8a6c9",
+        "eos": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261124_2426411-ea08b10",
+        "archived": true
+      }
+    ],
+    "refs": {
+      "mixeddata_all": {
+        "url": "{roast:declib}/handoff/synthetic_data_lib16nc_multijet.yml",
+        "roast": "declib16nc_run2_20261003_3ab8302-b2d2dec"
+      },
+      "ttbar_psdata": {
+        "url": "{roast:mixeddata}/handoff/ttbar_PSData.yml",
+        "roast": "mixeddata_run2_20260927_c39c264-0ce4d59"
+      },
+      "jcm_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_20261124_2426411-ea08b10/output/ttHbb/PhaseB_1_computeJCM/histAll_NoJCM.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_20261124_2426411-ea08b10"
+      },
+      "nominal_hists": {
+        "url": "root://cmseos.fnal.gov//store/user/algomez/HH4b_prod/ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400/output/ttHbb/PhaseF_1_analysis/histAll_ttHbb_stat_only_corner_veto_cat_year_DF.coffea",
+        "roast": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400"
+      },
+      "classifier_inputs": {
+        "url": "{roast:ab_upstream}/handoff/classifier_inputs_{roast:ab_upstream:id}.json",
+        "roast": "ttHbb_stat_only_corner_veto_20261124_2426411-ea08b10"
+      },
+      "SvB": {
+        "url": "{roast:nominal}/friend/SvB_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400"
+      },
+      "SvB_model": {
+        "url": "{roast:nominal}/classifier/SvB_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400"
+      },
+      "SvB_MA": {
+        "url": "{roast:nominal}/friend/SvB_MA_ttHbb_stitched/result.json@@analysis.0.merged",
+        "roast": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400"
+      },
+      "SvB_MA_model": {
+        "url": "{roast:nominal}/classifier/SvB_MA_ttHbb_stitched/result.json",
+        "roast": "ttHbb_stat_only_corner_veto_cat_year_DF_20261126_d095fd0-32d5400"
+      }
+    }
+  },
+  "user_paths": {
+    "eos_prod": "root://cmseos.fnal.gov//store/user/algomez/ttHbb_prod",
+    "web_prod": "root://eosuser.cern.ch//eos/user/a/algomez/www/ttHbb/prod"
+  },
+  "steps": [
+    {
+      "name": "BKG_AB",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-26 18:44:47",
+          "cores": 4,
+          "extra": "-n",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_corner_veto_cat_year_16931c6-30e18e7_BKG_AB",
+          "ssh": "algomez@cmslpc336.fnal.gov",
+          "config_sha256": "67bcd709d240"
+        },
+        {
+          "ts": "2026-11-26 18:46:59",
+          "cores": 4,
+          "extra": "",
+          "user_extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "window": "ttHbb_bkg_syst_declib16nc_corner_veto_cat_year_16931c6-30e18e7_BKG_AB",
+          "ssh": "algomez@cmslpc336.fnal.gov",
+          "config_sha256": "67bcd709d240"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C",
+      "host": "nautilus",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C.smk",
+      "targets": "",
+      "extra": "",
+      "runs": [
+        {
+          "ts": "2026-11-26 20:54:51",
+          "cores": 16,
+          "extra": "-n",
+          "targets": "",
+          "dry_run": true,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-corner-ve-986d86-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "67bcd709d240"
+        },
+        {
+          "ts": "2026-11-26 20:56:59",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-corner-ve-986d86-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "67bcd709d240"
+        },
+        {
+          "ts": "2026-11-26 21:08:52",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-corner-ve-986d86-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "b074c8c61331"
+        },
+        {
+          "ts": "2026-11-26 21:18:47",
+          "cores": 16,
+          "extra": "",
+          "targets": "",
+          "dry_run": false,
+          "test": false,
+          "resume": false,
+          "job_name": "roast-tthbb-bkg-syst-declib16nc-corner-ve-986d86-bkg-c",
+          "namespace": "cms-cmu",
+          "config_sha256": "448b444deaeb"
+        }
+      ]
+    },
+    {
+      "name": "BKG_C4",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk",
+      "targets": "",
+      "extra": ""
+    },
+    {
+      "name": "BKG_F",
+      "host": "cmslpc",
+      "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_F.smk",
+      "targets": "",
+      "extra": ""
+    }
+  ],
+  "workflow": "bkg_syst_full",
+  "hosts": {
+    "cmslpc": {
+      "checkout": "/uscms_data/d3/algomez/ttHbb/prod/ttHbb_bkg_syst_declib16nc_corner_veto_cat_year_20261126_16931c6-30e18e7/barista",
+      "ssh": "algomez@cmslpc336.fnal.gov",
+      "checked_out": "2026-11-26 18:42:56"
+    },
+    "nautilus": {
+      "checkout": "/workspace/users/algomez/prod/ttHbb_bkg_syst_declib16nc_corner_veto_cat_year_20261126_16931c6-30e18e7/barista",
+      "checked_out": "2026-11-26 18:43:57"
+    }
+  },
+  "publish": {},
+  "history": [
+    {
+      "ts": "2026-11-26 18:42:03",
+      "event": "new"
+    },
+    {
+      "ts": "2026-11-26 18:42:56",
+      "event": "checkout",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-26 18:43:57",
+      "event": "checkout",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-26 18:44:47",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-26 18:46:59",
+      "event": "submit",
+      "step": "BKG_AB",
+      "host": "cmslpc"
+    },
+    {
+      "ts": "2026-11-26 20:54:51",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-26 20:56:59",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-26 21:08:50",
+      "event": "config-edited",
+      "sha256": "b074c8c61331"
+    },
+    {
+      "ts": "2026-11-26 21:08:52",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    },
+    {
+      "ts": "2026-11-26 21:18:45",
+      "event": "config-edited",
+      "sha256": "448b444deaeb"
+    },
+    {
+      "ts": "2026-11-26 21:18:47",
+      "event": "submit",
+      "step": "BKG_C",
+      "host": "nautilus"
+    }
+  ],
+  "notes": "declib16nc bkg_syst with CatYear one-hot era FvT/SvB/SvB_MA + streaming RAM/float32 fixes + HCREnsemble year_<era> eval",
+  "category": "ttHbb_bkg_syst"
+}
