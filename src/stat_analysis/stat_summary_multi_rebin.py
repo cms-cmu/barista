@@ -34,6 +34,7 @@ from src.stat_analysis.stat_summary import (
     render_roast_script,
     short_proc,
 )
+from src.utils.string import format_stage_title
 
 logger = logging.getLogger("stat_summary_multi_rebin")
 
@@ -58,6 +59,7 @@ def discover_rebin_dirs(master_dir: str) -> list[tuple[int, str]]:
 
 
 def build_multi_rebin_summary(master_dir: str, title: str, label: str, is_blind: bool = True) -> tuple[str, str]:
+    title = format_stage_title(title)
     rebin_dirs = discover_rebin_dirs(master_dir)
     if not rebin_dirs:
         logger.warning(f"No rebin directories found in {master_dir}")

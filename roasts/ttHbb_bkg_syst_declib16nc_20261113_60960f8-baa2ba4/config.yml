@@ -287,7 +287,7 @@ analysis_config:
     apply_boosted_veto: false
     run_SvB: true
     SvB_MA: true
-    SvB: null
+    SvB: true
     apply_lepton_veto: false
     hist_cuts: ["pass_nSelJets_gt6"]
     top_reconstruction: fast
@@ -325,9 +325,9 @@ make_combine_inputs:
     - "TTbar4b_from_d3"
 
 combine_flags: "--three_tag threeTag --four_tag fourTag --region sum --blind"
-likelihood_scan_points: 40
+likelihood_scan_points: 80
 likelihood_scan_r_min: 0
-likelihood_scan_r_max: 2
+likelihood_scan_r_max: 4
 likelihood_scan_y_cut: 30
 likelihood_scan_y_max: 30
 

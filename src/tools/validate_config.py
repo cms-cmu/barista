@@ -699,8 +699,17 @@ def audit_upstream_roasts_consistency(cfg: dict, repo_root: Path, issues: list[I
             up_inputs = {}
         up_aliases = _parse_upstream_aliases(up_inputs.get("upstream_roasts"))
 
+        # upstream_link_stages limits the link to those stages (bkg_syst): with only pre-FvT stages
+        # (A_1 mixed JCM, A_2 split, their inputs/) the upstream's nominal/SvB/classifier inputs are not
+        # used here -- A_3 onwards rerun with this config's -- so compare only what A_1/A_2 read.
+        keys = compare_input_keys
+        link_stages = cfg.get("upstream_link_stages")
+        if source_key == "upstream_pre_fvt" and isinstance(link_stages, (list, tuple)) and link_stages \
+                and set(map(str, link_stages)) <= {"A_1", "A_2", "inputs"}:
+            keys = ("mixeddata_all", "ttbar_psdata", "jcm_hists")
+
         mismatches: list[str] = []
-        for k in compare_input_keys:
+        for k in keys:
             cur_rid = _resolve_input_roast_id(inputs.get(k), aliases)
             up_rid = _resolve_input_roast_id(up_inputs.get(k), up_aliases)
             if cur_rid and up_rid and cur_rid != up_rid:

@@ -71,8 +71,36 @@ def _higgs_mass_ellipse(X, Y, cx: float, cy: float):
     """Compute the Higgs-mass ellipse distance: ((X-cx)/(0.1*X))^2 + ((Y-cy)/(0.1*Y))^2."""
     return ((X - cx) / (0.1 * X))**2 + ((Y - cy) / (0.1 * Y))**2
 
-def plot_border_SR() -> None:
-    """Plot the HH→4b signal region borders as four Higgs-mass ellipse contours."""
+def plot_border_SR(mode: str = "run2",
+                   mass_min: tuple = (52.0, 50.0),
+                   mass_max: tuple = (180.0, 173.0),
+                   cLead: float = 125.0,
+                   cSubl: float = 120.0,
+                   SR_radius: float = 30.0,
+                   CR_radius: float = 55.0,
+                   draw_sb: bool = True,
+                   sr_color: str = BORDER_COLOR,
+                   sr_linestyle: str = BORDER_LINESTYLE,
+                   sr_linewidth: float = BORDER_LINEWIDTH,
+                   sb_color: str = 'cyan',
+                   sb_linestyle: str = ':',
+                   sb_linewidth: float = 2.0,
+                   ax=None) -> None:
+    """Plot the HH->4b signal region and sideband borders (Run 2 ellipses+box or Run 3 circles)."""
+    if ax is None:
+        ax = plt.gca()
+    if mode == "run3":
+        sr_circle = mpatches.Circle((cLead, cSubl), SR_radius,
+                                    linewidth=sr_linewidth, edgecolor=sr_color, facecolor='none',
+                                    linestyle=sr_linestyle)
+        ax.add_patch(sr_circle)
+        if draw_sb:
+            sb_circle = mpatches.Circle((cLead, cSubl), CR_radius,
+                                        linewidth=sb_linewidth, edgecolor=sb_color, facecolor='none',
+                                        linestyle=sb_linestyle)
+            ax.add_patch(sb_circle)
+        return
+
     x = np.linspace(0, 250, 500)
     X, Y = np.meshgrid(x, x)
     # (cx, cy, level) for each SR ellipse
@@ -83,9 +111,16 @@ def plot_border_SR() -> None:
         ( 92.82,  89.18, 2.60**2),
     ]
     for cx, cy, level in ellipses:
-        plt.contour(X, Y, _higgs_mass_ellipse(X, Y, cx, cy),
-                    levels=[level], colors=BORDER_COLOR,
-                    linestyles=BORDER_LINESTYLE, linewidths=BORDER_LINEWIDTH)
+        ax.contour(X, Y, _higgs_mass_ellipse(X, Y, cx, cy),
+                   levels=[level], colors=sr_color,
+                   linestyles=sr_linestyle, linewidths=sr_linewidth)
+    if draw_sb:
+        rect_sb = mpatches.Rectangle((mass_min[0], mass_min[1]),
+                                     mass_max[0] - mass_min[0],
+                                     mass_max[1] - mass_min[1],
+                                     linewidth=sb_linewidth, edgecolor=sb_color,
+                                     facecolor='none', linestyle=sb_linestyle)
+        ax.add_patch(rect_sb)
 
 
 def plot_border_ttHbb_SR(h_min: float = 95.0, h_max: float = 180.0,
@@ -930,7 +965,7 @@ def _plot2d_from_dict(plot_data: Dict[str, Any], opts: RenderOptions) -> Tuple[p
                 ax.set_ylim(*opts.ylim)
 
             if opts.plot_contour:
-                plot_border_SR()
+                plot_border_SR(**(opts.hh4b_sr_params or {}))
             if opts.plot_ttHbb_sr:
                 params = opts.ttHbb_sr_params or {}
                 plot_border_ttHbb_SR(**params)

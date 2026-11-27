@@ -1619,16 +1619,220 @@ class TestSummaryRoastIndexHtml(unittest.TestCase):
         self.assertIn("Key Visual Plot Galleries", html_out)
         self.assertIn("FvT Closure Gallery", html_out)
         self.assertIn("ttbar MC vs d3 (4b) Gallery", html_out)
-        self.assertIn("Analysis &amp; SvB Gallery", html_out)
-        # Featured cross-checks
+        # Featured Primary Analysis Results (Analysis & SvB Plots Gallery replaces Cutflow Cross-Check)
+        self.assertIn("Analysis &amp; SvB Plots Gallery", html_out)
+        self.assertIn("Open Gallery ↗", html_out)
         self.assertIn("Histogram Cross-Check (F vs C.4)", html_out)
-        self.assertIn("Cutflow Cross-Check (F vs C.4)", html_out)
+        self.assertNotIn("Cutflow Cross-Check (F vs C.4)", html_out)
+        primary_block = html_out.split("Primary Analysis Results", 1)[1].split("Key Visual Plot Galleries", 1)[0]
+        self.assertIn("plots_SvB_MA/index.html", primary_block)
+        self.assertNotIn("cutflow_crosscheck_ttHbb.html", primary_block)
+        self.assertIn("cutflow_crosscheck_ttHbb.html", html_out)
         # Open by default details
         self.assertIn('<details class="card" open style="margin-top: 1rem;">', html_out)
         self.assertIn("roast.json", html_out)
         self.assertIn("config.yml", html_out)
         self.assertIn("badge-success", html_out)
         self.assertIn("Published", html_out)
+
+    def test_generate_roast_index_html_jcm_galleries(self):
+        r = fake_roast()
+        r["analysis"] = "ttHbb"
+        r["publish"] = {"ok": True, "ts": "2026-11-24 12:00:00"}
+        pages = [
+            "output/ttHbb/PhaseB_1_computeJCM/JCM_2024_v2/index.html",
+            "output/ttHbb/PhaseB_1_computeJCM/plots_wJCM/index.html",
+            "output/ttHbb/computeJCM/JCM_2024_v2/index.html",
+            "output/ttHbb/computeJCM/plots_noJCM/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_A_1_mixed_jcm/JCM_mixeddata/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_B_1_computeJCM/index.html",
+            "output/ttHbb_bkg_syst/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+            "output/mix/M3/JCM_mixeddata/index.html",
+            "output/mvd/V1/JCM_mixeddata_tight/index.html",
+            "output/Run3/jcm/index.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn("JCM Fit Plots Gallery", html_out)
+        self.assertIn("JCM Validation Gallery (wJCM)", html_out)
+        self.assertIn("Pre-JCM Plots Gallery (noJCM)", html_out)
+        self.assertIn("JCM Fit Plots Gallery (JCM_mixeddata)", html_out)
+        self.assertIn("Subsample JCM Fit Plots Gallery", html_out)
+        self.assertIn("Subsample JCM Closure Gallery", html_out)
+        self.assertIn("JCM Fit Plots Gallery (JCM_mixeddata_tight)", html_out)
+        for tag in ("Phase B.1", "Stage A.1", "Stage B.1", "Stage M.3", "Stage V.1"):
+            self.assertIn(tag, html_out)
+        for p in pages:
+            self.assertIn(p, html_out)
+
+    def test_generate_roast_index_html_phase_cd_and_f_cleanup(self):
+        r = fake_roast()
+        r["analysis"] = "ttHbb"
+        r["publish"] = {"ok": True, "ts": "2026-11-24 12:00:00"}
+        pages = [
+            "output/ttHbb/PhaseC_FvT/training_summary.html",
+            "output/ttHbb/PhaseC_FvT/plots/index.html",
+            "output/ttHbb/PhaseC_FvT/plots/analyze/index.html",
+            "output/ttHbb/PhaseC_FvT/plots/analyze/HCR/index_group_1.html",
+            "output/ttHbb/PhaseC_4_FvT_closure/plots_ttbar_MC_vs_d3/index.html",
+            "output/ttHbb/PhaseD_SvB/plots/index.html",
+            "output/ttHbb/PhaseD_SvB/plots/analyze/index.html",
+            "output/ttHbb/PhaseD_SvB_MA/plots/index.html",
+            "output/ttHbb/PhaseF_1_analysis/plots_ttbar_MC_vs_d3/index.html",
+            "output/ttHbb/PhaseF_1_analysis/plots_ttbar3b_MC_vs_d3/index.html",
+        ]
+        html_out = roast.generate_roast_index_html(r, pages)
+        self.assertIn("FvT Training &amp; Input Plots Gallery", html_out)
+        self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB)", html_out)
+        self.assertIn("SvB Training &amp; Input Plots Gallery (PhaseD_SvB_MA)", html_out)
+        self.assertNotIn("PhaseC_FvT Loss &amp; ROC Report", html_out)
+        self.assertIn("PhaseD_SvB Loss &amp; ROC Report", html_out)
+        self.assertNotIn("PhaseC_FvT diagnostic plots gallery", html_out)
+        self.assertNotIn("index_group_1.html", html_out)
+        self.assertIn('<div class="featured-tag">Phase F.1</div>', html_out)
+
+    def test_generate_roast_index_html_bkg_syst_cleanup(self):
+        r = fake_roast(step_name="BKG_AB")
+        r["id"] = "ttHbb_bkg_syst_declib16nc_20261113_aaaaaaa-bbbbbbb"
+        r["analysis"] = "ttHbb"
+        r["steps"] = [
+            {"name": "BKG_AB", "host": "cmslpc", "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_AB.smk", "targets": "", "extra": ""},
+            {"name": "BKG_C4", "host": "cmslpc", "snakefile": "coffea4bees/workflows/Snakefile_bkg_syst_C_4_closure.smk", "targets": "", "extra": ""},
+        ]
+        r["publish"] = {"ok": True, "ts": "2026-11-25 12:00:00"}
+        pages = [
+            "logs/BKG_AB_summary.txt",
+            "logs/BKG_C4_rulegraph.svg",
+            "logs/BKG_C4_summary.txt",
+            f"roasts/{r['id']}/index.html",
+            f"output/{r['id']}/bkg_syst_A_3_process_subsamples/validation/plots/index.html",
+            f"output/{r['id']}/bkg_syst_B_1_computeJCM/index.html",
+            f"output/{r['id']}/bkg_syst_B_1_computeJCM/test_v0_closure/plots/index.html",
+            f"output/{r['id']}/bkg_syst_B_1_computeJCM/test_v0_closure/cutflow_noJCM.html",
+            f"output/{r['id']}/bkg_syst_B_1_computeJCM/test_v0_closure/cutflow_wJCM.html",
+            f"output/{r['id']}/bkg_syst_C_FvT/training_summary.html",
+            f"output/{r['id']}/bkg_syst_C_FvT/models/mix_0/yields.html",
+            f"output/{r['id']}/bkg_syst_C_FvT/models/mix_0/plots/index.html",
+            f"output/{r['id']}/bkg_syst_C_FvT/models/mix_0/plots/analyze/index.html",
+            f"output/{r['id']}/bkg_syst_C_FvT/models/mix_0/plots/analyze/HCR/index_group_1.html",
+            f"output/{r['id']}/bkg_syst_C_4_closure/cutflow_FvT_closure.html",
+            f"output/{r['id']}/bkg_syst_C_4_closure/ttbar_MC_vs_d3_cutflow.html",
+            f"output/{r['id']}/bkg_syst_C_4_closure/plots_FvT_closure/index.html",
+            f"output/{r['id']}/bkg_syst_F_1_analysis/hist_crosscheck_bkg_syst_F_1.html",
+            f"output/{r['id']}/bkg_syst_F_1_analysis/plots/gallery.html",
+            f"output/{r['id']}/bkg_syst_F_2_run_two_stage_closure/closure_summary.html",
+            f"output/{r['id']}/bkg_syst_F_2_run_two_stage_closure/summary_SvB.html",
+            f"output/{r['id']}/bkg_syst_F_3_stats/summary.html",
+            f"output/{r['id']}/bkg_syst_F_4_stats_mixeddata/summary.html",
+        ]
+
+        saved_roasts, tmp_roasts = roast.ROASTS, Path(tempfile.mkdtemp())
+        roast.ROASTS = tmp_roasts
+        self.addCleanup(lambda: (setattr(roast, "ROASTS", saved_roasts), shutil.rmtree(tmp_roasts)))
+        (tmp_roasts / r["id"]).mkdir()
+        (tmp_roasts / r["id"] / "config.yml").write_text(
+            "phase_e_fvt:\n  plot_inputs: false\n  plot_weights: false\n"
+        )
+
+        html_out = roast.generate_roast_index_html(r, pages)
+
+        primary_block = html_out.split("Primary Analysis Results", 1)[1].split("Key Visual Plot Galleries", 1)[0]
+        self.assertIn('<div class="featured-tag">Stage C</div>', primary_block)
+        self.assertIn("FvT Training Summary (16 Models)", primary_block)
+        self.assertIn("Cross-sample AUCs, loss curves, and overtraining evaluation metrics", primary_block)
+        self.assertIn('<div class="featured-tag">Stage F.1</div>', primary_block)
+        self.assertIn("Histogram Cross-Check (F vs C.4)", primary_block)
+        self.assertIn("match Stage C.4", primary_block)
+        self.assertNotIn("match Phase C.4", primary_block)
+        self.assertIn("Analysis &amp; SvB Plots Gallery", primary_block)
+        self.assertIn("bkg_syst_F_1_analysis/plots/gallery.html", primary_block)
+        self.assertIn("Open Gallery ↗", primary_block)
+
+        gallery_block = html_out.split("Key Visual Plot Galleries", 1)[1].split("FvT Subsample Models", 1)[0]
+        self.assertIn("Subsample Validation Plots Gallery", gallery_block)
+        self.assertIn('<div class="featured-tag">Stage A.3</div>', gallery_block)
+        self.assertIn("Subsample JCM Fit Plots Gallery", gallery_block)
+        self.assertIn("Subsample JCM Closure Gallery", gallery_block)
+        self.assertEqual(gallery_block.count('<div class="featured-tag">Stage B.1</div>'), 2)
+
+        models_block = html_out.split("FvT Subsample Models", 1)[1].split("Stage C — FvT Classifier", 1)[0]
+        self.assertNotIn("Group Breakdown", models_block)
+        self.assertNotIn("Training Plots", models_block)
+        self.assertNotIn("Plots ↗", models_block)
+        self.assertNotIn("index_group_1.html", models_block)
+        self.assertIn("Yields ↗", models_block)
+        self.assertIn("Loss & ROC ↗", models_block)
+
+        # Duplicate featured dashboards/galleries are excluded from Stage A / Stage F / Stage B / Stage C boxes
+        self.assertNotIn("Stage F —", html_out)
+        self.assertNotIn("Stage A —", html_out)
+        self.assertNotIn("bkg_syst_F_1_analysis plots gallery", html_out)
+        self.assertIn("Cutflow noJCM", html_out)
+        self.assertIn("Cutflow wJCM", html_out)
+        self.assertIn("Cutflow FvT Closure", html_out)
+        self.assertIn("ttbar MC vs d3 Cutflow", html_out)
+        self.assertNotIn("Interactive Results &amp; Galleries", html_out)
+        self.assertIn('href="logs/BKG_C4_rulegraph.svg"', html_out)
+        self.assertIn('href="logs/BKG_AB_summary.txt"', html_out)
+
+        # When plot_inputs is enabled in config.yml, the Training Plots column is retained
+        (tmp_roasts / r["id"] / "config.yml").write_text(
+            "phase_e_fvt:\n  plot_inputs: true\n  plot_weights: false\n"
+        )
+        html_with_plots = roast.generate_roast_index_html(r, pages)
+        models_with_plots = html_with_plots.split("FvT Subsample Models", 1)[1].split("Stage C — FvT Classifier", 1)[0]
+        self.assertIn("Training Plots", models_with_plots)
+        self.assertIn("Plots ↗", models_with_plots)
+
+        ps = roast.copy_settings("publish", CFG, r)
+        copy_sh = roast._copy_script(r, "~/prod/x/barista", "root://eosuser.cern.ch", "/eos/user/u/www/r", ps)
+        self.assertIn("!/^roasts\\//", copy_sh)
+
+    def test_copy_script_dedups_intra_output_symlinks_only(self):
+        import re
+        import subprocess
+
+        r = fake_roast()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ext = root / "external_stage"
+            ext.mkdir(parents=True)
+            (ext / "ext.html").write_text("ext")
+            canon_dir = root / "output" / "ttHbb" / "PhaseC_4_FvT_closure"
+            (canon_dir / "plots").mkdir(parents=True)
+            (canon_dir / "a.html").write_text("canon")
+            (canon_dir / "plots" / "a.png").write_text("canon-png")
+            os.symlink("PhaseC_4_FvT_closure", root / "output" / "ttHbb" / "FvT_closure")
+            os.symlink(str(ext), root / "output" / "ttHbb" / "linked_ext")
+            impacts_dir = root / "output" / "ttHbb" / "PhaseF_2_stats" / "impacts"
+            impacts_dir.mkdir(parents=True)
+            (impacts_dir / "datacard_impacts_page1.png").write_text("impacts")
+            os.symlink("datacard_impacts_page1.png", impacts_dir / "datacard_impacts.png")
+
+            ps = {"include": ["*.html", "*.png"], "exclude": [], "max_mb": 0}
+            script = roast._copy_script(
+                r, str(root), "root://eosuser.cern.ch", "/eos/user/u/www/r", ps, dry_run=True
+            )
+            m = re.search(r"python3 -c '(\nimport os, sys.*?)' \"\$LIST\"", script, re.S)
+            self.assertIsNotNone(m)
+            dedup_py = m.group(1)
+            list_file = root / "files.txt"
+            res = subprocess.check_output(
+                ["bash", "-c", 'find -L output -type f \\( -name "*.html" -o -name "*.png" \\) -print | sort -u > "$1"', "_", str(list_file)],
+                cwd=root,
+                text=True,
+            )
+            subprocess.check_call(["python3", "-c", dedup_py, str(list_file)], cwd=root)
+            kept = set(list_file.read_text().splitlines())
+            self.assertEqual(
+                kept,
+                {
+                    "output/ttHbb/PhaseC_4_FvT_closure/a.html",
+                    "output/ttHbb/PhaseC_4_FvT_closure/plots/a.png",
+                    "output/ttHbb/linked_ext/ext.html",
+                    "output/ttHbb/PhaseF_2_stats/impacts/datacard_impacts_page1.png",
+                    "output/ttHbb/PhaseF_2_stats/impacts/datacard_impacts.png",
+                },
+            )
 
 
 class TestSyncNautilusPublishMode(unittest.TestCase):
@@ -1713,7 +1917,13 @@ class TestAutoDiscoveryDashboardSafetyNet(unittest.TestCase):
                 "publish": {"url": f"https://web.example/prod/{rid}/", "pages": pages}}))
 
         manifest("up_jcm", ["output/x/computeJCM/plots_wJCM/index.html", "roasts/up_jcm/index.html"])
-        manifest("up_fvt", ["output/x/FvT_closure/cutflow_FvT_closure.html"], upstream=["up_jcm"])
+        manifest("up_fvt", [
+            "output/FvT_ttHbb_stitched/yields.html",
+            "output/SvB_ttHbb_stitched/yields.html",
+            "output/SvB_MA_ttHbb_stitched/plots/index.html",
+            "output/SvB_ttHbb_stitched/plots/index.html",
+            "output/x/FvT_closure/cutflow_FvT_closure.html",
+        ], upstream=["up_jcm"])
         r = fake_roast()
         r["inputs"] = {"upstream": [{"id": "up_fvt"}, {"id": "not_here"}],
                        "refs": {"FvT": {"url": "u", "roast": "up_fvt"}}}
@@ -1727,6 +1937,10 @@ class TestAutoDiscoveryDashboardSafetyNet(unittest.TestCase):
         self.assertIn("Upstream Roasts", html_out)
         self.assertIn('href="https://web.example/prod/up_fvt/output/x/FvT_closure/cutflow_FvT_closure.html"', html_out)
         self.assertIn('href="https://web.example/prod/up_jcm/output/x/computeJCM/plots_wJCM/index.html"', html_out)
+        self.assertIn("FvT_ttHbb_stitched / yields", html_out)
+        self.assertIn("SvB_ttHbb_stitched / yields", html_out)
+        self.assertIn("SvB_MA_ttHbb_stitched / plots gallery", html_out)
+        self.assertIn("SvB_ttHbb_stitched / plots gallery", html_out)
         self.assertIn("not published", html_out)
         self.assertNotIn("Upstream Roasts", roast.generate_roast_index_html(fake_roast(), []))
 

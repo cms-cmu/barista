@@ -56,6 +56,7 @@ def resolve_branch(repo_name, target_branch):
 VOMS_PROXY_JOB = """
 voms_proxy:
   stage: setup
+  needs: []
   image: gitlab-registry.cern.ch/cms-cloud/cmssw-docker/al9-cms:latest
   tags:
     - k8s-cvmfs
@@ -221,6 +222,10 @@ variables:
   DATASET: coffea4bees/metadata/datasets/
   CLASSIFIER_WFS: "coffea4bees/classifier/test/config/workflow/CI"
   CLASSIFIER_CONFIG_PATHS: "coffea4bees"
+  MKL_CBWR: "COMPATIBLE"
+  ATEN_CPU_CAPABILITY: "avx2"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
 
 stages:
   - setup
@@ -231,13 +236,12 @@ stages:
   - phaseC
   - phaseD
   - phaseF
-  - skimmer
-  - friendtree
+  - skimmer  # kept until coffea4bees retires stages_skimmer.yml
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
-  - classifier
 
 include:
   - project: 'cms-cmu/coffea4bees'
@@ -311,6 +315,10 @@ variables:
   COFFEA4BEES_BRANCH: '{coffea4bees_ref}'
   BBREWW_BRANCH: '{bbreww_ref}'
   DATASET: coffea4bees/metadata/datasets/
+  MKL_CBWR: "COMPATIBLE"
+  ATEN_CPU_CAPABILITY: "avx2"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
 
 stages:
   - setup
@@ -322,9 +330,9 @@ stages:
   - phaseD
   - phaseF
   - skimmer
-  - friendtree
   - analysis
   - tools
+  - extras
   - plot
   - cutflow
   - classifier

@@ -611,4 +611,52 @@ class TestBlinding:
         assert vals[7] == 10.0 and vals[8] == 10.0 and vals[9] == 10.0
 
 
+class TestCompositeRegionAndContours:
+    def test_srsb_str_category_expands_to_sr_and_sb(self):
+        import hist
+        from types import SimpleNamespace
+        from src.plotting.helpers_make_plot_dict import _apply_intcategory_compat
+
+        h = hist.Hist(
+            hist.axis.StrCategory(["SR", "SB"], name="region"),
+            hist.axis.Regular(10, 0, 100, name="x"),
+        )
+        cfg = SimpleNamespace(plotConfig={"codes": {"region": {"SR": 2, "SB": 1, "SRSB": [1, 2], "other": 0}}})
+        hist_opts = {"region": "SRSB"}
+        _apply_intcategory_compat(h, hist_opts, {"region": "SRSB"}, cfg, {})
+        assert set(hist_opts["region"]) == {"SR", "SB"}
+
+    def test_srsb_int_category_expands_to_locs(self):
+        import hist
+        from types import SimpleNamespace
+        from src.plotting.helpers_make_plot_dict import _apply_intcategory_compat
+
+        h = hist.Hist(
+            hist.axis.IntCategory([0, 1, 2], name="region"),
+            hist.axis.Regular(10, 0, 100, name="x"),
+        )
+        cfg = SimpleNamespace(plotConfig={"codes": {"region": {"SR": 2, "SB": 1, "SRSB": [1, 2], "other": 0}}})
+        hist_opts = {"region": "SRSB"}
+        _apply_intcategory_compat(h, hist_opts, {"region": "SRSB"}, cfg, {})
+        assert isinstance(hist_opts["region"], list)
+        assert len(hist_opts["region"]) == 2
+
+    def test_plot_border_sr_run2_and_run3(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from src.plotting.helpers_make_plot import plot_border_SR
+
+        fig, ax = plt.subplots()
+        plot_border_SR(mode="run2", draw_sb=True, ax=ax)
+        assert len(ax.patches) == 1  # SB rectangle
+        plt.close(fig)
+
+        fig3, ax3 = plt.subplots()
+        plot_border_SR(mode="run3", draw_sb=True, ax=ax3)
+        assert len(ax3.patches) == 2  # SR + SB circles
+        plt.close(fig3)
+
+
+
 

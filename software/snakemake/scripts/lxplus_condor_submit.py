@@ -121,6 +121,24 @@ def build_jdl(jobscript, rule, jobid, threads, resources, gpus, log_dir=LOG_DIR,
     return "\n".join(lines) + "\n"
 
 
+def build_wrapper(jobscript):
+    """Job executable: bind the Kerberos credential directory into the rule container, then run the jobscript.
+
+    HTCondor puts the credential cache in the job scratch directory (KRB5CCNAME=FILE:/pool/condor/dir_N/<user>.cc).
+    The EOS FUSE mount looks the cache up through the root of the calling process, so inside the container that
+    Snakemake starts every /eos path is "Permission denied" unless that directory is bound.
+    """
+    return f"""#!/bin/bash
+cc="${{KRB5CCNAME#FILE:}}"
+if [ -n "$cc" ] && [ -f "$cc" ]; then
+    ccdir="$(dirname "$cc")"
+    export APPTAINER_BINDPATH="${{APPTAINER_BINDPATH:+$APPTAINER_BINDPATH,}}$ccdir"
+    export SINGULARITY_BINDPATH="${{SINGULARITY_BINDPATH:+$SINGULARITY_BINDPATH,}}$ccdir"
+fi
+exec /bin/bash {os.path.abspath(jobscript)}
+"""
+
+
 def main():
     jobscript = sys.argv[-1]
     props = read_job_properties(jobscript)
@@ -138,9 +156,15 @@ def main():
 
     gpus = n_gpus(resources) or 1
     os.makedirs(LOG_DIR, exist_ok=True)
-    jdl_path = os.path.join(LOG_DIR, f"job_{rule}_{jobid}.sub")
+    # Unique per submitting process: two Snakemake runs sharing the working directory can submit the
+    # same rule/jobid at the same moment and would otherwise overwrite each other's submit file.
+    stem = os.path.join(LOG_DIR, f"job_{rule}_{jobid}_p{os.getpid()}")
+    wrapper_path, jdl_path = stem + ".sh", stem + ".sub"
+    with open(wrapper_path, "w") as f:
+        f.write(build_wrapper(jobscript))
+    os.chmod(wrapper_path, 0o755)
     with open(jdl_path, "w") as f:
-        f.write(build_jdl(jobscript, rule, jobid, threads, resources, gpus))
+        f.write(build_jdl(wrapper_path, rule, jobid, threads, resources, gpus))
 
     try:
         result = subprocess.run(["condor_submit", jdl_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
