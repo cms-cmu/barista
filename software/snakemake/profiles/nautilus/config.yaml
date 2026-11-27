@@ -17,13 +17,13 @@ default-resources:
   - "cpu=1"
 
 set-threads:
-  train: 12
+  train: 8
   evaluate: 2
 
 set-resources:
   train:
     gpus: 1
-    cpu: 12
+    cpu: 8
   evaluate:
     gpus: 1
     cpu: 2
