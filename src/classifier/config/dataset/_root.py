@@ -313,6 +313,33 @@ class _fetch:
         return chunk
 
 
+class _load_chunk:
+    """Load one ROOT chunk, run preprocessors, and convert to compact NumPy arrays."""
+
+    def __init__(self, from_root: FromRoot, to_tensor: ToTensor, keep_meta: bool):
+        self._from_root = from_root
+        self._to_tensor = to_tensor
+        self._keep_meta = keep_meta
+
+    def __call__(self, chunk: Chunk):
+        df = self._from_root(chunk)
+        if df is None or len(df) == 0:
+            return None
+        n = len(df)
+        cols = tuple(df.columns)
+        meta_df = None
+        if self._keep_meta:
+            meta_cols = [
+                c
+                for c in df.columns
+                if df[c].dtype != "awkward" and not c.startswith("year_")
+            ]
+            meta_df = df[meta_cols].copy()
+        arrays = self._to_tensor.to_numpy(df, release=True)
+        del df
+        return n, arrays, meta_df, cols
+
+
 class _load_root:
     to_tensor: ToTensor
     postprocessors: list[DFProcessor]
@@ -334,16 +361,108 @@ class _load_root:
         self._max_entries = max_entries
 
     def __call__(self):
-        data = self.load()
-        if len(data) == 0:
+        import gc
+        from concurrent.futures import ProcessPoolExecutor
+
+        import pandas as pd
+
+        from src.classifier.monitor.progress import Progress
+        from src.classifier.process import pool, status
+        from src.data_formats.root import Chunk
+
+        keep_meta = bool(self.postprocessors)
+        with ProcessPoolExecutor(
+            max_workers=self._max_workers,
+            mp_context=status.context,
+            initializer=status.initializer,
+        ) as executor:
+            with Progress.new(
+                total=sum(map(lambda x: len(x[1]), self._from_root)),
+                msg=("files", "Fetching metadata"),
+            ) as progress:
+                chunks = [
+                    list(
+                        pool.map_async(
+                            executor,
+                            _fetch(tree=self._tree, max_entries=self._max_entries),
+                            files,
+                            callbacks=[lambda _: progress_advance(progress)],
+                            preserve_order=self._preserve_order,
+                        )
+                    )
+                    for _, files in self._from_root
+                ]
+            with Progress.new(
+                total=sum(map(len, chain(*chunks))),
+                msg=("events", "Loading"),
+            ) as progress:
+                results = [
+                    *chain(
+                        *(
+                            pool.map_async(
+                                executor,
+                                _load_chunk(
+                                    self._from_root[i][0],
+                                    self.to_tensor,
+                                    keep_meta=keep_meta,
+                                ),
+                                Chunk.balance(
+                                    self._chunksize,
+                                    *chunks[i],
+                                    common_branches=True,
+                                ),
+                                callbacks=[
+                                    lambda x: progress_advance(progress, len(x))
+                                ],
+                                preserve_order=self._preserve_order,
+                            )
+                            for i in range(len(chunks))
+                        )
+                    ),
+                ]
+
+        objs = [r for r in results if r is not None]
+        del results
+        if not objs:
+            logging.info("Loaded <DataFrame>: empty (all chunks filtered or empty)")
             raise ValueError(
                 f"Dataset loaded 0 events. Check that input ROOT files contain "
                 f"the expected branches (e.g. lowpt_fourTag, lowpt_threeTag) "
                 f"and that the event selection is not rejecting all events."
             )
-        for p in self.postprocessors:
-            data = p(data)
-        return self.to_tensor.tensor(data)
+
+        total_entries = sum(r[0] for r in objs)
+        all_cols = set()
+        for r in objs:
+            all_cols.update(r[3])
+        logging.info(
+            "Loaded <DataFrame>:",
+            f"entries: {total_entries}",
+            f"columns: {sorted(all_cols)}",
+        )
+
+        chunk_arrays = [r[1] for r in objs]
+        if keep_meta:
+            meta_dfs = [r[2] for r in objs]
+            del objs
+            meta_df = pd.concat(meta_dfs, ignore_index=True)
+            del meta_dfs
+            for p in self.postprocessors:
+                meta_df = p(meta_df)
+            keep_idx = (
+                meta_df.index.to_numpy() if len(meta_df) != total_entries else None
+            )
+            dataset = self.to_tensor.concat_chunks(chunk_arrays, keep_idx=keep_idx)
+            del chunk_arrays
+            self.to_tensor.refresh_from_df(dataset, meta_df)
+            del meta_df
+        else:
+            del objs
+            dataset = self.to_tensor.concat_chunks(chunk_arrays)
+            del chunk_arrays
+
+        gc.collect()
+        return dataset
 
     def load(self) -> pd.DataFrame:
         from concurrent.futures import ProcessPoolExecutor
