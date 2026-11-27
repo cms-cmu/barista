@@ -155,10 +155,6 @@ def test_to_numpy_release_frees_columns_and_empty_chunks():
 
 
 def test_load_root_zero_events_raises(monkeypatch):
-    class _DummyChunk:
-        def __len__(self):
-            return 0
-
     monkeypatch.setattr("src.data_formats.root.Chunk.balance", lambda *_a, **_kw: [])
     loader = _load_root(
         (_FakeFromRoot({}), []),
@@ -171,3 +167,50 @@ def test_load_root_zero_events_raises(monkeypatch):
     loader.postprocessors = []
     with pytest.raises(ValueError, match="Dataset loaded 0 events"):
         loader()
+
+
+class _FakeChunk:
+    """Mimics Chunk: has __len__ but is intentionally NOT subscriptable."""
+
+    def __init__(self, idx: int, n: int):
+        self.idx = idx
+        self.n = n
+
+    def __len__(self):
+        return self.n
+
+
+class _ChunkMapFromRoot:
+    def __init__(self, dfs: dict[int, pd.DataFrame]):
+        self._dfs = dfs
+
+    def __call__(self, chunk: _FakeChunk):
+        return self._dfs[chunk.idx].copy()
+
+
+def test_load_root_end_to_end_with_chunk_len_callback(monkeypatch):
+    df0 = _make_sample_df(8, seed=21)
+    df1 = _make_sample_df(7, seed=22)
+    c0, c1 = _FakeChunk(0, 8), _FakeChunk(1, 7)
+
+    monkeypatch.setattr(
+        "src.classifier.config.dataset._root._fetch.__call__",
+        lambda _self, path: path,
+    )
+    monkeypatch.setattr(
+        "src.data_formats.root.Chunk.balance",
+        lambda _chunksize, *chunks, **_kw: list(chunks),
+    )
+
+    loader = _load_root(
+        (_ChunkMapFromRoot({0: df0, 1: df1}), [c0, c1]),
+        max_workers=1,
+        chunksize=100,
+        tree="Events",
+        preserve_order=False,
+    )
+    loader.to_tensor = _make_to_tensor()
+    loader.postprocessors = []
+    out = loader()
+    assert out["CanJet"].shape == (15, 4)
+    assert out["ancillary"].shape == (15, 3)
